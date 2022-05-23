@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -95,6 +95,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -113,6 +114,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
 
+    private final Settings settings;
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
@@ -122,6 +124,7 @@ public class RBACEngine implements AuthorizationEngine {
         CompositeRolesStore rolesStore,
         LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
     ) {
+        this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
@@ -523,14 +526,29 @@ public class RBACEngine implements AuthorizationEngine {
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
-            () -> new ParameterizedMessage(
-                "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
-                Strings.arrayToCommaDelimitedString(userRole.names()),
+            () -> format(
+                "Check whether role [%s] has privileges cluster=[%s] index=[%s] application=[%s]",
+                arrayToCommaDelimitedString(userRole.names()),
                 Arrays.toString(privilegesToCheck.cluster()),
                 Arrays.toString(privilegesToCheck.index()),
                 Arrays.toString(privilegesToCheck.application())
             )
         );
+
+        if (userRole instanceof SimpleRole simpleRole) {
+            final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
+            if (result != null) {
+                logger.debug(
+                    () -> format(
+                        "role [%s] has privileges check result in cache for check: [%s]",
+                        arrayToCommaDelimitedString(userRole.names()),
+                        privilegesToCheck
+                    )
+                );
+                listener.onResponse(result);
+                return;
+            }
+        }
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : privilegesToCheck.cluster()) {
@@ -574,9 +592,17 @@ public class RBACEngine implements AuthorizationEngine {
             privilegesByApplication.put(applicationName, resourcePrivsForApplication.getResourceToResourcePrivileges().values());
         }
 
-        listener.onResponse(
-            new PrivilegesCheckResult(allMatch, cluster, allIndices.getResourceToResourcePrivileges(), privilegesByApplication)
+        final PrivilegesCheckResult privilegesCheckResult = new PrivilegesCheckResult(
+            allMatch,
+            cluster,
+            allIndices.getResourceToResourcePrivileges(),
+            privilegesByApplication
         );
+        ActionListener.runBefore(listener, () -> {
+            if (userRole instanceof SimpleRole simpleRole) {
+                simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
+            }
+        }).onResponse(privilegesCheckResult);
     }
 
     @Override
@@ -592,7 +618,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
-        logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
+        logger.trace(() -> "List privileges for role [" + arrayToCommaDelimitedString(userRole.names()) + "]");
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();

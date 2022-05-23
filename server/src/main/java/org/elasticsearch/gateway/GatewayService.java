@@ -11,7 +11,6 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -230,7 +229,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         public void onFailure(final Exception e) {
             logger.log(
                 MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.INFO,
-                () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE),
+                () -> "unexpected failure during [" + TASK_SOURCE + "]",
                 e
             );
             resetRecoveredFlags();

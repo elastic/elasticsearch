@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -41,12 +40,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
+import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
-import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -205,7 +204,7 @@ public class DeploymentManager {
         ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse trained model vocabulary [{}]", hit.getId()), e);
+            logger.error(() -> "failed to parse trained model vocabulary [" + hit.getId() + "]", e);
             throw e;
         }
     }
@@ -236,6 +235,7 @@ public class DeploymentManager {
         TrainedModelDeploymentTask task,
         InferenceConfig config,
         Map<String, Object> doc,
+        boolean skipQueue,
         TimeValue timeout,
         ActionListener<InferenceResults> listener
     ) {
@@ -257,7 +257,11 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, inferenceAction);
+        PriorityProcessWorkerExecutorService.RequestPriority priority = skipQueue
+            ? PriorityProcessWorkerExecutorService.RequestPriority.HIGH
+            : PriorityProcessWorkerExecutorService.RequestPriority.NORMAL;
+
+        executePyTorchAction(processContext, priority, inferenceAction);
     }
 
     public void updateNumAllocations(
@@ -283,12 +287,16 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, controlMessageAction);
+        executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
     }
 
-    public void executePyTorchAction(ProcessContext processContext, AbstractPyTorchAction<?> action) {
+    public void executePyTorchAction(
+        ProcessContext processContext,
+        PriorityProcessWorkerExecutorService.RequestPriority priority,
+        AbstractPyTorchAction<?> action
+    ) {
         try {
-            processContext.getExecutorService().execute(action);
+            processContext.getExecutorService().executeWithPriority(action, priority, action.getRequestId());
         } catch (EsRejectedExecutionException e) {
             processContext.getRejectedExecutionCount().incrementAndGet();
             action.onFailure(e);
@@ -326,7 +334,7 @@ public class DeploymentManager {
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
-        private final ProcessWorkerExecutorService executorService;
+        private final PriorityProcessWorkerExecutorService executorService;
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
@@ -340,7 +348,7 @@ public class DeploymentManager {
                 this.numAllocations = threadSettings.numAllocations();
             });
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-            this.executorService = new ProcessWorkerExecutorService(
+            this.executorService = new PriorityProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
                 "inference process",
                 task.getParams().getQueueCapacity()
@@ -368,7 +376,7 @@ public class DeploymentManager {
                 process.get().kill(true);
                 processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Failed to kill process", task.getModelId()), e);
+                logger.error(() -> "[" + task.getModelId() + "] Failed to kill process", e);
             } finally {
                 if (nlpTaskProcessor.get() != null) {
                     nlpTaskProcessor.get().close();
@@ -403,7 +411,7 @@ public class DeploymentManager {
         }
 
         // accessor used for mocking in tests
-        ExecutorService getExecutorService() {
+        PriorityProcessWorkerExecutorService getExecutorService() {
             return executorService;
         }
 

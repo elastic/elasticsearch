@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -158,10 +157,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             licenseState
                         );
                     } catch (Exception e) {
-                        logger.warn(
-                            new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]", oldPolicy.getName()),
-                            e
-                        );
+                        logger.warn(() -> "unable to refresh indices phase JSON for updated policy [" + oldPolicy.getName() + "]", e);
                         // Revert to the non-refreshed state
                         return nonRefreshedState;
                     }

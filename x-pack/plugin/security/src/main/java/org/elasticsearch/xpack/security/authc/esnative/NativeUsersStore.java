@@ -220,12 +220,9 @@ public class NativeUsersStore {
                         @Override
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
-                                logger.trace(
-                                    new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user),
-                                    t
-                                );
+                                logger.trace(() -> "could not retrieve user [" + user + "] because security index does not exist", t);
                             } else {
-                                logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                                logger.error(() -> "failed to retrieve user [" + user + "]", t);
                             }
                             // We don't invoke the onFailure listener here, instead
                             // we call the response with a null user
@@ -744,7 +741,7 @@ public class NativeUsersStore {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                logger.error(() -> "unable to clear realm cache for user [" + username + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + username + "] failed. please clear the realm cache manually",
                     e
@@ -776,7 +773,7 @@ public class NativeUsersStore {
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error(() -> "error in the format of data for user [" + username + "]", e);
             return null;
         }
     }

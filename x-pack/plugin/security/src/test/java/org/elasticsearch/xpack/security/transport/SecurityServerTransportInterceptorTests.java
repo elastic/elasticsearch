@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -35,8 +36,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -49,6 +54,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -351,6 +363,65 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(authentication.getUser(), securityContext.getUser());
         assertEquals(connectionVersion, authRef.get().getVersion());
         assertEquals(Version.CURRENT, authentication.getVersion());
+    }
+
+    public void testSetUserBasedOnActionOrigin() {
+        final Map<String, User> originToUserMap = Map.of(
+            SECURITY_ORIGIN,
+            XPackSecurityUser.INSTANCE,
+            SECURITY_PROFILE_ORIGIN,
+            SecurityProfileUser.INSTANCE,
+            TRANSFORM_ORIGIN,
+            XPackUser.INSTANCE,
+            ASYNC_SEARCH_ORIGIN,
+            AsyncSearchUser.INSTANCE
+        );
+
+        final String origin = randomFrom(originToUserMap.keySet());
+
+        threadContext.putTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME, origin);
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mock(SSLService.class),
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            )
+        );
+
+        final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        final AtomicReference<Authentication> authenticationRef = new AtomicReference<>();
+        final AsyncSender intercepted = new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                    fail("sender called more than once!");
+                }
+                authenticationRef.set(securityContext.getAuthentication());
+            }
+        };
+        final AsyncSender sender = interceptor.interceptSender(intercepted);
+
+        Transport.Connection connection = mock(Transport.Connection.class);
+        final Version connectionVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        when(connection.getVersion()).thenReturn(connectionVersion);
+
+        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
+        assertThat(calledWrappedSender.get(), is(true));
+        final Authentication authentication = authenticationRef.get();
+        assertThat(authentication, notNullValue());
+        assertThat(authentication.getUser(), equalTo(originToUserMap.get(origin)));
+        assertThat(authentication.getVersion(), equalTo(connectionVersion));
     }
 
     public void testContextRestoreResponseHandler() throws Exception {

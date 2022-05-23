@@ -170,8 +170,14 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+        if (runtimeFields.isEmpty()) {
+            // without runtime fields this is the same as the field type lookup
+            this.indexTimeLookup = fieldTypeLookup;
+        } else {
+            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
         this.objectMappers = Map.copyOf(objects);
@@ -179,12 +185,7 @@ public final class MappingLookup {
         this.completionFields = Set.copyOf(completionFields);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
 
-        mapping.getRoot()
-            .runtimeFields()
-            .stream()
-            .flatMap(RuntimeField::asMappedFieldTypes)
-            .map(MappedFieldType::name)
-            .forEach(this::validateDoesNotShadow);
+        runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
     }
 
     /**

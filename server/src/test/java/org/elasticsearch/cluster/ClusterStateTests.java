@@ -948,7 +948,7 @@ public class ClusterStateTests extends ESTestCase {
                                         true,
                                         ShardRoutingState.STARTED
                                     )
-                                ).build()
+                                )
                             )
                             .build()
                     )

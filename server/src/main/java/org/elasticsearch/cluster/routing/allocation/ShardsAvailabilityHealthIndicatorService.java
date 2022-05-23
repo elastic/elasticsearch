@@ -92,6 +92,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
+    public static final String HELP_URL = "https://ela.st/fix-shard-allocation";
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
@@ -108,6 +110,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     @Override
     public String component() {
         return DATA;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override
@@ -243,8 +250,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
+            + ".data] from each index's settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
         null
     );
 
@@ -253,8 +260,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
+            + ".data] from each index's settings try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
         null
     );
 

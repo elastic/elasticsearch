@@ -296,7 +296,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     )
                 );
             }
-            builder.addIndexShard(indexShard.build());
+            builder.addIndexShard(indexShard);
         }
         return builder.build();
     }
@@ -472,7 +472,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(Metadata metadata);
+        Map<String, T> parts(Metadata metadata);
 
         /**
          * Puts the part back into metadata
@@ -502,7 +502,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> Metadata randomParts(Metadata metadata, String prefix, RandomPart<T> randomPart) {
         Metadata.Builder builder = Metadata.builder(metadata);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
+        Map<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keySet().toArray(new String[0]));
@@ -589,7 +589,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private Metadata randomTemplates(Metadata metadata) {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
-            public ImmutableOpenMap<String, IndexTemplateMetadata> parts(Metadata metadata) {
+            public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
                 return metadata.templates();
             }
 

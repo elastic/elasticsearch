@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -75,9 +76,20 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) throws IOException {
-        return validTile(xTile, yTile, precision)
-            ? geoValue.relate(GeoTileUtils.toBoundingBox(xTile, yTile, precision))
-            : GeoRelation.QUERY_DISJOINT;
+        if (validTile(xTile, yTile, precision)) {
+            final double tiles = 1 << precision;
+            final int minX = GeoEncodingUtils.encodeLongitude(GeoTileUtils.tileToLon(xTile, tiles));
+            final int maxX = GeoEncodingUtils.encodeLongitude(GeoTileUtils.tileToLon(xTile + 1, tiles));
+            final int minY = GeoEncodingUtils.encodeLatitude(GeoTileUtils.tileToLat(yTile + 1, tiles));
+            final int maxY = GeoEncodingUtils.encodeLatitude(GeoTileUtils.tileToLat(yTile, tiles));
+            return geoValue.relate(
+                minX,
+                maxX == Integer.MAX_VALUE ? maxX : maxX - 1,
+                minY == GeoTileUtils.ENCODED_NEGATIVE_LATITUDE_MASK ? minY : minY + 1,
+                maxY
+            );
+        }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     /**

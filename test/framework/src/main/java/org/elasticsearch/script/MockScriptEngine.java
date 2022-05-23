@@ -191,7 +191,7 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        }  else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
+        } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
             UpdateByQueryScript.Factory factory = (parameters, md) -> new UpdateByQueryScript(parameters, md) {
                 @Override
                 public void execute() {

@@ -440,7 +440,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = (params, md) -> new IngestScript(params, md) {
+                IngestScript.Factory factory = (params, metadata) -> new IngestScript(params, metadata) {
                     @Override
                     public void execute() {}
                 };

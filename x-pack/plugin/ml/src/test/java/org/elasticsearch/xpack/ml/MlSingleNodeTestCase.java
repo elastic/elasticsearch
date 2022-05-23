@@ -200,7 +200,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = (vars, md) -> new IngestScript(vars, md) {
+                IngestScript.Factory factory = (vars, metadata) -> new IngestScript(vars, metadata) {
                     @Override
                     public void execute() {}
                 };

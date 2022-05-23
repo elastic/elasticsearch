@@ -152,7 +152,6 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public void execute() {
                     final Map<String, Object> ctx = getCtx();
-                    ctx.put("params", parameters);
                     script.apply(ctx);
                 }
             };

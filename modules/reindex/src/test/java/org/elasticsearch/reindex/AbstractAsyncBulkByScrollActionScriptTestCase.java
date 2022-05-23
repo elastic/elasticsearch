@@ -51,25 +51,28 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
             (params, md) -> new UpdateScript(Collections.emptyMap(), md) {
-            @Override
-            public void execute() {
-                scriptBody.accept(getCtx());
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
             }
-        });
+        );
         when(scriptService.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn(
             (params, md) -> new UpdateByQueryScript(Collections.emptyMap(), md) {
-            @Override
-            public void execute() {
-                scriptBody.accept(getCtx());
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
             }
-        });
+        );
         when(scriptService.compile(any(), eq(ReindexScript.CONTEXT))).thenReturn(
             (params, md) -> new ReindexScript(Collections.emptyMap(), md) {
-            @Override
-            public void execute() {
-                scriptBody.accept(getCtx());
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
             }
-        });
+        );
         AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

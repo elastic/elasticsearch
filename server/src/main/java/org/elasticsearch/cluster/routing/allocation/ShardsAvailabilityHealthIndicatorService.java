@@ -365,9 +365,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 break;
             case NO_ATTEMPT:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
+                    // If shardRouting is delayed and no actions are returned then we CAN allocate the shard,
+                    // but we're just hoping the node comes back first before we do so.
                     actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
-                    // If (shardRouting.unassignedInfo().isDelayed() == false && actions.isEmpty()) then we CAN allocate the shard,
-                    //  but we're just hoping the node comes back first before we do so.
                 }
                 break;
             default:

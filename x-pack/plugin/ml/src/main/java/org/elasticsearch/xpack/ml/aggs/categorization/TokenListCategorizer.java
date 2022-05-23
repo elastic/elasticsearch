@@ -127,11 +127,15 @@ public class TokenListCategorizer implements Accountable {
         // Although this can be done using stream() and collect() with a grouping
         // collector, profiling shows it's faster to use a handcrafted loop.
         int workWeight = 0;
+        int minReweightedTotalWeight = 0;
+        int maxReweightedTotalWeight = 0;
         SortedMap<Integer, TokenAndWeight> groupingMap = new TreeMap<>();
         for (TokenAndWeight weightedTokenId : weightedTokenIds) {
             int tokenId = weightedTokenId.getTokenId();
             int weight = weightedTokenId.getWeight();
             workWeight += weight;
+            minReweightedTotalWeight += WeightCalculator.getMinMatchingWeight(weight);
+            maxReweightedTotalWeight += WeightCalculator.getMaxMatchingWeight(weight);
             // There's a tradeoff here: the map value duplicates the map key. But
             // this means that in the case where a token only occurs once we can
             // reuse the original TokenAndWeight object instead of creating a new
@@ -143,7 +147,16 @@ public class TokenListCategorizer implements Accountable {
         }
         List<TokenAndWeight> workTokenUniqueIds = new ArrayList<>(groupingMap.values());
 
-        return computeCategory(weightedTokenIds, workTokenUniqueIds, workWeight, unfilteredStringLen, unfilteredStringLen, numDocs);
+        return computeCategory(
+            weightedTokenIds,
+            workTokenUniqueIds,
+            workWeight,
+            minReweightedTotalWeight,
+            maxReweightedTotalWeight,
+            unfilteredStringLen,
+            unfilteredStringLen,
+            numDocs
+        );
     }
 
     public TokenListCategory mergeWireCategory(SerializableTokenListCategory serializableCategory) {
@@ -154,6 +167,10 @@ public class TokenListCategorizer implements Accountable {
             foreignCategory.getBaseWeightedTokenIds(),
             foreignCategory.getCommonUniqueTokenIds(),
             foreignCategory.getBaseWeight(),
+            // These next two lines are crude approximations
+            // TODO: improve the calculation of this min and max
+            WeightCalculator.getMinMatchingWeight(foreignCategory.getBaseWeight()),
+            WeightCalculator.getMaxMatchingWeight(foreignCategory.getBaseWeight()),
             foreignCategory.getBaseUnfilteredLength(),
             foreignCategory.getMaxUnfilteredStringLength(),
             foreignCategory.getNumMatches()
@@ -172,14 +189,16 @@ public class TokenListCategorizer implements Accountable {
         List<TokenAndWeight> weightedTokenIds,
         List<TokenAndWeight> workTokenUniqueIds,
         int workWeight,
+        int minReweightedTotalWeight,
+        int maxReweightedTotalWeight,
         int unfilteredStringLen,
         int maxUnfilteredStringLen,
         long numDocs
     ) {
 
         // Determine the minimum and maximum token weight that could possibly match the weight we've got.
-        int minWeight = minMatchingWeight(workWeight, lowerThreshold);
-        int maxWeight = maxMatchingWeight(workWeight, lowerThreshold);
+        int minWeight = minMatchingWeight(minReweightedTotalWeight, lowerThreshold);
+        int maxWeight = maxMatchingWeight(maxReweightedTotalWeight, lowerThreshold);
 
         // We search previous categories in descending order of the number of matches we've seen for them.
         int bestSoFarIndex = -1;
@@ -242,8 +261,8 @@ public class TokenListCategorizer implements Accountable {
                 bestSoFarSimilarity = similarity;
 
                 // Recalculate the minimum and maximum token counts that might produce a better match.
-                minWeight = minMatchingWeight(workWeight, similarity);
-                maxWeight = maxMatchingWeight(workWeight, similarity);
+                minWeight = minMatchingWeight(minReweightedTotalWeight, similarity);
+                maxWeight = maxMatchingWeight(maxReweightedTotalWeight, similarity);
             }
         }
 
@@ -413,6 +432,9 @@ public class TokenListCategorizer implements Accountable {
 
         private static final int MIN_DICTIONARY_LENGTH = 2;
         private static final int CONSECUTIVE_DICTIONARY_WORDS_FOR_EXTRA_WEIGHT = 3;
+        private static final int EXTRA_VERB_WEIGHT = 5;
+        private static final int EXTRA_OTHER_DICTIONARY_WEIGHT = 2;
+        private static final int ADJACENCY_BOOST_MULTIPLIER = 6;
 
         private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
         private int consecutiveHighWeights;
@@ -439,10 +461,24 @@ public class TokenListCategorizer implements Accountable {
                 consecutiveHighWeights = 0;
                 return 1;
             }
-            ++consecutiveHighWeights;
-            int posWeight = (pos == CategorizationPartOfSpeechDictionary.PartOfSpeech.VERB) ? 6 : 3;
-            int adjacencyBoost = (consecutiveHighWeights >= CONSECUTIVE_DICTIONARY_WORDS_FOR_EXTRA_WEIGHT) ? 6 : 0;
-            return posWeight + adjacencyBoost;
+            int posWeight = (pos == CategorizationPartOfSpeechDictionary.PartOfSpeech.VERB)
+                ? EXTRA_VERB_WEIGHT
+                : EXTRA_OTHER_DICTIONARY_WEIGHT;
+            int adjacencyBoost = (++consecutiveHighWeights >= CONSECUTIVE_DICTIONARY_WORDS_FOR_EXTRA_WEIGHT)
+                ? ADJACENCY_BOOST_MULTIPLIER
+                : 1;
+            return 1 + (posWeight * adjacencyBoost);
+        }
+
+        static int getMinMatchingWeight(int weight) {
+            return (weight <= ADJACENCY_BOOST_MULTIPLIER) ? weight : (1 + (weight - 1) / ADJACENCY_BOOST_MULTIPLIER);
+        }
+
+        static int getMaxMatchingWeight(int weight) {
+            return (weight <= Math.min(EXTRA_VERB_WEIGHT, EXTRA_OTHER_DICTIONARY_WEIGHT)
+                || weight > Math.max(EXTRA_VERB_WEIGHT + 1, EXTRA_OTHER_DICTIONARY_WEIGHT + 1))
+                    ? weight
+                    : (1 + (weight - 1) * ADJACENCY_BOOST_MULTIPLIER);
         }
     }
 }

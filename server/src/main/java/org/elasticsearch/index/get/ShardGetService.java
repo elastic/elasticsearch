@@ -206,10 +206,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
             final long now = System.nanoTime();
-            final DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+            final DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.lookupId(
                 searcher.getDirectoryReader(),
-                new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
-                true
+                new Term(IdFieldMapper.NAME, Uid.encodeId(id))
             );
             if (docIdAndVersion == null) {
                 missingMetric.inc(System.nanoTime() - now);

@@ -118,6 +118,21 @@ final class PerThreadIDVersionAndSeqNoLookup {
         }
     }
 
+    public DocIdAndVersion lookupId(BytesRef id, LeafReaderContext context) throws IOException {
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
+        int docID = getDocID(id, context);
+
+        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+            final long seqNo = UNASSIGNED_SEQ_NO;
+            final long term =UNASSIGNED_PRIMARY_TERM;
+            final long version = 1L;
+            return new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
+        } else {
+            return null;
+        }
+    }
+
     /**
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found

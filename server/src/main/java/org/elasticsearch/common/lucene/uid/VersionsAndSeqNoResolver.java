@@ -133,6 +133,28 @@ public final class VersionsAndSeqNoResolver {
         return null;
     }
 
+    /**
+     * Load the internal doc ID and version for the uid from the reader, returning<ul>
+     * <li>null if the uid wasn't found,
+     * <li>a doc ID and a version otherwise
+     * </ul>
+     */
+    public static DocIdAndVersion lookupId(IndexReader reader, Term term) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
+        List<LeafReaderContext> leaves = reader.leaves();
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndVersion result = lookup.lookupId(term.bytes(), leaf);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
     public static DocIdAndVersion loadDocIdAndVersionUncached(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
         List<LeafReaderContext> leaves = reader.leaves();
         for (int i = leaves.size() - 1; i >= 0; i--) {

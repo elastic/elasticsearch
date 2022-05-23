@@ -62,7 +62,7 @@ final class PluginIntrospector {
 
     /**
      * Returns the list of Elasticsearch plugin interfaces implemented by the given plugin
-     * implementation class.
+     * implementation class. The list contains the simple names of the interfaces.
      */
     List<String> interfaces(Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);

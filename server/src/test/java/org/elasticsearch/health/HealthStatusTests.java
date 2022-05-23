@@ -40,6 +40,13 @@ public class HealthStatusTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> HealthStatus.merge(Stream.empty()));
     }
 
+    public void testStatusIndicatesHealthProblem() {
+        assertFalse(GREEN.indicatesHealthProblem());
+        assertFalse(UNKNOWN.indicatesHealthProblem());
+        assertTrue(YELLOW.indicatesHealthProblem());
+        assertTrue(RED.indicatesHealthProblem());
+    }
+
     private static Stream<HealthStatus> randomStatusesContaining(HealthStatus... statuses) {
         var result = new ArrayList<HealthStatus>();
         for (HealthStatus status : statuses) {

@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
@@ -630,8 +631,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     );
                 } else {
                     logger.info(
-                        () -> new ParameterizedMessage(
-                            "periodic maintenance task completed ({} deleted documents out of a total of {})",
+                        () -> format(
+                            "periodic maintenance task completed (%s deleted documents out of a total of %s)",
                             deletes.get(),
                             total.get()
                         )

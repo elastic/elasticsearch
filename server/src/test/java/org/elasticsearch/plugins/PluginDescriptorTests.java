@@ -361,11 +361,11 @@ public class PluginDescriptorTests extends ESTestCase {
 
     public void testPluginListSorted() {
         List<PluginRuntimeInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginRuntimeInfo(newMockDescriptor("c"), null));
-        plugins.add(new PluginRuntimeInfo(newMockDescriptor("b"), null));
-        plugins.add(new PluginRuntimeInfo(newMockDescriptor("e"), null));
-        plugins.add(new PluginRuntimeInfo(newMockDescriptor("a"), null));
-        plugins.add(new PluginRuntimeInfo(newMockDescriptor("d"), null));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("c")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("b")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("e")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("a")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("d")));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginRuntimeInfo> infos = pluginsInfo.getPluginInfos();

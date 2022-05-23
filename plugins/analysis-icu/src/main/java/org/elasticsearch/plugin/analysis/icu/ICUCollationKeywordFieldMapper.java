@@ -48,7 +48,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -273,8 +272,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 stored,
@@ -294,8 +293,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 hiraganaQuaternaryMode,
                 ignoreAbove,
                 nullValue,
-                meta
-            );
+                meta };
         }
 
         private CollatorParams collatorParams() {

@@ -150,6 +150,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -610,7 +611,7 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
                 }
             }
@@ -889,11 +890,7 @@ public final class TokenService {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "Invalidated [{}] for doc [{}]",
-                                            srcPrefix,
-                                            updateResponse.getGetResult().getId()
-                                        )
+                                        () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
                                     );
                                     invalidated.add(updateResponse.getGetResult().getId());
                                 } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
@@ -1212,10 +1209,7 @@ public final class TokenService {
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(
-                                () -> new ParameterizedMessage(
-                                    "updated the original token document to {}",
-                                    updateResponse.getGetResult().sourceAsMap()
-                                )
+                                () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
                             );
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
@@ -2428,7 +2422,7 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> new ParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
+        logger.debug(() -> format("refreshed keys current: %s, keys: %s", currentUsedKeyHash, keyCache.cache.keySet()));
     }
 
     private SecureString generateTokenKey() {

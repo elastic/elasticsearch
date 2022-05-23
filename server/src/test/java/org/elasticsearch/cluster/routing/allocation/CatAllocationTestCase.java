@@ -116,7 +116,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                 shardIdToRouting.put(r.getId(), refData);
             }
             for (IndexShardRoutingTable t : shardIdToRouting.values()) {
-                tableBuilder.addIndexShard(t);
+                tableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(t));
             }
             IndexRoutingTable table = tableBuilder.build();
             routingTableBuilder.add(table);

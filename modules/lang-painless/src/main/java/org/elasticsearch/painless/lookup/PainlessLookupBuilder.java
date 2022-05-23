@@ -20,6 +20,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.AliasAnnotation;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
@@ -374,6 +375,14 @@ public final class PainlessLookupBuilder {
                     }
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                    if (annotations.get(AliasAnnotation.class)instanceof AliasAnnotation alias) {
+                        Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                        if (existing != null) {
+                            throw new IllegalArgumentException(
+                                "Cannot add alias [" + alias.alias() + "] for [" + clazz + "] that shadows class [" + existing + "]"
+                            );
+                        }
+                    }
                 }
             } else if (importedClass != clazz) {
                 throw new IllegalArgumentException(

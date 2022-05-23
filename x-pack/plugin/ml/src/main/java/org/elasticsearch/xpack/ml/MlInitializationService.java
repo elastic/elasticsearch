@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,12 +43,12 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -57,6 +58,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.MachineLearning.AVAILABLE_PROCESSORS_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.CPU_RATIO_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
+import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class MlInitializationService implements ClusterStateListener {
 
@@ -126,10 +128,12 @@ public class MlInitializationService implements ClusterStateListener {
     public void onMaster() {
         mlDailyMaintenanceService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
+        this.isMaster = true;
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
+        this.isMaster = false;
     }
 
     @Override
@@ -142,8 +146,7 @@ public class MlInitializationService implements ClusterStateListener {
 
         final boolean prevIsMaster = this.isMaster;
         if (prevIsMaster != event.localNodeMaster()) {
-            this.isMaster = event.localNodeMaster();
-            if (this.isMaster) {
+            if (event.localNodeMaster()) {
                 onMaster();
             } else {
                 offMaster();
@@ -172,51 +175,65 @@ public class MlInitializationService implements ClusterStateListener {
             List<DiscoveryNode> mlNodes = event.state()
                 .nodes()
                 .stream()
-                .filter(n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE))
+                .filter(
+                    n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
+                        || NodesShutdownMetadata.getShutdowns(event.state())
+                            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+                            .map(allNodes -> allNodes.get(n.getId()))
+                            .isEmpty()
+                )
                 .toList();
-            // Unable to determine ratio and we have ML nodes, calculate ratio and update cluster state
-            if (mlNodes.size() > 0 && mlNodes.get(0).getAttributes().containsKey(CPU_RATIO_NODE_ATTR) == false) {
-                DiscoveryNode biggestMLNode = mlNodes.stream()
-                    .max(Comparator.comparing(n -> NodeLoadDetector.getNodeSize(n).orElse(0L)))
-                    .get();
-                MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
-                try {
-                    long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
-                    long cpu = Long.parseLong(biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR));
-                    if (memory > mlMetadata.getMaxMlNodeSeen()) {
-                        double betterRatio = ((double) memory) / cpu;
-                        clusterService.submitStateUpdateTask(
-                            "update-cpu-ratio",
-                            new UpdateCpuRatioTasks(memory, betterRatio),
-                            ClusterStateTaskConfig.build(Priority.NORMAL, TimeValue.MINUS_ONE),
-                            (currentState, taskContexts) -> {
-                                MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
-                                boolean changed = false;
-                                for (var contexts : taskContexts) {
-                                    if (contexts.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
-                                        currentBuilder.setMaxMlNodeSeen(contexts.getTask().maxNodeSeen());
-                                        currentBuilder.setCpuRatio(contexts.getTask().cpuRatio());
-                                        changed = true;
-                                    }
-                                }
-                                if (changed) {
-                                    return ClusterState.builder(currentState)
-                                        .metadata(
-                                            Metadata.builder(currentState.getMetadata())
-                                                .putCustom(MlMetadata.TYPE, currentBuilder.build())
-                                                .build()
-                                        )
-                                        .build();
-                                }
-                                return currentState;
-                            }
-                        );
+            final MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
+            Optional<UpdateCpuRatioTasks> ratioUpdate = ratioUpdateIfNecessary(mlNodes, mlMetadata);
+            ratioUpdate.ifPresent(
+                updateCpuRatioTasks -> threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                    .execute(() -> updateRatioClusterState(updateCpuRatioTasks, clusterService))
+            );
+        }
+    }
+
+    static void updateRatioClusterState(UpdateCpuRatioTasks ratioUpdate, ClusterService clusterService) {
+        clusterService.submitStateUpdateTask(
+            "update-cpu-ratio",
+            ratioUpdate,
+            ClusterStateTaskConfig.build(Priority.NORMAL, TimeValue.MAX_VALUE),
+            (currentState, taskContexts) -> {
+                MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
+                boolean changed = false;
+                for (var taskContext : taskContexts) {
+                    if (taskContext.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
+                        currentBuilder.setMaxMlNodeSeen(taskContext.getTask().maxNodeSeen());
+                        currentBuilder.setCpuRatio(taskContext.getTask().cpuRatio());
+                        changed = true;
                     }
-                } catch (NumberFormatException ex) {
-                    logger.debug("Unable to parse machine memory and number cpus", ex);
+                    taskContext.success(ActionListener.wrap(cs -> {}, e -> {}));
                 }
+                if (changed) {
+                    return ClusterState.builder(currentState)
+                        .metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, currentBuilder.build()).build())
+                        .build();
+                }
+                return currentState;
+            }
+        );
+    }
+
+    static Optional<UpdateCpuRatioTasks> ratioUpdateIfNecessary(List<DiscoveryNode> mlNodesNotShuttingDown, MlMetadata currentMetadata) {
+        if (mlNodesNotShuttingDown.size() > 0 && mlNodesNotShuttingDown.get(0).getAttributes().containsKey(CPU_RATIO_NODE_ATTR) == false) {
+            DiscoveryNode biggestMLNode = mlNodesNotShuttingDown.stream()
+                .max(Comparator.comparing(n -> NodeLoadDetector.getNodeSize(n).orElse(0L)))
+                .get();
+            try {
+                long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
+                long cpu = Long.parseLong(biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR));
+                if (memory > currentMetadata.getMaxMlNodeSeen()) {
+                    return Optional.of(new UpdateCpuRatioTasks(memory, ((double) memory) / cpu));
+                }
+            } catch (NumberFormatException ex) {
+                logger.debug("Unable to parse machine memory and number cpus", ex);
             }
         }
+        return Optional.empty();
     }
 
     /** For testing */
@@ -289,7 +306,7 @@ public class MlInitializationService implements ClusterStateListener {
                 updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+            String nonHiddenIndicesString = String.join(", ", nonHiddenIndices);
             logger.debug("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(nonHiddenIndices)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)

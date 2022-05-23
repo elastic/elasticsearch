@@ -11,8 +11,30 @@ setup:
                 type: wildcard
 
   - do:
+      indices.create:
+        index:  unindexed
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              test_wc:
+                type: wildcard
+                index: false
+
+  - do:
       bulk:
         index: test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "test_wc": "abc" }
+          { "index": {"_id" : "2"} }
+          { "test_wc": ["adc", "aec"] }
+
+  - do:
+      bulk:
+        index: unindexed
         refresh: true
         body: |
           { "index": {"_id" : "1"} }

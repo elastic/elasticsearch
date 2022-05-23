@@ -9,11 +9,9 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -21,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -41,9 +38,7 @@ final class PluginIntrospector {
         HealthPlugin.class,
         IndexStorePlugin.class,
         IngestPlugin.class,
-        RestInterceptorActionPlugin.class,
         MapperPlugin.class,
-        // MetadataUpgrader.class, // TODO: not sure that we want this?
         NetworkPlugin.class,
         PersistentTaskPlugin.class,
         RecoveryPlannerPlugin.class,
@@ -71,22 +66,12 @@ final class PluginIntrospector {
      */
     List<String> interfaces(Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
-        return interfaceClasses(pluginClass).map(Class::getName).sorted().toList();
+        return interfaceClasses(pluginClass).map(Class::getSimpleName).sorted().toList();
     }
 
     /**
-     * Returns the list of methods overridden by the given plugin implementation class.
-     *
-     * For example, if a plugin implementation class overrides the createComponents method, this
-     * method would return a list containing the string entry:
-     *    org.elasticsearch.plugins.Plugin.createComponents(
-     *      org.elasticsearch.client.internal.Client,org.elasticsearch.cluster.service.ClusterService,
-     *      org.elasticsearch.threadpool.ThreadPool,org.elasticsearch.watcher.ResourceWatcherService,
-     *      org.elasticsearch.script.ScriptService,org.elasticsearch.xcontent.NamedXContentRegistry,
-     *      org.elasticsearch.env.Environment,org.elasticsearch.env.NodeEnvironment,
-     *      org.elasticsearch.common.io.stream.NamedWriteableRegistry,
-     *      org.elasticsearch.cluster.metadata.IndexNameExpressionResolver,
-     *      java.util.function.Supplier)
+     * Returns the list of methods overridden by the given plugin implementation class. The list
+     * contains the simple names of the methods.
      */
     List<String> overriddenMethods(Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
@@ -104,7 +89,7 @@ final class PluginIntrospector {
                         // it's not overridden
                     } else {
                         assert implClass.isAssignableFrom(m.getDeclaringClass());
-                        overriddenMethods.add(methodToString(implClass, mt));
+                        overriddenMethods.add(mt.name());
                     }
                 } catch (NoSuchMethodException unexpected) {
                     throw new AssertionError(unexpected);
@@ -125,15 +110,6 @@ final class PluginIntrospector {
             .filter(m -> Modifier.isStatic(m.getModifiers()) == false)
             .map(m -> new MethodType(m.getName(), m.getParameterTypes()))
             .toList();
-    }
-
-    // Returns a String representation for the given method type in the given class.
-    private static String methodToString(Class<?> cls, MethodType mt) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(cls.getName()).append(".");
-        sb.append(mt.name());
-        sb.append(Arrays.stream(mt.parameterTypes()).map(Type::getTypeName).collect(Collectors.joining(",", "(", ")")));
-        return sb.toString();
     }
 
     // Returns a stream of o.e.XXXPlugin interfaces, that the given plugin class implements.

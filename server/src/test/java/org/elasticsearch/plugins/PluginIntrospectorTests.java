@@ -52,20 +52,20 @@ public class PluginIntrospectorTests extends ESTestCase {
 
     public void testInterfacesBasic() {
         class FooPlugin extends Plugin implements ActionPlugin {}
-        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("org.elasticsearch.plugins.ActionPlugin"));
+        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("ActionPlugin"));
     }
 
     public void testInterfaceExtends() {
         interface BarActionPlugin extends ActionPlugin {}
         class FooPlugin extends Plugin implements BarActionPlugin {}
-        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("org.elasticsearch.plugins.ActionPlugin"));
+        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("ActionPlugin"));
     }
 
     public void testInterfaceExtends2() {
         interface BazAnalysisPlugin extends AnalysisPlugin {}
         interface GusAnalysisPlugin extends BazAnalysisPlugin {}
         class FooPlugin extends Plugin implements GusAnalysisPlugin {}
-        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("org.elasticsearch.plugins.AnalysisPlugin"));
+        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("AnalysisPlugin"));
     }
 
     public void testPluginExtends() {
@@ -73,7 +73,7 @@ public class PluginIntrospectorTests extends ESTestCase {
         abstract class FooPlugin extends AbstractPlugin {}
         abstract class BarPlugin extends FooPlugin {}
         class BazPlugin extends BarPlugin {}
-        assertThat(pluginIntrospector.interfaces(BazPlugin.class), contains("org.elasticsearch.plugins.AnalysisPlugin"));
+        assertThat(pluginIntrospector.interfaces(BazPlugin.class), contains("AnalysisPlugin"));
     }
 
     public void testPluginExtends2() {
@@ -84,12 +84,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(
             pluginIntrospector.interfaces(BazPlugin.class),
-            containsInAnyOrder(
-                "org.elasticsearch.plugins.NetworkPlugin",
-                "org.elasticsearch.plugins.ClusterPlugin",
-                "org.elasticsearch.plugins.DiscoveryPlugin",
-                "org.elasticsearch.plugins.IngestPlugin"
-            )
+            containsInAnyOrder("NetworkPlugin", "ClusterPlugin", "DiscoveryPlugin", "IngestPlugin")
         );
     }
 
@@ -106,7 +101,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 return null;
             }
         }
-        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("org.elasticsearch.plugins.IndexStorePlugin"));
+        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("IndexStorePlugin"));
     }
 
     public void testNameFilter() throws Exception {
@@ -137,7 +132,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         URLClassLoader loader = URLClassLoader.newInstance(urls, PluginIntrospectorTests.class.getClassLoader());
         try {
-            assertThat(pluginIntrospector.interfaces(loader.loadClass("r.FooPlugin")), contains("org.elasticsearch.plugins.ActionPlugin"));
+            assertThat(pluginIntrospector.interfaces(loader.loadClass("r.FooPlugin")), contains("ActionPlugin"));
         } finally {
             PrivilegedOperations.closeURLClassLoader(loader);
         }
@@ -165,16 +160,7 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
         }
 
-        assertThat(pluginIntrospector.overriddenMethods(FooPlugin.class), contains("""
-            org.elasticsearch.plugins.Plugin.createComponents(
-            org.elasticsearch.client.internal.Client,org.elasticsearch.cluster.service.ClusterService,
-            org.elasticsearch.threadpool.ThreadPool,org.elasticsearch.watcher.ResourceWatcherService,
-            org.elasticsearch.script.ScriptService,org.elasticsearch.xcontent.NamedXContentRegistry,
-            org.elasticsearch.env.Environment,org.elasticsearch.env.NodeEnvironment,
-            org.elasticsearch.common.io.stream.NamedWriteableRegistry,
-            org.elasticsearch.cluster.metadata.IndexNameExpressionResolver,
-            java.util.function.Supplier)
-            """.replace("\n", "")));
+        assertThat(pluginIntrospector.overriddenMethods(FooPlugin.class), contains("createComponents"));
     }
 
     public void testOverriddenMethodsBasic2() {
@@ -198,11 +184,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(
             pluginIntrospector.overriddenMethods(BarZPlugin.class),
-            containsInAnyOrder(
-                "org.elasticsearch.plugins.Plugin.additionalSettings()",
-                "org.elasticsearch.plugins.AnalysisPlugin.getTokenFilters()",
-                "org.elasticsearch.plugins.HealthPlugin.getHealthIndicatorServices()"
-            )
+            containsInAnyOrder("additionalSettings", "getTokenFilters", "getHealthIndicatorServices")
         );
     }
 
@@ -221,13 +203,7 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
         }
 
-        assertThat(
-            pluginIntrospector.overriddenMethods(BartPlugin.class),
-            containsInAnyOrder(
-                "org.elasticsearch.plugins.SystemIndexPlugin.getFeatureName()",
-                "org.elasticsearch.plugins.SystemIndexPlugin.getFeatureDescription()"
-            )
-        );
+        assertThat(pluginIntrospector.overriddenMethods(BartPlugin.class), containsInAnyOrder("getFeatureName", "getFeatureDescription"));
     }
 
     // TODO: add more test coverage, and ensure all combinations covered

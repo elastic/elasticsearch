@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
@@ -50,6 +49,9 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
+import static java.lang.String.join;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
@@ -470,12 +472,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 if (result.isAuthenticated()) {
                     final User user = result.getValue();
                     LOGGER.debug(
-                        () -> new ParameterizedMessage(
-                            "Realm [{}] roles [{}] for principal=[{}].",
-                            super.name(),
-                            String.join(",", user.roles()),
-                            principal
-                        )
+                        () -> format("Realm [%s] roles [%s] for principal=[%s].", super.name(), join(",", user.roles()), principal)
                     );
                     if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {

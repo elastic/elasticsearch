@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,10 +34,11 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) {
-        Map<String, MappingMetadata> builder = new HashMap<>(original.mappings());
+        ImmutableOpenMap.Builder<String, MappingMetadata> builder = ImmutableOpenMap.builder();
+        builder.putAllFromMap(original.mappings());
         String indexKey = original.mappings().keySet().iterator().next();
         builder.put(indexKey + "1", createMappingsForIndex());
-        return new GetMappingsResponse(builder);
+        return new GetMappingsResponse(builder.build());
     }
 
     @Override

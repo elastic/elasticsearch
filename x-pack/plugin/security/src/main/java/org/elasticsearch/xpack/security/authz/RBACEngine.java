@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
@@ -96,6 +95,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -526,9 +526,9 @@ public class RBACEngine implements AuthorizationEngine {
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
-            () -> new ParameterizedMessage(
-                "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
-                Strings.arrayToCommaDelimitedString(userRole.names()),
+            () -> format(
+                "Check whether role [%s] has privileges cluster=[%s] index=[%s] application=[%s]",
+                arrayToCommaDelimitedString(userRole.names()),
                 Arrays.toString(privilegesToCheck.cluster()),
                 Arrays.toString(privilegesToCheck.index()),
                 Arrays.toString(privilegesToCheck.application())
@@ -539,9 +539,9 @@ public class RBACEngine implements AuthorizationEngine {
             final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
             if (result != null) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "role [{}] has privileges check result in cache for check: [{}]",
-                        Strings.arrayToCommaDelimitedString(userRole.names()),
+                    () -> format(
+                        "role [%s] has privileges check result in cache for check: [%s]",
+                        arrayToCommaDelimitedString(userRole.names()),
                         privilegesToCheck
                     )
                 );

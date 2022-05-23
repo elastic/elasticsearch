@@ -104,6 +104,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
@@ -336,21 +337,20 @@ public class RestoreService implements ClusterStateApplier {
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
 
-        final Map<String, SystemIndices.Feature> featureSet = systemIndices.getFeatures();
         final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
-            if (featureSet.containsKey(featureName)) {
+            if (systemIndices.getFeatureNames().contains(featureName)) {
                 return true;
             }
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
+                () -> format(
+                    "Restoring snapshot[%s] skipping feature [%s] because it is not available in this cluster",
                     snapshotInfo.snapshotId(),
                     featureName
                 )
             );
             return false;
         })
-            .map(name -> systemIndices.getFeatures().get(name))
+            .map(systemIndices::getFeature)
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .collect(Collectors.toSet());
@@ -654,7 +654,7 @@ public class RestoreService implements ClusterStateApplier {
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet()
             .stream()
-            .filter(featureName -> systemIndices.getFeatures().containsKey(featureName) == false)
+            .filter(s -> systemIndices.getFeatureNames().contains(s) == false)
             .toList();
         if (featuresNotOnThisNode.isEmpty() == false) {
             throw new SnapshotRestoreException(
@@ -682,7 +682,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         return featureStatesToRestore.stream()
-            .map(featureName -> systemIndices.getFeatures().get(featureName))
+            .map(systemIndices::getFeature)
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())

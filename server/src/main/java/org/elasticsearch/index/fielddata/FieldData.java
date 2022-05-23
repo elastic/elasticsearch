@@ -58,29 +58,6 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link SortedNumericDocValues} that doesn't contain any value.
-     */
-    public static SortedNumericDocValues emptySortedNumericDocValues() {
-        return new AbstractSortedNumericDocValues() {
-
-            @Override
-            public long nextValue() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public int docValueCount() {
-                return 0;
-            }
-
-            @Override
-            public boolean advanceExact(int doc) {
-                return false;
-            }
-        };
-    }
-
-    /**
      * Returns a {@link DocValueBits} representing all documents from <code>values</code> that have a value.
      */
     public static DocValueBits docsWithValue(final SortedBinaryDocValues values) {

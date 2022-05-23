@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
@@ -322,80 +321,18 @@ public class Archives {
                 command.add("<<<'" + keystorePassword + "'");
             }
             return sh.runIgnoreExitCode(String.join(" ", command));
-        }
-
-        if (daemonize) {
-            final Path stdout = getPowershellOutputPath(installation);
-            final Path stderr = getPowershellErrorPath(installation);
-
-            String powerShellProcessUserSetup;
-            if (System.getenv("username").equals("vagrant")) {
-                // the tests will run as Administrator in vagrant.
-                // we don't want to run the server as Administrator, so we provide the current user's
-                // username and password to the process which has the effect of starting it not as Administrator.
-                powerShellProcessUserSetup = "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; "
-                    + "$processInfo.Username = 'vagrant'; "
-                    + "$processInfo.Password = $password; ";
-            } else {
-                powerShellProcessUserSetup = "";
-            }
-            // this starts the server in the background. the -d flag is unsupported on windows
-            final String parameterString = parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : "";
-            return sh.run(
-                "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
-                    + "$processInfo.FileName = '"
-                    + bin.elasticsearch
-                    + "'; "
-                    + "$processInfo.Arguments = '-v -p "
-                    + installation.home.resolve("elasticsearch.pid")
-                    + parameterString
-                    + "'; "
-                    + powerShellProcessUserSetup
-                    + "$processInfo.RedirectStandardOutput = $true; "
-                    + "$processInfo.RedirectStandardError = $true; "
-                    + "$processInfo.RedirectStandardInput = $true; "
-                    + sh.env.entrySet()
-                        .stream()
-                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                        .collect(joining())
-                    + "$processInfo.UseShellExecute = $false; "
-                    + "$process = New-Object System.Diagnostics.Process; "
-                    + "$process.StartInfo = $processInfo; "
-                    +
-
-                    // set up some asynchronous output handlers
-                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
-                    + stdout
-                    + "' }; "
-                    + "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
-                    + stderr
-                    + "' }; "
-                    + "$stdOutEvent = Register-ObjectEvent -InputObject $process "
-                    + "-Action $outScript -EventName 'OutputDataReceived'; "
-                    + "$stdErrEvent = Register-ObjectEvent -InputObject $process "
-                    + "-Action $errScript -EventName 'ErrorDataReceived'; "
-                    +
-
-                    "$process.Start() | Out-Null; "
-                    + "$process.BeginOutputReadLine(); "
-                    + "$process.BeginErrorReadLine(); "
-                    + "$process.StandardInput.WriteLine('"
-                    + keystorePassword
-                    + "'); "
-                    + "Wait-Process -Timeout "
-                    + ES_STARTUP_SLEEP_TIME_SECONDS
-                    + " -Id $process.Id; "
-                    + "$process.Id;"
-            );
         } else {
             List<String> command = new ArrayList<>();
             if (keystorePassword != null) {
                 command.add("echo '" + keystorePassword + "' |");
             }
             command.add(bin.elasticsearch.toString());
+            if (daemonize) {
+                command.add("-d");
+            }
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
-            command.add(installation.home.resolve("elasticsearch.pid").toString());
+            command.add(pidFile.toString());
             if (parameters != null && parameters.isEmpty() == false) {
                 command.addAll(parameters);
             }
@@ -434,13 +371,4 @@ public class Archives {
             Files.delete(pidFile);
         }
     }
-
-    public static Path getPowershellErrorPath(Installation installation) {
-        return installation.logs.resolve("output.err");
-    }
-
-    private static Path getPowershellOutputPath(Installation installation) {
-        return installation.logs.resolve("output.out");
-    }
-
 }

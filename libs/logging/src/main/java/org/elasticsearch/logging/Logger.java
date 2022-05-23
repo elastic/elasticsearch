@@ -54,41 +54,41 @@ public interface Logger {
     boolean isFatalEnabled();
 
     /**
-     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#ERROR ERROR} Level.
      *
-     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#ERROR ERROR}, {@code false}
      * otherwise.
      */
     boolean isErrorEnabled();
 
     /**
-     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#WARN WARN} Level.
      *
-     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#WARN WARN}, {@code false}
      * otherwise.
      */
     boolean isWarnEnabled();
 
     /**
-     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#INFO INFO} Level.
      *
-     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#INFO INFO}, {@code false}
      * otherwise.
      */
     boolean isInfoEnabled();
 
     /**
-     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} Level.
      *
-     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#DEBUG DEBUG}, {@code false}
      * otherwise.
      */
     boolean isDebugEnabled();
 
     /**
-     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#TRACE TRACE} Level.
      *
-     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#TRACE TRACE}, {@code false}
      * otherwise.
      */
     boolean isTraceEnabled();
@@ -107,7 +107,6 @@ public interface Logger {
     // -- fatal
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#FATAL FATAL} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.
@@ -211,7 +210,6 @@ public interface Logger {
     // -- error
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#ERROR ERROR} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.
@@ -315,7 +313,6 @@ public interface Logger {
     // -- warn
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#WARN WARN} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.
@@ -419,7 +416,6 @@ public interface Logger {
     // -- info
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#INFO INFO} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.
@@ -523,7 +519,6 @@ public interface Logger {
     // -- debug
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.
@@ -627,7 +622,6 @@ public interface Logger {
     // -- trace
 
     /**
-     * //modified
      * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#TRACE TRACE} level
      *
      * @param messageSupplier A function, which when called, produces the desired log string.

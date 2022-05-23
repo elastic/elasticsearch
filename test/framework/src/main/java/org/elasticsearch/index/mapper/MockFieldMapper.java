@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -71,8 +70,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Collections.emptyList();
+        protected Parameter<?>[] getParameters() {
+            return FieldMapper.EMPTY_PARAMETERS;
         }
 
         public Builder addMultiField(Builder builder) {

@@ -47,7 +47,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2381,16 +2380,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            List.of(
                 new Feature(
                     "ml",
                     "ml indices",
                     List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
-                "watcher",
                 new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
-                "stack-component",
                 new Feature(
                     "stack-component",
                     "stack component",
@@ -2962,14 +2958,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder(".ml-stuff", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "ml",
+            List.of(
                 new Feature(
                     "ml",
                     "ml indices",
                     List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
-                "watcher",
                 new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
             )
         );

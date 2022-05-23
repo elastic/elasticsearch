@@ -239,7 +239,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         IndexScopedSettings indexScopedSettings
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
-        SystemIndices.Feature feature = systemIndices.getFeatures().get(taskState.getCurrentFeature());
+        SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
         IndexMetadata imd = metadata.index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:

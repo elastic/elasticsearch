@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 
 import java.lang.reflect.Method;
@@ -75,6 +76,17 @@ final class PluginIntrospector {
 
     /**
      * Returns the list of methods overridden by the given plugin implementation class.
+     *
+     * For example, if a plugin implementation class overrides the createComponents method, this
+     * method would return a list containing the string entry:
+     *    org.elasticsearch.plugins.Plugin.createComponents(
+     *      org.elasticsearch.client.internal.Client,org.elasticsearch.cluster.service.ClusterService,
+     *      org.elasticsearch.threadpool.ThreadPool,org.elasticsearch.watcher.ResourceWatcherService,
+     *      org.elasticsearch.script.ScriptService,org.elasticsearch.xcontent.NamedXContentRegistry,
+     *      org.elasticsearch.env.Environment,org.elasticsearch.env.NodeEnvironment,
+     *      org.elasticsearch.common.io.stream.NamedWriteableRegistry,
+     *      org.elasticsearch.cluster.metadata.IndexNameExpressionResolver,
+     *      java.util.function.Supplier)
      */
     List<String> overriddenMethods(Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
@@ -105,6 +117,7 @@ final class PluginIntrospector {
     private record MethodType(String name, Class<?>[] parameterTypes) {}
 
     // Returns the non-static methods declared in the given class.
+    @SuppressForbidden(reason = "Need declared methods")
     private static List<MethodType> findMethods(Class<?> cls) {
         assert cls.getName().startsWith("org.elasticsearch.plugins");
         assert cls.isInterface() || cls == Plugin.class : cls;

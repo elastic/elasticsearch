@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -15,15 +16,16 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.INFERENCE_THREADS;
-import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_THREADS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.QUEUE_CAPACITY;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.THREADS_PER_ALLOCATION;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.TIMEOUT;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.WAIT_FOR;
 
@@ -65,8 +67,22 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             request.setWaitForState(
                 AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
             );
-            request.setInferenceThreads(restRequest.paramAsInt(INFERENCE_THREADS.getPreferredName(), request.getInferenceThreads()));
-            request.setModelThreads(restRequest.paramAsInt(MODEL_THREADS.getPreferredName(), request.getModelThreads()));
+            RestCompatibilityChecker.checkAndSetDeprecatedParam(
+                NUMBER_OF_ALLOCATIONS.getDeprecatedNames()[0],
+                NUMBER_OF_ALLOCATIONS.getPreferredName(),
+                RestApiVersion.V_8,
+                restRequest,
+                (r, s) -> r.paramAsInt(s, request.getNumberOfAllocations()),
+                request::setNumberOfAllocations
+            );
+            RestCompatibilityChecker.checkAndSetDeprecatedParam(
+                THREADS_PER_ALLOCATION.getDeprecatedNames()[0],
+                THREADS_PER_ALLOCATION.getPreferredName(),
+                RestApiVersion.V_8,
+                restRequest,
+                (r, s) -> r.paramAsInt(s, request.getThreadsPerAllocation()),
+                request::setThreadsPerAllocation
+            );
             request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
         }
 

@@ -14,6 +14,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -32,7 +33,7 @@ public class RestTestUtil {
     /**
      * Creates a {@link RestIntegTestTask} task with a custom name for the provided source set
      */
-    public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
+    public static TaskProvider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
         // lazily create the test task
         return project.getTasks().register(taskName, RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);

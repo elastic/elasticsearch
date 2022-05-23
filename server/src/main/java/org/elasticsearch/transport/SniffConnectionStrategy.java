@@ -242,7 +242,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         return;
                     }
                 }
-                logger.warn(new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), e);
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
                 listener.onFailure(e);
             };
 
@@ -426,7 +426,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleException(TransportException exp) {
-            logger.warn(new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
+            logger.warn(() -> "fetching nodes from external cluster " + clusterAlias + " failed", exp);
             try {
                 IOUtils.closeWhileHandlingException(connection);
             } finally {

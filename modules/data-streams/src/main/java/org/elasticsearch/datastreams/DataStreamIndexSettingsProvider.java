@@ -7,24 +7,47 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
+
+/**
+ * An {@link IndexSettingProvider} implementation that adds the index.time_series.start_time,
+ * index.time_series.end_time and index.routing_path index settings to backing indices of
+ * data streams in time series index mode.
+ */
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+
+    private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+
+    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+        this.mapperServiceFactory = mapperServiceFactory;
+    }
 
     @Override
     public Settings getAdditionalIndexSettings(
@@ -33,7 +56,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         boolean timeSeries,
         Metadata metadata,
         Instant resolvedAt,
-        Settings allSettings
+        Settings allSettings,
+        List<CompressedXContent> combinedTemplateMappings
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
@@ -84,12 +108,72 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+
+                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+                        && combinedTemplateMappings.isEmpty() == false) {
+                        List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
+                        if (routingPaths != null) {
+                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                        }
+                    }
                     return builder.build();
                 }
             }
         }
 
         return Settings.EMPTY;
+    }
+
+    /**
+     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
+     * Using MapperService here has an overhead, but allows the mappings from template to
+     * be merged correctly and fetching the fields without manually parsing the mappings.
+     *
+     * Alternatively this method can instead parse mappings into map of maps and merge that and
+     * iterate over all values to find the field that can serve as routing value. But this requires
+     * mapping specific logic to exist here.
+     */
+    private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
+        var tmpIndexMetadata = IndexMetadata.builder(indexName);
+
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
+        int dummyShards = allSettings.getAsInt(
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
+        );
+        int shardReplicas = allSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        var finalResolvedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(allSettings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            // Avoid failing because index.routing_path is missing
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .build();
+
+        tmpIndexMetadata.settings(finalResolvedSettings);
+        // Create MapperService just to extract keyword dimension fields:
+        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
+            for (var mapping : combinedTemplateMappings) {
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
+            }
+
+            List<String> routingPaths = null;
+            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
+                if (fieldMapper instanceof KeywordFieldMapper keywordFieldMapper) {
+                    if (keywordFieldMapper.fieldType().isDimension()) {
+                        if (routingPaths == null) {
+                            routingPaths = new ArrayList<>();
+                        }
+                        routingPaths.add(keywordFieldMapper.name());
+                    }
+                }
+            }
+            return routingPaths;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
 }

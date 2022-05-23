@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -93,10 +92,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                                     hasPrivilegeProfiles.add(profileUid);
                                 }
                             }, checkPrivilegesException -> {
-                                logger.debug(
-                                    new ParameterizedMessage("Failed to check privileges for profile [{}]", profileUid),
-                                    checkPrivilegesException
-                                );
+                                logger.debug(() -> "Failed to check privileges for profile [" + profileUid + "]", checkPrivilegesException);
                                 errorProfiles.add(profileUid);
                             }), () -> {
                                 if (counter.decrementAndGet() == 0) {

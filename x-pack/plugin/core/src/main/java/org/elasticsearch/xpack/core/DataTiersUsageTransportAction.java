@@ -203,7 +203,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
         if (allShardStats != null) {
             for (IndexShardStats shardStat : allShardStats) {
-                accumulator.totalByteCount += shardStat.getTotal().getStore().getSizeInBytes();
+                accumulator.totalByteCount += shardStat.getTotal().getStore().totalDataSetSizeInBytes();
                 accumulator.docCount += shardStat.getTotal().getDocs().getCount();
 
                 // Accumulate stats about started shards
@@ -215,7 +215,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     if (primaryStoreStats != null) {
                         // if primaryStoreStats is null, it means there is no primary on the node in question
                         accumulator.primaryShardCount++;
-                        long primarySize = primaryStoreStats.getSizeInBytes();
+                        long primarySize = primaryStoreStats.totalDataSetSizeInBytes();
                         accumulator.primaryByteCount += primarySize;
                         accumulator.valueSketch.add(primarySize);
                     }

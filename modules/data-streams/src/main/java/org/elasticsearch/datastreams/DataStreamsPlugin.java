@@ -134,7 +134,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
-        return List.of(new DataStreamIndexSettingsProvider());
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory()));
     }
 }

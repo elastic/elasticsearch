@@ -109,7 +109,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             ResponseException.class,
             () -> securityClient.putRole(new RoleDescriptor("snapshot_user", new String[] { "all" }, null, new String[] { "*" }))
         );
-        assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be modified"));
+        assertThat(e.getMessage(), containsString("Role [snapshot_user] is reserved and may not be used"));
 
         e = expectThrows(ResponseException.class, () -> securityClient.deleteRole("snapshot_user"));
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be deleted"));

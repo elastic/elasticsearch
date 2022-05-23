@@ -52,6 +52,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.status;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class ResultsPersisterService {
@@ -475,7 +476,7 @@ public class ResultsPersisterService {
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
             String msg = new ParameterizedMessage("failed to {} after [{}] attempts. Will attempt again.", getName(), currentAttempt)
                 .getFormattedMessage();
-            LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+            LOGGER.warn(() -> format("[%s] %s", jobId, msg));
             msgHandler.accept(msg);
             // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
             // Its good to have a random window along the exponentially increasing curve

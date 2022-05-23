@@ -581,8 +581,8 @@ public class PluginDescriptorTests extends ESTestCase {
      * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
      * use the hashcode to catch duplicate names
      */
-    public void testSameNameSameHash() {
-        PluginDescriptor info1 = new PluginDescriptor(
+    public void testPluginEqualityAndHash() {
+        PluginDescriptor descriptor1 = new PluginDescriptor(
             "c",
             "foo",
             "dummy",
@@ -596,56 +596,44 @@ public class PluginDescriptorTests extends ESTestCase {
             "-Dfoo=bar",
             randomBoolean()
         );
-        PluginDescriptor info2 = new PluginDescriptor(
-            info1.getName(),
-            randomValueOtherThan(info1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
-            randomValueOtherThan(info1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            info1.getElasticsearchVersion().previousMajor(),
-            randomValueOtherThan(info1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            randomValueOtherThan(info1.getClassname(), () -> randomAlphaOfLengthBetween(4, 12)),
+        // everything but name is different from descriptor1
+        PluginDescriptor descriptor2 = new PluginDescriptor(
+            descriptor1.getName(),
+            randomValueOtherThan(descriptor1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
+            randomValueOtherThan(descriptor1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
+            descriptor1.getElasticsearchVersion().previousMajor(),
+            randomValueOtherThan(descriptor1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
+            randomValueOtherThan(descriptor1.getClassname(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomAlphaOfLength(6),
             Collections.singletonList(
-                randomValueOtherThanMany(v -> info1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
+                randomValueOtherThanMany(v -> descriptor1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
             ),
-            info1.hasNativeController() == false,
-            randomValueOtherThan(info1.getType(), () -> randomFrom(PluginType.values())),
-            randomValueOtherThan(info1.getJavaOpts(), () -> randomAlphaOfLengthBetween(4, 12)),
-            info1.isLicensed() == false
+            descriptor1.hasNativeController() == false,
+            randomValueOtherThan(descriptor1.getType(), () -> randomFrom(PluginType.values())),
+            randomValueOtherThan(descriptor1.getJavaOpts(), () -> randomAlphaOfLengthBetween(4, 12)),
+            descriptor1.isLicensed() == false
+        );
+        // only name is different from descriptor1
+        PluginDescriptor descriptor3 = new PluginDescriptor(
+            randomValueOtherThan(descriptor1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
+            descriptor1.getDescription(),
+            descriptor1.getVersion(),
+            descriptor1.getElasticsearchVersion(),
+            descriptor1.getJavaVersion(),
+            descriptor1.getClassname(),
+            descriptor1.getModuleName().orElse(null),
+            descriptor1.getExtendedPlugins(),
+            descriptor1.hasNativeController(),
+            descriptor1.getType(),
+            descriptor1.getJavaOpts(),
+            descriptor1.isLicensed()
         );
 
-        assertThat(info1.hashCode(), equalTo(info2.hashCode()));
+        assertThat(descriptor1, equalTo(descriptor2));
+        assertThat(descriptor1.hashCode(), equalTo(descriptor2.hashCode()));
+
+        assertThat(descriptor1, not(equalTo(descriptor3)));
+        assertThat(descriptor1.hashCode(), not(equalTo(descriptor3.hashCode())));
     }
 
-    public void testDifferentNameDifferentHash() {
-        PluginDescriptor info1 = new PluginDescriptor(
-            "c",
-            "foo",
-            "dummy",
-            Version.CURRENT,
-            "1.8",
-            "dummyclass",
-            null,
-            Collections.singletonList("foo"),
-            randomBoolean(),
-            PluginType.ISOLATED,
-            "-Dfoo=bar",
-            randomBoolean()
-        );
-        PluginDescriptor info2 = new PluginDescriptor(
-            randomValueOtherThan(info1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
-            info1.getDescription(),
-            info1.getVersion(),
-            info1.getElasticsearchVersion(),
-            info1.getJavaVersion(),
-            info1.getClassname(),
-            info1.getModuleName().orElse(null),
-            info1.getExtendedPlugins(),
-            info1.hasNativeController(),
-            info1.getType(),
-            info1.getJavaOpts(),
-            info1.isLicensed()
-        );
-
-        assertThat(info1.hashCode(), not(equalTo(info2.hashCode())));
-    }
 }

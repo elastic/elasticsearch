@@ -28,6 +28,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
@@ -58,6 +59,7 @@ import java.util.function.LongSupplier;
  * <ul>
  *   <li>Overriding Version.CURRENT</li>
  *   <li>Adding test plugins that exist on the classpath</li>
+ *   <li>Swapping in various mock services</li>
  * </ul>
  */
 public class MockNode extends Node {
@@ -99,7 +101,7 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        super(environment, settings -> new MockPluginsService(settings, environment, classpathPlugins), forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
 

@@ -292,21 +292,26 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
 
+    /**
+     * Constructs a node
+     *
+     * @param environment         the initial environment for this node, which will be added to by plugins
+     */
     public Node(Environment environment) {
-        this(environment, Collections.emptyList(), true);
+        this(environment, PluginsService.getPluginsServiceCtor(environment), true);
     }
 
     /**
      * Constructs a node
      *
      * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
-     * @param classpathPlugins           the plugins to be loaded from the classpath
+     * @param pluginServiceCtor          a function that takes a {@link Settings} object and returns a {@link PluginsService}
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
     protected Node(
         final Environment initialEnvironment,
-        Collection<Class<? extends Plugin>> classpathPlugins,
+        final Function<Settings, PluginsService> pluginServiceCtor,
         boolean forbidPrivateIndexSettings
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
@@ -381,13 +386,7 @@ public class Node implements Closeable {
                 );
             }
 
-            this.pluginsService = new PluginsService(
-                tmpSettings,
-                initialEnvironment.configFile(),
-                initialEnvironment.modulesFile(),
-                initialEnvironment.pluginsFile(),
-                classpathPlugins
-            );
+            this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*
@@ -497,16 +496,11 @@ public class Node implements Closeable {
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
-            final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)
-                .stream()
-                .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
-                .collect(
-                    Collectors.toUnmodifiableMap(
-                        SystemIndexPlugin::getFeatureName,
-                        plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
-                    )
-                );
-            final SystemIndices systemIndices = new SystemIndices(featuresMap);
+            final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
+                SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
+                return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
+            }).toList();
+            final SystemIndices systemIndices = new SystemIndices(features);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 
             ModulesBuilder modules = new ModulesBuilder();

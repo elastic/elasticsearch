@@ -59,6 +59,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportCloseJobAction extends TransportTasksAction<
     JobTask,
     CloseJobAction.Request,
@@ -196,10 +198,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 jobTask.getId(),
                                                 ActionListener.wrap(
                                                     r -> logger.trace(
-                                                        () -> new ParameterizedMessage(
-                                                            "[{}] removed task to close unassigned job",
-                                                            resolvedJobId
-                                                        )
+                                                        () -> format("[%s] removed task to close unassigned job", resolvedJobId)
                                                     ),
                                                     e -> logger.error(
                                                         () -> new ParameterizedMessage(

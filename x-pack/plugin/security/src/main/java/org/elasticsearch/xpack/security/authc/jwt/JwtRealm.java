@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
@@ -113,21 +112,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.jwtCache = this.buildJwtCache();
         this.jwtCacheHelper = (this.jwtCache == null) ? null : new CacheIteratorHelper<>(this.jwtCache);
-
-        // Validate this realm uses a principal claim that is in the allowlist for all JWT realms
-        if (this.jwtRealms.getPrincipalClaimNames().contains(this.claimParserPrincipal.getClaimName()) == false) {
-            throw new SettingsException(
-                "JWT Realm setting ["
-                    + realmConfig.getSetting(JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim())
-                    + "] value ["
-                    + this.claimParserPrincipal.getClaimName()
-                    + "] is not in the allow-list JWT Realms setting ["
-                    + JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getRawKey()
-                    + "] value ["
-                    + String.join(",", this.jwtRealms.getPrincipalClaimNames())
-                    + "]"
-            );
-        }
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(

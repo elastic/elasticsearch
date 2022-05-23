@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.util.set.Sets;
@@ -152,6 +152,7 @@ public class TokenListCategory implements Accountable {
         // As well as being unique, the unique token IDs must be in the base token IDs.
         assert uniqueTokenIds.stream().map(TokenAndWeight::getTokenId).distinct().count() == uniqueTokenIds.size()
             : "Unique token IDs contains duplicates " + uniqueTokenIds;
+        assert isSorted(uniqueTokenIds) : "Unique token IDs is not sorted " + uniqueTokenIds;
         assert Sets.intersection(
             uniqueTokenIds.stream().map(TokenAndWeight::getTokenId).collect(Collectors.toSet()),
             baseWeightedTokenIds.stream().map(TokenAndWeight::getTokenId).collect(Collectors.toSet())
@@ -206,6 +207,7 @@ public class TokenListCategory implements Accountable {
         List<TokenAndWeight> uniqueTokenIds,
         long numMatches
     ) {
+        assert isSorted(uniqueTokenIds) : "Unique token IDs is not sorted " + uniqueTokenIds;
         assert numMatches > 0 : "number of matches must be positive, got " + numMatches;
         mergeWith(unfilteredLength, weightedTokenIds, 0, weightedTokenIds.size(), uniqueTokenIds, numMatches);
     }
@@ -257,27 +259,33 @@ public class TokenListCategory implements Accountable {
      * both lists in parallel looking for differences.
      */
     private void updateCommonUniqueTokenIds(List<TokenAndWeight> newUniqueTokenIds) {
+        assert commonUniqueTokenWeight == commonUniqueTokenIds.stream().mapToInt(TokenAndWeight::getWeight).sum()
+            : "commonUniqueTokenWeight not up to date";
+
+        commonUniqueTokenWeight = 0;
 
         int initialSize = commonUniqueTokenIds.size();
+        int commonIndex = 0;
         int newIndex = 0;
         int outputIndex = 0;
 
-        for (int commonIndex = 0; commonIndex < initialSize; ++commonIndex) {
-            TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
-            TokenAndWeight newTokenAndWeight;
-            if (newIndex >= newUniqueTokenIds.size()
-                || commonTokenAndWeight.getTokenId() < (newTokenAndWeight = newUniqueTokenIds.get(newIndex)).getTokenId()) {
-                commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
-            } else {
-                if (commonTokenAndWeight.getTokenId() == newTokenAndWeight.getTokenId()) {
-                    if (commonTokenAndWeight.getWeight() == newTokenAndWeight.getWeight()) {
-                        commonUniqueTokenIds.set(outputIndex++, commonTokenAndWeight);
-                    } else {
-                        commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
-                    }
-                }
-                ++newIndex;
+        while (commonIndex < initialSize) {
+            if (newIndex >= newUniqueTokenIds.size()) {
+                ++commonIndex;
+                continue;
             }
+            TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
+            int cmp = commonTokenAndWeight.compareTo(newUniqueTokenIds.get(newIndex));
+            if (cmp < 0) {
+                ++commonIndex;
+                continue;
+            }
+            if (cmp == 0) {
+                commonUniqueTokenIds.set(outputIndex++, commonTokenAndWeight);
+                commonUniqueTokenWeight += commonTokenAndWeight.getWeight();
+                ++commonIndex;
+            }
+            ++newIndex;
         }
         if (outputIndex < initialSize) {
             commonUniqueTokenIds.subList(outputIndex, initialSize).clear();
@@ -286,6 +294,8 @@ public class TokenListCategory implements Accountable {
             assert outputIndex == initialSize
                 : "should be impossible for output index to exceed initial size, but got " + outputIndex + " > " + initialSize;
         }
+        assert commonUniqueTokenWeight == commonUniqueTokenIds.stream().mapToInt(TokenAndWeight::getWeight).sum()
+            : "commonUniqueTokenWeight not up to date";
     }
 
     /**
@@ -360,7 +370,7 @@ public class TokenListCategory implements Accountable {
                     if (newToken.getTokenId() != baseToken.getTokenId()) {
                         ++newIndex;
                     } else {
-                        tryWeight += newToken.getWeight() + baseToken.getWeight();
+                        tryWeight += baseToken.getWeight();
                         break;
                     }
                 }
@@ -484,26 +494,25 @@ public class TokenListCategory implements Accountable {
     }
 
     public int missingCommonTokenWeight(List<TokenAndWeight> uniqueTokenIds) {
+        assert isSorted(uniqueTokenIds) : "Unique token IDs is not sorted " + uniqueTokenIds;
+
         int presentWeight = 0;
 
         int commonIndex = 0;
         int testIndex = 0;
         while (commonIndex < commonUniqueTokenIds.size() && testIndex < uniqueTokenIds.size()) {
-            switch (Integer.signum(commonUniqueTokenIds.get(commonIndex).compareTo(uniqueTokenIds.get(testIndex)))) {
-                case -1 -> ++commonIndex;
-                case 0 -> {
-                    // Don't increment the weight if a given token appears a different
-                    // number of times in the two strings.
-                    int testWeight = uniqueTokenIds.get(testIndex).getWeight();
-                    if (commonUniqueTokenIds.get(commonIndex).getWeight() == testWeight) {
-                        presentWeight += testWeight;
-                    }
-                    ++commonIndex;
-                    ++testIndex;
-                }
-                case 1 -> ++testIndex;
-                default -> throw new IllegalStateException("signum should not return numbers other than -1, 0 and 1");
+            TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
+            int cmp = commonTokenAndWeight.compareTo(uniqueTokenIds.get(testIndex));
+            if (cmp < 0) {
+                ++commonIndex;
+                continue;
             }
+            if (cmp == 0) {
+                // If the token ID matches then consider the token present even if the weight in the test list is different.
+                presentWeight += commonTokenAndWeight.getWeight();
+                ++commonIndex;
+            }
+            ++testIndex;
         }
 
         // The missing weight will be the total weight less the weight of those
@@ -538,6 +547,7 @@ public class TokenListCategory implements Accountable {
      * @return Is every common unique token for this category present with the same weight in the supplied {@code uniqueTokenIds}?
      */
     public boolean isMissingCommonTokenWeightZero(List<TokenAndWeight> uniqueTokenIds) {
+        assert isSorted(uniqueTokenIds) : "Unique token IDs is not sorted " + uniqueTokenIds;
 
         int uniqueTokenIdsSize = uniqueTokenIds.size();
         int testIndex = 0;
@@ -551,8 +561,7 @@ public class TokenListCategory implements Accountable {
                     return false;
                 }
             }
-            if (testTokenAndWeight.getTokenId() != commonTokenAndWeight.getTokenId()
-                || testTokenAndWeight.getWeight() != commonTokenAndWeight.getWeight()) {
+            if (testTokenAndWeight.getTokenId() != commonTokenAndWeight.getTokenId()) {
                 return false;
             }
             ++testIndex;
@@ -713,5 +722,16 @@ public class TokenListCategory implements Accountable {
         public String toString() {
             return "{" + tokenId + ", " + weight + "}";
         }
+    }
+
+    static boolean isSorted(List<TokenAndWeight> list) {
+        TokenAndWeight previousTokenAndWeight = null;
+        for (TokenAndWeight tokenAndWeight : list) {
+            if (previousTokenAndWeight != null && tokenAndWeight.compareTo(previousTokenAndWeight) < 0) {
+                return false;
+            }
+            previousTokenAndWeight = tokenAndWeight;
+        }
+        return true;
     }
 }

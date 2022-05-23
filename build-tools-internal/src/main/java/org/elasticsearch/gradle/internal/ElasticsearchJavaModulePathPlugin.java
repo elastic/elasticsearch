@@ -23,6 +23,7 @@ import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.compile.JavaCompile;
@@ -162,6 +163,11 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                 extraArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor");
             }
             return List.copyOf(extraArgs);
+        }
+
+        @CompileClasspath
+        public FileCollection getModulePath() {
+            return modulePath;
         }
 
         @Internal

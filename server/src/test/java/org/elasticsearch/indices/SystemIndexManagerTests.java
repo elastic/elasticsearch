@@ -42,7 +42,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -102,10 +101,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "index 1",
+            List.of(
                 new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-                "index 2",
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
@@ -147,10 +144,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "index 1",
+            List.of(
                 new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-                "index 2",
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
@@ -169,7 +164,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
@@ -181,7 +176,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade unhealthy indices.
      */
     public void testManagerSkipsIndicesWithRedStatus() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(manager.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR), equalTo(UpgradeStatus.UNHEALTHY));
@@ -192,7 +187,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_UPGRADE));
@@ -202,7 +197,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR), equalTo(UpgradeStatus.UP_TO_DATE));
@@ -212,7 +207,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(
@@ -225,7 +220,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where the mappings metadata is null or absent.
      */
     public void testManagerProcessesIndicesWithNullMetadata() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(
@@ -238,7 +233,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
      */
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(
@@ -251,7 +246,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0"))))));
@@ -263,7 +258,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that this
      */
     public void testCanHandleIntegerMetaVersion() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(

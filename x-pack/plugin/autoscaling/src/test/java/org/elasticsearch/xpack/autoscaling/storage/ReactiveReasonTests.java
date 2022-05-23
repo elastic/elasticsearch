@@ -34,7 +34,7 @@ public class ReactiveReasonTests extends ESTestCase {
         long unassigned = randomNonNegativeLong();
         long assigned = randomNonNegativeLong();
         String indexUUID = UUIDs.randomBase64UUID();
-        SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 8));
+        SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 600));
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
@@ -54,7 +54,18 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(reason, map.get("reason"));
             assertEquals(unassigned, map.get("unassigned"));
             assertEquals(assigned, map.get("assigned"));
-            assertEquals(unassignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("unassigned_shard_ids"));
+
+            List<String> xContentUnassignedShardIds = (List<String>) map.get("unassigned_shards");
+            assertEquals(
+                unassignedShardIds.stream()
+                    .map(ShardId::toString)
+                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_ASSIGNED_SHARD_IDS)
+                    .toList(),
+                xContentUnassignedShardIds
+            );
+            assertSorted(xContentUnassignedShardIds.stream().map(ShardId::fromString).toList());
+            assertEquals(unassignedShardIds.size(), map.get("unassigned_shards_count"));
+
             List<String> xContentAssignedShardIds = (List<String>) map.get("assigned_shards");
             assertEquals(
                 assignedShardIds.stream()

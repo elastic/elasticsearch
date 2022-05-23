@@ -189,10 +189,6 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    private DesiredNodes.MembershipInformation createDesiredNodesMembershipInformation(Set<DesiredNode> members) {
-        return new DesiredNodes.MembershipInformation(new DesiredNodes(randomAlphaOfLength(10), 1, List.copyOf(members)), members);
-    }
-
     public void testTierNodesPresent() {
         DiscoveryNodes nodes = DiscoveryNodes.builder().build();
 
@@ -425,6 +421,41 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 equalTo(Optional.of("data_cold"))
             );
         }
+
+        {
+            // Ensure that when we are removing a tier and growing the next preferred tier we wait until all the new
+            // nodes have joined the cluster avoiding filling the new nodes with shards from the removed tier
+            final var nodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(COLD_NODE).build();
+            final var newWarmNode = newDesiredNode("node-warm-2", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+            final var desiredNodesMembershipInfo = new DesiredNodes.MembershipInformation(
+                new DesiredNodes("history", 1, List.of(HOT_DESIRED_NODE, WARM_DESIRED_NODE, newWarmNode)),
+                Set.of(HOT_DESIRED_NODE, WARM_DESIRED_NODE)
+            );
+
+            assertThat(
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data_cold,data_warm"),
+                    nodes,
+                    desiredNodesMembershipInfo
+                ),
+                equalTo(Optional.of("data_cold"))
+            );
+
+            // Once all the nodes have joined, we can move the shard to the next tier (warm in this case)
+            final var updatedDesiredNodesMembershipInfo = new DesiredNodes.MembershipInformation(
+                new DesiredNodes("history", 2, List.of(HOT_DESIRED_NODE, WARM_DESIRED_NODE, newWarmNode)),
+                Set.of(HOT_DESIRED_NODE, WARM_DESIRED_NODE, newWarmNode)
+            );
+
+            assertThat(
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data_cold,data_warm"),
+                    nodes,
+                    updatedDesiredNodesMembershipInfo
+                ),
+                equalTo(Optional.of("data_warm"))
+            );
+        }
     }
 
     public void testFrozenIllegalForRegularIndices() {
@@ -555,6 +586,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             ByteSizeValue.ONE,
             Version.CURRENT
         );
+    }
+
+    private DesiredNodes.MembershipInformation createDesiredNodesMembershipInformation(Set<DesiredNode> members) {
+        return new DesiredNodes.MembershipInformation(new DesiredNodes(randomAlphaOfLength(10), 1, List.copyOf(members)), members);
     }
 
     private void assertAllocationDecision(

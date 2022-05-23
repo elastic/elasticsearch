@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesReq
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -21,9 +20,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -32,28 +30,40 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(DataTierTelemetryPlugin.class);
+    }
+
+    @Before
+    public void setUpMasterNode() {
+        // Ensure that master nodes cannot hold any data
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startMasterOnlyNode();
     }
 
     public void testDefaultIndexAllocateToContent() {
@@ -85,103 +95,129 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     public void testDesiredNodesAreConsideredDuringAllocation() throws Exception {
-        final var initialNodes = client().admin().cluster().prepareState().get().getState().nodes().stream().toList();
-
-        assertThat(initialNodes.size(), is(equalTo(1)));
-
-        final var masterNode = initialNodes.get(0);
-
         final var warmDesiredNode = desiredNode(randomAlphaOfLength(10), DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
         final var coldDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
-        final var masterDesiredNode = desiredNode(masterNode.getName(), DiscoveryNodeRole.MASTER_ROLE);
+        final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
         updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
 
         startWarmOnlyNode(warmDesiredNode.externalId());
         final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
-            .setWaitForActiveShards(0)
-            .setSettings(
-                Settings.builder()
-                    .put(DataTier.TIER_PREFERENCE, String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM))
-                    .put("index.routing.allocation.exclude._name", masterNode.getName()) // Exclude nodes we're not interested in
-                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            )
-            .get();
+        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM);
 
         ensureGreen(index);
 
-        assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode);
+        assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
 
         // Remove the cold tier
         updateDesiredNodes(masterDesiredNode, warmDesiredNode);
 
+        // Simulate the shutdown API and exclude the cold node that will be decommissioned from the allocation
         client().admin()
             .indices()
             .prepareUpdateSettings(index)
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.exclude._name", String.join(",", masterNode.getName(), coldNodeName))
-                    .build()
-            )
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
             .get();
 
-        assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, warmDesiredNode));
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
 
         ensureGreen(index);
     }
 
-    public void testGrowAndShrinkSingleNodeInTier() throws Exception {
-        final var initialNodes = client().admin().cluster().prepareState().get().getState().nodes().stream().toList();
-
-        assertThat(initialNodes.size(), is(equalTo(1)));
-
-        final var masterNode = initialNodes.get(0);
-
-        final var warmDesiredNode = desiredNode(randomAlphaOfLength(10), DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
-        final var coldDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
-        final var masterDesiredNode = desiredNode(masterNode.getName(), DiscoveryNodeRole.MASTER_ROLE);
+    public void testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState() throws Exception {
+        final var warmDesiredNode = desiredNode("warn-node-0", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var coldDesiredNode = desiredNode("cold-node-0", DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
         updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
 
         startWarmOnlyNode(warmDesiredNode.externalId());
         final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
 
+        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM);
+
+        ensureGreen(index);
+
+        assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+
+        // Remove the cold tier and grow the warm tier
+        final List<DesiredNode> newWarmNodes = new ArrayList<>();
+        for (int i = 1; i <= randomIntBetween(1, 5); i++) {
+            newWarmNodes.add(desiredNode("warm-node-" + i, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        }
+        final List<DesiredNode> newDesiredNodes = new ArrayList<>(newWarmNodes);
+        newDesiredNodes.add(masterDesiredNode);
+        newDesiredNodes.add(warmDesiredNode);
+        updateDesiredNodes(newDesiredNodes);
+
+        // Simulate the shutdown API and exclude the cold node that will be decommissioned from the allocation
         client().admin()
             .indices()
-            .prepareCreate(index)
-            .setWaitForActiveShards(0)
-            .setSettings(
-                Settings.builder()
-                    .put(DataTier.TIER_PREFERENCE, String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM))
-                    .put("index.routing.allocation.exclude._name", masterNode.getName()) // Exclude nodes we're not interested in
-                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            )
+            .prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
             .get();
 
         ensureGreen(index);
 
-        assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode);
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
 
-        final var newColdDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        for (DesiredNode newWarmNode : newWarmNodes) {
+            startWarmOnlyNode(newWarmNode.externalId());
+        }
+
+        ensureGreen(index);
+
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+    }
+
+    public void testSimpleAllocationDecisionWithDesiredNodes() {
+        final var warmDesiredNode = desiredNode("warn-node-0", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var warmDesiredNode2 = desiredNode("warn-node-1", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
+        updateDesiredNodes(warmDesiredNode, warmDesiredNode2, masterDesiredNode);
+
+        startWarmOnlyNode(warmDesiredNode.externalId());
+
+        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM);
+
+        ensureGreen(index);
+
+        assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+    }
+
+    public void testGrowAndShrinkSingleNodeInTier() throws Exception {
+        final var warmDesiredNode = desiredNode("warm-node", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var coldDesiredNode = desiredNode("cold-node-1", DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
+        updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
+
+        startWarmOnlyNode(warmDesiredNode.externalId());
+        var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
+
+        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM);
+
+        ensureGreen(index);
+
+        assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+
+        final var newColdDesiredNode = desiredNode("cold-node-2", DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
         updateDesiredNodes(warmDesiredNode, newColdDesiredNode, masterDesiredNode);
 
+        // Exclude the node that we want to decommission, so it can move to the new cold node
         client().admin()
             .indices()
             .prepareUpdateSettings(index)
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.exclude._name", String.join(",", masterNode.getName(), coldNodeName))
-                    .build()
-            )
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
             .get();
 
-        assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode));
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
 
         startColdOnlyNode(newColdDesiredNode.externalId());
 
+        ensureGreen(index);
+
         assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, newColdDesiredNode));
+
+        internalCluster().stopNode(coldNodeName);
 
         ensureGreen(index);
     }
@@ -458,17 +494,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         internalCluster().startNode(nodeSettings);
     }
 
-    private DesiredNode desiredNode(DiscoveryNodeRole... roles) {
-        assertThat(roles.length, is(greaterThan(0)));
-
-        final var nodeRoles = Arrays.stream(roles).map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","));
-        final var settings = Settings.builder()
-            .put(NODE_ROLES_SETTING.getKey(), nodeRoles)
-            .put(NODE_EXTERNAL_ID_SETTING.getKey(), randomAlphaOfLength(14))
-            .build();
-        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
-    }
-
     private DesiredNode desiredNode(String externalId, DiscoveryNodeRole... roles) {
         assertThat(roles.length, is(greaterThan(0)));
 
@@ -476,22 +501,60 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         final var settings = Settings.builder()
             .put(NODE_ROLES_SETTING.getKey(), nodeRoles)
             .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
+            .put(NODE_NAME_SETTING.getKey(), externalId)
             .build();
         return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
     }
 
     private void updateDesiredNodes(DesiredNode... desiredNodes) {
         assertThat(desiredNodes.length, is(greaterThan(0)));
+        updateDesiredNodes(Arrays.asList(desiredNodes));
+    }
 
-        final var request = new UpdateDesiredNodesRequest(randomAlphaOfLength(10), 1, Arrays.asList(desiredNodes));
+    private void updateDesiredNodes(List<DesiredNode> desiredNodes) {
+        assertThat(desiredNodes.size(), is(greaterThan(0)));
+
+        final var request = new UpdateDesiredNodesRequest(randomAlphaOfLength(10), 1, desiredNodes);
         internalCluster().client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }
 
-    protected void assertPrimaryShardIsAllocatedInNode(int shard, DesiredNode expectedNode) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        IndexShardRoutingTable routingTable = state.routingTable().index(index).shard(shard);
-        ShardRouting primaryShard = routingTable.primaryShard();
-        DiscoveryNode discoveryNode = state.nodes().get(primaryShard.currentNodeId());
-        assertThat(discoveryNode.toString(), discoveryNode.getExternalId(), is(equalTo(expectedNode.externalId())));
+    private void assertPrimaryShardIsAllocatedInNodeWithRole(int shard, DiscoveryNodeRole expectedRole) {
+        final var discoveryNode = getPrimaryShardAssignedNode(shard);
+        assertThat(explainAllocation(shard), discoveryNode.getRoles().contains(expectedRole), is(true));
+    }
+
+    private void assertPrimaryShardIsAllocatedInNode(int shard, DesiredNode expectedNode) {
+        final var discoveryNode = getPrimaryShardAssignedNode(shard);
+        assertThat(explainAllocation(shard), discoveryNode.getExternalId(), is(equalTo(expectedNode.externalId())));
+    }
+
+    private DiscoveryNode getPrimaryShardAssignedNode(int shard) {
+        final var state = client().admin().cluster().prepareState().get().getState();
+        final var routingTable = state.routingTable().index(index).shard(shard);
+        final var primaryShard = routingTable.primaryShard();
+        final var discoveryNode = state.nodes().get(primaryShard.currentNodeId());
+        assertThat(discoveryNode, is(notNullValue()));
+        return discoveryNode;
+    }
+
+    private String explainAllocation(int shard) {
+        return Strings.toString(
+            client().admin().cluster().prepareAllocationExplain().setIndex(index).setShard(shard).setPrimary(true).get().getExplanation(),
+            true,
+            true
+        );
+    }
+
+    private void createIndexWithTierPreference(String... tiers) {
+        assertThat(tiers.length, is(greaterThan(0)));
+
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(
+                Settings.builder().put(DataTier.TIER_PREFERENCE, String.join(",", tiers)).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            )
+            .get();
     }
 }

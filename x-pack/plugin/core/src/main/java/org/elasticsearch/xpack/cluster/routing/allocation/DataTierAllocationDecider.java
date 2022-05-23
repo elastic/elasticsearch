@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -164,23 +165,45 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         DiscoveryNodes discoveryNodes,
         DesiredNodes.MembershipInformation membershipInformation
     ) {
-        for (String tier : prioritizedTiers) {
+        for (int i = 0; i < prioritizedTiers.size(); i++) {
+            final var tier = prioritizedTiers.get(i);
+            final var nextTier = i + 1 == prioritizedTiers.size() ? null : prioritizedTiers.get(i + 1);
             if (tierNodesPresent(tier, membershipInformation.members())
-                || isDesiredNodeWithTierJoining(tier, discoveryNodes, membershipInformation.allDesiredNodes())) {
+                || isDesiredNodeWithinTierJoining(tier, discoveryNodes, membershipInformation)
+                || nextTierIsGrowingAndCurrentTierCanHoldTheIndex(tier, nextTier, discoveryNodes, membershipInformation)) {
                 return Optional.of(tier);
             }
         }
         return Optional.empty();
     }
 
-    public static boolean isDesiredNodeWithTierJoining(String tier, DiscoveryNodes discoveryNodes, List<DesiredNode> allDesiredNodes) {
+    private static boolean nextTierIsGrowingAndCurrentTierCanHoldTheIndex(
+        String tier,
+        @Nullable String nextTier,
+        DiscoveryNodes discoveryNodes,
+        DesiredNodes.MembershipInformation membershipInformation
+    ) {
+        assert tierNodesPresent(tier, membershipInformation.members()) == false;
+        // If there's a plan to grow the next preferred tier, and it hasn't materialized yet,
+        // wait until all the nodes in the next tier have joined. This would avoid overwhelming
+        // the next tier if within the same plan one tier is removed and the next preferred tier
+        // grows.
+        return nextTier != null && tierNodesPresent(tier, discoveryNodes) && tierNodesPresent(nextTier, membershipInformation.notMembers());
+    }
+
+    private static boolean isDesiredNodeWithinTierJoining(
+        String tier,
+        DiscoveryNodes discoveryNodes,
+        DesiredNodes.MembershipInformation membershipInformation
+    ) {
+        assert tierNodesPresent(tier, membershipInformation.members()) == false;
         // Take into account the case when the desired nodes have been updated and the node in the tier would be replaced by
         // a new one. In that case the desired node in the tier won't be a member as it has to join, but we still need to ensure
         // that at least one cluster member has the requested tier as we would prefer to minimize the shard movements in these cases.
-        return tierNodesPresent(tier, allDesiredNodes) && tierNodesPresent(tier, discoveryNodes);
+        return tierNodesPresent(tier, membershipInformation.notMembers()) && tierNodesPresent(tier, discoveryNodes);
     }
 
-    public static Optional<String> getPreferredAvailableTierFromClusterMembers(List<String> prioritizedTiers, DiscoveryNodes nodes) {
+    private static Optional<String> getPreferredAvailableTierFromClusterMembers(List<String> prioritizedTiers, DiscoveryNodes nodes) {
         for (String tier : prioritizedTiers) {
             if (tierNodesPresent(tier, nodes)) {
                 return Optional.of(tier);

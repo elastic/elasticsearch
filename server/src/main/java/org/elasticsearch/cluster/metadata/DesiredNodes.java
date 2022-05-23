@@ -186,12 +186,24 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
 
         private final DesiredNodes desiredNodes;
         private final Set<DesiredNode> members;
+        private final Set<DesiredNode> notMembers;
 
         public MembershipInformation(DesiredNodes desiredNodes, Set<DesiredNode> members) {
             Objects.requireNonNull(members);
 
             this.desiredNodes = desiredNodes;
             this.members = members;
+            if (desiredNodes == null) {
+                this.notMembers = Collections.emptySet();
+            } else {
+                final Set<DesiredNode> pendingMembers = new HashSet<>();
+                for (DesiredNode desiredNode : desiredNodes) {
+                    if (members.contains(desiredNode) == false) {
+                        pendingMembers.add(desiredNode);
+                    }
+                }
+                this.notMembers = Collections.unmodifiableSet(pendingMembers);
+            }
         }
 
         public boolean isMember(DesiredNode desiredNode) {
@@ -204,6 +216,10 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
 
         public List<DesiredNode> allDesiredNodes() {
             return desiredNodes == null ? Collections.emptyList() : desiredNodes.nodes();
+        }
+
+        public Set<DesiredNode> notMembers() {
+            return notMembers;
         }
 
         public Set<DesiredNode> members() {

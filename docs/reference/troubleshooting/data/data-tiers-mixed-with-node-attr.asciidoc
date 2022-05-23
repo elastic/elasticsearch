@@ -1,7 +1,7 @@
 [[troubleshoot-migrate-to-tiers]]
 == Indices mix index allocation filters with data tiers node roles to move through data tiers
 
-Elasticsearch standardised the implementation of https://www.elastic.co/blog/elasticsearch-data-lifecycle-management-with-data-tiers[hot-warm-cold architectures]
+Elasticsearch standardized the implementation of https://www.elastic.co/blog/elasticsearch-data-lifecycle-management-with-data-tiers[hot-warm-cold architectures]
 to <<data-tiers, data tiers>> in version 7.10.
 Some indices and deployments might have not fully transitioned to <<data-tiers, data tiers>>
 and mix the new way of implemetning the hot-warm-cold architecture with the 

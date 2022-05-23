@@ -63,6 +63,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 
@@ -636,7 +637,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Repository repository = internalRepositories.remove(name);
         if (repository != null) {
             RepositoryMetadata metadata = repository.getMetadata();
-            logger.debug(() -> new ParameterizedMessage("delete internal repository [{}][{}].", metadata.type(), name));
+            logger.debug(() -> format("delete internal repository [%s][%s].", metadata.type(), name));
             closeRepository(repository);
         }
     }

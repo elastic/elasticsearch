@@ -148,8 +148,9 @@ public class TokenListCategorizer implements Accountable {
 
     public TokenListCategory mergeWireCategory(SerializableTokenListCategory serializableCategory) {
 
+        int sizeBefore = categoriesByNumMatches.size();
         TokenListCategory foreignCategory = new TokenListCategory(0, serializableCategory, bytesRefHash);
-        return computeCategory(
+        TokenListCategory mergedCategory = computeCategory(
             foreignCategory.getBaseWeightedTokenIds(),
             foreignCategory.getCommonUniqueTokenIds(),
             foreignCategory.getBaseWeight(),
@@ -157,6 +158,14 @@ public class TokenListCategorizer implements Accountable {
             foreignCategory.getMaxUnfilteredStringLength(),
             foreignCategory.getNumMatches()
         );
+        if (logger.isDebugEnabled() && categoriesByNumMatches.size() == sizeBefore) {
+            logger.debug(
+                "Merged wire category [{}] into existing category to form [{}]",
+                serializableCategory,
+                new SerializableTokenListCategory(mergedCategory, bytesRefHash)
+            );
+        }
+        return mergedCategory;
     }
 
     private synchronized TokenListCategory computeCategory(
@@ -193,16 +202,20 @@ public class TokenListCategorizer implements Accountable {
             if (matchesSearch == false) {
                 // Quickly rule out wildly different token weights prior to doing the expensive similarity calculations.
                 if (baseWeight < minWeight || baseWeight > maxWeight) {
+                    assert baseTokenIds.equals(weightedTokenIds) == false
+                        : "Min [" + minWeight + "] and/or max [" + maxWeight + "] weights calculated incorrectly " + baseTokenIds;
                     continue;
                 }
 
                 // Rule out categories where adding the current string would unacceptably reduce the number of unique common tokens.
-                int origUniqueTokenWeight = compCategory.getOrigUniqueTokenWeight();
-                int commonUniqueTokenWeight = compCategory.getCommonUniqueTokenWeight();
                 int missingCommonTokenWeight = compCategory.missingCommonTokenWeight(workTokenUniqueIds);
-                float proportionOfOrig = (float) (commonUniqueTokenWeight - missingCommonTokenWeight) / (float) origUniqueTokenWeight;
-                if (proportionOfOrig < lowerThreshold) {
-                    continue;
+                if (missingCommonTokenWeight > 0) {
+                    int origUniqueTokenWeight = compCategory.getOrigUniqueTokenWeight();
+                    int commonUniqueTokenWeight = compCategory.getCommonUniqueTokenWeight();
+                    float proportionOfOrig = (float) (commonUniqueTokenWeight - missingCommonTokenWeight) / (float) origUniqueTokenWeight;
+                    if (proportionOfOrig < lowerThreshold) {
+                        continue;
+                    }
                 }
             }
 

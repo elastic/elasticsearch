@@ -265,22 +265,25 @@ public class TokenListCategory implements Accountable {
         commonUniqueTokenWeight = 0;
 
         int initialSize = commonUniqueTokenIds.size();
+        int commonIndex = 0;
         int newIndex = 0;
         int outputIndex = 0;
 
-        for (int commonIndex = 0; commonIndex < initialSize; ++commonIndex) {
+        while (commonIndex < initialSize) {
             if (newIndex >= newUniqueTokenIds.size()) {
+                ++commonIndex;
                 continue;
             }
             TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
-            TokenAndWeight newTokenAndWeight = newUniqueTokenIds.get(newIndex);
-            if (commonTokenAndWeight.getTokenId() < newTokenAndWeight.getTokenId()) {
+            int cmp = commonTokenAndWeight.compareTo(newUniqueTokenIds.get(newIndex));
+            if (cmp < 0) {
+                ++commonIndex;
                 continue;
             }
-            if (commonTokenAndWeight.getTokenId() == newTokenAndWeight.getTokenId()
-                && commonTokenAndWeight.getWeight() == newTokenAndWeight.getWeight()) {
+            if (cmp == 0) {
                 commonUniqueTokenIds.set(outputIndex++, commonTokenAndWeight);
                 commonUniqueTokenWeight += commonTokenAndWeight.getWeight();
+                ++commonIndex;
             }
             ++newIndex;
         }
@@ -367,7 +370,7 @@ public class TokenListCategory implements Accountable {
                     if (newToken.getTokenId() != baseToken.getTokenId()) {
                         ++newIndex;
                     } else {
-                        tryWeight += newToken.getWeight() + baseToken.getWeight();
+                        tryWeight += baseToken.getWeight();
                         break;
                     }
                 }
@@ -498,21 +501,18 @@ public class TokenListCategory implements Accountable {
         int commonIndex = 0;
         int testIndex = 0;
         while (commonIndex < commonUniqueTokenIds.size() && testIndex < uniqueTokenIds.size()) {
-            switch (Integer.signum(commonUniqueTokenIds.get(commonIndex).compareTo(uniqueTokenIds.get(testIndex)))) {
-                case -1 -> ++commonIndex;
-                case 0 -> {
-                    // Don't increment the weight if a given token appears a different
-                    // number of times in the two strings.
-                    int testWeight = uniqueTokenIds.get(testIndex).getWeight();
-                    if (commonUniqueTokenIds.get(commonIndex).getWeight() == testWeight) {
-                        presentWeight += testWeight;
-                    }
-                    ++commonIndex;
-                    ++testIndex;
-                }
-                case 1 -> ++testIndex;
-                default -> throw new IllegalStateException("signum should not return numbers other than -1, 0 and 1");
+            TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
+            int cmp = commonTokenAndWeight.compareTo(uniqueTokenIds.get(testIndex));
+            if (cmp < 0) {
+                ++commonIndex;
+                continue;
             }
+            if (cmp == 0) {
+                // If the token ID matches then consider the token present even if the weight in the test list is different.
+                presentWeight += commonTokenAndWeight.getWeight();
+                ++commonIndex;
+            }
+            ++testIndex;
         }
 
         // The missing weight will be the total weight less the weight of those
@@ -561,8 +561,7 @@ public class TokenListCategory implements Accountable {
                     return false;
                 }
             }
-            if (testTokenAndWeight.getTokenId() != commonTokenAndWeight.getTokenId()
-                || testTokenAndWeight.getWeight() != commonTokenAndWeight.getWeight()) {
+            if (testTokenAndWeight.getTokenId() != commonTokenAndWeight.getTokenId()) {
                 return false;
             }
             ++testIndex;

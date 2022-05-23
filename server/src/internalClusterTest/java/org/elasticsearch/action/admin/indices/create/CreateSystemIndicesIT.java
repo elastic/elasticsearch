@@ -126,6 +126,22 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     /**
+     * This is weird behavior, but it's what we have. You can autocreate a non-primary system index,
+     * but you can't directly create one.
+     */
+    public void testNonPrimarySystemIndexCreationThrowsError() {
+        final String nonPrimarySystemIndex = INDEX_NAME + "-2";
+        internalCluster().startNodes(1);
+
+        // Create the system index
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex(nonPrimarySystemIndex));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot create system index with name " + nonPrimarySystemIndex + "; descriptor primary index is " + PRIMARY_INDEX_NAME)
+        );
+    }
+
+    /**
      * Check that a system index is created with the expected mappings and
      * settings when it is explicitly created, when it is referenced via its alias.
      */
@@ -155,11 +171,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
                 .get()
         );
 
-        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
-
-        assertTrue(indexExists(PRIMARY_INDEX_NAME));
-        assertFalse(indexExists(INDEX_NAME + "-2"));
 
         assertHasAliases(Set.of(".test-index", ".test-index-legacy-alias"));
 
@@ -189,12 +202,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             ).get()
         );
 
-        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
-
-        // Attempting to directly create a non-primary system index only creates the primary index
-        assertTrue(indexExists(PRIMARY_INDEX_NAME));
-        assertFalse(indexExists(INDEX_NAME + "-2"));
 
         assertHasAliases(Set.of(".test-index", ".test-index-composable-alias"));
 

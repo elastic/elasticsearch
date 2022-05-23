@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -50,6 +49,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The action is a master node action to ensure it reads an up-to-date cluster
@@ -99,9 +100,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] Request to delete trained model{}", request.getId(), request.isForce() ? " (force)" : "")
-        );
+        logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);

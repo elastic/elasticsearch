@@ -33,7 +33,7 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
-            super(name);
+            super(name, Explicit.IMPLICIT_TRUE);
             this.indexCreatedVersion = indexCreatedVersion;
         }
 
@@ -57,6 +57,9 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
+            if (parseSubobjects(node).explicit()) {
+                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
+            }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -66,9 +69,6 @@ public class NestedObjectMapper extends ObjectMapper {
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
                     iterator.remove();
                 }
-            }
-            if (builder.subobjects.explicit()) {
-                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             return builder;
         }
@@ -170,7 +170,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason) {
+    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext mapperBuilderContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
         }
@@ -191,7 +191,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
-        toMerge.doMerge(mergeWithObject, reason);
+        toMerge.doMerge(mergeWithObject, reason, mapperBuilderContext);
         return toMerge;
     }
 

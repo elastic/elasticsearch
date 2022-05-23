@@ -37,6 +37,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "ilm";
 
+    public static final String HELP_URL = "https://ela.st/fix-ilm";
+
     private final ClusterService clusterService;
 
     public IlmHealthIndicatorService(ClusterService clusterService) {
@@ -51,6 +53,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public String component() {
         return DATA;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override

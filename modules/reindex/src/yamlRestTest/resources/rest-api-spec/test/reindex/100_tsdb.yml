@@ -405,6 +405,7 @@ from tsdb to tsdb created by template while modifying dimension:
   - skip:
       version: " - 8.2.99"
       reason: introduced in 8.3.0
+      features: allowed_warnings
 
   - do:
       cluster.put_component_template:
@@ -442,6 +443,8 @@ from tsdb to tsdb created by template while modifying dimension:
                             rx:
                               type: long
   - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [tsdb_templated_*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
       indices.put_index_template:
         name: test-composable-1
         body:

@@ -112,7 +112,7 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
@@ -244,10 +244,6 @@ final class Security {
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
-        }
-        if (environment.pidFile() != null) {
-            // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
         }
     }
 

@@ -31,6 +31,8 @@ import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_LITERAL_USERNAME_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_SUFFIX_SETTING;
 
 /**
  * A container for xpack setting constants.
@@ -269,6 +271,8 @@ public class XPackSettings {
         settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
         if (USER_PROFILE_FEATURE_FLAG_ENABLED) {
             settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
+            settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
+            settings.add(DOMAIN_UID_SUFFIX_SETTING);
         }
         return Collections.unmodifiableList(settings);
     }

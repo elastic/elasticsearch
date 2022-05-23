@@ -22,6 +22,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
@@ -61,9 +62,9 @@ class Elasticsearch {
         try {
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
+            initPidFile(serverArgs.pidFile());
             elasticsearch.init(
                 serverArgs.daemonize(),
-                serverArgs.pidFile(),
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword()
@@ -171,6 +172,31 @@ class Elasticsearch {
         }).start();
     }
 
+    /**
+     * Writes the current process id into the given pidfile, if not null. The pidfile is cleaned up on system exit.
+     *
+     * @param pidFile A path to a file, or null of no pidfile should be written
+     */
+    private static void initPidFile(Path pidFile) throws IOException {
+        if (pidFile == null) {
+            return;
+        }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Files.exists(pidFile)) {
+                try {
+                    Files.delete(pidFile);
+                } catch (IOException e) {
+                    // ignore, nothing we can do because are shutting down
+                }
+            }
+        }, "elasticsearch[pidfile-cleanup]"));
+
+        if (Files.exists(pidFile.getParent()) == false) {
+            Files.createDirectories(pidFile.getParent());
+        }
+        Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
+    }
+
     private static void overrideDnsCachePolicyProperties() {
         for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
@@ -186,10 +212,10 @@ class Elasticsearch {
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv, keystorePassword);
+            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

@@ -19,7 +19,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -243,15 +242,11 @@ final class Bootstrap {
     // visible for tests
 
     private static Environment createEnvironment(
-        final Path pidFile,
         final SecureSettings secureSettings,
         final Settings initialSettings,
         final Path configPath
     ) {
         Settings.Builder builder = Settings.builder();
-        if (pidFile != null) {
-            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
-        }
         builder.put(initialSettings);
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
@@ -287,13 +282,8 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-        final boolean foreground,
-        final Path pidFile,
-        final boolean quiet,
-        final Environment initialEnv,
-        SecureString keystorePassword
-    ) throws BootstrapException, NodeValidationException, UserException {
+    static void init(final boolean foreground, final boolean quiet, final Environment initialEnv, SecureString keystorePassword)
+        throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
@@ -301,7 +291,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv, keystorePassword);
-        final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+        final Environment environment = createEnvironment(keystore, initialEnv.settings(), initialEnv.configFile());
 
         BootstrapInfo.setConsole(getConsole(environment));
 
@@ -310,13 +300,6 @@ final class Bootstrap {
             LogConfigurator.configure(environment, quiet == false);
         } catch (IOException e) {
             throw new BootstrapException(e);
-        }
-        if (environment.pidFile() != null) {
-            try {
-                PidFile.create(environment.pidFile(), true);
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
         }
 
         try {

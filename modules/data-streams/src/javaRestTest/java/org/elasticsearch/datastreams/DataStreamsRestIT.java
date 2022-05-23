@@ -429,7 +429,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
     public void testModifyDataStreamApiWithForceDelete() throws IOException {
         // Just to check force remove operation is accepted, a normal remove operation should make this test pass too.
-        
+
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
         putComposableIndexTemplateRequest.setJsonEntity("""
             {

@@ -18,7 +18,7 @@ public class HealthNodeSelectorTaskParamsXContentTests extends AbstractXContentT
 
     @Override
     protected HealthNodeSelectorTaskParams createTestInstance() {
-        return HealthNodeSelectorTaskParams.INSTANCE;
+        return new HealthNodeSelectorTaskParams();
     }
 
     @Override

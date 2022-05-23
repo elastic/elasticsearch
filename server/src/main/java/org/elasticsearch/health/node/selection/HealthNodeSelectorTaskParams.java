@@ -22,15 +22,13 @@ import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NA
 
 class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
-    static final HealthNodeSelectorTaskParams INSTANCE = new HealthNodeSelectorTaskParams();
-
     public static final ObjectParser<HealthNodeSelectorTaskParams, Void> PARSER = new ObjectParser<>(
         TASK_NAME,
         true,
         HealthNodeSelectorTaskParams::new
     );
 
-    private HealthNodeSelectorTaskParams() {}
+    HealthNodeSelectorTaskParams() {}
 
     HealthNodeSelectorTaskParams(StreamInput in) {}
 

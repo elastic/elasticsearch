@@ -93,7 +93,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         persistentTasksService.sendStartRequest(
             TASK_NAME,
             TASK_NAME,
-            HealthNodeSelectorTaskParams.INSTANCE,
+            new HealthNodeSelectorTaskParams(),
             ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {

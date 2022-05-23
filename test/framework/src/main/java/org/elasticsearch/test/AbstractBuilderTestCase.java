@@ -51,6 +51,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -361,7 +362,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> { throw new AssertionError("node.name must be set"); }
             );
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
+            pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),

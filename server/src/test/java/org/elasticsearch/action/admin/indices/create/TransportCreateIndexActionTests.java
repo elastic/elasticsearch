@@ -29,7 +29,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,8 +47,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of(
-            "test-feature",
+        List.of(
             new SystemIndices.Feature(
                 "test-feature",
                 "a test feature",

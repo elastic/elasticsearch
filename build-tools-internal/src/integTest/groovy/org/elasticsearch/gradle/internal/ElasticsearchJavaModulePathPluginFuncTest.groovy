@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.IgnoreIf
+
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.internal.os.OperatingSystem
@@ -17,6 +19,7 @@ import org.objectweb.asm.tree.ClassNode
 
 import java.nio.file.Files
 
+@IgnoreIf({ os.isWindows() })
 class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     public static final GString JAVA_BASE_MODULE = "java.base:${System.getProperty("java.version")}"

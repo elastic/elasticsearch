@@ -128,10 +128,7 @@ public class Netty4Transport extends TcpTransport {
 
     @Override
     protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
-        // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
-        // setting the processors. We must do it ourselves first just in case.
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
-        return NettyAllocator.getRecycler();
+        return Netty4Utils.createRecycler(settings);
     }
 
     @Override

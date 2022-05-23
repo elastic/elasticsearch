@@ -22,9 +22,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -458,7 +455,7 @@ public class RecoverySourceHandler {
      */
     private Releasable acquireStore(Store store) {
         store.incRef();
-        return Releasables.releaseOnce(() -> runWithGenericThreadPool(store::decRef));
+        return Releasables.releaseOnce(() -> closeOnGenericThreadPool(store::decRef));
     }
 
     /**
@@ -468,17 +465,19 @@ public class RecoverySourceHandler {
      */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> runWithGenericThreadPool(commitRef::close));
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> closeOnGenericThreadPool(commitRef));
     }
 
-    private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+    private void closeOnGenericThreadPool(Closeable closeable) {
         assert threadPool.generic().isShutdown() == false;
-        // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
-        // While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
-        // below and thus make it impossible for the store release to execute which in turn would block the futures forever
-        threadPool.generic().execute(ActionRunnable.run(future, task));
-        FutureUtils.get(future);
+        threadPool.generic().execute(() -> {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn(new ParameterizedMessage("Exception while closing [{}]", closeable), e);
+            }
+        });
     }
 
     static final class SendFileResult {

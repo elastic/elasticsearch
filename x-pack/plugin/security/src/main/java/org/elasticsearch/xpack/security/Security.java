@@ -778,6 +778,7 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);

@@ -61,6 +61,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
     private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 5;
@@ -452,8 +454,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
+            () -> format(
+                "[%s] Run delete based on retention policy using dbq [%s] with query: [%s]",
                 getJobId(),
                 deleteByQuery,
                 deleteByQuery.getSearchRequest()
@@ -462,7 +464,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         getStats().markStartDelete();
 
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
-            logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+            logger.trace(() -> format("[%s] dbq response: [%s]", getJobId(), bulkByScrollResponse));
 
             getStats().markEndDelete();
             getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());

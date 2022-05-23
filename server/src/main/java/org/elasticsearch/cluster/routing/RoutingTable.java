@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -385,6 +384,31 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
+    public static RoutingTable of(long version, RoutingNodes routingNodes) {
+        Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
+        for (RoutingNode routingNode : routingNodes) {
+            for (ShardRouting shardRoutingEntry : routingNode) {
+                // every relocating shard has a double entry, ignore the target one.
+                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) continue;
+                Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
+            }
+        }
+
+        for (ShardRouting shardRoutingEntry : routingNodes.unassigned()) {
+            Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
+        }
+        for (ShardRouting shardRoutingEntry : routingNodes.unassigned().ignored()) {
+            Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
+        }
+
+        ImmutableOpenMap.Builder<String, IndexRoutingTable> indicesRouting = ImmutableOpenMap.builder(indexRoutingTableBuilders.size());
+        for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
+            IndexRoutingTable indexRoutingTable = indexBuilder.build();
+            indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
+        }
+        return new RoutingTable(version, indicesRouting.build());
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -410,43 +434,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             indicesRouting = ImmutableOpenMap.builder(routingTable.indicesRouting);
         }
 
-        public Builder updateNodes(long version, RoutingNodes routingNodes) {
-            // this is being called without pre initializing the routing table, so we must copy over the version as well
-            this.version = version;
-
-            Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
-            for (RoutingNode routingNode : routingNodes) {
-                for (ShardRouting shardRoutingEntry : routingNode) {
-                    // every relocating shard has a double entry, ignore the target one.
-                    if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) continue;
-
-                    addShard(indexRoutingTableBuilders, shardRoutingEntry);
-                }
-            }
-
-            Iterable<ShardRouting> shardRoutingEntries = Iterables.concat(routingNodes.unassigned(), routingNodes.unassigned().ignored());
-
-            for (ShardRouting shardRoutingEntry : shardRoutingEntries) {
-                addShard(indexRoutingTableBuilders, shardRoutingEntry);
-            }
-
-            for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
-                add(indexBuilder);
-            }
-            return this;
-        }
-
         private static void addShard(
             final Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders,
             final ShardRouting shardRoutingEntry
         ) {
             Index index = shardRoutingEntry.index();
-            IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index.getName());
-            if (indexBuilder == null) {
-                indexBuilder = new IndexRoutingTable.Builder(index);
-                indexRoutingTableBuilders.put(index.getName(), indexBuilder);
-            }
-            indexBuilder.addShard(shardRoutingEntry);
+            indexRoutingTableBuilders.computeIfAbsent(index.getName(), idxName -> new IndexRoutingTable.Builder(index))
+                .addShard(shardRoutingEntry);
         }
 
         /**
@@ -469,8 +463,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 int currentNumberOfReplicas = indexRoutingTable.shard(0).size() - 1; // remove the required primary
                 IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
                 // re-add all the shards
+                builder.ensureShardArray(indexRoutingTable.size());
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    builder.addIndexShard(indexRoutingTable.shard(i));
+                    builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
                 }
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones

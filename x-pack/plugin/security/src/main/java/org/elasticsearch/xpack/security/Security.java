@@ -776,6 +776,7 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);
@@ -1515,7 +1516,7 @@ public class Security extends Plugin
             () -> new SecurityNetty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 ipFilter.get(),
                 getSslService(),
                 threadPool,

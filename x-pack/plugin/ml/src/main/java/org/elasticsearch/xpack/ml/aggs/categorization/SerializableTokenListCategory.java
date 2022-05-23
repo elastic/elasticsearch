@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * {@link TokenListCategory} cannot be serialized between nodes as its token IDs
@@ -208,5 +209,14 @@ public class SerializableTokenListCategory implements Writeable {
             && Arrays.equals(this.keyTokenIndexes, that.keyTokenIndexes)
             && this.origUniqueTokenWeight == that.origUniqueTokenWeight
             && this.numMatches == that.numMatches;
+    }
+
+    @Override
+    public String toString() {
+        return Arrays.stream(keyTokenIndexes)
+            .mapToObj(index -> baseTokens[index].utf8ToString())
+            .collect(Collectors.joining(", ", "Category with key tokens [", "]")) + Arrays.stream(baseTokens)
+                .map(BytesRef::utf8ToString)
+                .collect(Collectors.joining(", ", " and base tokens [", "]"));
     }
 }

@@ -110,6 +110,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
+                    null,
                     Map.of("started_primaries", 2, "started_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -142,6 +143,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     unavailableReplicas.size() > 1
                         ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
                         : "This cluster has 1 unavailable replica.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of(
                         "started_primaries",
                         1,
@@ -176,6 +178,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -200,6 +203,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -329,6 +333,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting replica.",
+                    null,
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -350,6 +355,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
+                    null,
                     Map.of("started_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -377,6 +383,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -405,6 +412,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 creating primary.",
+                    null,
                     Map.of("creating_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -426,6 +434,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting primary.",
+                    null,
                     Map.of("restarting_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -452,6 +461,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -490,6 +500,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedTruncatedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     List.of(
                         new HealthIndicatorImpact(
                             1,
@@ -1162,6 +1173,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String summary,
+        String helpURL,
         Map<String, Object> details,
         List<HealthIndicatorImpact> impacts,
         List<UserAction> actions
@@ -1171,14 +1183,29 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             DATA,
             status,
             summary,
+            helpURL,
             new SimpleHealthIndicatorDetails(addDefaults(details)),
             impacts,
             actions
         );
     }
 
-    private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String summary, List<HealthIndicatorImpact> impacts) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
+    private HealthIndicatorResult createExpectedTruncatedResult(
+        HealthStatus status,
+        String summary,
+        String helpUrl,
+        List<HealthIndicatorImpact> impacts
+    ) {
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            helpUrl,
+            HealthIndicatorDetails.EMPTY,
+            impacts,
+            Collections.emptyList()
+        );
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {

@@ -261,6 +261,16 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(mockServer.stopCalled, is(true));
     }
 
+    public void testIgnoreNullExceptionOutput() throws Exception {
+        Command command = newCommand();
+
+        autoConfigCallback = (t, options, env, processInfo) -> { throw new UserException(ExitCodes.NOOP, null); };
+        terminal.reset();
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(terminal.getErrorOutput(), not(containsString("null")));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }

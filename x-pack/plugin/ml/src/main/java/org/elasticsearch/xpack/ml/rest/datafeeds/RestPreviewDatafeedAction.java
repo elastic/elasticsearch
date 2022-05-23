@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
@@ -49,12 +50,14 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String startTime = restRequest.param(StartDatafeedAction.START_TIME.getPreferredName(), null);
+        String endTime = restRequest.param(StartDatafeedAction.END_TIME.getPreferredName(), null);
         PreviewDatafeedAction.Request request = restRequest.hasContentOrSourceParam()
             ? PreviewDatafeedAction.Request.fromXContent(
                 restRequest.contentOrSourceParamParser(),
                 restRequest.param(DatafeedConfig.ID.getPreferredName(), null)
-            )
-            : new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
+            ).setStart(startTime).setEnd(endTime).build()
+            : new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()), startTime, endTime);
         return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

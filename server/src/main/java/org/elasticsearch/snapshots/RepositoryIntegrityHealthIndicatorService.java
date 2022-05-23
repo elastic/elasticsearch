@@ -42,6 +42,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     public static final String NAME = "repository_integrity";
 
+    public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+
     private final ClusterService clusterService;
 
     public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
@@ -56,6 +58,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public String component() {
         return SNAPSHOT;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 86990
+summary: Adjust osprobe assertion for burst cpu
+area: Infra/Core
+type: bug
+issues: []

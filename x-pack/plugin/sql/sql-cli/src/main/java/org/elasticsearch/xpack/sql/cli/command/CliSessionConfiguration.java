@@ -64,7 +64,7 @@ public class CliSessionConfiguration {
         return allowPartialResults;
     }
 
-    public void setAllowPartialResults(boolean val) {
-        this.allowPartialResults = val;
+    public void setAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
     }
 }

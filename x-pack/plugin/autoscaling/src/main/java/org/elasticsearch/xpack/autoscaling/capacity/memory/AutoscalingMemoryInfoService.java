@@ -186,7 +186,7 @@ public class AutoscalingMemoryInfoService {
         return node -> {
             Long result = nodeToMemoryRef.get(node.getEphemeralId());
             // noinspection NumberEquality
-            if (result == FETCHING_SENTINEL) {
+            if (result.equals(FETCHING_SENTINEL)) {
                 return null;
             } else {
                 return result;

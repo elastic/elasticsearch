@@ -40,7 +40,8 @@ public class MasterHistoryService {
     private final TimeValue acceptableRemoteHistoryAge;
     /*
      * This is a view of the master history one a remote node, or the exception that fetching it resulted in. This is populated
-     * asynchronously. It is non-private for testing.
+     * asynchronously. It is non-private for testing. Note that this field is not nulled out after its time to live expires. That check
+     * is only done in getRemoteMasterHistory(). All non-testing access to this field needs to go through getRemoteMasterHistory().
      */
     volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null, Long.MIN_VALUE);
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);

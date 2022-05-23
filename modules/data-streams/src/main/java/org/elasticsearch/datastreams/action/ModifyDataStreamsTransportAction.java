@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,15 +65,8 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
         if (globalBlock != null) {
             return globalBlock;
         }
-
-        // Iterate directly over the mentioned indices to check for blocks instead of over data streams,
-        // in case a data stream instance is in an invalid state:
-        var indexNames = request.getActions().stream().map(DataStreamAction::getIndex).toArray(String[]::new);
         return state.blocks()
-            .indicesBlockedException(
-                ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), indexNames)
-            );
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 }

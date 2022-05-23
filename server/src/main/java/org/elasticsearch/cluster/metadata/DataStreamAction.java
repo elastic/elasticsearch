@@ -35,10 +35,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     private static final ParseField ADD_BACKING_INDEX = new ParseField("add_backing_index");
     private static final ParseField REMOVE_BACKING_INDEX = new ParseField("remove_backing_index");
+    private static final ParseField FORCE_REMOVE_BACKING_INDEX = new ParseField("force_remove_backing_index");
 
     public enum Type {
         ADD_BACKING_INDEX((byte) 0, DataStreamAction.ADD_BACKING_INDEX),
-        REMOVE_BACKING_INDEX((byte) 1, DataStreamAction.REMOVE_BACKING_INDEX);
+        REMOVE_BACKING_INDEX((byte) 1, DataStreamAction.REMOVE_BACKING_INDEX),
+        FORCE_REMOVE_BACKING_INDEX((byte) 2, DataStreamAction.FORCE_REMOVE_BACKING_INDEX);
 
         private final byte value;
         private final String fieldName;
@@ -56,6 +58,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             return switch (value) {
                 case 0 -> ADD_BACKING_INDEX;
                 case 1 -> REMOVE_BACKING_INDEX;
+                case 2 -> FORCE_REMOVE_BACKING_INDEX;
                 default -> throw new IllegalArgumentException("no data stream action type for [" + value + "]");
             };
         }
@@ -71,6 +74,10 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     public static DataStreamAction removeBackingIndex(String dataStream, String index) {
         return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index);
+    }
+
+    public static DataStreamAction forceRemoveBackingIndex(String dataStream, String index) {
+        return new DataStreamAction(Type.FORCE_REMOVE_BACKING_INDEX, dataStream, index);
     }
 
     public DataStreamAction(StreamInput in) throws IOException {
@@ -145,6 +152,10 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         REMOVE_BACKING_INDEX.getPreferredName(),
         () -> new DataStreamAction(Type.REMOVE_BACKING_INDEX)
     );
+    private static final ObjectParser<DataStreamAction, Void> FORCE_REMOVE_BACKING_INDEX_PARSER = parser(
+        FORCE_REMOVE_BACKING_INDEX.getPreferredName(),
+        () -> new DataStreamAction(Type.FORCE_REMOVE_BACKING_INDEX)
+    );
     static {
         ADD_BACKING_INDEX_PARSER.declareField(
             DataStreamAction::setDataStream,
@@ -160,6 +171,18 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
+        FORCE_REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setDataStream,
+            XContentParser::text,
+            DATA_STREAM,
+            ObjectParser.ValueType.STRING
+        );
+        FORCE_REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setIndex,
+            XContentParser::text,
+            INDEX,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private static ObjectParser<DataStreamAction, Void> parser(String name, Supplier<DataStreamAction> supplier) {
@@ -187,6 +210,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     static {
         PARSER.declareObject(optionalConstructorArg(), ADD_BACKING_INDEX_PARSER, ADD_BACKING_INDEX);
         PARSER.declareObject(optionalConstructorArg(), REMOVE_BACKING_INDEX_PARSER, REMOVE_BACKING_INDEX);
+        PARSER.declareObject(optionalConstructorArg(), FORCE_REMOVE_BACKING_INDEX_PARSER, FORCE_REMOVE_BACKING_INDEX);
     }
 
     @Override

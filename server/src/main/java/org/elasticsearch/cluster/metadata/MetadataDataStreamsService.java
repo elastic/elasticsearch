@@ -82,6 +82,8 @@ public class MetadataDataStreamsService {
                 addBackingIndex(updatedMetadata, builder, mapperSupplier, action.getDataStream(), action.getIndex());
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
                 removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex());
+            } else if (action.getType() == DataStreamAction.Type.FORCE_REMOVE_BACKING_INDEX) {
+                forceRemoveBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex());
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
             }
@@ -120,28 +122,24 @@ public class MetadataDataStreamsService {
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
-        if (dataStream.getIndices().contains(index.getWriteIndex()) == false) {
-            Index backingIndexToRemove = null;
-            for (Index backingIndex : dataStream.getDataStream().getIndices()) {
-                if (backingIndex.getName().equals(index.getName())) {
-                    backingIndexToRemove = backingIndex;
-                    break;
-                }
-            }
-            if (backingIndexToRemove != null) {
-                builder.put(dataStream.getDataStream().removeBackingIndex(backingIndexToRemove));
-            }
-            return;
-        }
+        var writeIndex = metadata.index(index.getWriteIndex());
+        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
 
-        var indexMetadata = metadata.index(index.getWriteIndex());
-        builder.put(dataStream.getDataStream().removeBackingIndex(indexMetadata.getIndex()));
         // un-hide index
         builder.put(
-            IndexMetadata.builder(indexMetadata)
-                .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
-                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+            IndexMetadata.builder(writeIndex)
+                .settings(Settings.builder().put(writeIndex.getSettings()).put("index.hidden", "false").build())
+                .settingsVersion(writeIndex.getSettingsVersion() + 1)
         );
+    }
+
+    private static void forceRemoveBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
+        var dataStream = validateDataStream(metadata, dataStreamName).getDataStream();
+        for (Index backingIndex : dataStream.getIndices()) {
+            if (backingIndex.getName().equals(indexName)) {
+                builder.put(dataStream.removeBackingIndex(backingIndex));
+            }
+        }
     }
 
     private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {

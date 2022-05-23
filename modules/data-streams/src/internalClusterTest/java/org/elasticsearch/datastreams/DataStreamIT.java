@@ -1763,12 +1763,25 @@ public class DataStreamIT extends ESIntegTestCase {
                 }
             });
         latch.await();
+        var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 
-        Index ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
+        // Regular remove fails
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
+            ).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]"));
+
+        // Force remove succeeds
         assertAcked(
             client().execute(
                 ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
+                new ModifyDataStreamsAction.Request(
+                    List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, ghostReference.getName()))
+                )
             ).actionGet()
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();

@@ -16,11 +16,13 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -423,6 +425,55 @@ public class DataStreamsRestIT extends ESRestTestCase {
             Map.of("logs", Map.of("is_write_index", true)),
             XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
         );
+    }
+
+    public void testModifyDataStreamApiWithForceDelete() throws IOException {
+        // Just to check force remove operation is accepted, a normal remove operation should make this test pass too.
+        
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "test" ],
+              "data_stream": {}
+            }""");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/test/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request rolloverRequest = new Request("POST", "/test/_rollover");
+        assertOK(client().performRequest(rolloverRequest));
+
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream");
+        Response response = client().performRequest(getDataStreamsRequest);
+        Map<String, Object> dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        List<?> indices = (List<?>) ((List<?>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams)).get(0);
+        assertThat(indices, hasSize(2));
+
+        String indexToRemove = (String) indices.get(0);
+        Request modifyDataStreamRequest = new Request("POST", "/_data_stream/_modify");
+        modifyDataStreamRequest.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                      "force_remove_backing_index": {
+                        "data_stream": "test",
+                        "index": "$backing_index"
+                      }
+                    }
+                  ]
+            }
+            """.replace("$backing_index", indexToRemove));
+        assertOK(client().performRequest(modifyDataStreamRequest));
+
+        getDataStreamsRequest = new Request("GET", "/_data_stream");
+        response = client().performRequest(getDataStreamsRequest);
+        dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        indices = (List<?>) ((List<?>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams)).get(0);
+        assertThat(indices, hasSize(1));
     }
 
 }

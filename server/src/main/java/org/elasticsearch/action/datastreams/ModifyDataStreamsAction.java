@@ -108,7 +108,10 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return actions.stream().map(DataStreamAction::getDataStream).toArray(String[]::new);
+            // Return the indices instead of data streams,
+            // this api can be used repair a broken data stream definition (with force delete) and
+            // in that case exceptions can occur while looking for blocked exceptions are doing authorization.
+            return actions.stream().map(DataStreamAction::getIndex).toArray(String[]::new);
         }
 
         @Override

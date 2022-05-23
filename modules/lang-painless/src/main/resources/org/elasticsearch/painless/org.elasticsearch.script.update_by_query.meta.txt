@@ -25,3 +25,9 @@ class org.elasticsearch.script.UpdateByQueryScript$Metadata @alias[class="Metada
 class org.elasticsearch.script.UpdateByQueryScript {
     Metadata meta()
 }
+
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
+}

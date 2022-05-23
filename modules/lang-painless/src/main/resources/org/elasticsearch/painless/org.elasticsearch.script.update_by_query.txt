@@ -18,9 +18,3 @@ class org.elasticsearch.painless.api.Json {
   String dump(def)
   String dump(def, boolean)
 }
-
-class org.elasticsearch.script.field.Op {
-  Op NOOP
-  Op INDEX
-  Op DELETE
-}

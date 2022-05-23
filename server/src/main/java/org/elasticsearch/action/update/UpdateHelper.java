@@ -88,8 +88,8 @@ public class UpdateHelper {
      * Tuple of operation and updated {@code _source} is returned.
      */
     Tuple<Op, Map<String, Object>> executeScriptedUpsert(Script script, UpdateScript.Metadata metadata) {
-        // Tell the script that this is a create and not an update
-        UpdateScript.Metadata md = executeScript(script, metadata); // TODO(stu): this is insert from upsert
+        // Tell the script that this is a create and not an update (insert from upsert)
+        UpdateScript.Metadata md = executeScript(script, metadata);
         return new Tuple<>(lenientGetOp(md, logger, script.getIdOrCode()), md.getSource());
     }
 

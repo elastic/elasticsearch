@@ -28,3 +28,10 @@ class org.elasticsearch.script.UpdateScript$Metadata @alias[class="Metadata"] {
 class org.elasticsearch.script.UpdateScript {
     Metadata meta()
 }
+
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
+  Op CREATE
+}

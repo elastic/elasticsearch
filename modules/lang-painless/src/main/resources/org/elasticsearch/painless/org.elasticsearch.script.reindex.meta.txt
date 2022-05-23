@@ -29,3 +29,9 @@ class org.elasticsearch.script.ReindexScript$Metadata @alias[class="Metadata"] {
 class org.elasticsearch.script.ReindexScript {
     Metadata meta()
 }
+
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
+}

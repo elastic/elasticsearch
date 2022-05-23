@@ -18,9 +18,3 @@ class org.elasticsearch.painless.api.Json {
   String dump(def)
   String dump(def, boolean)
 }
-
-class org.elasticsearch.index.VersionType {
-  VersionType INTERNAL
-  VersionType EXTERNAL
-  VersionType EXTERNAL_GTE
-}

@@ -116,7 +116,7 @@ public abstract class UpdateScript {
          * Insert via Upsert
          */
         public Metadata(String index, String id, Op op, long epochMilli, Map<String, Object> source) {
-            this.store = new MapBackedMetadata(3).setIndex(index).setId(id).setOp(op).set(TIMESTAMP, epochMilli).setSource(source);
+            this.store = new MapBackedMetadata(5).setIndex(index).setId(id).setOp(op).set(TIMESTAMP, epochMilli).setSource(source);
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneOffset.UTC);
             this.isInsert = true;
             this.validOps = INSERT_VALID_OPS;

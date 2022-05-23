@@ -31,3 +31,9 @@ class org.elasticsearch.script.IngestScript$Metadata @alias[class="Metadata"] {
 class org.elasticsearch.script.IngestScript {
     Metadata meta()
 }
+
+class org.elasticsearch.index.VersionType {
+  VersionType INTERNAL
+  VersionType EXTERNAL
+  VersionType EXTERNAL_GTE
+}

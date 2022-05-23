@@ -8,6 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -496,7 +498,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
     }
 
-    public void testSubobjectsFalseAtRoot() {
+    public void testSubobjectsFalseAtRoot() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
             {
               "_doc": {
@@ -514,18 +516,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
-        Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").getSourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        assertEquals(4, properties.size());
-        assertNotNull(properties.get("host.name"));
-        assertNotNull(properties.get("host.id"));
-        assertNotNull(properties.get("time"));
-        assertNotNull(properties.get("time.max"));
+        assertBusy(() -> {
+            Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            assertEquals(4, properties.size());
+            assertNotNull(properties.get("host.name"));
+            assertNotNull(properties.get("host.id"));
+            assertNotNull(properties.get("time"));
+            assertNotNull(properties.get("time.max"));
+        });
+
     }
 
     @SuppressWarnings("unchecked")
-    public void testSubobjectsFalse() {
+    public void testSubobjectsFalse() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
             {
               "_doc": {
@@ -556,16 +561,18 @@ public class DynamicMappingIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
-        Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").getSourceAsMap();
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
-        properties = (Map<String, Object>) foo.get("properties");
-        Map<String, Object> metrics = (Map<String, Object>) properties.get("metrics");
-        properties = (Map<String, Object>) metrics.get("properties");
-        assertEquals(4, properties.size());
-        assertNotNull(properties.get("host.name"));
-        assertNotNull(properties.get("host.id"));
-        assertNotNull(properties.get("time"));
-        assertNotNull(properties.get("time.max"));
+        assertBusy(() -> {
+            Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
+            properties = (Map<String, Object>) foo.get("properties");
+            Map<String, Object> metrics = (Map<String, Object>) properties.get("metrics");
+            properties = (Map<String, Object>) metrics.get("properties");
+            assertEquals(4, properties.size());
+            assertNotNull(properties.get("host.name"));
+            assertNotNull(properties.get("host.id"));
+            assertNotNull(properties.get("time"));
+            assertNotNull(properties.get("time.max"));
+        });
     }
 }

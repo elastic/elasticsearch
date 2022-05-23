@@ -286,23 +286,20 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testQueryRewrite() {
-        client().admin().indices().prepareCreate("twitter")
+        client().admin()
+            .indices()
+            .prepareCreate("twitter")
             .setMapping("user", "type=keyword", "followers", "type=keyword")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2)).get();
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2))
+            .get();
         ensureGreen("twitter");
 
-        client().prepareIndex("twitter")
-            .setId("1")
-            .setSource("user", "user1", "followers", new String[] {"user2", "user3"}).get();
-        client().prepareIndex("twitter")
-            .setId("2")
-            .setSource("user", "user2", "followers", new String[] {"user1"}).get();
+        client().prepareIndex("twitter").setId("1").setSource("user", "user1", "followers", new String[] { "user2", "user3" }).get();
+        client().prepareIndex("twitter").setId("2").setSource("user", "user2", "followers", new String[] { "user1" }).get();
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "2", "followers"));
-        ExplainResponse response = client().prepareExplain("twitter", "1")
-            .setQuery(termsLookupQuery)
-            .execute().actionGet();
+        ExplainResponse response = client().prepareExplain("twitter", "1").setQuery(termsLookupQuery).execute().actionGet();
 
         Explanation explanation = response.getExplanation();
         assertNotNull(explanation);

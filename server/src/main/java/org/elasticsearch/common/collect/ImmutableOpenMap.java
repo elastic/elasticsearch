@@ -369,7 +369,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     }
 
     public static <KType, VType> Builder<KType, VType> builder(Map<KType, VType> map) {
-        if (map instanceof ImmutableOpenMap<KType,VType> iom) {
+        if (map instanceof ImmutableOpenMap<KType, VType> iom) {
             return new Builder<>(iom);
         }
         Builder<KType, VType> builder = new Builder<>(map.size());

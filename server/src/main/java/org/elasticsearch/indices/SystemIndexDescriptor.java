@@ -378,6 +378,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * for indices managed externally to Elasticsearch.
      */
     public String getPrimaryIndex() {
+        assert isAutomaticallyManaged() : "Unmanaged indices should not have a primary index";
         return primaryIndex;
     }
 
@@ -417,26 +418,32 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getMappings() {
+        assert isAutomaticallyManaged() : "Do not request mappings for unmanaged system indices";
         return mappings;
     }
 
     public Settings getSettings() {
+        assert isAutomaticallyManaged() : "Do not request settings for unmanaged system indices";
         return settings;
     }
 
     public String getAliasName() {
+        assert isAutomaticallyManaged() : "Do not request aliases for unmanaged system indices";
         return aliasName;
     }
 
     public int getIndexFormat() {
+        assert isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         return this.indexFormat;
     }
 
     public String getVersionMetaKey() {
+        assert isAutomaticallyManaged() : "Do not request version meta keys for unmanaged system indices";
         return this.versionMetaKey;
     }
 
     public Version getMinimumNodeVersion() {
+        assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
         return minimumNodeVersion;
     }
 
@@ -449,6 +456,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public boolean hasDynamicMappings() {
+        assert isAutomaticallyManaged() : "Do not check mapping properties for unmanaged system indices";
         return this.hasDynamicMappings;
     }
 
@@ -465,11 +473,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public boolean isNetNew() {
+        assert isAutomaticallyManaged() : "Do not check mapping properties for unmanaged system indices";
         return isNetNew;
     }
 
     public Version getMappingVersion() {
-        if (type.isManaged() == false) {
+        if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingVersion;

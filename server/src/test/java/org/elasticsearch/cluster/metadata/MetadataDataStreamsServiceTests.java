@@ -356,21 +356,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
-        // Regular remove fails
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataDataStreamsService.modifyDataStream(
-                brokenState,
-                List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
-                this::getMapperService
-            )
-        );
-        assertThat(e.getMessage(), equalTo("index [" + broken.getIndices().get(0).getName() + "] is not part of data stream [my-logs]"));
-
         // Force remove succeeds
         var result = MetadataDataStreamsService.modifyDataStream(
             brokenState,
-            List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
+            List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
             this::getMapperService
         );
         assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));

@@ -1772,32 +1772,19 @@ public class DataStreamIT extends ESIntegTestCase {
         expectThrows(NullPointerException.class, () -> client().admin().indices().stats(new IndicesStatsRequest()).actionGet());
         expectThrows(NullPointerException.class, () -> client().search(new SearchRequest()).actionGet());
 
-        // Regular remove fails
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(
-                ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
-            ).actionGet()
-        );
-        assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]"));
-
-        // Force remove succeeds
         assertAcked(
             client().execute(
                 ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(
-                    List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, ghostReference.getName()))
-                )
+                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
             ).actionGet()
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         // Data stream resolves now to one backing index.
-        // Note, that old backing index still exists, but it is still hidden.
+        // Note, that old backing index still exists and has been unhidden.
         // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
         indicesStatsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
-        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

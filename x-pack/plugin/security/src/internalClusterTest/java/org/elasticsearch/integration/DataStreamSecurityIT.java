@@ -130,29 +130,11 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         expectThrows(expectedExceptionClass, () -> client.admin().indices().stats(new IndicesStatsRequest()).actionGet());
         expectThrows(expectedExceptionClass, () -> client.search(new SearchRequest()).actionGet());
 
-        // Regular remove fails
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client.execute(
-                ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
-            ).actionGet()
-        );
-        if (shouldBreakIndexName) {
-            assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] not found"));
-        } else {
-            assertThat(
-                e.getMessage(),
-                equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]")
-            );
-        }
-
-        // Force remove succeeds
         assertAcked(
             client.execute(
                 ModifyDataStreamsAction.INSTANCE,
                 new ModifyDataStreamsAction.Request(
-                    List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, ghostReference.getName()))
+                    List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName()))
                 )
             ).actionGet()
         );

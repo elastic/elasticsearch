@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -166,12 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings.getIndexVersionCreated()
         );
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.mappingParser = new MappingParser(
-            parserContextSupplier,
-            metadataMapperParsers,
-            this::getMetadataMappers,
-            this::resolveDocumentType
-        );
+        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers, this::resolveDocumentType);
     }
 
     public boolean hasNested() {
@@ -196,23 +192,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
         final DocumentMapper existingMapper = mapper;
-        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
-            indexSettings.getIndexVersionCreated()
-        );
+        if (existingMapper != null) {
+            return existingMapper.mapping().getMetadataMappersMap();
+        }
+        return defaultMetadataMappers();
+    }
+
+    private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> defaultMetadataMappers() {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        if (existingMapper == null) {
-            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
-                // A MetadataFieldMapper may choose to not be added to the metadata mappers
-                // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
-                // In this case its TypeParser will return null instead of the MetadataFieldMapper
-                // instance.
-                if (metadataFieldMapper != null) {
-                    metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                }
+        for (MetadataFieldMapper.TypeParser parser : mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated())
+            .values()) {
+            MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+            // A MetadataFieldMapper may choose to not be added to the metadata mappers
+            // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
+            // In this case its TypeParser will return null instead of the MetadataFieldMapper
+            // instance.
+            if (metadataFieldMapper != null) {
+                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
-        } else {
-            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
         return metadataMappers;
     }
@@ -339,13 +336,34 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        final DocumentMapper currentMapper = this.mapper;
-        if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
-            return currentMapper;
+        return merge(type, List.of(mappingSource), reason);
+    }
+
+    public DocumentMapper merge(String type, List<CompressedXContent> mappingSources, MergeReason reason) {
+        if (mappingSources.isEmpty()) {
+            return this.mapper;
+        } else if (mappingSources.size() == 1) {
+            final DocumentMapper currentMapper = this.mapper;
+            if (currentMapper != null && currentMapper.mappingSource().equals(mappingSources.get(0))) {
+                return currentMapper;
+            }
         }
         synchronized (this) {
-            Mapping incomingMapping = parseMapping(type, mappingSource);
-            Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+            Mapping mapping = this.mapper == null ? null : this.mapper.mapping();
+            for (CompressedXContent mappingSource : mappingSources) {
+                Mapping incomingMapping;
+                try {
+                    incomingMapping = mappingParser.parse(
+                        type,
+                        mappingSource,
+                        mapping == null ? defaultMetadataMappers() : mapping.getMetadataMappersMap()
+                    );
+                } catch (Exception e) {
+                    throw wrapAsMapperParsingException(e);
+                }
+                mapping = mergeMappings(mapping, incomingMapping, reason);
+            }
+            assert mapping != null;
             // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
             // We should identify these cases reliably and save expensive serialization here
             DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
@@ -367,18 +385,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
         try {
-            return mappingParser.parse(mappingType, mappingSource);
+            return mappingParser.parse(mappingType, mappingSource, getMetadataMappers());
         } catch (Exception e) {
-            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+            throw wrapAsMapperParsingException(e);
         }
     }
 
-    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+    private MapperParsingException wrapAsMapperParsingException(Exception e) {
+        return new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+    }
+
+    public static Mapping mergeMappings(@Nullable DocumentMapper documentMapper, Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(documentMapper == null ? null : documentMapper.mapping(), incomingMapping, reason);
+    }
+
+    public static Mapping mergeMappings(@Nullable Mapping currentMapping, Mapping incomingMapping, MergeReason reason) {
         Mapping newMapping;
-        if (currentMapper == null) {
+        if (currentMapping == null) {
             newMapping = incomingMapping;
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapping.merge(incomingMapping, reason);
         }
         return newMapping;
     }

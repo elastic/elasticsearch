@@ -45,6 +45,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -1226,12 +1227,11 @@ public class MetadataCreateIndexService {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
         final CompressedXContent defaultMapping = indexMode.getDefaultMapping();
-        if (defaultMapping != null) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, defaultMapping, MergeReason.INDEX_TEMPLATE);
-        }
-        for (CompressedXContent mapping : mappings) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-        }
+        final List<CompressedXContent> mappingsToMerge = defaultMapping == null
+            ? mappings
+            : CollectionUtils.concatLists(List.of(defaultMapping), mappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingsToMerge, MergeReason.INDEX_TEMPLATE);
+
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

@@ -17,7 +17,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1702,13 +1701,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
-    }
-
-    /**
-     * Returns the registered metadata field names for the provided compatible {@link Version}.
-     */
-    public Set<String> getMetadataFields(Version version) {
-        return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

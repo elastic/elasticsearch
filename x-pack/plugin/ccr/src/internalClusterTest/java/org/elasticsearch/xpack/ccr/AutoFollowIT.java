@@ -62,12 +62,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -710,11 +710,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(3L));
         });
 
+        final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
+        final DataStream dataStream = metadata.dataStreams().get(datastream);
+        assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
+        assertEquals(IndexMetadata.State.OPEN, metadata.index(indexInDatastream).getState());
+        ensureFollowerGreen("*");
+        final IndicesStatsResponse stats = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(stats.getIndices(), aMapWithSize(2));
+
         assertAcked(leaderClient().admin().indices().prepareDelete(indexInDatastream).get());
         assertAcked(followerClient().admin().indices().prepareDelete(indexInDatastream).setMasterNodeTimeout(TimeValue.MAX_VALUE).get());
         ensureFollowerGreen("*");
-        final IndicesStatsResponse stats = followerClient().admin().indices().prepareStats(datastream).get();
-        assertThat(stats.getIndices(), not(anEmptyMap()));
+        final IndicesStatsResponse statsAfterDelete = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(statsAfterDelete.getIndices(), aMapWithSize(1));
+        assertThat(statsAfterDelete.getIndices(), hasKey(rolloverResponse.getNewIndex()));
     }
 
     private void putAutoFollowPatterns(String name, String[] patterns) {

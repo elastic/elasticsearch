@@ -56,6 +56,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -341,7 +342,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }));
         totalChannelsAccepted.incrementAndGet();
         httpClientStatsTracker.addClientStats(httpChannel);
-        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+        logger.trace(() -> format("Http channel accepted: %s", httpChannel));
     }
 
     /**
@@ -469,18 +470,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         Set<String> failedHeaderNames
     ) {
         assert failedHeaderNames.size() > 0;
-        HttpRequest httpRequestWithoutContentType = httpRequest;
+        HttpRequest httpRequestWithoutHeader = httpRequest;
         for (String failedHeaderName : failedHeaderNames) {
-            httpRequestWithoutContentType = httpRequestWithoutContentType.removeHeader(failedHeaderName);
+            httpRequestWithoutHeader = httpRequestWithoutHeader.removeHeader(failedHeaderName);
         }
         try {
-            return RestRequest.request(parserConfig, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.request(parserConfig, httpRequestWithoutHeader, httpChannel);
         } catch (final RestRequest.MediaTypeHeaderException e) {
             badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-            return requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
+            return requestWithoutFailedHeader(httpRequestWithoutHeader, httpChannel, badRequestCause, e.getFailedHeaderNames());
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutHeader, httpChannel);
         }
     }
 

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -75,6 +77,8 @@ import java.util.Map;
  *  -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
+
+    private static final Logger logger = LogManager.getLogger(TransportRollupAction.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -259,6 +263,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                     refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
                                         if (refreshIndexResponse.getFailedShards() == 0) {
                                             // 6. Add rollup index to data stream and publish rollup metadata
+                                            // 7. Mark rollup index as "completed successfully"
+                                            // 8. Delete the source index
                                             updateRollupMetadata(sourceIndexName, rollupIndexName, request, ActionListener.wrap(resp -> {
                                                 if (resp.isAcknowledged()) {
                                                     // 9. Force-merge the rollup index to a single segment
@@ -267,12 +273,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                                         parentTask,
                                                         ActionListener.wrap(
                                                             mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                                            e -> listener.onFailure(
-                                                                new ElasticsearchException(
-                                                                    "Failed to force-merge index [" + rollupIndexName + "]",
+                                                            e -> {
+                                                                /*
+                                                                 * At this point rollup has been successful even if force-merge fails.
+                                                                 * Also, we have deleted the source index and there is no way we can
+                                                                 * roll back and restart the operation. So, we should not fail the rollup
+                                                                 * operation.
+                                                                 */
+                                                                logger.error(
+                                                                    "Failed to force-merge rollup index [" + rollupIndexName + "]",
                                                                     e
-                                                                )
-                                                            )
+                                                                );
+                                                                listener.onResponse(AcknowledgedResponse.TRUE);
+                                                            }
                                                         )
                                                     );
                                                 } else {
@@ -325,7 +338,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                         new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
                                     );
                                 }
-                            }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, parentTask, listener, e)));
+                            },
+                                e -> deleteRollupIndex(
+                                    sourceIndexName,
+                                    rollupIndexName,
+                                    parentTask,
+                                    listener,
+                                    new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]", e)
+                                )
+                            ));
                         } else {
                             deleteRollupIndex(
                                 sourceIndexName,
@@ -336,7 +357,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             );
                         }
                     }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, parentTask, listener, e)));
-
                 } else {
                     listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
                 }

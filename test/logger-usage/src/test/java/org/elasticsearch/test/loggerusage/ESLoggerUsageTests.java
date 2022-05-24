@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -138,10 +137,6 @@ public class ESLoggerUsageTests extends ESTestCase {
         logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
-    public void checkFailArraySize(String... arr) {
-        logger.debug(() -> format("text %s", (Object[]) arr));
-    }
-
     public void checkNumberOfArguments1() {
         logger.info("Hello {}", "world");
     }
@@ -169,22 +164,6 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkFailNumberOfArguments3() {
         logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(() -> format("Hello %s, %s, %s", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(() -> format("Hello %s, %s", "world", 2, "third argument"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(() -> format("Hello %s, %s", "world", 2));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(() -> format("Hello %s, %s, %s", "world", 2));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {

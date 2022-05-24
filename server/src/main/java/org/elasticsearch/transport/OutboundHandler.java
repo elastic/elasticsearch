@@ -17,7 +17,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
@@ -29,7 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 
 final class OutboundHandler {
 
@@ -70,9 +68,11 @@ final class OutboundHandler {
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        ArrayDeque<ReleasableBytesReference> components = new ArrayDeque<>(1);
-        components.add(ReleasableBytesReference.wrap(bytes));
-        internalSend(channel, new OutboundMessage.SerializedBytes(components, bytes.length()), null, listener);
+        internalSend(channel, OutboundMessage.SerializedBytes.fromBytesReference(bytes), null, listener);
+    }
+
+    void sendBytes(TcpChannel channel, OutboundMessage.SerializedBytes bytes, ActionListener<Void> listener) {
+        internalSend(channel, bytes, null, listener);
     }
 
     /**
@@ -168,7 +168,7 @@ final class OutboundHandler {
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         final OutboundMessage.SerializedBytes message;
         try (RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
-            message = networkMessage.serializeC(byteStreamOutput);
+            message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
             listener.onFailure(e);
@@ -183,6 +183,8 @@ final class OutboundHandler {
         @Nullable OutboundMessage message,
         ActionListener<Void> listener
     ) {
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, serializedBytes::close);
+
         final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logOutboundMessage(channel, serializedBytes);
@@ -192,7 +194,7 @@ final class OutboundHandler {
                 @Override
                 public void onResponse(Void v) {
                     statsTracker.markBytesWritten(serializedBytes.messageLength());
-                    listener.onResponse(v);
+                    wrappedListener.onResponse(v);
                     maybeLogSlowMessage(true);
                 }
 
@@ -206,7 +208,7 @@ final class OutboundHandler {
                     } else {
                         logger.log(closeConnectionExceptionLevel, () -> "send message failed [channel: " + channel + "]", e);
                     }
-                    listener.onFailure(e);
+                    wrappedListener.onFailure(e);
                     maybeLogSlowMessage(false);
                 }
 
@@ -231,7 +233,7 @@ final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
-            listener.onFailure(ex);
+            wrappedListener.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }

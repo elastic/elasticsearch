@@ -198,7 +198,11 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         int position = (int) position();
 
         if (position == 0) {
-            return new BytesReference[0];
+            if (releasable) {
+                return new ReleasableBytesReference[0];
+            } else {
+                return new BytesReference[0];
+            }
         } else {
             final int adjustment;
             final int bytesInLastPage;
@@ -217,12 +221,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 BytesArray wrapped = new BytesArray(ref.bytes, ref.offset, bytesInLastPage);
                 if (releasable) {
                     ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, page);
-                    return new BytesReference[] { reference };
+                    return new ReleasableBytesReference[] { reference };
                 } else {
                     return new BytesReference[] { wrapped };
                 }
             } else {
-                BytesReference[] references = new BytesReference[pageCount];
+                final BytesReference[] references;
+                if (releasable) {
+                    references = new ReleasableBytesReference[pageCount];
+                } else {
+                    references = new BytesReference[pageCount];
+                }
                 for (int i = 0; i < pageCount - 1; ++i) {
                     Recycler.V<BytesRef> page = this.pages.get(i);
                     BytesArray wrapped = new BytesArray(page.v());

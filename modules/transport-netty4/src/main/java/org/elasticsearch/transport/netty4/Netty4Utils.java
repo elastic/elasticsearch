@@ -115,12 +115,15 @@ public class Netty4Utils {
         try {
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
+                buffers.add(new ReleasableByteBuf(slice.bytes, reference::close).slice(slice.offset, slice.length));
             }
 
             if (buffers.size() == 1) {
                 return buffers.get(0);
             } else {
+                for (int i = 0; i < buffers.size() - 1; ++i) {
+                    reference.incRef();
+                }
                 CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
                 composite.addComponents(true, buffers);
                 return composite;

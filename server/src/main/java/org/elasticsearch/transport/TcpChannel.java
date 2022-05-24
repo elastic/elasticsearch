@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.core.TimeValue;
 

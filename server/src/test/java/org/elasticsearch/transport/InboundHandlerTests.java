@@ -167,7 +167,8 @@ public class InboundHandlerTests extends ESTestCase {
         );
 
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
+        OutboundMessage.SerializedBytes serializedBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
+        BytesReference fullRequestBytes = serializedBytes.getBytesReference();
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});

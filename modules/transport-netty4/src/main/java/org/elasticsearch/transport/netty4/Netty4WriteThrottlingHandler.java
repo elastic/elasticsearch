@@ -17,7 +17,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.OutboundMessage;
@@ -25,6 +24,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 
 /**
@@ -50,15 +50,13 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         assert Transports.assertTransportThread();
         final boolean queued;
         if (msg instanceof OutboundMessage.SerializedBytes) {
-            ArrayDeque<ReleasableBytesReference> components = ((OutboundMessage.SerializedBytes) msg).components();
-            ByteBuf[] byteBufs = new ByteBuf[components.size()];
-            int i = 0;
+            List<ReleasableBytesReference> components = ((OutboundMessage.SerializedBytes) msg).components();
+            CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
             for (ReleasableBytesReference component : components) {
-//                byteBufs[i++] = new PagedByteBuf(component.array(), component.arrayOffset(), component.arrayOffset() + component.length(), component::close);
+                component.incRef();
+                composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
             }
-
-            // TODO: Fix
-            queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+            queued = queuedWrites.offer(new WriteOperation(composite, promise));
         } else {
             queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         }
@@ -111,6 +109,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             if (sliced) {
                 writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
                 write.buf.readerIndex(readerIndex + bufferSize);
+                write.buf.discardReadBytes();
             } else {
                 writeBuffer = write.buf;
             }

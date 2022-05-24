@@ -95,7 +95,7 @@ public class TransportLoggerTests extends ESTestCase {
                 false,
                 compress
             );
-            return request.serialize(bytesStreamOutput);
+            return request.serialize(bytesStreamOutput).getBytesReference();
         }
     }
 }

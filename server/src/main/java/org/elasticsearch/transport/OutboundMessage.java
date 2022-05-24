@@ -19,11 +19,15 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public abstract class OutboundMessage extends NetworkMessage {
 
@@ -41,70 +45,7 @@ public abstract class OutboundMessage extends NetworkMessage {
         this.message = message;
     }
 
-    BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
-        bytesStream.setVersion(version);
-        bytesStream.skip(TcpHeader.headerSize(version));
-
-        // The compressible bytes stream will not close the underlying bytes stream
-        BytesReference reference;
-        int variableHeaderLength = -1;
-        final long preHeaderPosition = bytesStream.position();
-
-        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            writeVariableHeader(bytesStream);
-            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-        }
-
-        final boolean compress = TransportStatus.isCompress(status);
-        final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
-        final BytesReference zeroCopyBuffer;
-        try {
-            stream.setVersion(version);
-            if (variableHeaderLength == -1) {
-                writeVariableHeader(stream);
-            }
-            if (message instanceof BytesTransportRequest bRequest) {
-                bRequest.writeThin(stream);
-                zeroCopyBuffer = bRequest.bytes;
-            } else if (message instanceof RemoteTransportException) {
-                stream.writeException((RemoteTransportException) message);
-                zeroCopyBuffer = BytesArray.EMPTY;
-            } else {
-                message.writeTo(stream);
-                zeroCopyBuffer = BytesArray.EMPTY;
-            }
-        } finally {
-            // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
-            // are written.
-            if (compress) {
-                stream.close();
-            }
-        }
-
-        long postSerializePosition = bytesStream.position();
-        final long totalMessageLength = bytesStream.position() + zeroCopyBuffer.length();
-        bytesStream.seek(0);
-        final int contentSize = Math.toIntExact(totalMessageLength) - TcpHeader.headerSize(version);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
-        bytesStream.seek(postSerializePosition);
-
-        final ReleasableBytesReference[] message = bytesStream.returnByteComponentsAndReset();
-        final ArrayDeque<ReleasableBytesReference> components;
-        if (zeroCopyBuffer.length() == 0) {
-            reference = CompositeBytesReference.of(message);
-            components = new ArrayDeque<>(message.length);
-            Collections.addAll(components, message);
-        } else {
-            reference = CompositeBytesReference.of(CompositeBytesReference.of(message), zeroCopyBuffer);
-            components = new ArrayDeque<>(message.length + 1);
-            Collections.addAll(components, message);
-            components.add(ReleasableBytesReference.wrap(zeroCopyBuffer));
-        }
-
-        return reference;
-    }
-
-    SerializedBytes serializeC(RecyclerBytesStreamOutput bytesStream) throws IOException {
+    SerializedBytes serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -150,12 +91,12 @@ public abstract class OutboundMessage extends NetworkMessage {
         bytesStream.seek(postSerializePosition);
 
         final ReleasableBytesReference[] message = bytesStream.returnByteComponentsAndReset();
-        final ArrayDeque<ReleasableBytesReference> components;
+        final List<ReleasableBytesReference> components;
         if (zeroCopyBuffer.length() == 0) {
-            components = new ArrayDeque<>(message.length);
+            components = new ArrayList<>(message.length);
             Collections.addAll(components, message);
         } else {
-            components = new ArrayDeque<>(message.length + 1);
+            components = new ArrayList<>(message.length + 1);
             Collections.addAll(components, message);
             components.add(ReleasableBytesReference.wrap(zeroCopyBuffer));
         }
@@ -275,7 +216,7 @@ public abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
-    public record SerializedBytes(ArrayDeque<ReleasableBytesReference> components, int messageLength) {
+    public record SerializedBytes(List<ReleasableBytesReference> components, int messageLength) implements Releasable {
 
         public BytesReference getBytesReference() {
             BytesReference[] references = new BytesReference[components.size()];
@@ -287,10 +228,29 @@ public abstract class OutboundMessage extends NetworkMessage {
         }
 
         public static SerializedBytes fromBytesReference(BytesReference reference) {
-            ArrayDeque<ReleasableBytesReference> components = new ArrayDeque<>(1);
-            components.add(ReleasableBytesReference.wrap(reference));
-            return new OutboundMessage.SerializedBytes(components, reference.length());
+            return new OutboundMessage.SerializedBytes(
+                Collections.singletonList(ReleasableBytesReference.wrapOrInc(reference)),
+                reference.length()
+            );
 
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SerializedBytes that = (SerializedBytes) o;
+            return messageLength == that.messageLength && Objects.equals(components, that.components);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(components, messageLength);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(components);
         }
     }
 }

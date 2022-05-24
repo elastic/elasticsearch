@@ -671,10 +671,7 @@ public abstract class TransportBroadcastByNodeAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
             out.writeVInt(totalShards);
-            out.writeVInt(results.size());
-            for (ShardOperationResult result : results) {
-                out.writeOptionalWriteable(result);
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
                 out.writeList(exceptions);

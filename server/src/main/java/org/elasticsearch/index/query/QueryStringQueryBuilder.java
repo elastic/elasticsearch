@@ -192,11 +192,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.queryString);
         out.writeOptionalString(this.defaultField);
-        out.writeVInt(this.fieldsAndWeights.size());
-        for (Map.Entry<String, Float> fieldsEntry : this.fieldsAndWeights.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
+        out.writeMap(this.fieldsAndWeights, StreamOutput::writeString, StreamOutput::writeFloat);
         this.defaultOperator.writeTo(out);
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);

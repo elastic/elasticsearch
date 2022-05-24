@@ -517,10 +517,10 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        ActionListener<PrivilegesCheckResult> originaListener
+        ActionListener<PrivilegesCheckResult> originalListener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            originaListener.onFailure(
+            originalListener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
             return;
@@ -545,10 +545,10 @@ public class RBACEngine implements AuthorizationEngine {
                         privilegesToCheck
                     )
                 );
-                originaListener.onResponse(result);
+                originalListener.onResponse(result);
                 return;
             }
-            listener = originaListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
+            listener = originalListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
                 try {
                     simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
                 } catch (Exception e) {
@@ -560,7 +560,7 @@ public class RBACEngine implements AuthorizationEngine {
             });
         } else {
             // caching of check result unsupported
-            listener = originaListener;
+            listener = originalListener;
         }
 
         boolean allMatch = true;
@@ -593,17 +593,6 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
-        }
-        if (Assertions.ENABLED && combineIndicesResourcePrivileges != null) {
-            assert privilegesToCheck.runDetailedCheck();
-            assert combineIndicesResourcePrivileges.build()
-                .getResourceToResourcePrivileges()
-                .values()
-                .stream()
-                .map(ResourcePrivileges::getPrivileges)
-                .map(Map::values)
-                .flatMap(Collection::stream)
-                .anyMatch(Boolean.FALSE::equals) != allMatch;
         }
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();

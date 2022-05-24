@@ -1212,10 +1212,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
-        out.writeVInt(templates.size());
-        for (IndexTemplateMetadata template : templates.values()) {
-            template.writeTo(out);
-        }
+        out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
     }
 

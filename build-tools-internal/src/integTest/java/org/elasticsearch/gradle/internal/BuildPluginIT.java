@@ -39,7 +39,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testCheckTask() {
-        setupJarJdkClasspath(getProjectDir());
+        setupJarJdkClasspath(new File(getProjectDir(), "sample_jars/build/testrepo/org/elasticsearch/elasticsearch-core/current/"));
         BuildResult result = getGradleRunner().withArguments("check", "assemble", "-s").build();
         assertTaskSuccessful(result, ":check");
     }

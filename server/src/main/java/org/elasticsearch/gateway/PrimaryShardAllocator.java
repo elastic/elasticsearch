@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -37,6 +36,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The primary shard allocator allocates unassigned primary shards to nodes that hold
@@ -320,8 +321,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 final String finalAllocationId = allocationId;
                 if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] on node [{}] has allocation id [{}] but the store can not be "
+                        () -> format(
+                            "[%s] on node [%s] has allocation id [%s] but the store can not be "
                                 + "opened as it's locked, treating as valid shard",
                             shard,
                             nodeShardState.getNode(),
@@ -331,8 +332,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     );
                 } else {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] on node [{}] has allocation id [{}] but the store can not be " + "opened, treating as no allocation id",
+                        () -> format(
+                            "[%s] on node [%s] has allocation id [%s] but the store can not be " + "opened, treating as no allocation id",
                             shard,
                             nodeShardState.getNode(),
                             finalAllocationId

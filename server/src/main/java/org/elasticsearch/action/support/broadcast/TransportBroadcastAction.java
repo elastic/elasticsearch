@@ -39,6 +39,8 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,
@@ -296,14 +298,7 @@ public abstract class TransportBroadcastAction<
                 try {
                     channel.sendResponse(e);
                 } catch (Exception e1) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]",
-                            actionName,
-                            request
-                        ),
-                        e1
-                    );
+                    logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), e1);
                 }
             }));
         }

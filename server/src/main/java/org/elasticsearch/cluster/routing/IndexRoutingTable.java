@@ -313,10 +313,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
-        out.writeVInt(shards.length);
-        for (IndexShardRoutingTable indexShard : this.shards) {
-            IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
-        }
+        out.writeArray((o, s) -> IndexShardRoutingTable.Builder.writeToThin(s, o), shards);
     }
 
     public static Builder builder(Index index) {

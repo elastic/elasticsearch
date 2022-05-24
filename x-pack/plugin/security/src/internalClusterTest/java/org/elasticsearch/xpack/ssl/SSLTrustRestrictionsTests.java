@@ -33,7 +33,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLException;
@@ -168,11 +170,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
+            Collection<List<?>> subjectAlternativeNames = trustedCert.certificate.getSubjectAlternativeNames();
             logger.warn(
                 () -> format(
                     "unexpected handshake failure with certificate [%s] [%s]",
                     trustedCert.certificate.getSubjectX500Principal(),
-                    trustedCert.certificate.getSubjectAlternativeNames()
+                    subjectAlternativeNames
                 ),
                 ex
             );

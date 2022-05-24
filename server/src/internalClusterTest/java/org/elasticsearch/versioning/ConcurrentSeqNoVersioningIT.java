@@ -262,7 +262,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             if (version.compareTo(partition.latestSuccessfulVersion()) <= 0) {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
-                            logger.info(() -> format("Received failure for request [%s], version [%s]", indexRequest, version), e);
+                            Version versionToLog = version;
+                            logger.info(() -> format("Received failure for request [%s], version [%s]", indexRequest, versionToLog), e);
                             if (stop) {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
                                 return;

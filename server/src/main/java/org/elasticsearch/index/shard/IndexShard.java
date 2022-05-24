@@ -1012,31 +1012,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
         active.set(true);
         final Engine.IndexResult result;
-        index = indexingOperationListeners.preIndex(shardId, index);
+        final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
                 logger.trace(
                     "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                    index.id(),
-                    index.seqNo(),
+                    preIndex.id(),
+                    preIndex.seqNo(),
                     routingEntry().allocationId(),
-                    index.primaryTerm(),
+                    preIndex.primaryTerm(),
                     getOperationPrimaryTerm(),
-                    index.origin()
+                    preIndex.origin()
                 );
             }
-            result = engine.index(index);
+            result = engine.index(preIndex);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
                         + "result-seq# [{}] result-term [{}] failure [{}]",
-                    index.id(),
-                    index.seqNo(),
+                    preIndex.id(),
+                    preIndex.seqNo(),
                     routingEntry().allocationId(),
-                    index.primaryTerm(),
+                    preIndex.primaryTerm(),
                     getOperationPrimaryTerm(),
-                    index.origin(),
+                    preIndex.origin(),
                     result.getSeqNo(),
                     result.getTerm(),
                     result.getFailure()
@@ -1047,20 +1047,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 logger.trace(
                     () -> format(
                         "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
-                        index.id(),
-                        index.seqNo(),
+                        preIndex.id(),
+                        preIndex.seqNo(),
                         routingEntry().allocationId(),
-                        index.primaryTerm(),
+                        preIndex.primaryTerm(),
                         getOperationPrimaryTerm(),
-                        index.origin()
+                        preIndex.origin()
                     ),
                     e
                 );
             }
-            indexingOperationListeners.postIndex(shardId, index, e);
+            indexingOperationListeners.postIndex(shardId, preIndex, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(shardId, index, result);
+        indexingOperationListeners.postIndex(shardId, preIndex, result);
         return result;
     }
 

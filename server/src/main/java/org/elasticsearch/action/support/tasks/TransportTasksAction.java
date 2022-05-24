@@ -393,22 +393,10 @@ public abstract class TransportTasksAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            out.writeVInt(results.size());
-            for (TaskResponse result : results) {
-                if (result != null) {
-                    out.writeBoolean(true);
-                    result.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                int taskFailures = exceptions.size();
-                out.writeVInt(taskFailures);
-                for (TaskOperationFailure exception : exceptions) {
-                    exception.writeTo(out);
-                }
+                out.writeCollection(exceptions);
             }
         }
     }

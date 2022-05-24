@@ -141,21 +141,24 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
     }
 
-    // TODO: #85572 Fill in help URLs once they are finalized
+    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
     public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition(
         "restore_from_snapshot",
         Explanations.Allocation.NO_COPIES,
-        null
+        RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
     );
+
+    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
     public static final UserAction.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new UserAction.Definition(
         "explain_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster. Diagnose the issue by "
             + "calling the allocation explain api for an index [GET _cluster/allocation/explain]. Choose a node to which you expect a "
             + "shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch "
             + "from allocating a shard there.",
-        null
+        DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
+    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final UserAction.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new UserAction.Definition(
         "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
@@ -164,8 +167,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "] index settings are set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
             + "].",
-        null
+        ENABLE_INDEX_ALLOCATION_GUIDE
     );
+    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
     public static final UserAction.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new UserAction.Definition(
         "enable_cluster_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
@@ -174,9 +178,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "] cluster setting is set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
             + "].",
-        null
+        ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE
     );
 
+    public static final String ENABLE_TIER_ACTION_GUIDE = "http://ela.st/enable-tier";
     public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -188,18 +193,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         + "the ["
                         + tier
                         + "] role to the cluster.",
-                    null
+                    ENABLE_TIER_ACTION_GUIDE
                 )
             )
         );
 
+    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new UserAction.Definition(
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached these "
             + "indices' shard limits. Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
-        null
+        INCREASE_SHARD_LIMIT_ACTION_GUIDE
     );
 
     public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
@@ -214,18 +220,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         + "] tier has reached these indices' shard limits. Increase the values for the ["
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] index setting on each index or add more nodes to the target tiers.",
-                    null
+                    INCREASE_SHARD_LIMIT_ACTION_GUIDE
                 )
             )
         );
 
+    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new UserAction.Definition(
         "increase_shard_limit_cluster_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached this "
             + "cluster's shard limit. Increase the values for the ["
             + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] cluster setting or add more nodes to the target tiers.",
-        null
+        INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
     );
 
     public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
@@ -240,11 +247,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         + "] tier has reached this cluster's shard limit. Increase the values for the ["
                         + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] cluster setting or add more nodes to the target tiers.",
-                    null
+                    INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
                 )
             )
         );
 
+    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new UserAction.Definition(
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
@@ -252,7 +260,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
             + ".data] from each index's settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
             + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
-        null
+        MIGRATE_TO_TIERS_ACTION_GUIDE
     );
 
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new UserAction.Definition(
@@ -262,15 +270,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
             + ".data] from each index's settings try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
             + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
-        null
+        MIGRATE_TO_TIERS_ACTION_GUIDE
     );
 
+    public static final String NODE_CAPACITY_ACTION_GUIDE = "http://ela.st/node-capacity";
     public static final UserAction.Definition ACTION_INCREASE_NODE_CAPACITY = new UserAction.Definition(
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
             + "allocate each shard copy on a different node. Increase the number of nodes in the cluster or decrease the number of "
             + "replicas your indices are using.",
-        null
+        NODE_CAPACITY_ACTION_GUIDE
     );
 
     public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
@@ -284,7 +293,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         + tier
                         + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
                         + "decrease the number of replicas your indices are using.",
-                    null
+                    NODE_CAPACITY_ACTION_GUIDE
                 )
             )
         );

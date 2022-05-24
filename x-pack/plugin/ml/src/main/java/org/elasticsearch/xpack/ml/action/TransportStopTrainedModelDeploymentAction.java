@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -197,10 +196,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 modelId,
                 ActionListener.wrap(deleted -> listener.onResponse(r), deletionFailed -> {
                     logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to delete model assignment after nodes unallocated the deployment",
-                            modelId
-                        ),
+                        () -> format("[%s] failed to delete model assignment after nodes unallocated the deployment", modelId),
                         deletionFailed
                     );
                     listener.onFailure(

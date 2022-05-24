@@ -10,14 +10,22 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +41,9 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -44,7 +54,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
     final PluginIntrospector pluginIntrospector = PluginIntrospector.getInstance();
 
-    public void testEmpty() {
+    public void testInterfacesEmpty() {
         class FooPlugin extends Plugin {}
         assertThat(pluginIntrospector.interfaces(FooPlugin.class), empty());
     }
@@ -54,28 +64,29 @@ public class PluginIntrospectorTests extends ESTestCase {
         assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("ActionPlugin"));
     }
 
-    public void testInterfaceExtends() {
+    public void testInterfacesInterfaceExtends() {
         interface BarActionPlugin extends ActionPlugin {}
         class FooPlugin extends Plugin implements BarActionPlugin {}
         assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("ActionPlugin"));
     }
 
-    public void testInterfaceExtends2() {
-        interface BazAnalysisPlugin extends AnalysisPlugin {}
-        interface GusAnalysisPlugin extends BazAnalysisPlugin {}
-        class FooPlugin extends Plugin implements GusAnalysisPlugin {}
-        assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("AnalysisPlugin"));
+    public void testInterfacesInterfaceExtends2() {
+        interface BazRepositoryPlugin extends RepositoryPlugin {}
+        interface GusRepositoryPlugin extends BazRepositoryPlugin {}
+        interface RobRepositoryPlugin extends GusRepositoryPlugin {}
+        class FooRepositoryPlugin extends Plugin implements RobRepositoryPlugin {}
+        assertThat(pluginIntrospector.interfaces(FooRepositoryPlugin.class), contains("RepositoryPlugin"));
     }
 
-    public void testPluginExtends() {
-        abstract class AbstractPlugin extends Plugin implements AnalysisPlugin {}
-        abstract class FooPlugin extends AbstractPlugin {}
-        abstract class BarPlugin extends FooPlugin {}
-        class BazPlugin extends BarPlugin {}
-        assertThat(pluginIntrospector.interfaces(BazPlugin.class), contains("AnalysisPlugin"));
+    public void testInterfacesPluginExtends() {
+        abstract class AbstractPersistentTaskPlugin extends Plugin implements PersistentTaskPlugin {}
+        abstract class FooPersistentTaskPlugin extends AbstractPersistentTaskPlugin {}
+        abstract class BarPersistentTaskPlugin extends FooPersistentTaskPlugin {}
+        class BazPersistentTaskPlugin extends BarPersistentTaskPlugin {}
+        assertThat(pluginIntrospector.interfaces(BazPersistentTaskPlugin.class), contains("PersistentTaskPlugin"));
     }
 
-    public void testPluginExtends2() {
+    public void testInterfacesPluginExtends2() {
         abstract class AbstractPlugin extends Plugin implements NetworkPlugin {}
         abstract class FooPlugin extends AbstractPlugin implements ClusterPlugin {}
         abstract class BarPlugin extends FooPlugin implements DiscoveryPlugin {}
@@ -87,8 +98,108 @@ public class PluginIntrospectorTests extends ESTestCase {
         );
     }
 
+    public void testInterfacesAllPlugin() {
+        class AllPlugin extends Plugin
+            implements
+                ActionPlugin,
+                AnalysisPlugin,
+                CircuitBreakerPlugin,
+                ClusterPlugin,
+                DiscoveryPlugin,
+                EnginePlugin,
+                ExtensiblePlugin,
+                HealthPlugin,
+                IndexStorePlugin,
+                IngestPlugin,
+                MapperPlugin,
+                NetworkPlugin,
+                PersistentTaskPlugin,
+                RecoveryPlannerPlugin,
+                ReloadablePlugin,
+                RepositoryPlugin,
+                ScriptPlugin,
+                SearchPlugin,
+                ShutdownAwarePlugin,
+                SystemIndexPlugin {
+            @Override
+            public BreakerSettings getCircuitBreaker(Settings settings) {
+                return null;
+            }
+
+            @Override
+            public void setCircuitBreaker(CircuitBreaker circuitBreaker) {}
+
+            @Override
+            public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+                return null;
+            }
+
+            @Override
+            public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+                return null;
+            }
+
+            @Override
+            public Map<String, DirectoryFactory> getDirectoryFactories() {
+                return null;
+            }
+
+            @Override
+            public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+                return null;
+            }
+
+            @Override
+            public void reload(Settings settings) {}
+
+            @Override
+            public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+                return false;
+            }
+
+            @Override
+            public void signalShutdown(Collection<String> shutdownNodeIds) {}
+
+            @Override
+            public String getFeatureName() {
+                return null;
+            }
+
+            @Override
+            public String getFeatureDescription() {
+                return null;
+            }
+        }
+
+        assertThat(
+            pluginIntrospector.interfaces(AllPlugin.class),
+            contains(
+                "ActionPlugin",
+                "AnalysisPlugin",
+                "CircuitBreakerPlugin",
+                "ClusterPlugin",
+                "DiscoveryPlugin",
+                "EnginePlugin",
+                "ExtensiblePlugin",
+                "HealthPlugin",
+                "IndexStorePlugin",
+                "IngestPlugin",
+                "MapperPlugin",
+                "NetworkPlugin",
+                "PersistentTaskPlugin",
+                "RecoveryPlannerPlugin",
+                "ReloadablePlugin",
+                "RepositoryPlugin",
+                "ScriptPlugin",
+                "SearchPlugin",
+                "ShutdownAwarePlugin",
+                "SystemIndexPlugin"
+            )
+        );
+    }
+
     // Ensures that BiFunction is filtered out of interface list
-    public void testNameFilterBasic() {
+    public void testInterfacesNonESPluginInfFilteredOut() {
         class FooPlugin<T, U, R> extends Plugin implements BiFunction<T, U, R>, IndexStorePlugin {
             @Override
             public Map<String, DirectoryFactory> getDirectoryFactories() {
@@ -103,7 +214,7 @@ public class PluginIntrospectorTests extends ESTestCase {
         assertThat(pluginIntrospector.interfaces(FooPlugin.class), contains("IndexStorePlugin"));
     }
 
-    public void testNameFilter() throws Exception {
+    public void testInterfacesNonESPluginInfFilteredOut2() throws Exception {
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p.MyPlugin", """
             package p;
@@ -185,9 +296,10 @@ public class PluginIntrospectorTests extends ESTestCase {
             pluginIntrospector.overriddenMethods(BarZPlugin.class),
             contains("additionalSettings", "getHealthIndicatorServices", "getTokenFilters")
         );
+        assertThat(pluginIntrospector.interfaces(BarZPlugin.class), contains("AnalysisPlugin", "HealthPlugin"));
     }
 
-    public void testOverrideVirtualWithDefaultMethod() {
+    public void testOverriddenMethodsDefaultMethod() {
         interface BartSystemIndexPlugin extends SystemIndexPlugin {
             @Override
             default String getFeatureName() {
@@ -195,15 +307,70 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
 
         }
-        class BartPlugin extends Plugin implements BartSystemIndexPlugin {
+        class BartSystemIndexPluginImpl extends Plugin implements BartSystemIndexPlugin {
             @Override
             public String getFeatureDescription() {
                 return "";
             }
         }
 
-        assertThat(pluginIntrospector.overriddenMethods(BartPlugin.class), contains("getFeatureDescription", "getFeatureName"));
+        assertThat(
+            pluginIntrospector.overriddenMethods(BartSystemIndexPluginImpl.class),
+            contains("getFeatureDescription", "getFeatureName")
+        );
+        assert ActionPlugin.class.isAssignableFrom(SystemIndexPlugin.class);
+        assertThat(pluginIntrospector.interfaces(BartSystemIndexPluginImpl.class), contains("ActionPlugin", "SystemIndexPlugin"));
     }
 
-    // TODO: add more test coverage, and ensure all combinations covered
+    public void testOverriddenMethodsNoDuplicateEntries() {
+        class BazIngestPlugin extends Plugin implements IngestPlugin {
+            @Override
+            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+                return null;
+            }
+        }
+        class SubBazIngestPlugin extends BazIngestPlugin {
+            @Override
+            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+                return null;
+            }
+        }
+
+        assertThat(pluginIntrospector.overriddenMethods(BazIngestPlugin.class), contains("getProcessors"));
+        assertThat(pluginIntrospector.overriddenMethods(SubBazIngestPlugin.class), contains("getProcessors"));
+        assertThat(pluginIntrospector.interfaces(BazIngestPlugin.class), contains("IngestPlugin"));
+        assertThat(pluginIntrospector.interfaces(SubBazIngestPlugin.class), contains("IngestPlugin"));
+    }
+
+    public void testOverriddenMethodsCaseSensitivity() {
+        abstract class AbstractShutdownAwarePlugin extends Plugin implements ShutdownAwarePlugin {
+
+            // does not override - initial char uppercase
+            public boolean SafeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+                return false;
+            }
+
+            // does not override - DOWN uppercased
+            public void signalShutDOWN(Collection<String> shutdownNodeIds) {}
+        }
+
+        assertThat(pluginIntrospector.overriddenMethods(AbstractShutdownAwarePlugin.class), empty());
+        assertThat(pluginIntrospector.interfaces(AbstractShutdownAwarePlugin.class), contains("ShutdownAwarePlugin"));
+    }
+
+    public void testOverriddenMethodsParamTypes() {
+        abstract class AbstractShutdownAwarePlugin extends Plugin implements ShutdownAwarePlugin {
+
+            // does not override - initial param type int (rather than String)
+            public boolean safeToShutdown(int nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+                return false;
+            }
+
+            // does not override - initial param type List (rather than Collection)
+            public void signalShutdown(List<String> shutdownNodeIds) {}
+        }
+
+        assertThat(pluginIntrospector.overriddenMethods(AbstractShutdownAwarePlugin.class), empty());
+        assertThat(pluginIntrospector.interfaces(AbstractShutdownAwarePlugin.class), contains("ShutdownAwarePlugin"));
+    }
 }

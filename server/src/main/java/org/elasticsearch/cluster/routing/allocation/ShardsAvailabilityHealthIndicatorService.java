@@ -93,6 +93,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
+    public static final String HELP_URL = "https://ela.st/fix-shard-allocation";
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final DesiredNodesMembershipService desiredNodesMembershipService;
@@ -115,6 +117,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     @Override
     public String component() {
         return DATA;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override

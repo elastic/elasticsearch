@@ -165,7 +165,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         shardBuilder.addShard(shardRouting);
                     }
                 }
-                indexBuilder.addIndexShard(shardBuilder.build());
+                indexBuilder.addIndexShard(shardBuilder);
             }
             routingTableBuilder.add(indexBuilder);
         }

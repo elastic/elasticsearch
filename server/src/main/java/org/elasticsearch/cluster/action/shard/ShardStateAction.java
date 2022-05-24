@@ -70,6 +70,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
@@ -882,7 +884,7 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("{} no longer master while starting shard [{}]", entry.shardId, entry));
+                logger.debug(() -> format("%s no longer master while starting shard [%s]", entry.shardId, entry));
             } else if (e instanceof FailedToCommitClusterStateException) {
                 logger.debug(() -> new ParameterizedMessage("{} unexpected failure while starting shard [{}]", entry.shardId, entry), e);
             } else {

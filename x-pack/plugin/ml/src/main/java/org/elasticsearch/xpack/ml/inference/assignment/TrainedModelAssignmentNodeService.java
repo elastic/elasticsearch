@@ -57,7 +57,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
-import static org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState.FAILED;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
@@ -472,10 +471,20 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             new RoutingStateAndReason(RoutingState.FAILED, reason),
             ActionListener.wrap(
                 r -> logger.debug(
-                    () -> format("[%s] Successfully updating assignment state to [%s] with reason [%s]", task.getModelId(), FAILED, reason)
+                    () -> format(
+                        "[%s] Successfully updating assignment state to [%s] with reason [%s]",
+                        task.getModelId(),
+                        RoutingState.FAILED,
+                        reason
+                    )
                 ),
                 e -> logger.error(
-                    () -> format("[%s] Error while updating assignment state to [%s] with reason [%s]", task.getModelId(), FAILED, reason),
+                    () -> format(
+                        "[%s] Error while updating assignment state to [%s] with reason [%s]",
+                        task.getModelId(),
+                        RoutingState.FAILED,
+                        reason
+                    ),
                     e
                 )
             )

@@ -69,7 +69,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
@@ -255,7 +254,7 @@ public class CompositeRolesStore {
                         () -> format(
                             "there was a failure resolving the roles [%s], falling back to the [%s] role instead",
                             roleReference.id(),
-                            arrayToCommaDelimitedString(superuserRole.names())
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
                         ),
                         e
                     );

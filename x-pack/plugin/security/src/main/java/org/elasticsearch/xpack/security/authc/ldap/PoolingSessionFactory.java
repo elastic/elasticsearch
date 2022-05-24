@@ -35,9 +35,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.HEALTH_CHECK_DN;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
@@ -101,7 +98,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     "[{}] is set but no bind password is specified. Without a corresponding bind password, "
                         + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
                         + "In the next major release, nodes with incomplete bind credentials will fail to start.",
-                    RealmSettings.getFullSettingKey(config, BIND_DN),
+                    RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
                     config.type(),
                     RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
                     RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
@@ -206,8 +203,8 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                         () -> format(
                             "[%s] and [%s} have not been specified or are not valid distinguished names,"
                                 + "so connection health checking is disabled",
-                            getFullSettingKey(config, BIND_DN),
-                            getFullSettingKey(config, HEALTH_CHECK_DN)
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
                         )
                     );
                 }

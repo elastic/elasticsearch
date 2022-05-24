@@ -22,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
 /**
  * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
@@ -60,7 +59,7 @@ class HttpTracer {
                 () -> format(
                     "[%s][%s][%s][%s] received request from [%s]",
                     restRequest.getRequestId(),
-                    restRequest.header(X_OPAQUE_ID_HTTP_HEADER),
+                    restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
                     restRequest.uri(),
                     restRequest.getHttpChannel()

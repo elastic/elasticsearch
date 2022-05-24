@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -39,7 +40,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.license.LicenseUtils.newComplianceException;
 
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
@@ -172,7 +172,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                             getLicenseState().getOperationMode().description(),
                             metadata.name()
                         ),
-                        newComplianceException("encrypted snapshots")
+                        LicenseUtils.newComplianceException("encrypted snapshots")
                     );
                 }
                 return createEncryptedRepository(

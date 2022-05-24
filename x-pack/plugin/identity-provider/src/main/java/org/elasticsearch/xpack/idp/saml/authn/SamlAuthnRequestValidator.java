@@ -50,7 +50,6 @@ import java.util.zip.InflaterInputStream;
 
 import javax.xml.parsers.DocumentBuilder;
 
-import static java.util.Set.of;
 import static org.elasticsearch.core.Strings.format;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
@@ -266,7 +265,7 @@ public class SamlAuthnRequestValidator {
                 );
             } catch (InvalidKeyException | SignatureException e) {
                 logger.warn(
-                    () -> format("Signature verification failed for credential [%s]", samlFactory.describeCredentials(of(credential))),
+                    () -> format("Signature verification failed for credential [%s]", samlFactory.describeCredentials(Set.of(credential))),
                     e
                 );
                 return false;

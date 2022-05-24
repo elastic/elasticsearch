@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -93,7 +94,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants.LATEST_INDEX_NAME;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -767,7 +767,14 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 ),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
-                    logger.error(() -> format("[%s] failed to create internal index [%s]", params.getId(), LATEST_INDEX_NAME), cause);
+                    logger.error(
+                        () -> format(
+                            "[%s] failed to create internal index [%s]",
+                            params.getId(),
+                            InferenceIndexConstants.LATEST_INDEX_NAME
+                        ),
+                        cause
+                    );
                     dfaTask.setFailed(error);
                 }
             );

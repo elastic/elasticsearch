@@ -52,7 +52,6 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState.FAILED;
 
 public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
 
@@ -191,7 +190,12 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 LOGGER.info("[{}] {}", getParams().getId(), message);
             },
                 e -> LOGGER.error(
-                    () -> format("[%s] Could not update task state to [%s] with reason [%s]", getParams().getId(), FAILED, reason),
+                    () -> format(
+                        "[%s] Could not update task state to [%s] with reason [%s]",
+                        getParams().getId(),
+                        DataFrameAnalyticsState.FAILED,
+                        reason
+                    ),
                     e
                 )
             ));

@@ -152,4 +152,24 @@ public class MapBackedMetadataTests extends ESTestCase {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, m::getSource);
         assertEquals("source should be a map, not [mySource] with [java.lang.String]", err.getMessage());
     }
+
+    public void testCtx() {
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("_index", "myIndex");
+        ctx.put("_id", "myId");
+        ctx.put("_version", 200);
+        ctx.put("_routing", "myRouting");
+        ctx.put("op", "create");
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        ctx.put("_source", source);
+
+        MapBackedMetadata m = new MapBackedMetadata(ctx);
+        assertEquals("myIndex", m.getIndex());
+        assertEquals("myId", m.getId());
+        assertEquals(Long.valueOf(200), m.getVersion());
+        assertEquals("myRouting", m.getRouting());
+        assertEquals(Op.CREATE, m.getOp().op);
+        assertEquals("bar", m.getSource().get("foo"));
+    }
 }

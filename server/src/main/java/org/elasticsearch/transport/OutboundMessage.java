@@ -99,7 +99,7 @@ public abstract class OutboundMessage extends NetworkMessage {
         } else {
             components = new ArrayList<>(message.length + 1);
             Collections.addAll(components, message);
-            components.add(ReleasableBytesReference.wrap(zeroCopyBuffer));
+            components.add(ReleasableBytesReference.wrapOrInc(zeroCopyBuffer));
         }
 
         return new SerializedBytes(components, Math.toIntExact(totalMessageLength));

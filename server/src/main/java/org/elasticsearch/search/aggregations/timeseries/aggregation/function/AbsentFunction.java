@@ -8,17 +8,13 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 
-import java.util.function.Function;
-
-public class LastFunction extends AbstractLastFunction {
-    private Function<Double, Double> function;
-
-    public LastFunction(Function<Double, Double> function) {
-        this.function = function;
-    }
-
+public class AbsentFunction extends AbstractLastFunction {
     @Override
-    public Double interGet() {
-        return function.apply(point.getValue());
+    protected Double interGet() {
+        if (getPoint() == null) {
+            return 1d;
+        } else {
+            return Double.NaN;
+        }
     }
 }

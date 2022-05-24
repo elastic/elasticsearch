@@ -8,17 +8,20 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 
-import java.util.function.Function;
+public class ClampFunction extends AbstractLastFunction {
+    private final Double max;
+    private final Double min;
 
-public class LastFunction extends AbstractLastFunction {
-    private Function<Double, Double> function;
-
-    public LastFunction(Function<Double, Double> function) {
-        this.function = function;
+    public ClampFunction(Double max, Double min) {
+        this.max = max;
+        this.min = min;
     }
 
     @Override
-    public Double interGet() {
-        return function.apply(point.getValue());
+    protected Double interGet() {
+        if (min > max) {
+            return Double.NaN;
+        }
+        return Math.max(min, Math.min(max, getPoint().getValue()));
     }
 }

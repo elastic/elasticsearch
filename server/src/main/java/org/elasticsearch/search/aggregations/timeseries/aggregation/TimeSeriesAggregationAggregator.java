@@ -78,6 +78,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private Map<String, Object> aggregatorParams;
     protected long downsampleRange;
     protected Function downsampleFunction;
+    protected Map<String, Object> downsampleParams;
     private BucketOrder order;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds;
     protected Comparator<InternalTimeSeriesAggregation.InternalBucket> partiallyBuiltBucketComparator;
@@ -131,6 +132,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
+        this.downsampleParams = downsample != null ? downsample.getParams() : null;
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order == null ? BucketOrder.key(true) : order;
         this.partiallyBuiltBucketComparator = order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);

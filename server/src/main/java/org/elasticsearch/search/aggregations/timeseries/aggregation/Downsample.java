@@ -76,6 +76,10 @@ public class Downsample implements ToXContentObject, Writeable {
         return function;
     }
 
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
     public static Downsample fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }

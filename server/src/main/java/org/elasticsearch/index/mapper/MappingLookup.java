@@ -404,6 +404,9 @@ public final class MappingLookup {
         return sfm != null && sfm.enabled();
     }
 
+    /**
+     * Build something to load source {@code _source}.
+     */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
             return new SourceLoader.Synthetic(mapping.getRoot());

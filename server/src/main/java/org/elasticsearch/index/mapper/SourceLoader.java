@@ -18,7 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
- * Loads source {@code _source} during the a GET or {@code _search}.
+ * Loads source {@code _source} during a GET or {@code _search}.
  */
 public interface SourceLoader {
     /**

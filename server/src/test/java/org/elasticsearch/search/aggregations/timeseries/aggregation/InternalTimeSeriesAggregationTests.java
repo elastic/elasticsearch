@@ -8,16 +8,16 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation.InternalBucket;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLineAggreagation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -85,7 +85,12 @@ public class InternalTimeSeriesAggregationTests extends InternalMultiBucketAggre
                 new InternalTimeSeriesAggregation.InternalBucket(
                     keys.get(j),
                     docCount,
-                    null,
+                    new TimeSeriesLineAggreagation(
+                        TimeSeriesLineAggreagation.NAME,
+                        Collections.emptyMap(),
+                        DocValueFormat.RAW,
+                        Collections.emptyMap()
+                    ),
                     InternalAggregations.EMPTY,
                     keyed,
                     showTermDocCountError,

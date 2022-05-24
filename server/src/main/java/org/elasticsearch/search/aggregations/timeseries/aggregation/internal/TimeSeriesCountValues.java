@@ -21,10 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * @author weizijun.wzj
- * @date 2022/5/23
- */
 public class TimeSeriesCountValues extends InternalAggregation {
     public static final String NAME = "time_series_count_values";
 

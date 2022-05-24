@@ -15,10 +15,6 @@ import java.util.function.Function;
 
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
-/**
- * @author weizijun.wzj
- * @date 2022/5/24
- */
 public class DateFunction extends AbstractLastFunction {
 
     private Function<ZonedDateTime, Integer> function;

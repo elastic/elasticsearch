@@ -22,10 +22,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-/**
- * @author weizijun.wzj
- * @date 2022/5/23
- */
 public class TimeSeriesLineAggreagation extends InternalAggregation {
     public static final String NAME = "time_series_line";
 

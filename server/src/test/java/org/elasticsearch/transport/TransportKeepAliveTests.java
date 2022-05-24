@@ -8,6 +8,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.AsyncBiFunction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -31,8 +32,8 @@ import static org.mockito.Mockito.verify;
 public class TransportKeepAliveTests extends ESTestCase {
 
     private final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-    private OutboundMessage.SerializedBytes expectedPingMessage;
-    private AsyncBiFunction<TcpChannel, OutboundMessage.SerializedBytes, Void> pingSender;
+    private BytesReference expectedPingMessage;
+    private AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
     private TransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
 
@@ -48,7 +49,7 @@ public class TransportKeepAliveTests extends ESTestCase {
             out.writeByte((byte) 'E');
             out.writeByte((byte) 'S');
             out.writeInt(-1);
-            expectedPingMessage = OutboundMessage.SerializedBytes.fromBytesReference(out.bytes());
+            expectedPingMessage = out.bytes();
         } catch (IOException e) {
             throw new AssertionError(e.getMessage(), e); // won't happen
         }

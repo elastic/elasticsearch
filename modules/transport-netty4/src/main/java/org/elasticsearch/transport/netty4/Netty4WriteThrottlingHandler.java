@@ -51,12 +51,20 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         final boolean queued;
         if (msg instanceof OutboundMessage.SerializedBytes) {
             List<ReleasableBytesReference> components = ((OutboundMessage.SerializedBytes) msg).components();
-            CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
-            for (ReleasableBytesReference component : components) {
+            final ByteBuf byteBuf;
+            if (components.size() > 1) {
+                CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
+                for (ReleasableBytesReference component : components) {
+                    component.incRef();
+                    composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
+                }
+                byteBuf = composite;
+            } else {
+                ReleasableBytesReference component = components.get(0);
                 component.incRef();
-                composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
+                byteBuf = Netty4Utils.toReleasableByteBuf(component);
             }
-            queued = queuedWrites.offer(new WriteOperation(composite, promise));
+            queued = queuedWrites.offer(new WriteOperation(byteBuf, promise));
         } else {
             queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         }

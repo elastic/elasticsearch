@@ -8,6 +8,8 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.spi.StandardLevels;
+
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
@@ -128,6 +130,10 @@ public final class Level {
         return name;
     }
 
+    /**
+     * Returns the numerical value indicating the severity of the level
+     * @return the severity of the level
+     */
     public int getSeverity() {
         return severity;
     }
@@ -145,27 +151,4 @@ public final class Level {
         return Objects.hash(name, severity);
     }
 
-    /**
-     * Used for mapping between the API and the implementation
-     */
-    public static class StandardLevels {
-
-        public static final int OFF = 0;
-
-        public static final int FATAL = 100;
-
-        public static final int ERROR = 200;
-
-        public static final int WARN = 300;
-
-        public static final int INFO = 400;
-
-        public static final int DEBUG = 500;
-
-        public static final int TRACE = 600;
-
-        public static final int ALL = Integer.MAX_VALUE;
-
-        private StandardLevels() {}
-    }
 }

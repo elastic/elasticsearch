@@ -13,7 +13,7 @@ import org.elasticsearch.logging.spi.LogManagerFactory;
 /**
  * A class used for creating loggers.
  */
-public class LogManager {
+public final class LogManager {
 
     /**
      * Returns a Logger with the specified name.

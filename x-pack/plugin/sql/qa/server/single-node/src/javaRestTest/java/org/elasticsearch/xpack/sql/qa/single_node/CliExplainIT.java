@@ -92,8 +92,7 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("  \"query\" : {"));
         assertThat(readLine(), startsWith("    \"term\" : {"));
         assertThat(readLine(), startsWith("      \"i\" : {"));
-        assertThat(readLine(), startsWith("        \"value\" : 2,"));
-        assertThat(readLine(), startsWith("        \"boost\" : 1.0"));
+        assertThat(readLine(), startsWith("        \"value\" : 2"));
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  },"));

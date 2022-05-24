@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
@@ -51,6 +50,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.String.join;
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
  * For security, it is recommended to authenticate the client too.
@@ -71,6 +73,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
+    private final JwtRealmsService jwtRealmsService;
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -91,9 +94,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
-        throws SettingsException {
+    JwtRealm(
+        final RealmConfig realmConfig,
+        final JwtRealmsService jwtRealmsService,
+        final SSLService sslService,
+        final UserRoleMapper userRoleMapper
+    ) throws SettingsException {
         super(realmConfig);
+        this.jwtRealmsService = jwtRealmsService; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -326,23 +334,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         this.ensureInitialized();
-        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-            false
-        );
-        if (authenticationParameterValue == null) {
-            return null;
-        }
-        // Get all other possible parameters. A different JWT realm may do the actual authentication.
-        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-            true
-        );
-        return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
+        // Token parsing is common code for all realms
+        // First JWT realm will parse in a way that is compatible with all JWT realms,
+        // taking into consideration each JWT realm might have a different principal claim name
+        return this.jwtRealmsService.token(threadContext);
     }
 
     @Override
@@ -470,12 +465,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 if (result.isAuthenticated()) {
                     final User user = result.getValue();
                     LOGGER.debug(
-                        () -> new ParameterizedMessage(
-                            "Realm [{}] roles [{}] for principal=[{}].",
-                            super.name(),
-                            String.join(",", user.roles()),
-                            principal
-                        )
+                        () -> format("Realm [%s] roles [%s] for principal=[%s].", super.name(), join(",", user.roles()), principal)
                     );
                     if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {

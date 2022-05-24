@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -153,7 +154,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
     public void stop(String reason, TimeValue timeout) {
         isStopping = true;
 
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Stopping task due to reason [{}]", getParams().getId(), reason));
+        LOGGER.debug(() -> format("[%s] Stopping task due to reason [%s]", getParams().getId(), reason));
 
         DataFrameAnalyticsStep cachedCurrentStep = currentStep;
         ActionListener<Void> stepProgressListener = ActionListener.wrap(aVoid -> cachedCurrentStep.cancel(reason, timeout), e -> {
@@ -245,8 +246,8 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             storedProgress.set(new StoredProgress(progress));
             if (storedProgress.get().equals(previous)) {
                 LOGGER.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
+                    () -> format(
+                        "[%s] new progress is the same as previously persisted progress. Skipping storage of progress: %s",
                         jobId,
                         progress
                     )
@@ -259,7 +260,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
+                LOGGER.debug(() -> format("[%s] Persisting progress is: %s", jobId, progress));
                 storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                 indexRequest.source(jsonBuilder);
             }

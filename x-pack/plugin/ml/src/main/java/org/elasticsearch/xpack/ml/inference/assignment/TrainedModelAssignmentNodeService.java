@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
@@ -251,10 +252,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to set routing state to stopping as assignment already removed",
-                            task.getModelId()
-                        ),
+                        () -> format("[%s] failed to set routing state to stopping as assignment already removed", task.getModelId()),
                         e
                     );
                 } else {
@@ -372,9 +370,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] preparing to load model with task params: {}", taskParams.getModelId(), taskParams)
-        );
+        logger.debug(() -> format("[%s] preparing to load model with task params: %s", taskParams.getModelId(), taskParams));
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
             TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
@@ -394,8 +390,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         logger.debug(() -> "[" + modelId + "] model successfully loaded and ready for inference. Notifying master node");
         if (task.isStopped()) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] model loaded successfully, but stopped before routing table was updated; reason [{}]",
+                () -> format(
+                    "[%s] model loaded successfully, but stopped before routing table was updated; reason [%s]",
                     modelId,
                     task.stoppedReason().orElse("_unknown_")
                 )
@@ -409,8 +405,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] model loaded but failed to start accepting routes as assignment to this node was removed",
+                        () -> format(
+                            "[%s] model loaded but failed to start accepting routes as assignment to this node was removed",
                             modelId
                         ),
                         e
@@ -433,17 +429,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         trainedModelAssignmentService.updateModelAssignmentState(
             new UpdateTrainedModelAssignmentStateAction.Request(nodeId, modelId, routingStateAndReason),
             ActionListener.wrap(success -> {
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] model is [{}] and master notified", modelId, routingStateAndReason.getState())
-                );
+                logger.debug(() -> format("[%s] model is [%s] and master notified", modelId, routingStateAndReason.getState()));
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }, error -> {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] model is [{}] but failed to notify master",
-                        modelId,
-                        routingStateAndReason.getState()
-                    ),
+                    () -> format("[%s] model is [%s] but failed to notify master", modelId, routingStateAndReason.getState()),
                     error
                 );
                 listener.onFailure(error);
@@ -455,8 +445,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         logger.error(() -> "[" + task.getModelId() + "] model failed to load", ex);
         if (task.isStopped()) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] model failed to load, but is now stopped; reason [{}]",
+                () -> format(
+                    "[%s] model failed to load, but is now stopped; reason [%s]",
                     task.getModelId(),
                     task.stoppedReason().orElse("_unknown_")
                 )

@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
@@ -296,8 +297,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to cancel task [{}] with id [{}] and allocation id [{}]",
+                        () -> format(
+                            "failed to cancel task [%s] with id [%s] and allocation id [%s]",
                             task.getAction(),
                             task.getPersistentTaskId(),
                             task.getAllocationId()

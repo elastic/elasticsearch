@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+// TODO javadoc
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportProfileHasPrivilegesAction.class);
@@ -88,7 +89,8 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                             request.privilegesToCheck(),
                             applicationPrivilegeDescriptors,
                             ActionListener.runAfter(ActionListener.wrap(privilegesCheckResult -> {
-                                if (privilegesCheckResult.allMatch()) {
+                                assert privilegesCheckResult.getDetails() == null;
+                                if (privilegesCheckResult.allChecksSuccess()) {
                                     hasPrivilegeProfiles.add(profileUid);
                                 }
                             }, checkPrivilegesException -> {

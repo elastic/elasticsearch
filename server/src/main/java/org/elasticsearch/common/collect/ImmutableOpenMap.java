@@ -14,6 +14,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import java.util.AbstractCollection;
+import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -32,7 +33,7 @@ import java.util.function.Predicate;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(Map)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
+public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VType> {
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -160,7 +161,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(key, value);
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
         }
     }
 
@@ -332,24 +333,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
     @Override
     public String toString() {
         return map.toString();
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ImmutableOpenMap that = (ImmutableOpenMap) o;
-
-        if (map.equals(that.map) == false) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return map.hashCode();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

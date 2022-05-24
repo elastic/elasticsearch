@@ -160,7 +160,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
                 )
             )
         );
@@ -188,7 +188,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -213,7 +213,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -394,7 +394,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );
@@ -471,7 +471,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );

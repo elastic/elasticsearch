@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -220,6 +221,65 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         internalCluster().stopNode(coldNodeName);
 
         ensureGreen(index);
+    }
+
+    public void testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas() {
+        final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
+        final int numberOfColdNodes = randomIntBetween(2, 5);
+        final List<DesiredNode> coldDesiredNodes = new ArrayList<>();
+        for (int i = 0; i < numberOfColdNodes; i++) {
+            final var coldDesiredNode = desiredNode("cold-node-" + i, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+            coldDesiredNodes.add(coldDesiredNode);
+            startColdOnlyNode(coldDesiredNode.externalId());
+        }
+        final int numberOfWarmNodes = randomIntBetween(numberOfColdNodes + 1, 10);
+        final List<DesiredNode> warmDesiredNodes = new ArrayList<>();
+        for (int i = 0; i < numberOfWarmNodes; i++) {
+            final var warmDesiredNode = desiredNode("warm-node-" + i, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+            warmDesiredNodes.add(warmDesiredNode);
+            startWarmOnlyNode(warmDesiredNode.externalId());
+        }
+        final List<DesiredNode> desiredNodesWithWarmAndColdTier = new ArrayList<>();
+        desiredNodesWithWarmAndColdTier.addAll(warmDesiredNodes);
+        desiredNodesWithWarmAndColdTier.addAll(coldDesiredNodes);
+        desiredNodesWithWarmAndColdTier.add(masterDesiredNode);
+
+        updateDesiredNodes(desiredNodesWithWarmAndColdTier);
+
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(
+                Settings.builder()
+                    .put(DataTier.TIER_PREFERENCE, String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM))
+                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-all")
+            )
+            .get();
+
+        var replicas = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(index)
+            .get()
+            .getSetting(index, INDEX_NUMBER_OF_REPLICAS_SETTING.getKey());
+
+        assertThat(Integer.parseInt(replicas), is(equalTo(numberOfColdNodes - 1)));
+
+        final List<DesiredNode> desiredNodesWithoutColdTier = new ArrayList<>(warmDesiredNodes);
+        desiredNodesWithoutColdTier.add(masterDesiredNode);
+
+        updateDesiredNodes(desiredNodesWithoutColdTier);
+
+        var newReplicaCount = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(index)
+            .get()
+            .getSetting(index, INDEX_NUMBER_OF_REPLICAS_SETTING.getKey());
+
+        assertThat(Integer.parseInt(newReplicaCount), is(equalTo(numberOfWarmNodes - 1)));
     }
 
     public void testOverrideDefaultAllocation() {

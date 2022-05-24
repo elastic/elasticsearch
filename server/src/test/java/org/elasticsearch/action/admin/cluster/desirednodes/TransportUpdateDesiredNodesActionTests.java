@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,8 +60,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
-            mock(AllocationService.class)
+            NO_OP_SETTINGS_VALIDATOR
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder()
@@ -86,8 +84,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
-            mock(AllocationService.class)
+            NO_OP_SETTINGS_VALIDATOR
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
@@ -110,8 +107,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            validator,
-            mock(AllocationService.class)
+            validator
         );
 
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();

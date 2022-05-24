@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -95,10 +95,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final DesiredNodesMembershipService desiredNodesMembershipService;
 
-    public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService, AllocationService allocationService) {
+    public ShardsAvailabilityHealthIndicatorService(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        DesiredNodesMembershipService desiredNodesMembershipService
+    ) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.desiredNodesMembershipService = desiredNodesMembershipService;
     }
 
     @Override
@@ -383,7 +389,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.MembershipInformation.EMPTY,
+            desiredNodesMembershipService.getMembershipInformation(),
             System.nanoTime()
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);

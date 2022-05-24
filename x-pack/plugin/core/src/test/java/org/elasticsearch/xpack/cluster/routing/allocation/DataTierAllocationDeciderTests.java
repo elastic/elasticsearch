@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import joptsimple.internal.Strings;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,10 +24,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -40,9 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,14 +78,6 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         )
-    );
-    private final AllocationService service = new AllocationService(
-        allocationDeciders,
-        new TestGatewayAllocator(),
-        new BalancedShardsAllocator(Settings.EMPTY),
-        EmptyClusterInfoService.INSTANCE,
-        EmptySnapshotsInfoService.INSTANCE,
-        FakeDesiredNodesMembershipService.INSTANCE
     );
 
     private final ShardRouting shard = ShardRouting.newUnassigned(
@@ -553,7 +540,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState clusterStateWithIndexAndNodes(String tierPreference, DiscoveryNodes discoveryNodes) {
-        return ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+        return ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
             .metadata(
                 Metadata.builder()

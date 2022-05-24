@@ -43,8 +43,8 @@ public class TransformContextTests extends ESTestCase {
         context.resetReasonAndFailureCounter();
         assertThat(context.getFailureCount(), is(equalTo(0)));
 
-        // Verify that the listener is notified every time the failure count is incremented
-        verify(listener, times(2)).failureCountChanged();
+        // Verify that the listener is notified every time the failure count is incremented or reset
+        verify(listener, times(3)).failureCountChanged();
     }
 
     public void testCheckpoint() {
@@ -84,5 +84,7 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.getStateReason(), is(equalTo("yet-another-reason")));
         context.resetReasonAndFailureCounter();
         assertThat(context.getStateReason(), is(nullValue()));
+
+        verify(listener).failureCountChanged();
     }
 }

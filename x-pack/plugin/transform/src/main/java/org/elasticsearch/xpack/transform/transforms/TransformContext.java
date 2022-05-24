@@ -68,6 +68,7 @@ class TransformContext {
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
+        taskListener.failureCountChanged();
     }
 
     String getStateReason() {

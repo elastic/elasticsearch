@@ -330,7 +330,7 @@ public class TransformScheduler {
      */
     public void registerTransform(TransformTaskParams transformTaskParams, Listener listener) {
         String transformId = transformTaskParams.getId();
-        logger.trace(new ParameterizedMessage("[{}] about to register the transform", transformId));
+        logger.trace(new ParameterizedMessage("[{}] register the transform", transformId));
         long currentTimeMillis = clock.millis();
         ScheduledTransformTask scheduledTransformTask = new ScheduledTransformTask(
             transformId,
@@ -353,7 +353,7 @@ public class TransformScheduler {
      * @param failureCount new value of transform task's failure count
      */
     public void handleTransformFailureCountChanged(String transformId, int failureCount) {
-        logger.trace(new ParameterizedMessage("[{}] about to handle transform failure count to {}", transformId, failureCount));
+        logger.trace(new ParameterizedMessage("[{}] handle transform failure count change to {}", transformId, failureCount));
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
@@ -374,7 +374,7 @@ public class TransformScheduler {
      */
     public void deregisterTransform(String transformId) {
         Objects.requireNonNull(transformId);
-        logger.trace(new ParameterizedMessage("[{}] about to de-register the transform", transformId));
+        logger.trace(new ParameterizedMessage("[{}] de-register the transform", transformId));
         scheduledTasks.remove(transformId);
     }
 

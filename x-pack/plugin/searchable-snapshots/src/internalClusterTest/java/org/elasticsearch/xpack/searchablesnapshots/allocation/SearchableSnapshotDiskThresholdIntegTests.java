@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -21,13 +22,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -38,9 +41,12 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheServi
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
@@ -71,7 +77,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(LocalStateSearchableSnapshots.class, MockRepository.Plugin.class))
+            .toList();
     }
 
     @Override
@@ -79,17 +86,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return false;
     }
 
-    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        final String dataHotNode = internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
-                .build()
-        );
-
-        final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ClusterInfoServiceUtils.refresh(masterInfoService);
-
+    private int createIndices() throws InterruptedException {
         final int nbIndices = randomIntBetween(1, 5);
         final CountDownLatch latch = new CountDownLatch(nbIndices);
 
@@ -137,6 +134,21 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             thread.start();
         }
         latch.await();
+        return nbIndices;
+    }
+
+    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataHotNode = internalCluster().startNode(
+            Settings.builder()
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
+                .build()
+        );
+
+        final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(masterInfoService);
+
+        final int nbIndices = createIndices();
 
         final String repository = "repository";
         assertAcked(
@@ -272,10 +284,117 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         });
     }
 
+    public void testOvercommitSearchableSnapshots() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startNode(
+            Settings.builder()
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
+                .build()
+        );
+
+        InternalClusterInfoService masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
+            ClusterInfoService.class
+        );
+        ClusterInfoServiceUtils.refresh(masterInfoService);
+
+        int nbIndices = createIndices();
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository("repository")
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", randomRepoPath()).build())
+        );
+        var mockRepository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+            .repository("repository");
+        mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
+
+        var snapshotInfo = client().admin()
+            .cluster()
+            .prepareCreateSnapshot("repository", "snapshot")
+            .setIndices("index-*")
+            .setIncludeGlobalState(false)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(nbIndices));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        List<ShardIdSize> shardIds = shardIdSizes("index-*");
+        assertAcked(client().admin().indices().prepareDelete("index-*"));
+
+        String otherDataNode = internalCluster().startNode(
+            Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName()).build()
+        );
+        ensureStableCluster(3);
+
+        String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
+        logger.info("--> reducing disk size of node [{}/{}] so that all shards can fit on the node", otherDataNode, otherDataNodeId);
+        ShardIdSize shardIdToIgnore = randomFrom(shardIds);
+        long totalSpace = shardIds.stream().filter(e -> e.equals(shardIdToIgnore) == false).mapToLong(ShardIdSize::size).sum()
+            + WATERMARK_BYTES + 1024L;
+        getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
+
+        logger.info("--> refreshing cluster info");
+        ClusterInfoServiceUtils.refresh(masterInfoService);
+        assertThat(
+            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
+            equalTo(totalSpace)
+        );
+
+        Set<String> indices = shardIds.stream().map(e -> e.shardId().getIndexName()).collect(Collectors.toSet());
+        CountDownLatch mountLatch = new CountDownLatch(indices.size());
+
+        logger.info("--> mounting [{}] indices with [{}] prefix", indices.size(), "mounted-");
+        for (String index : indices) {
+            logger.info("Mounting index {}", index);
+            client().execute(
+                MountSearchableSnapshotAction.INSTANCE,
+                new MountSearchableSnapshotRequest(
+                    "mounted-" + index,
+                    "repository",
+                    "snapshot",
+                    index,
+                    Settings.EMPTY,
+                    Strings.EMPTY_ARRAY,
+                    false,
+                    FULL_COPY
+                ),
+                ActionListener.wrap(response -> mountLatch.countDown(), e -> mountLatch.countDown())
+            );
+        }
+        mountLatch.await();
+
+        assertBusy(() -> {
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            List<ShardRouting> searchableSnapshotShards = state.routingTable()
+                .allShards()
+                .stream()
+                .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                .toList();
+            assertThat(
+                (int) searchableSnapshotShards.stream().filter(s -> s.state() == ShardRoutingState.STARTED).count(),
+                equalTo(searchableSnapshotShards.size() - 1)
+            );
+            assertThat((int) searchableSnapshotShards.stream().filter(s -> s.state() != ShardRoutingState.STARTED).count(), equalTo(1));
+        });
+    }
+
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {
         return Arrays.stream(client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards())
             .collect(
                 Collectors.toUnmodifiableMap(s -> s.getShardRouting().getIndexName(), s -> s.getStats().getStore().sizeInBytes(), Long::sum)
             );
+    }
+
+    private record ShardIdSize(ShardId shardId, long size) {}
+
+    private static List<ShardIdSize> shardIdSizes(String indexPattern) {
+        return Arrays.stream(client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards())
+            .map(s -> new ShardIdSize(s.getShardRouting().shardId(), s.getStats().getStore().sizeInBytes()))
+            .toList();
     }
 }

@@ -46,18 +46,16 @@ The response will look like this:
 +
 [source,console-result]
 ----
-{
-  [
-    {
-      "index": "my-index-000001",
-      "shard": "0",
-      "prirep": "p",
-      "state": "UNASSIGNED",
-      "node": null,
-      "unassigned.reason": "INDEX_CREATED"
-    }
-  ]
-}
+[
+  {
+    "index": "my-index-000001",
+    "shard": "0",
+    "prirep": "p",
+    "state": "UNASSIGNED",
+    "node": null,
+    "unassigned.reason": "INDEX_CREATED"
+  }
+]
 ----
 // TEST[skip:illustration purposes only]
 
@@ -73,7 +71,7 @@ you must take to allow {es} to assign it, use the
 +
 [source,console]
 ----
-GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+GET _cluster/allocation/explain
 {
   "index": "my-index-000001", <1>
   "shard": 0, <2>
@@ -173,18 +171,16 @@ The response will look like this:
 +
 [source,console-result]
 ----
-{
-  [
-    {
-      "index": "my-index-000001",
-      "shard": "0",
-      "prirep": "p",
-      "state": "UNASSIGNED",
-      "node": null,
-      "unassigned.reason": "INDEX_CREATED"
-    }
-  ]
-}
+[
+  {
+    "index": "my-index-000001",
+    "shard": "0",
+    "prirep": "p",
+    "state": "UNASSIGNED",
+    "node": null,
+    "unassigned.reason": "INDEX_CREATED"
+  }
+]
 ----
 // TEST[skip:illustration purposes only]
 
@@ -200,7 +196,7 @@ you must take to allow {es} to assign it, use the
 +
 [source,console]
 ----
-GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+GET _cluster/allocation/explain
 {
   "index": "my-index-000001", <1>
   "shard": 0, <2>

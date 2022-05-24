@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -184,41 +186,44 @@ public class MlInitializationService implements ClusterStateListener {
                 )
                 .toList();
             final MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
-            Optional<UpdateCpuRatioTasks> ratioUpdate = ratioUpdateIfNecessary(mlNodes, mlMetadata);
+            Optional<UpdateCpuRatioTask> ratioUpdate = ratioUpdateIfNecessary(mlNodes, mlMetadata);
             ratioUpdate.ifPresent(
-                updateCpuRatioTasks -> threadPool.executor(UTILITY_THREAD_POOL_NAME)
-                    .execute(() -> updateRatioClusterState(updateCpuRatioTasks, clusterService))
+                updateCpuRatioTask -> threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> clusterService.submitStateUpdateTask(
+                            "update-cpu-ratio",
+                            updateCpuRatioTask,
+                            ClusterStateTaskConfig.build(Priority.NORMAL, TimeValue.MAX_VALUE),
+                            MlInitializationService::updateRatioClusterStateExecutor
+                        )
+                    )
             );
         }
     }
 
-    static void updateRatioClusterState(UpdateCpuRatioTasks ratioUpdate, ClusterService clusterService) {
-        clusterService.submitStateUpdateTask(
-            "update-cpu-ratio",
-            ratioUpdate,
-            ClusterStateTaskConfig.build(Priority.NORMAL, TimeValue.MAX_VALUE),
-            (currentState, taskContexts) -> {
-                MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
-                boolean changed = false;
-                for (var taskContext : taskContexts) {
-                    if (taskContext.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
-                        currentBuilder.setMaxMlNodeSeen(taskContext.getTask().maxNodeSeen());
-                        currentBuilder.setCpuRatio(taskContext.getTask().cpuRatio());
-                        changed = true;
-                    }
-                    taskContext.success(ActionListener.wrap(cs -> {}, e -> {}));
-                }
-                if (changed) {
-                    return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, currentBuilder.build()).build())
-                        .build();
-                }
-                return currentState;
+    static ClusterState updateRatioClusterStateExecutor(
+        ClusterState currentState,
+        List<ClusterStateTaskExecutor.TaskContext<UpdateCpuRatioTask>> taskContexts
+    ) {
+        MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
+        boolean changed = false;
+        for (var taskContext : taskContexts) {
+            if (taskContext.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
+                currentBuilder.setMaxMlNodeSeen(taskContext.getTask().maxNodeSeen());
+                currentBuilder.setCpuRatio(taskContext.getTask().cpuRatio());
+                changed = true;
             }
-        );
+            taskContext.success(ActionListener.wrap(cs -> {}, e -> {}));
+        }
+        if (changed) {
+            return ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, currentBuilder.build()).build())
+                .build();
+        }
+        return currentState;
     }
 
-    static Optional<UpdateCpuRatioTasks> ratioUpdateIfNecessary(List<DiscoveryNode> mlNodesNotShuttingDown, MlMetadata currentMetadata) {
+    static Optional<UpdateCpuRatioTask> ratioUpdateIfNecessary(List<DiscoveryNode> mlNodesNotShuttingDown, MlMetadata currentMetadata) {
         if (mlNodesNotShuttingDown.size() > 0 && mlNodesNotShuttingDown.get(0).getAttributes().containsKey(CPU_RATIO_NODE_ATTR) == false) {
             DiscoveryNode biggestMLNode = mlNodesNotShuttingDown.stream()
                 .max(Comparator.comparing(n -> NodeLoadDetector.getNodeSize(n).orElse(0L)))
@@ -227,7 +232,7 @@ public class MlInitializationService implements ClusterStateListener {
                 long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
                 long cpu = Long.parseLong(biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR));
                 if (memory > currentMetadata.getMaxMlNodeSeen()) {
-                    return Optional.of(new UpdateCpuRatioTasks(memory, ((double) memory) / cpu));
+                    return Optional.of(new UpdateCpuRatioTask(memory, Math.max(ByteSizeValue.ofBytes(memory).getGb(), 1.0) / cpu));
                 }
             } catch (NumberFormatException ex) {
                 logger.debug("Unable to parse machine memory and number cpus", ex);
@@ -341,7 +346,7 @@ public class MlInitializationService implements ClusterStateListener {
         return addReplacementAliasAction;
     }
 
-    private record UpdateCpuRatioTasks(long maxNodeSeen, double cpuRatio) implements ClusterStateTaskListener {
+    record UpdateCpuRatioTask(long maxNodeSeen, double cpuRatio) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             logger.warn("unable to update cpu ratio for autoscaling", e);

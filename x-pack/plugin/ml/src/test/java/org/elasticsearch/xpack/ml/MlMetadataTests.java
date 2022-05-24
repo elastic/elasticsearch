@@ -21,8 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
-    @Override
-    protected MlMetadata createTestInstance() {
+    public static MlMetadata randomInstance() {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         Long biggestMlNodeSeen = randomBoolean() ? null : randomLongBetween(-1L, Long.MAX_VALUE / 2);
         return builder.isResetMode(randomBoolean())
@@ -30,6 +29,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             .setMaxMlNodeSeen(biggestMlNodeSeen)
             .setCpuRatio(biggestMlNodeSeen != null && biggestMlNodeSeen > 0 ? randomDouble() : null)
             .build();
+    }
+
+    @Override
+    protected MlMetadata createTestInstance() {
+        return randomInstance();
     }
 
     @Override

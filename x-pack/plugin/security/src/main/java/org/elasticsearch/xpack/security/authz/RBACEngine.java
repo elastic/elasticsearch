@@ -594,7 +594,8 @@ public class RBACEngine implements AuthorizationEngine {
                     .stream()
                     .map(ResourcePrivileges::getPrivileges)
                     .map(Map::values)
-                    .allMatch(granted -> Boolean.TRUE.equals(granted)) == privilegesGranted;
+                    .flatMap(Collection::stream)
+                    .allMatch(Boolean.TRUE::equals) == privilegesGranted;
             }
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {

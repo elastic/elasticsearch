@@ -455,6 +455,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getOrigin() {
+        // TODO[wrb]: most unmanaged system indices do not set origins; could we assert on that here?
         return this.origin;
     }
 

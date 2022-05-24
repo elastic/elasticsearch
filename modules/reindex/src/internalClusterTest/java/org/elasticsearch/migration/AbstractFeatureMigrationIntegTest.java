@@ -41,7 +41,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -142,7 +141,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         );
         String indexName = descriptor.isAutomaticallyManaged()
             ? descriptor.getPrimaryIndex()
-            : descriptor.getIndexPattern().replace("*" , "old");
+            : descriptor.getIndexPattern().replace("*", "old");
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {

@@ -1,5 +1,0 @@
-pr: 85952
-summary: Relax data path deprecations from critical to warn
-area: Infra/Core
-type: bug
-issues: []

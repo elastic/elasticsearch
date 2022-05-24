@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -64,7 +66,8 @@ public class Realms implements Iterable<Realm> {
 
     // All realms that were configured from the node settings, some of these may not be enabled due to licensing
     private final List<Realm> allConfiguredRealms;
-    private final Map<String, String> domainForRealmMap;
+
+    private final Map<String, DomainConfig> domainNameToConfig;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
@@ -87,10 +90,15 @@ public class Realms implements Iterable<Realm> {
         assert XPackSettings.SECURITY_ENABLED.get(settings) : "security must be enabled";
         assert factories.get(ReservedRealm.TYPE) == null;
 
-        domainForRealmMap = RealmSettings.computeRealmNameToDomainNameAssociation(settings);
+        final Map<String, DomainConfig> realmToDomainConfig = RealmSettings.computeRealmNameToDomainConfigAssociation(settings);
+        domainNameToConfig = realmToDomainConfig.values()
+            .stream()
+            .distinct()
+            .collect(Collectors.toMap(DomainConfig::name, Function.identity()));
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
         final List<Realm> initialRealms = initRealms(realmConfigs);
-        configureRealmRef(initialRealms, realmConfigs, domainForRealmMap);
+        configureRealmRef(initialRealms, realmConfigs, realmToDomainConfig);
+
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
         assert this.allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
@@ -99,13 +107,19 @@ public class Realms implements Iterable<Realm> {
         licenseState.addListener(this::recomputeActiveRealms);
     }
 
-    static void configureRealmRef(Collection<Realm> realms, Collection<RealmConfig> realmConfigs, Map<String, String> domainForRealm) {
+    static void configureRealmRef(
+        Collection<Realm> realms,
+        Collection<RealmConfig> realmConfigs,
+        Map<String, DomainConfig> domainForRealm
+    ) {
         for (Realm realm : realms) {
-            String domainName = domainForRealm.get(realm.name());
-            if (domainName != null) {
+            final DomainConfig domainConfig = domainForRealm.get(realm.name());
+            if (domainConfig != null) {
+                final String domainName = domainConfig.name();
                 Set<RealmConfig.RealmIdentifier> domainIdentifiers = new HashSet<>();
                 for (RealmConfig realmConfig : realmConfigs) {
-                    if (domainName.equals(domainForRealm.get(realmConfig.name()))) {
+                    final DomainConfig otherDomainConfig = domainForRealm.get(realmConfig.name());
+                    if (otherDomainConfig != null && domainName.equals(otherDomainConfig.name())) {
                         domainIdentifiers.add(realmConfig.identifier());
                     }
                 }
@@ -178,6 +192,10 @@ public class Realms implements Iterable<Realm> {
     public List<Realm> getActiveRealms() {
         assert activeRealms != null : "Active realms not configured";
         return activeRealms;
+    }
+
+    public DomainConfig getDomainConfig(String domainName) {
+        return domainNameToConfig.get(domainName);
     }
 
     // Protected for testing
@@ -327,15 +345,12 @@ public class Realms implements Iterable<Realm> {
     }
 
     public Map<String, Object> domainUsageStats() {
-        if (domainForRealmMap.isEmpty()) {
+        if (domainNameToConfig.isEmpty()) {
             return Map.of();
         } else {
-            return domainForRealmMap.entrySet()
+            return domainNameToConfig.entrySet()
                 .stream()
-                .collect(Collectors.groupingBy(Entry::getValue, Collectors.mapping(Entry::getKey, Collectors.toList())))
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(Entry::getKey, entry -> Map.of("realms", entry.getValue())));
+                .collect(Collectors.toMap(Entry::getKey, entry -> Map.of("realms", entry.getValue().memberRealmNames())));
         }
     }
 

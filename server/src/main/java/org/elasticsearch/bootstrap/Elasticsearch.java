@@ -191,9 +191,13 @@ class Elasticsearch {
             }
         }, "elasticsearch[pidfile-cleanup]"));
 
-        if (pidFile.getParent() != null && Files.exists(pidFile.getParent()) == false) {
+        // It has to be an absolute path, otherwise pidFile.getParent() will return null
+        assert pidFile.isAbsolute();
+
+        if (Files.exists(pidFile.getParent()) == false) {
             Files.createDirectories(pidFile.getParent());
         }
+
         Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
     }
 

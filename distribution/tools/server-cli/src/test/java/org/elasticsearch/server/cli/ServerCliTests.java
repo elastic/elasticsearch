@@ -109,7 +109,6 @@ public class ServerCliTests extends CommandTestCase {
         Path pidParentFile = createTempFile();
         assertUsage(containsString("exists but is not a directory"), "-p", pidParentFile.resolve("pid").toString());
         assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
-
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
@@ -271,11 +270,26 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
+    public void testPidDirectories() throws Exception {
+        Path tmpDir = createTempDir();
+        Command command = newCommand();
+
+        Path pidFileArg = tmpDir.resolve("pid");
+        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(pidFileArg.toString()));
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
+        command.main(new String[] { "-p", pidFileArg.toString() }, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+
+        pidFileValidator = (path) -> assertThat(path.toString(), equalTo("pid"));
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
+        command.main(new String[] { "-p", "pid" }, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
     Consumer<ServerArgs> argsValidator;
+    Consumer<Path> pidFileValidator;
     private final MockServerProcess mockServer = new MockServerProcess();
 
     AutoConfigMethod autoConfigCallback;
@@ -360,6 +374,15 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
+            protected void validatePidFile(Path pidFile) throws UserException {
+                if (pidFileValidator != null) {
+                    pidFileValidator.accept(pidFile);
+                } else {
+                    super.validatePidFile(pidFile);
+                }
+            }
+
+            @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
@@ -369,5 +392,4 @@ public class ServerCliTests extends CommandTestCase {
             }
         };
     }
-
 }

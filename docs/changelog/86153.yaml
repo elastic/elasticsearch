@@ -1,6 +1,0 @@
-pr: 86153
-summary: Delay searchable snapshot allocation during shutdown
-area: "Snapshot/Restore"
-type: bug
-issues:
- - 85052

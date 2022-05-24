@@ -29,11 +29,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 class AuthenticatorChain {
 
@@ -203,15 +204,8 @@ class AuthenticatorChain {
             return;
         }
 
-        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
-        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
-        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
-        if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
-            && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
-            logger.info(
-                "ignore run-as header since it is currently not supported for authentication type [{}]",
-                authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
-            );
+        if (false == authentication.supportsRunAs(anonymousUser)) {
+            logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -244,13 +238,7 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {

@@ -346,21 +346,20 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testCommandLine() throws Exception {
-        String mainClass = "org.elasticsearch.bootstrap.Elasticsearch";
+        String mainClass = "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch";
         String distroSysprop = "-Des.distribution.type=testdistro";
+        String modulePath = esHomeDir.resolve("lib").toString();
         Path javaBin = Paths.get("javahome").resolve("bin");
         sysprops.put("es.distribution.type", "testdistro");
         AtomicReference<String> expectedJava = new AtomicReference<>(javaBin.resolve("java").toString());
-        AtomicReference<String> expectedClasspath = new AtomicReference<>(esHomeDir.resolve("lib") + "/*");
         processValidator = pb -> {
-            assertThat(pb.command(), hasItems(expectedJava.get(), distroSysprop, "-cp", expectedClasspath.get(), mainClass));
+            assertThat(pb.command(), hasItems(expectedJava.get(), distroSysprop, "--module-path", modulePath, "-m", mainClass));
         };
         runForeground();
 
         sysprops.put("os.name", "Windows 10");
         sysprops.put("java.io.tmpdir", createTempDir().toString());
         expectedJava.set(javaBin.resolve("java.exe").toString());
-        expectedClasspath.set(esHomeDir.resolve("lib") + "\\*");
         runForeground();
     }
 
@@ -414,18 +413,15 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testProcessDies() throws Exception {
-        CountDownLatch mainReady = new CountDownLatch(1);
         CountDownLatch mainExit = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
             stderr.println(BootstrapInfo.SERVER_READY_MARKER);
-            mainReady.countDown();
             stderr.println("fatal message");
+            stderr.close(); // mimic pipe break if cli process dies
             nonInterruptibleVoid(mainExit::await);
             exitCode.set(-9);
         };
         var server = startProcess(false, false, "");
-        nonInterruptibleVoid(mainReady::await);
-        process.processStderr.close(); // mimic pipe break if cli process dies
         mainExit.countDown();
         var e = expectThrows(RuntimeException.class, server::waitFor);
         assertThat(e.getMessage(), equalTo("server process exited with status code -9"));

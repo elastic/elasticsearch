@@ -18,12 +18,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -113,6 +115,76 @@ public class MasterHistoryTests extends ESTestCase {
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+    }
+
+    public void testHasSeenMasterInLastNSeconds() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
+
+        /*
+         * 60 minutes ago we get these master changes:
+         * null -> node1 -> node2 -> node3
+         * Except for when only null had been master, there has been a non-null master node in the last 5 seconds all along
+         */
+        long sixtyMinutesAgo = System.currentTimeMillis() - new TimeValue(60, TimeUnit.MINUTES).getMillis();
+        when(threadPool.relativeTimeInMillis()).thenReturn(sixtyMinutesAgo);
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        assertFalse(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+
+        /*
+         * 40 minutes ago we get these master changes (the master was node3 when this section began):
+         * null -> node1 -> null -> null -> node1
+         * There has been a non-null master for the last 5 seconds every step at this time
+         */
+        long fourtyMinutesAgo = System.currentTimeMillis() - new TimeValue(40, TimeUnit.MINUTES).getMillis();
+        when(threadPool.relativeTimeInMillis()).thenReturn(fourtyMinutesAgo);
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+
+        /*
+         * 6 seconds ago we get these master changes (it had been set to node1 previously):
+         * null -> null
+         * Even though the last non-null master was more
+         * than 5 seconds ago (and more than the age of history we keep, 30 minutes), the transition from it to null was just now, so we
+         * still say that there has been a master recently.
+         */
+        long sixSecondsAgo = System.currentTimeMillis() - new TimeValue(6, TimeUnit.SECONDS).getMillis();
+        when(threadPool.relativeTimeInMillis()).thenReturn(sixSecondsAgo);
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+
+        /*
+         * Right now we get these master changes (the master was null when this section began):
+         * null -> node1
+         * Even before the first transition to null, we have no longer seen a non-null master within the last 5 seconds (because we last
+         * transitioned from a non-null master 6 seconds ago). After the transition to node1, we again have seen a non-null master in the
+         *  last 5 seconds.
+         */
+        long now = System.currentTimeMillis();
+        when(threadPool.relativeTimeInMillis()).thenReturn(now);
+        assertFalse(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        assertFalse(masterHistory.hasSeenMasterInLastNSeconds(5));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
     }
 

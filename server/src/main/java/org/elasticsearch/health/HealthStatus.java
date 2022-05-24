@@ -37,6 +37,13 @@ public enum HealthStatus implements Writeable {
         return value;
     }
 
+    /**
+     * @return true if the HealthStatus is YELLOW or RED.
+     */
+    public boolean indicatesHealthProblem() {
+        return value > UNKNOWN.value();
+    }
+
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
         return statuses.max(Comparator.comparing(HealthStatus::value))
             .orElseThrow(() -> new IllegalArgumentException("Cannot merge empty health status stream."));

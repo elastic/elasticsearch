@@ -66,22 +66,19 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
                 "clauses" : [ {
                   "span_term" : {
                     "field" : {
-                      "value" : "value1",
-                      "boost" : 1.0
+                      "value" : "value1"
                     }
                   }
                 }, {
                   "span_term" : {
                     "field" : {
-                      "value" : "value2",
-                      "boost" : 1.0
+                      "value" : "value2"
                     }
                   }
                 }, {
                   "span_term" : {
                     "field" : {
-                      "value" : "value3",
-                      "boost" : 1.0
+                      "value" : "value3"
                     }
                   }
                 } ],

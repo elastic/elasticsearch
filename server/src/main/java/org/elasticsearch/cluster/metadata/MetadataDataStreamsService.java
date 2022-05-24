@@ -124,6 +124,7 @@ public class MetadataDataStreamsService {
             if (backingIndex.getName().equals(indexName)) {
                 builder.put(dataStream.removeBackingIndex(backingIndex));
                 indexNotRemoved = false;
+                break;
             }
         }
 

@@ -50,6 +50,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class JoinHelper {
@@ -195,8 +196,8 @@ public class JoinHelper {
 
         void logWarnWithTimestamp() {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "last failed join attempt was {} ago, failed to join {} with {}",
+                () -> format(
+                    "last failed join attempt was %s ago, failed to join %s with %s",
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest

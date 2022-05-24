@@ -359,10 +359,7 @@ public class AnalyticsProcessManager {
         } catch (Exception e) {
             if (task.isStopping()) {
                 LOGGER.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] Process closing was interrupted by kill request due to the task being stopped",
-                        configId
-                    ),
+                    () -> format("[%s] Process closing was interrupted by kill request due to the task being stopped", configId),
                     e
                 );
                 LOGGER.info("[{}] Closed process", configId);

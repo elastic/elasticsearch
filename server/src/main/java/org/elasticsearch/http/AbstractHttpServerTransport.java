@@ -11,7 +11,6 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -293,35 +292,23 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
             if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "close connection exception caught while handling client http traffic, closing connection {}",
-                        channel
-                    ),
+                    () -> format("close connection exception caught while handling client http traffic, closing connection %s", channel),
                     e
                 );
             } else if (NetworkExceptionHelper.isConnectException(e)) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "connect exception caught while handling client http traffic, closing connection {}",
-                        channel
-                    ),
+                    () -> format("connect exception caught while handling client http traffic, closing connection %s", channel),
                     e
                 );
             } else if (e instanceof HttpReadTimeoutException) {
-                logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
+                logger.trace(() -> format("http read timeout, closing connection %s", channel), e);
             } else if (e instanceof CancelledKeyException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "cancelled key exception caught while handling client http traffic, closing connection {}",
-                        channel
-                    ),
+                    () -> format("cancelled key exception caught while handling client http traffic, closing connection %s", channel),
                     e
                 );
             } else {
-                logger.warn(
-                    () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
-                    e
-                );
+                logger.warn(() -> format("caught exception while handling client http traffic, closing connection %s", channel), e);
             }
         } finally {
             CloseableChannel.closeChannel(channel);

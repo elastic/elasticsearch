@@ -34,6 +34,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
+
 class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
@@ -236,13 +238,7 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {

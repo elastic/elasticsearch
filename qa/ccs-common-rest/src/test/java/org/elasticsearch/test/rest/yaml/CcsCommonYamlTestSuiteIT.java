@@ -27,6 +27,8 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
+import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -66,7 +68,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         "msearch",
         "scroll",
         "clear_scroll",
-        "indices.resolve_index"
+        "indices.resolve_index",
+        "async_search.submit",
+        "async_search.get",
+        "async_search.status",
+        "async_search.delete"
     );
 
     /**
@@ -120,7 +126,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                     NodeSelector nodeSelector
                 ) throws IOException {
                     // on request, we need to replace index specifications by prefixing the remote cluster
-                    if (apiName.equals("scroll") == false && apiName.equals("clear_scroll") == false) {
+                    if (apiName.equals("scroll") == false
+                        && apiName.equals("clear_scroll") == false
+                        && apiName.equals("async_search.get") == false
+                        && apiName.equals("async_search.delete") == false
+                        && apiName.equals("async_search.status") == false) {
                         String parameterName = "index";
                         if (apiName.equals("indices.resolve_index")) {
                             // in this specific api, the index parameter is called "name"
@@ -184,6 +194,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                     modifiedExpectedValue = rewriteExpectedIndexValue(matchSection.getExpectedValue());
                 }
                 rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
+            } else if (section instanceof IsFalseAssertion falseAssertion) {
+                if (lastAPIDoSection.startsWith("async_") && ((IsFalseAssertion) section).getField().endsWith("_clusters")) {
+                    // in ccs scenarios, the response "_cluster" section will be there
+                    rewrittenSection = new IsTrueAssertion(falseAssertion.getLocation(), falseAssertion.getField());
+                }
             } else if (section instanceof DoSection) {
                 lastAPIDoSection = ((DoSection) section).getApiCallSection().getApi();
                 if (lastAPIDoSection.equals("msearch")) {

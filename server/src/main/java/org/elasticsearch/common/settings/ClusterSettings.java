@@ -513,8 +513,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE,
-        ReadinessService.PORT,
         StableMasterHealthIndicatorService.ACCEPTABLE_IDENTITY_CHANGES_SETTING,
         StableMasterHealthIndicatorService.ACCEPTABLE_NULL_TRANSITIONS_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,

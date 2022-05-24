@@ -997,7 +997,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 deleteFromContainer(blobContainer(), filesToDelete);
                 l.onResponse(null);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("{} Failed to delete some blobs during snapshot delete", snapshotIds), e);
+                logger.warn(() -> format("%s Failed to delete some blobs during snapshot delete", snapshotIds), e);
                 throw e;
             }
         }));
@@ -1047,11 +1047,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             .getNumberOfShards();
                     } catch (Exception ex) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
-                                "[{}] [{}] failed to read metadata for index",
-                                indexMetaGeneration,
-                                indexId.getName()
-                            ),
+                            () -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()),
                             ex
                         );
                         // Just invoke the listener without any shard generations to count it down, this index will be cleaned up
@@ -1111,8 +1107,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         public void onFailure(Exception ex) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to delete shard data for shard [{}][{}]",
+                                () -> format(
+                                    "%s failed to delete shard data for shard [%s][%s]",
                                     snapshotIds,
                                     indexId.getName(),
                                     finalShardId
@@ -1309,8 +1305,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return blobsToDelete;
         } catch (Exception e) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
+                () -> format(
+                    "[%s] The following blobs are no longer part of any snapshot [%s] but failed to remove them",
                     metadata.name(),
                     blobsToDelete
                 ),
@@ -1332,8 +1328,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] index {} is no longer part of any snapshot in the repository, " + "but failed to clean up its index folder",
+                    () -> format(
+                        "[%s] index %s is no longer part of any snapshot in the repository, " + "but failed to clean up its index folder",
                         metadata.name(),
                         indexSnId
                     ),
@@ -2421,10 +2417,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 writeAtomic(blobContainer(), INDEX_LATEST_BLOB, out -> out.write(Numbers.longToBytes(newGen)), false);
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
+                    () -> format(
                         "Failed to write index.latest blob. If you do not intend to use this "
                             + "repository as the basis for a URL repository you may turn off attempting to write the index.latest blob by "
-                            + "setting repository setting [{}] to [false]",
+                            + "setting repository setting [%s] to [false]",
                         SUPPORT_URL_REPO.getKey()
                     ),
                     e
@@ -2848,11 +2844,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         deleteFromContainer(shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
-                                "[{}][{}] failed to delete old index-N blobs during finalization",
-                                snapshotId,
-                                shardId
-                            ),
+                            () -> format("[%s][%s] failed to delete old index-N blobs during finalization", snapshotId, shardId),
                             e
                         );
                     }

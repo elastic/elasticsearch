@@ -1247,24 +1247,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
-        out.writeVInt(customData.size());
-        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(inSyncAllocationIds.size());
-        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
-            out.writeVInt(cursor.getKey());
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
-        }
-        out.writeVInt(rolloverInfos.size());
-        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
-            rolloverInfo.writeTo(out);
-        }
+        out.writeCollection(aliases.values());
+        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(
+            inSyncAllocationIds,
+            StreamOutput::writeVInt,
+            (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
+        );
+        out.writeCollection(rolloverInfos.values());
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }

@@ -463,7 +463,6 @@ public class RestoreService implements ClusterStateApplier {
                 metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
                 dataStreamsToRestore.values(),
                 updater,
-                repository.getMetadata(),
                 listener
             )
         );
@@ -1221,8 +1220,6 @@ public class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
-        private final RepositoryMetadata repositoryMetadata;
-
         private final ActionListener<RestoreCompletionResponse> listener;
 
         @Nullable
@@ -1237,7 +1234,6 @@ public class RestoreService implements ClusterStateApplier {
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
             BiConsumer<ClusterState, Metadata.Builder> updater,
-            RepositoryMetadata repositoryMetadata,
             ActionListener<RestoreCompletionResponse> listener
         ) {
             super(request.masterNodeTimeout());
@@ -1249,7 +1245,6 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
-            this.repositoryMetadata = repositoryMetadata;
             this.listener = listener;
         }
 

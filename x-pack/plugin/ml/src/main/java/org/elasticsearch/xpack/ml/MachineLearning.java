@@ -1431,16 +1431,7 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
-            // TODO: in the long term only keep one or other of these categorization aggregations
-            new AggregationSpec(
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME,
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder::new,
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.PARSER
-            ).addResultReader(org.elasticsearch.xpack.ml.aggs.categorization2.InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(
-                    s -> s.registerUsage(org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME)
-                )
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }
 

@@ -56,7 +56,9 @@ public class MapBackedMetadata {
             long version = number.longValue();
             if (number.doubleValue() != version) {
                 // did we round?
-                throw new IllegalArgumentException("version may only be set to an int or a long but was [" + number + "]");
+                throw new IllegalArgumentException(
+                    "version may only be set to an int or a long but was [" + number + "] with type [" + obj.getClass().getName() + "]"
+                );
             }
             return version;
         }
@@ -117,7 +119,7 @@ public class MapBackedMetadata {
         if (source instanceof Map<?, ?> map) {
             return (Map<String, Object>) map;
         } else {
-            throw new IllegalArgumentException("source should be a map, not [" + source.getClass().getName() + "]");
+            throw new IllegalArgumentException("source should be a map, not [" + source + "] with [" + source.getClass().getName() + "]");
         }
     }
 

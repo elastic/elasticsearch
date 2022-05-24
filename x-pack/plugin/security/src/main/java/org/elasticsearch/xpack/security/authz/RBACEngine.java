@@ -587,21 +587,23 @@ public class RBACEngine implements AuthorizationEngine {
                 Sets.newHashSet(check.getPrivileges()),
                 combineIndicesResourcePrivileges
             );
-            if (Assertions.ENABLED && combineIndicesResourcePrivileges != null) {
-                assert combineIndicesResourcePrivileges.build()
-                    .getResourceToResourcePrivileges()
-                    .values()
-                    .stream()
-                    .map(ResourcePrivileges::getPrivileges)
-                    .map(Map::values)
-                    .flatMap(Collection::stream)
-                    .allMatch(Boolean.TRUE::equals) == privilegesGranted;
-            }
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
+                assert combineIndicesResourcePrivileges == null;
                 listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
+        }
+        if (Assertions.ENABLED && combineIndicesResourcePrivileges != null) {
+            assert privilegesToCheck.runDetailedCheck();
+            assert combineIndicesResourcePrivileges.build()
+                .getResourceToResourcePrivileges()
+                .values()
+                .stream()
+                .map(ResourcePrivileges::getPrivileges)
+                .map(Map::values)
+                .flatMap(Collection::stream)
+                .anyMatch(Boolean.FALSE::equals) != allMatch;
         }
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();

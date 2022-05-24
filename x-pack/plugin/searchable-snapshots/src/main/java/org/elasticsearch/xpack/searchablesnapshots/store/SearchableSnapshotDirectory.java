@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -86,6 +85,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
@@ -543,13 +544,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         }
 
                         logger.trace(
-                            () -> new ParameterizedMessage(
-                                "{} part [{}/{}] of [{}] warmed in [{}] ms",
+                            () -> format(
+                                "%s part [%s/%s] of [%s] warmed in [%s] ms",
                                 shardId,
                                 part + 1,
                                 numberOfParts,
                                 file.physicalName(),
-                                TimeValue.timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
                             )
                         );
                     }));

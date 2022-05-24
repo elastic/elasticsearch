@@ -31,6 +31,9 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
+
+    private static final String HELP_URL = "https://ela.st/fix-master";
+
     private static final String NO_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot insert or "
         + "update documents.";
     private static final String NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not work. "
@@ -51,6 +54,11 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     @Override
     public String component() {
         return CLUSTER_COORDINATION;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override

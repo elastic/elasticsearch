@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -63,6 +62,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -197,13 +197,7 @@ public class NativePrivilegeStore {
                         .setSize(1000)
                         .setFetchSource(true)
                         .request();
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "Searching for [{}] privileges with query [{}]",
-                            applications,
-                            Strings.toString(query)
-                        )
-                    );
+                    logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,

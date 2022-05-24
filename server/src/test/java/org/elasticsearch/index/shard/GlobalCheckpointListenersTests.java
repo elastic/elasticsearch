@@ -286,16 +286,15 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             }
         }
         if (failureCount > 0) {
-            final ArgumentCaptor<ParameterizedMessage> message = ArgumentCaptor.forClass(ParameterizedMessage.class);
+            final ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> message = ArgumentCaptor.forClass(
+                org.apache.logging.log4j.util.Supplier.class
+            );
             final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);
             verify(mockLogger, times(failureCount)).warn(message.capture(), t.capture());
             assertThat(
-                message.getValue().getFormat(),
-                equalTo("error notifying global checkpoint listener of updated global checkpoint [{}]")
+                message.getValue().get(),
+                equalTo("error notifying global checkpoint listener of updated global checkpoint [" + globalCheckpoint + "]")
             );
-            assertNotNull(message.getValue().getParameters());
-            assertThat(message.getValue().getParameters().length, equalTo(1));
-            assertThat(message.getValue().getParameters()[0], equalTo(globalCheckpoint));
             assertNotNull(t.getValue());
             assertThat(t.getValue().getMessage(), equalTo("failure"));
         }

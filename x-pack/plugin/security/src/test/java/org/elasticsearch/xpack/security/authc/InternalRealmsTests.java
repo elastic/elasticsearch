@@ -51,6 +51,7 @@ public class InternalRealmsTests extends ESTestCase {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(
             mock(ThreadPool.class),
+            Settings.EMPTY,
             mock(ResourceWatcherService.class),
             mock(SSLService.class),
             mock(NativeUsersStore.class),

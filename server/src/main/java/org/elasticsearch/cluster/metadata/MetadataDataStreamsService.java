@@ -118,11 +118,17 @@ public class MetadataDataStreamsService {
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
+        boolean indexNotRemoved = true;
         var dataStream = validateDataStream(metadata, dataStreamName).getDataStream();
         for (Index backingIndex : dataStream.getIndices()) {
             if (backingIndex.getName().equals(indexName)) {
                 builder.put(dataStream.removeBackingIndex(backingIndex));
+                indexNotRemoved = false;
             }
+        }
+
+        if (indexNotRemoved) {
+            throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
 
         // un-hide index

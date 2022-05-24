@@ -356,7 +356,6 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
-        // Force remove succeeds
         var result = MetadataDataStreamsService.modifyDataStream(
             brokenState,
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
@@ -364,6 +363,22 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
         assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
+    }
+
+    public void testRemoveBackingIndexThatDoesntExist() {
+        var dataStreamName = "my-logs";
+        var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+
+        String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
+                this::getMapperService
+            )
+        );
+        assertThat(e.getMessage(), equalTo("index [" +  indexToRemove + "] not found"));
     }
 
     private MapperService getMapperService(IndexMetadata im) {

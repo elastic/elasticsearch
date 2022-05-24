@@ -116,6 +116,8 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -265,7 +267,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
             if (request.includeGlobalState() && requestedStates.isEmpty()) {
                 // If we're including global state and feature states aren't specified, include all of them
-                featureStatesSet = systemIndices.getFeatures().keySet();
+                featureStatesSet = systemIndices.getFeatureNames();
             } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
                 // If there's exactly one value and it's "none", include no states
                 featureStatesSet = Collections.emptySet();
@@ -284,7 +286,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return;
                 }
                 featureStatesSet = new HashSet<>(requestedStates);
-                featureStatesSet.retainAll(systemIndices.getFeatures().keySet());
+                featureStatesSet.retainAll(systemIndices.getFeatureNames());
             }
         } else {
             featureStatesSet = Collections.emptySet();
@@ -336,7 +338,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // been requested by the request directly
                 final Set<String> indexNames = new HashSet<>(indices);
                 for (String featureName : featureStatesSet) {
-                    SystemIndices.Feature feature = systemIndices.getFeatures().get(featureName);
+                    SystemIndices.Feature feature = systemIndices.getFeature(featureName);
 
                     Set<String> featureSystemIndices = feature.getIndexDescriptors()
                         .stream()
@@ -594,7 +596,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Consumer<Exception> onFailure = e -> {
             endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
-            logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
+            logger.info(() -> "Failed to start snapshot clone [" + cloneEntry + "]", e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null);
         };
 
@@ -690,7 +692,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(targetSnapshot);
-                logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
+                logger.info(() -> "Failed to start snapshot clone [" + cloneEntry + "]", e);
                 failAllListenersOnMasterFailOver(e);
             }
 
@@ -1662,14 +1664,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
-            logger.debug(() -> new ParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
+            logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
             failSnapshotCompletionListeners(
                 snapshot,
                 new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
             );
             failAllListenersOnMasterFailOver(e);
         } else {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
+            logger.warn(() -> "[" + snapshot + "] failed to finalize snapshot", e);
             removeFailedSnapshotFromClusterState(snapshot, e, repositoryData);
         }
     }
@@ -1985,7 +1987,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 logger.log(
                     MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
-                    () -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot),
+                    () -> "[" + snapshot + "] failed to remove snapshot metadata",
                     e
                 );
                 failSnapshotCompletionListeners(
@@ -2055,11 +2057,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
         logger.info(
-            () -> new ParameterizedMessage(
-                "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshotNames),
-                repositoryName
-            )
+            () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
         );
 
         final Repository repository = repositoriesService.repository(repositoryName);
@@ -3569,10 +3567,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public void onFailure(Exception e) {
-            logger.info(
-                () -> new ParameterizedMessage("Failed to remove all snapshot tasks for repo [{}] from cluster state", repository),
-                e
-            );
+            logger.info(() -> "Failed to remove all snapshot tasks for repo [" + repository + "] from cluster state", e);
             failAllListenersOnMasterFailOver(e);
         }
 

@@ -465,10 +465,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         } else {
             out.writeString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeString(origin);

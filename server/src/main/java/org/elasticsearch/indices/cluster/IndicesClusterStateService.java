@@ -333,7 +333,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                        logger.warn(() -> "[" + index + "] failed to complete pending deletion for index", e);
                     }
 
                     @Override

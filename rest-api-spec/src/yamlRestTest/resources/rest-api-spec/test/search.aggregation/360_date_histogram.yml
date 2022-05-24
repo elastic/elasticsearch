@@ -389,8 +389,8 @@ setup:
 ---
 "Daylight with offset date_histogram test":
   - skip:
-      version: "- 7.17.0"
-      reason: Bug fixed before 7.17.0
+      version: "- 7.16.99"
+      reason: Bug fixed before 7.16.99
 
   - do:
       search:

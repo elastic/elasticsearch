@@ -219,7 +219,7 @@ public class LocalAllocateDangledIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> "unexpected failure during [" + source + "]", e);
                     try {
                         channel.sendResponse(e);
                     } catch (Exception inner) {

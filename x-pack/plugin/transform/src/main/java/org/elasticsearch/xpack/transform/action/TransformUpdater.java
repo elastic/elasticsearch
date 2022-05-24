@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
@@ -175,7 +176,7 @@ public class TransformUpdater {
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> { validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener); },
+            aVoid -> validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener),
             listener::onFailure
         );
 
@@ -203,7 +204,10 @@ public class TransformUpdater {
         TimeValue timeout,
         ActionListener<Map<String, String>> listener
     ) {
-        client.execute(
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(config, deferValidation, timeout),
             ActionListener.wrap(response -> listener.onResponse(response.getDestIndexMappings()), listener::onFailure)
@@ -234,7 +238,7 @@ public class TransformUpdater {
             transformConfigManager.putOrUpdateTransformStoredDoc(
                 currentState.v1(),
                 null, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
-                ActionListener.wrap(r -> { listener.onResponse(lastCheckpoint); }, e -> {
+                ActionListener.wrap(r -> listener.onResponse(lastCheckpoint), e -> {
                     if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // if a version conflict occurs a new state has been written between us reading and writing.
                         // this is a benign case, as it means the transform is running and the latest state has been written by it
@@ -277,15 +281,17 @@ public class TransformUpdater {
         ActionListener<Void> listener
     ) {
         // <3> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            transformConfigManager.deleteOldTransformConfigurations(config.getId(), ActionListener.wrap(r -> {
-                logger.trace("[{}] successfully deleted old transform configurations", config.getId());
-                listener.onResponse(null);
-            }, e -> {
-                logger.warn(LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", config.getId()), e);
-                listener.onResponse(null);
-            }));
-        },
+        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
+            putTransformConfigurationResult -> transformConfigManager.deleteOldTransformConfigurations(
+                config.getId(),
+                ActionListener.wrap(r -> {
+                    logger.trace("[{}] successfully deleted old transform configurations", config.getId());
+                    listener.onResponse(null);
+                }, e -> {
+                    logger.warn(LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", config.getId()), e);
+                    listener.onResponse(null);
+                })
+            ),
             // If we failed to INDEX AND we created the destination index, the destination index will still be around
             // This is a similar behavior to _start
             listener::onFailure

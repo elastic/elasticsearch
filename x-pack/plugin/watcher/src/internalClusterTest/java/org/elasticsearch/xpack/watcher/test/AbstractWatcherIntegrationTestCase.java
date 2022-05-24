@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -223,12 +222,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             String triggeredWatchIndexName;
             if (randomBoolean()) {
                 // Create an index to get the template
-                String tempIndex = ".watches" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
                 CreateIndexResponse response = client().admin()
                     .indices()
-                    .prepareCreate(tempIndex)
+                    .prepareCreate(Watch.INDEX)
                     .setCause("Index to test aliases with .watches index")
-                    .addAlias(new Alias(Watch.INDEX))
                     .get();
                 assertAcked(response);
 
@@ -248,12 +245,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (randomBoolean()) {
-                String tempIndex = ".triggered_watches-alias-index";
                 CreateIndexResponse response = client().admin()
                     .indices()
-                    .prepareCreate(tempIndex)
+                    .prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
                     .setCause("Index to test aliases with .triggered-watches index")
-                    .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
                     .get();
                 assertAcked(response);
 

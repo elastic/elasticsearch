@@ -29,7 +29,7 @@ import java.util.function.Predicate;
 /**
  * An immutable map implementation based on open hash map.
  * <p>
- * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
+ * Can be constructed using a {@link #builder()}, or using {@link #builder(Map)} (which is an optimized
  * option to copy over existing content and modify it).
  */
 public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
@@ -368,8 +368,13 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return new Builder<>(size);
     }
 
-    public static <KType, VType> Builder<KType, VType> builder(ImmutableOpenMap<KType, VType> map) {
-        return new Builder<>(map);
+    public static <KType, VType> Builder<KType, VType> builder(Map<KType, VType> map) {
+        if (map instanceof ImmutableOpenMap<KType, VType> iom) {
+            return new Builder<>(iom);
+        }
+        Builder<KType, VType> builder = new Builder<>(map.size());
+        builder.putAllFromMap(map);
+        return builder;
     }
 
     public static class Builder<KType, VType> {

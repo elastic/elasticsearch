@@ -25,7 +25,6 @@ import static java.util.stream.Collectors.toMap;
 
 final class PluginIntrospector {
 
-    // TODO: assert that this list is complete and correct
     private final Set<Class<?>> pluginClasses = Set.of(
         Plugin.class,
         ActionPlugin.class,
@@ -34,7 +33,7 @@ final class PluginIntrospector {
         ClusterPlugin.class,
         DiscoveryPlugin.class,
         EnginePlugin.class,
-        ExtensiblePlugin.class, // TODO: not sure that we want this?
+        ExtensiblePlugin.class,
         HealthPlugin.class,
         IndexStorePlugin.class,
         IngestPlugin.class,
@@ -80,8 +79,7 @@ final class PluginIntrospector {
         List<String> overriddenMethods = new ArrayList<>();
         for (var implClass : implClasses) {
             List<MethodType> pluginMethods = pluginMethodsMap.get(implClass);
-            // assert pluginMethods != null : "no plugin methods for " + implClass;
-            // log ^^^
+            assert pluginMethods != null : "no plugin methods for " + implClass;
             for (var mt : pluginMethods) {
                 try {
                     Method m = pluginClass.getMethod(mt.name(), mt.parameterTypes());
@@ -115,7 +113,6 @@ final class PluginIntrospector {
     // Returns a stream of o.e.XXXPlugin interfaces, that the given plugin class implements.
     private Stream<Class<?>> interfaceClasses(Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
-
         Set<Class<?>> pluginInterfaces = new HashSet<>();
         do {
             Arrays.stream(pluginClass.getInterfaces()).forEach(inf -> superInterfaces(inf, pluginInterfaces));

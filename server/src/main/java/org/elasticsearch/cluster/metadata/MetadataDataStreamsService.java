@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -113,17 +114,29 @@ public class MetadataDataStreamsService {
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
-        IndexAbstraction.DataStream dataStream = validateDataStream(metadata, dataStreamName);
-        IndexAbstraction.ConcreteIndex index = validateIndex(metadata, indexName);
-        builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex()));
+        boolean indexNotRemoved = true;
+        DataStream dataStream = validateDataStream(metadata, dataStreamName).getDataStream();
+        for (Index backingIndex : dataStream.getIndices()) {
+            if (backingIndex.getName().equals(indexName)) {
+                builder.put(dataStream.removeBackingIndex(backingIndex));
+                indexNotRemoved = false;
+                break;
+            }
+        }
+
+        if (indexNotRemoved) {
+            throw new IllegalArgumentException("index [" + indexName + "] not found");
+        }
 
         // un-hide index
-        IndexMetadata indexMetadata = metadata.index(index.getWriteIndex());
-        builder.put(
-            IndexMetadata.builder(indexMetadata)
-                .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
-                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
-        );
+        IndexMetadata indexMetadata = builder.get(indexName);
+        if (indexMetadata != null) {
+            builder.put(
+                IndexMetadata.builder(indexMetadata)
+                    .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
+                    .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+            );
+        }
     }
 
     private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {

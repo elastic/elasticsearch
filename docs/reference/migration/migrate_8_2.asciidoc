@@ -11,10 +11,13 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming::[8.2.2-SNAPSHOT]
 
-
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking-changes-8.2]]
 === Breaking changes
 
 There are no breaking changes in {es} 8.2.
 
+// end::notable-breaking-changes[]

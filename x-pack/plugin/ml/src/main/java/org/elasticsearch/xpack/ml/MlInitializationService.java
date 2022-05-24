@@ -177,7 +177,7 @@ public class MlInitializationService implements ClusterStateListener {
                 .stream()
                 .filter(
                     n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
-                        || NodesShutdownMetadata.getShutdowns(event.state())
+                        && NodesShutdownMetadata.getShutdowns(event.state())
                             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
                             .map(allNodes -> allNodes.get(n.getId()))
                             .isEmpty()

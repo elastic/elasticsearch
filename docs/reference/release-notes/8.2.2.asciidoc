@@ -23,5 +23,11 @@ Infra/Core::
 
 Machine Learning::
 * Fix ML task auditor exception early in cluster lifecycle {es-pull}87023[#87023] (issue: {es-issue}87002[#87002])
+* Adjacency weighting fixes in categorization {ml-pull}2277[#2277]
 
+[[enhancement-8.2.2]]
+[float]
+=== Enhancements
 
+Machine Learning::
+* Make ML native processes work with glibc 2.35 (required for Ubuntu 22.04) {ml-pull}2272[#2272]

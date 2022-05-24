@@ -49,6 +49,8 @@ final class PluginIntrospector {
         SystemIndexPlugin.class
     );
 
+    private record MethodType(String name, Class<?>[] parameterTypes) {}
+
     private final Map<Class<?>, List<MethodType>> pluginMethodsMap;
 
     private PluginIntrospector() {
@@ -63,7 +65,7 @@ final class PluginIntrospector {
      * Returns the list of Elasticsearch plugin interfaces implemented by the given plugin
      * implementation class. The list contains the simple names of the interfaces.
      */
-    List<String> interfaces(Class<?> pluginClass) {
+    List<String> interfaces(final Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
         return interfaceClasses(pluginClass).map(Class::getSimpleName).sorted().toList();
     }
@@ -72,21 +74,21 @@ final class PluginIntrospector {
      * Returns the list of methods overridden by the given plugin implementation class. The list
      * contains the simple names of the methods.
      */
-    List<String> overriddenMethods(Class<?> pluginClass) {
+    List<String> overriddenMethods(final Class<?> pluginClass) {
         assert Plugin.class.isAssignableFrom(pluginClass);
-        List<Class<?>> implClasses = Stream.concat(Stream.of(Plugin.class), interfaceClasses(pluginClass)).toList();
+        List<Class<?>> esPluginClasses = Stream.concat(Stream.of(Plugin.class), interfaceClasses(pluginClass)).toList();
 
         List<String> overriddenMethods = new ArrayList<>();
-        for (var implClass : implClasses) {
-            List<MethodType> pluginMethods = pluginMethodsMap.get(implClass);
-            assert pluginMethods != null : "no plugin methods for " + implClass;
-            for (var mt : pluginMethods) {
+        for (var esPluginClass : esPluginClasses) {
+            List<MethodType> esPluginMethods = pluginMethodsMap.get(esPluginClass);
+            assert esPluginMethods != null : "no plugin methods for " + esPluginClass;
+            for (var mt : esPluginMethods) {
                 try {
                     Method m = pluginClass.getMethod(mt.name(), mt.parameterTypes());
-                    if (m.getDeclaringClass() == implClass) {
+                    if (m.getDeclaringClass() == esPluginClass) {
                         // it's not overridden
                     } else {
-                        assert implClass.isAssignableFrom(m.getDeclaringClass());
+                        assert esPluginClass.isAssignableFrom(m.getDeclaringClass());
                         overriddenMethods.add(mt.name());
                     }
                 } catch (NoSuchMethodException unexpected) {
@@ -94,10 +96,8 @@ final class PluginIntrospector {
                 }
             }
         }
-        return List.copyOf(overriddenMethods);
+        return overriddenMethods.stream().sorted().toList();
     }
-
-    private record MethodType(String name, Class<?>[] parameterTypes) {}
 
     // Returns the non-static methods declared in the given class.
     @SuppressForbidden(reason = "Need declared methods")

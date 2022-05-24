@@ -38,7 +38,6 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
 public class PluginIntrospectorTests extends ESTestCase {
@@ -84,7 +83,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(
             pluginIntrospector.interfaces(BazPlugin.class),
-            containsInAnyOrder("NetworkPlugin", "ClusterPlugin", "DiscoveryPlugin", "IngestPlugin")
+            contains("ClusterPlugin", "DiscoveryPlugin", "IngestPlugin", "NetworkPlugin")
         );
     }
 
@@ -184,7 +183,7 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(
             pluginIntrospector.overriddenMethods(BarZPlugin.class),
-            containsInAnyOrder("additionalSettings", "getTokenFilters", "getHealthIndicatorServices")
+            contains("additionalSettings", "getHealthIndicatorServices", "getTokenFilters")
         );
     }
 
@@ -203,7 +202,7 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
         }
 
-        assertThat(pluginIntrospector.overriddenMethods(BartPlugin.class), containsInAnyOrder("getFeatureName", "getFeatureDescription"));
+        assertThat(pluginIntrospector.overriddenMethods(BartPlugin.class), contains("getFeatureDescription", "getFeatureName"));
     }
 
     // TODO: add more test coverage, and ensure all combinations covered

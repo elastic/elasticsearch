@@ -12,16 +12,12 @@
 class org.elasticsearch.script.ReindexScript$Metadata @alias[class="Metadata"] {
     String getIndex()
     void setIndex(String)
-
     String getId()
     void setId(String)
-
     String getRouting()
     void setRouting(String)
-
     Long getVersion()
     void setVersion(Long)
-
     Op getOp()
     void setOp(Op)
 }

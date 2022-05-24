@@ -103,8 +103,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta };
         }
 
         private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {

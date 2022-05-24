@@ -49,19 +49,18 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
         final boolean queued;
-        if (msg instanceof OutboundMessage.SerializedBytes) {
-            List<ReleasableBytesReference> components = ((OutboundMessage.SerializedBytes) msg).components();
+        if (msg instanceof OutboundMessage.SerializedBytes serializedBytes) {
+            List<ReleasableBytesReference> components = serializedBytes.components();
+            serializedBytes.takeOwnership();
             final ByteBuf byteBuf;
             if (components.size() > 1) {
                 CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
                 for (ReleasableBytesReference component : components) {
-                    component.incRef();
                     composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
                 }
                 byteBuf = composite;
             } else {
                 ReleasableBytesReference component = components.get(0);
-                component.incRef();
                 byteBuf = Netty4Utils.toReleasableByteBuf(component);
             }
             queued = queuedWrites.offer(new WriteOperation(byteBuf, promise));
@@ -109,14 +108,13 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             }
             final WriteOperation write = currentWrite;
             final int readableBytes = write.buf.readableBytes();
-            final int bufferSize = Math.min(readableBytes, 1 << 18);
+            final int bufferSize = Math.min(readableBytes, 10);
             final int readerIndex = write.buf.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
             final ByteBuf writeBuffer;
             if (sliced) {
                 writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
                 write.buf.readerIndex(readerIndex + bufferSize);
-                write.buf.discardReadBytes();
             } else {
                 writeBuffer = write.buf;
             }
@@ -144,10 +142,17 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 // try flushing to make channel writable again, loop will only continue if channel becomes writable again
                 ctx.flush();
                 needsFlush = false;
+                if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
+                    currentWrite.buf.discardSomeReadBytes();
+                }
             }
+
         }
         if (needsFlush) {
             ctx.flush();
+            if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
+                currentWrite.buf.discardSomeReadBytes();
+            }
         }
         if (channel.isActive() == false) {
             failQueuedWrites();

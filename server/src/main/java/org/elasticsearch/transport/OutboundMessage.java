@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class OutboundMessage extends NetworkMessage {
 
@@ -216,7 +217,16 @@ public abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
-    public record SerializedBytes(List<ReleasableBytesReference> components, int messageLength) implements Releasable {
+    public static class SerializedBytes implements Releasable {
+
+        private final AtomicBoolean ownershipTaken = new AtomicBoolean(false);
+        private final List<ReleasableBytesReference> components;
+        private final int messageLength;
+
+        public SerializedBytes(List<ReleasableBytesReference> components, int messageLength) {
+            this.components = components;
+            this.messageLength = messageLength;
+        }
 
         public BytesReference getBytesReference() {
             BytesReference[] references = new BytesReference[components.size()];
@@ -248,9 +258,25 @@ public abstract class OutboundMessage extends NetworkMessage {
             return Objects.hash(components, messageLength);
         }
 
+        public void takeOwnership() {
+            if (ownershipTaken.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Cannot take ownership of serialized bytes.");
+            }
+        }
+
+        public List<ReleasableBytesReference> components() {
+            return components;
+        }
+
+        public int messageLength() {
+            return messageLength;
+        }
+
         @Override
         public void close() {
-            Releasables.close(components);
+            if (ownershipTaken.get() == false) {
+                Releasables.close(components);
+            }
         }
     }
 }

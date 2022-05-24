@@ -19,6 +19,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.DIAGNOSE_SHARDS_ACTION_GUIDE;
@@ -76,6 +77,7 @@ public class ShardsAvailabilityActionGuideTests extends ESTestCase {
 
     public void testMigrateDataRequiredToDataTiers() {
         assertThat(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA.helpURL(), is(MIGRATE_TO_TIERS_ACTION_GUIDE));
+        assertThat(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA.helpURL(), is(MIGRATE_TO_TIERS_ACTION_GUIDE));
     }
 
     public void testIncreaseTierCapacity() {

@@ -14,6 +14,10 @@ include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
+include::troubleshooting/data/enable-index-allocation.asciidoc[]
+
+include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
+
 include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]

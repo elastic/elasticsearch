@@ -78,6 +78,16 @@ grant codeBase "${codebase.mocksocket}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
+// the test framework can dynamically remove the security manager
+// for tests that need to run without it
+grant codeBase "${codebase.elasticsearch}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
+};
+// this is the test-framework, but the jar is horribly named
+grant codeBase "${codebase.framework}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
+};
+
 grant codeBase "${codebase.elasticsearch-rest-client}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

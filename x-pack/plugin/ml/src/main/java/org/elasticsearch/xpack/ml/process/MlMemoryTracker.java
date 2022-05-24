@@ -444,7 +444,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
-                .collect(Collectors.toList());
+                .toList();
             ActionListener<Void> refreshDataFrameAnalyticsJobs = ActionListener.wrap(
                 aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                 refreshComplete::onFailure

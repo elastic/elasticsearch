@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
@@ -34,6 +35,7 @@ import java.util.zip.ZipOutputStream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsUtilsTests extends ESTestCase {
 
     public void testExistingPluginMissingDescriptor() throws Exception {
@@ -45,7 +47,7 @@ public class PluginsUtilsTests extends ESTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -67,7 +69,7 @@ public class PluginsUtilsTests extends ESTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -82,7 +84,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         bundles.add(new PluginBundle(info, pluginDir));
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -97,7 +99,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         bundles.add(new PluginBundle(info2, pluginDir));
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "baz",
             "desc",
             "1.0",
@@ -112,7 +114,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         bundles.add(new PluginBundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo(
+        PluginDescriptor info4 = new PluginDescriptor(
             "other",
             "desc",
             "1.0",
@@ -134,7 +136,7 @@ public class PluginsUtilsTests extends ESTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -156,7 +158,7 @@ public class PluginsUtilsTests extends ESTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -172,7 +174,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -188,7 +190,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle2 = new PluginBundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "baz",
             "desc",
             "1.0",
@@ -210,7 +212,7 @@ public class PluginsUtilsTests extends ESTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -235,7 +237,7 @@ public class PluginsUtilsTests extends ESTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "grandparent",
             "desc",
             "1.0",
@@ -251,7 +253,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -267,7 +269,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle2 = new PluginBundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -283,7 +285,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle3 = new PluginBundle(info3, pluginDir);
         bundles.add(bundle3);
-        PluginInfo info4 = new PluginInfo(
+        PluginDescriptor info4 = new PluginDescriptor(
             "common",
             "desc",
             "1.0",
@@ -306,7 +308,7 @@ public class PluginsUtilsTests extends ESTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "dep",
             "desc",
             "1.0",
@@ -322,7 +324,7 @@ public class PluginsUtilsTests extends ESTestCase {
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -393,7 +395,7 @@ public class PluginsUtilsTests extends ESTestCase {
         makeJar(dupJar);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -410,7 +412,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
@@ -426,7 +428,7 @@ public class PluginsUtilsTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -443,7 +445,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -451,13 +453,12 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
-
     public void testJarHellDuplicateClassWithCore() throws Exception {
         // need a jar file of core dep, use log4j here
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -474,7 +475,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>())
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, new HashMap<>())
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -488,7 +489,7 @@ public class PluginsUtilsTests extends ESTestCase {
         Path otherDir = createTempDir();
         Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
 
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "dummy",
             "desc",
             "1.0",
@@ -509,7 +510,7 @@ public class PluginsUtilsTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveUrls)
         );
 
         assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
@@ -524,7 +525,7 @@ public class PluginsUtilsTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -541,7 +542,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -561,7 +562,7 @@ public class PluginsUtilsTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -578,7 +579,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -598,7 +599,7 @@ public class PluginsUtilsTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -613,7 +614,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
@@ -632,7 +633,7 @@ public class PluginsUtilsTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -647,7 +648,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
         Set<URL> transitive = transitiveDeps.get("myplugin");
         assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
     }
@@ -665,7 +666,7 @@ public class PluginsUtilsTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -682,7 +683,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -690,7 +691,7 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "my_plugin",
             "desc",
             "1.0",
@@ -709,7 +710,7 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "my_plugin",
             "desc",
             "1.0",

@@ -111,6 +111,20 @@ public class ServerCliTests extends CommandTestCase {
         assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
     }
 
+    public void testPidDirectories() throws Exception {
+        Path tmpDir = createTempDir();
+        Command command = newCommand();
+
+        Path pidFileArg = tmpDir.resolve("pid");
+        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(pidFileArg.toString()));
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
+        assertOk(new String[] { "-p", pidFileArg.toString() });
+
+        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
+        assertOk(new String[] { "-p", "pid" });
+    }
+
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
         argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(daemonized));
         assertOk(args);
@@ -268,20 +282,6 @@ public class ServerCliTests extends CommandTestCase {
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
-    }
-
-    public void testPidDirectories() throws Exception {
-        Path tmpDir = createTempDir();
-        Command command = newCommand();
-
-        Path pidFileArg = tmpDir.resolve("pid");
-        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(pidFileArg.toString()));
-        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
-        command.main(new String[] { "-p", pidFileArg.toString() }, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-
-        pidFileValidator = (path) -> assertThat(path.toString(), equalTo("pid"));
-        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
-        command.main(new String[] { "-p", "pid" }, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
     }
 
     interface AutoConfigMethod {

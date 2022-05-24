@@ -178,22 +178,16 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private Path resolvePidFile(Path pidFile) {
-        if (pidFile.isAbsolute() == false) {
-            return Path.of("").resolve(pidFile).toAbsolutePath();
-        }
-
-        return pidFile;
-    }
-
     private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
         if (options.has(pidfileOption)) {
             pidFile = options.valueOf(pidfileOption);
+            if (pidFile.isAbsolute() == false) {
+                pidFile = Path.of("").resolve(pidFile).toAbsolutePath();
+            }
             validatePidFile(pidFile);
-            pidFile = resolvePidFile(pidFile);
         }
         return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
     }

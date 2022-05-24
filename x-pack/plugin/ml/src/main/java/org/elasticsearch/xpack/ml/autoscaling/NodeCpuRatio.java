@@ -21,7 +21,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.CPU_RATIO_NODE_ATTR;
 public final class NodeCpuRatio {
 
     /**
-     *
      * @param state current cluster state
      * @param node Node whose ratio to return
      * @return The current ration if found

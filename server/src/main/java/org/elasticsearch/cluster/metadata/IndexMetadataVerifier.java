@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -34,6 +33,8 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -216,8 +217,8 @@ public class IndexMetadataVerifier {
                 e.getValue()
             ),
             (e, ex) -> logger.warn(
-                () -> new ParameterizedMessage(
-                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+                () -> format(
+                    "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
                     indexMetadata.getIndex(),
                     e.getKey(),
                     e.getValue()

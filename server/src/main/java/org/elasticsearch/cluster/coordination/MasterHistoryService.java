@@ -94,7 +94,7 @@ public class MasterHistoryService {
          * come in yet.
          */
         long acceptableRemoteHistoryTime = currentTimeMillisSupplier.getAsLong() - acceptableRemoteHistoryAge.getMillis();
-        if (remoteHistoryOrExceptionCopy.creationTimestamp < acceptableRemoteHistoryTime) {
+        if (remoteHistoryOrExceptionCopy.creationTimeMillis < acceptableRemoteHistoryTime) {
             return null;
         }
         if (remoteHistoryOrExceptionCopy.exception != null) {
@@ -171,7 +171,7 @@ public class MasterHistoryService {
     }
 
     // non-private for testing
-    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception, long creationTimestamp) {
+    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception, long creationTimeMillis) {
 
         public RemoteHistoryOrException {
             if (remoteHistory != null && exception != null) {
@@ -179,12 +179,12 @@ public class MasterHistoryService {
             }
         }
 
-        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, long creationTimestamp) {
-            this(remoteHistory, null, creationTimestamp);
+        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, long creationTimeMillis) {
+            this(remoteHistory, null, creationTimeMillis);
         }
 
-        RemoteHistoryOrException(Exception exception, long creationTimestamp) {
-            this(null, exception, creationTimestamp);
+        RemoteHistoryOrException(Exception exception, long creationTimeMillis) {
+            this(null, exception, creationTimeMillis);
         }
     }
 }

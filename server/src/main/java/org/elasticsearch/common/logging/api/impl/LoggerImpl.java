@@ -18,323 +18,395 @@ import java.util.function.Supplier;
 public final class LoggerImpl implements Logger {
     private final org.apache.logging.log4j.Logger log4jLogger;
 
-    //
     public LoggerImpl(org.apache.logging.log4j.Logger log4jLogger) {
         this.log4jLogger = log4jLogger;
-    }
-
-    /*package*/ org.apache.logging.log4j.Logger log4jLogger() {
-        return log4jLogger;
     }
 
     private org.apache.logging.log4j.util.Supplier<?> mapSupplier(Supplier<String> msgSupplier) {
         return (org.apache.logging.log4j.util.Supplier<Object>) () -> msgSupplier.get();
     }
 
+    @Override
     public void log(Level level, String message) {
         log4jLogger.log(Util.log4jLevel(level), message);
     }
 
+    @Override
     public void log(Level level, Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.log(Util.log4jLevel(level), mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public Level getLevel() {
         return Util.elasticsearchLevel(log4jLogger.getLevel());
     }
 
+    @Override
     public String getName() {
         return log4jLogger.getName();
     }
 
+    @Override
     public boolean isFatalEnabled() {
         return log4jLogger.isFatalEnabled();
     }
 
+    @Override
     public boolean isErrorEnabled() {
         return log4jLogger.isErrorEnabled();
     }
 
+    @Override
     public boolean isWarnEnabled() {
         return log4jLogger.isWarnEnabled();
     }
 
+    @Override
     public boolean isInfoEnabled() {
         return log4jLogger.isInfoEnabled();
     }
 
+    @Override
     public boolean isDebugEnabled() {
         return log4jLogger.isDebugEnabled();
     }
 
+    @Override
     public boolean isTraceEnabled() {
         return log4jLogger.isTraceEnabled();
     }
 
+    @Override
     public boolean isEnabled(Level level) {
         return log4jLogger.isEnabled(Util.log4jLevel(level));
     }
 
+    @Override
     public void fatal(Supplier<String> messageSupplier) {
         log4jLogger.fatal(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void fatal(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.fatal(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void fatal(String message) {
         log4jLogger.fatal(message);
     }
 
+    @Override
     public void fatal(String message, Throwable throwable) {
         log4jLogger.fatal(message, throwable);
     }
 
+    @Override
     public void fatal(String message, Object p0) {
         log4jLogger.fatal(message, p0);
     }
 
+    @Override
     public void fatal(String message, Object p0, Object p1) {
         log4jLogger.fatal(message, p0, p1);
     }
 
+    @Override
     public void fatal(String message, Object p0, Object p1, Object p2) {
         log4jLogger.fatal(message, p0, p1, p2);
     }
 
+    @Override
     public void fatal(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.fatal(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.fatal(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.fatal(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void fatal(String message, Object... params) {
         log4jLogger.fatal(message, params);
     }
 
+    @Override
     public void error(Supplier<String> messageSupplier) {
         log4jLogger.error(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void error(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.error(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void error(String message) {
         log4jLogger.error(message);
     }
 
+    @Override
     public void error(String message, Throwable throwable) {
         log4jLogger.error(message, throwable);
     }
 
+    @Override
     public void error(String message, Object p0) {
         log4jLogger.error(message, p0);
     }
 
+    @Override
     public void error(String message, Object p0, Object p1) {
         log4jLogger.error(message, p0, p1);
     }
 
+    @Override
     public void error(String message, Object p0, Object p1, Object p2) {
         log4jLogger.error(message, p0, p1, p2);
     }
 
+    @Override
     public void error(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.error(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.error(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.error(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void error(String message, Object... params) {
         log4jLogger.error(message, params);
     }
 
+    @Override
     public void warn(Supplier<String> messageSupplier) {
         log4jLogger.warn(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void warn(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.warn(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void warn(String message) {
         log4jLogger.warn(message);
     }
 
+    @Override
     public void warn(String message, Throwable throwable) {
         log4jLogger.warn(message, throwable);
     }
 
+    @Override
     public void warn(String message, Object p0) {
         log4jLogger.warn(message, p0);
     }
 
+    @Override
     public void warn(String message, Object p0, Object p1) {
         log4jLogger.warn(message, p0, p1);
     }
 
+    @Override
     public void warn(String message, Object p0, Object p1, Object p2) {
         log4jLogger.warn(message, p0, p1, p2);
     }
 
+    @Override
     public void warn(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.warn(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.warn(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.warn(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void warn(String message, Object... params) {
         log4jLogger.warn(message, params);
     }
 
+    @Override
     public void info(Supplier<String> messageSupplier) {
         log4jLogger.info(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void info(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.info(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void info(String message) {
         log4jLogger.info(message);
     }
 
+    @Override
     public void info(String message, Throwable throwable) {
         log4jLogger.info(message, throwable);
     }
 
+    @Override
     public void info(String message, Object p0) {
         log4jLogger.info(message, p0);
     }
 
+    @Override
     public void info(String message, Object p0, Object p1) {
         log4jLogger.info(message, p0, p1);
     }
 
+    @Override
     public void info(String message, Object p0, Object p1, Object p2) {
         log4jLogger.info(message, p0, p1, p2);
     }
 
+    @Override
     public void info(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.info(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.info(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.info(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void info(String message, Object... params) {
         log4jLogger.info(message, params);
     }
 
+    @Override
     public void debug(Supplier<String> messageSupplier) {
         log4jLogger.debug(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void debug(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.debug(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void debug(String message) {
         log4jLogger.debug(message);
     }
 
+    @Override
     public void debug(String message, Throwable throwable) {
         log4jLogger.debug(message, throwable);
     }
 
+    @Override
     public void debug(String message, Object p0) {
         log4jLogger.debug(message, p0);
     }
 
+    @Override
     public void debug(String message, Object p0, Object p1) {
         log4jLogger.debug(message, p0, p1);
     }
 
+    @Override
     public void debug(String message, Object p0, Object p1, Object p2) {
         log4jLogger.debug(message, p0, p1, p2);
     }
 
+    @Override
     public void debug(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.debug(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.debug(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.debug(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void debug(String message, Object... params) {
         log4jLogger.debug(message, params);
     }
 
+    @Override
     public void trace(Supplier<String> messageSupplier) {
         log4jLogger.trace(mapSupplier(messageSupplier));
     }
 
+    @Override
     public void trace(Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.trace(mapSupplier(messageSupplier), throwable);
     }
 
+    @Override
     public void trace(String message) {
         log4jLogger.trace(message);
     }
 
+    @Override
     public void trace(String message, Throwable throwable) {
         log4jLogger.trace(message, throwable);
     }
 
+    @Override
     public void trace(String message, Object p0) {
         log4jLogger.trace(message, p0);
     }
 
+    @Override
     public void trace(String message, Object p0, Object p1) {
         log4jLogger.trace(message, p0, p1);
     }
 
+    @Override
     public void trace(String message, Object p0, Object p1, Object p2) {
         log4jLogger.trace(message, p0, p1, p2);
     }
 
+    @Override
     public void trace(String message, Object p0, Object p1, Object p2, Object p3) {
         log4jLogger.trace(message, p0, p1, p2, p3);
     }
 
+    @Override
     public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
         log4jLogger.trace(message, p0, p1, p2, p3, p4);
     }
 
+    @Override
     public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
         log4jLogger.trace(message, p0, p1, p2, p3, p4, p5);
     }
 
+    @Override
     public void trace(String message, Object... params) {
         log4jLogger.trace(message, params);
     }

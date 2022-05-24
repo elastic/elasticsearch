@@ -19,8 +19,9 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * Levels used for identifying the severity of an event.
  *
- * Level has a name and a severity. A severity is used to log events which are less verbose (higher serverit and importance).
+ * <p>Level has a name and a severity. A severity is used to log events which are less verbose (higher severity and importance).
  * Previously created instances can be obtained by name.
+ * </p>
  */
 public final class Level {
     /**

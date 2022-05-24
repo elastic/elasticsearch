@@ -54,18 +54,18 @@ public class Downsample implements ToXContentObject, Writeable {
 
     private final DateHistogramInterval range;
     private final Function function;
-    private final Map<String, Object> params;
+    private final Map<String, Object> parameters;
 
-    public Downsample(DateHistogramInterval range, Function function, Map<String, Object> params) {
+    public Downsample(DateHistogramInterval range, Function function, Map<String, Object> parameters) {
         this.range = range;
         this.function = function;
-        this.params = params;
+        this.parameters = parameters;
     }
 
     public Downsample(StreamInput in) throws IOException {
         this.range = new DateHistogramInterval(in);
         this.function = Function.resolve(in.readString());
-        this.params = in.readMap();
+        this.parameters = in.readMap();
     }
 
     public DateHistogramInterval getRange() {
@@ -76,8 +76,8 @@ public class Downsample implements ToXContentObject, Writeable {
         return function;
     }
 
-    public Map<String, Object> getParams() {
-        return params;
+    public Map<String, Object> getParameters() {
+        return parameters;
     }
 
     public static Downsample fromXContent(XContentParser parser) {
@@ -89,8 +89,8 @@ public class Downsample implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(RANGE_FIELD.getPreferredName(), range);
         builder.field(FUNCTION_FIELD.getPreferredName(), function);
-        if (params != null) {
-            builder.field(PARAMS_FIELD.getPreferredName(), params);
+        if (parameters != null) {
+            builder.field(PARAMS_FIELD.getPreferredName(), parameters);
         }
         builder.endObject();
         return builder;
@@ -100,6 +100,6 @@ public class Downsample implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         range.writeTo(out);
         out.writeString(function.name());
-        out.writeGenericMap(params);
+        out.writeGenericMap(parameters);
     }
 }

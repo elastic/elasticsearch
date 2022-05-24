@@ -132,7 +132,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
-        this.downsampleParams = downsample != null ? downsample.getParams() : null;
+        this.downsampleParams = downsample != null ? downsample.getParameters() : null;
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order == null ? BucketOrder.key(true) : order;
         this.partiallyBuiltBucketComparator = order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);

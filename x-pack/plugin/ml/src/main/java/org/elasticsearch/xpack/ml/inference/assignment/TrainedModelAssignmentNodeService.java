@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -58,6 +57,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState.FAILED;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
@@ -472,20 +472,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             new RoutingStateAndReason(RoutingState.FAILED, reason),
             ActionListener.wrap(
                 r -> logger.debug(
-                    new ParameterizedMessage(
-                        "[{}] Successfully updating assignment state to [{}] with reason [{}]",
-                        task.getModelId(),
-                        RoutingState.FAILED,
-                        reason
-                    )
+                    () -> format("[%s] Successfully updating assignment state to [%s] with reason [%s]", task.getModelId(), FAILED, reason)
                 ),
                 e -> logger.error(
-                    new ParameterizedMessage(
-                        "[{}] Error while updating assignment state to [{}] with reason [{}]",
-                        task.getModelId(),
-                        RoutingState.FAILED,
-                        reason
-                    ),
+                    () -> format("[%s] Error while updating assignment state to [%s] with reason [%s]", task.getModelId(), FAILED, reason),
                     e
                 )
             )

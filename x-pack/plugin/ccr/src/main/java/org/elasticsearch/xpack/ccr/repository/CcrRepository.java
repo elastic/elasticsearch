@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -397,8 +396,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             assert cause instanceof ElasticsearchSecurityException == false : cause;
                             if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "{} background renewal of retention lease [{}] failed during restore",
+                                    () -> format(
+                                        "%s background renewal of retention lease [%s] failed during restore",
                                         shardId,
                                         retentionLeaseId
                                     ),

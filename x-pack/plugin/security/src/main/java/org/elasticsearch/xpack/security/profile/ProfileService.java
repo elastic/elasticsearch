@@ -390,7 +390,7 @@ public class ProfileService {
                             }
                         }
                         if (loggedException != null) {
-                            logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
+                            logger.debug(() -> format("Failed to retrieve profiles %s", failures), loggedException);
                         }
                         listener.onResponse(new Tuple<>(retrievedDocs, failures));
                     }, listener::onFailure))

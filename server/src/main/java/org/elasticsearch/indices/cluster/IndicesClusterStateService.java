@@ -10,7 +10,6 @@ package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -276,7 +275,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
                     if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                        getLogger().info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);
+                        getLogger().info(() -> format("%s global checkpoint sync failed", shardId), e);
                     }
                 })
             );

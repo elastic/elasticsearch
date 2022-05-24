@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -1766,10 +1765,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repoDataInitialized.addListener(listener);
                 final Consumer<Exception> onFailure = e -> {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Exception when initializing repository generation in cluster state",
-                            metadata.name()
-                        ),
+                        () -> format("[%s] Exception when initializing repository generation in cluster state", metadata.name()),
                         e
                     );
                     final ActionListener<RepositoryData> existingListener;

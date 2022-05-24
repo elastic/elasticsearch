@@ -749,7 +749,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             );
             primary = false;
         }
-        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
     }
 
     private List<NodeStats> buildNodeStats(ClusterState clusterState, long bytesPerShard, long docsPerShard) {

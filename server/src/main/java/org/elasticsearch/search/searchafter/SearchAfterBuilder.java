@@ -58,10 +58,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(sortValues.length);
-        for (Object fieldValue : sortValues) {
-            out.writeGenericValue(fieldValue);
-        }
+        out.writeArray(StreamOutput::writeGenericValue, sortValues);
     }
 
     public SearchAfterBuilder setSortValues(Object[] values) {

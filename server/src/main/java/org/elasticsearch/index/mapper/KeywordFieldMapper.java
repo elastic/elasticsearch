@@ -250,8 +250,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 stored,
@@ -266,8 +266,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script,
                 onScriptError,
                 meta,
-                dimension
-            );
+                dimension };
         }
 
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
@@ -887,15 +886,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(
-            simpleName,
-            mappedFieldType,
-            mappedFieldType.normalizer,
-            multiFields,
-            copyTo,
-            builder.script.get() != null,
-            builder.onScriptError.getValue()
-        );
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1025,6 +1016,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), fieldType().normalizer);
     }
 
     @Override

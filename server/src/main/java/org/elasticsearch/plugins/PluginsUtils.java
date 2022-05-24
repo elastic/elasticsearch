@@ -21,6 +21,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -75,7 +76,7 @@ public class PluginsUtils {
     /**
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
-    public static void verifyCompatibility(PluginInfo info) {
+    public static void verifyCompatibility(PluginDescriptor info) {
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
@@ -90,11 +91,13 @@ public class PluginsUtils {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
+    /**
+     * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
+     * plugin.
+     * @param pluginsDirectory Path to plugins directory
+     * @throws IOException if there is an error reading from the filesystem
+     */
     public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
-        /*
-         * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
-         * plugin.
-         */
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory, ".removing-*")) {
             final Iterator<Path> iterator = stream.iterator();
             if (iterator.hasNext()) {
@@ -113,13 +116,24 @@ public class PluginsUtils {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
         return findBundles(modulesDirectory, "module");
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+    static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
+    }
+
+    /**
+     * A convenience method for analyzing plugin dependencies
+     * @param pluginsDirectory Directory of plugins to scan
+     * @return a map of plugin names to a list of names of any plugins that they extend
+     * @throws IOException if there is an error reading the plugins
+     */
+    public static Map<String, List<String>> getDependencyMapView(final Path pluginsDirectory) throws IOException {
+        return getPluginBundles(pluginsDirectory).stream()
+            .collect(Collectors.toMap(b -> b.plugin.getName(), b -> b.plugin.getExtendedPlugins()));
     }
 
     // searches subdirectories under the given directory for plugin directories
@@ -127,6 +141,7 @@ public class PluginsUtils {
         final Set<PluginBundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final PluginBundle bundle = readPluginBundle(plugin, type);
+            // PluginInfo hashes on plugin name, so this will catch name clashes
             if (bundles.add(bundle) == false) {
                 throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }
@@ -142,9 +157,9 @@ public class PluginsUtils {
 
     // get a bundle for a single plugin dir
     private static PluginBundle readPluginBundle(final Path plugin, String type) throws IOException {
-        final PluginInfo info;
+        final PluginDescriptor info;
         try {
-            info = PluginInfo.readFromProperties(plugin);
+            info = PluginDescriptor.readFromProperties(plugin);
         } catch (final IOException e) {
             throw new IllegalStateException(
                 "Could not load plugin descriptor for " + type + " directory [" + plugin.getFileName() + "]",
@@ -154,9 +169,47 @@ public class PluginsUtils {
         return new PluginBundle(info, plugin);
     }
 
+    /**
+     * Given a plugin that we would like to install, perform a series of "jar hell
+     * checks to make sure that we don't have any classname conflicts. Some of these
+     * checks are unique to the "pre-installation" scenario, but we also call the
+     * {@link #checkBundleJarHell(Set, PluginBundle, Map)}.
+     * @param candidateInfo Candidate for installation
+     * @param candidateDir Directory containing the candidate plugin files
+     * @param pluginsDir Directory containing already-installed plugins
+     * @param modulesDir Directory containing Elasticsearch modules
+     * @param classpath Set of URLs to use for a classpath
+     * @throws IOException on failed plugin reads
+     */
+    public static void preInstallJarHellCheck(
+        PluginDescriptor candidateInfo,
+        Path candidateDir,
+        Path pluginsDir,
+        Path modulesDir,
+        Set<URL> classpath
+    ) throws IOException {
+        // create list of current jars in classpath
+
+        // read existing bundles. this does some checks on the installation too.
+        Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
+        bundles.addAll(getModuleBundles(modulesDir));
+        bundles.add(new PluginBundle(candidateInfo, candidateDir));
+        List<PluginBundle> sortedBundles = sortBundles(bundles);
+
+        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
+        // TODO: optimize to skip any bundles not connected to the candidate plugin?
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (PluginBundle bundle : sortedBundles) {
+            checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+
+        // TODO: no jars should be an error
+        // TODO: verify the classname exists in one of the jars!
+    }
+
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -225,7 +278,7 @@ public class PluginsUtils {
      *
      * @throws IllegalStateException if a dependency cycle is found
      */
-    public static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
+    static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
         Map<String, PluginBundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
         LinkedHashSet<PluginBundle> sortedBundles = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
@@ -271,5 +324,4 @@ public class PluginsUtils {
 
         sortedBundles.add(bundle);
     }
-
 }

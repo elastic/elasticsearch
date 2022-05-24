@@ -53,6 +53,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public final class JobModelSnapshotUpgrader {
@@ -159,7 +160,7 @@ public final class JobModelSnapshotUpgrader {
     void setTaskToFailed(String reason, ActionListener<PersistentTask<?>> listener) {
         SnapshotUpgradeTaskState taskState = new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, task.getAllocationId(), reason);
         task.updatePersistentTaskState(taskState, ActionListener.wrap(listener::onResponse, f -> {
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
+            logger.warn(() -> format("[%s] [%s] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
             listener.onFailure(f);
         }));
     }
@@ -238,7 +239,7 @@ public final class JobModelSnapshotUpgrader {
         }
 
         FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] waiting for flush [%s]", jobId, snapshotId, flushId));
 
             FlushAcknowledgement flushAcknowledgement;
             try {
@@ -251,7 +252,7 @@ public final class JobModelSnapshotUpgrader {
             } finally {
                 processor.clearAwaitingFlush(flushId);
             }
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] flush completed [%s]", jobId, snapshotId, flushId));
             return flushAcknowledgement;
         }
 
@@ -259,7 +260,7 @@ public final class JobModelSnapshotUpgrader {
             try {
                 process.restoreState(stateStreamer, params.modelSnapshot());
             } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to write old state", jobId, snapshotId), e);
+                logger.error(() -> format("[%s] [%s] failed to write old state", jobId, snapshotId), e);
                 setTaskToFailed(
                     "Failed to write old state due to: " + e.getMessage(),
                     ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
@@ -273,15 +274,15 @@ public final class JobModelSnapshotUpgrader {
             }, (flushAcknowledgement, e) -> {
                 Runnable nextStep;
                 if (e != null) {
-                    logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to flush after writing old state", jobId, snapshotId), e);
+                    logger.error(() -> format("[%s] [%s] failed to flush after writing old state", jobId, snapshotId), e);
                     nextStep = () -> setTaskToFailed(
                         "Failed to flush after writing old state due to: " + e.getMessage(),
                         ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
                     );
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] [{}] flush [{}] acknowledged requesting state write",
+                        () -> format(
+                            "[%s] [%s] flush [%s] acknowledged requesting state write",
                             jobId,
                             snapshotId,
                             flushAcknowledgement.getId()
@@ -317,10 +318,7 @@ public final class JobModelSnapshotUpgrader {
                     );
                     logger.debug("[{}] [{}] asked for state to be persisted", jobId, snapshotId);
                 }, f -> {
-                    logger.error(
-                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot upgrader task to started", jobId, snapshotId),
-                        f
-                    );
+                    logger.error(() -> format("[%s] [%s] failed to update snapshot upgrader task to started", jobId, snapshotId), f);
                     shutdown(
                         new ElasticsearchStatusException(
                             "Failed to start snapshot upgrade [{}] for job [{}]",
@@ -406,7 +404,7 @@ public final class JobModelSnapshotUpgrader {
                     }
                     processor.awaitCompletion();
                 } catch (IOException | TimeoutException exc) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to shutdown process", jobId, snapshotId), exc);
+                    logger.warn(() -> format("[%s] [%s] failed to shutdown process", jobId, snapshotId), exc);
                 } finally {
                     onFinish.accept(e);
                 }

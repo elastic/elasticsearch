@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -50,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -683,8 +683,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
             }
             final AutoFollowStats finalAutoFollowStats = autoFollowStats;
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "AssertionError when waiting for auto-follower, auto-follow stats are: {}",
+                () -> format(
+                    "AssertionError when waiting for auto-follower, auto-follow stats are: %s",
                     finalAutoFollowStats != null ? Strings.toString(finalAutoFollowStats) : "null"
                 ),
                 ae

@@ -1577,7 +1577,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        private DataStreamMetadata dataStreamMetadata() {
+        public DataStreamMetadata dataStreamMetadata() {
             return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 

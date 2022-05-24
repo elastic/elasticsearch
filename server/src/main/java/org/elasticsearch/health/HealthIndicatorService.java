@@ -22,6 +22,8 @@ public interface HealthIndicatorService {
 
     String component();
 
+    String helpURL();
+
     HealthIndicatorResult calculate(boolean explain);
 
     /**
@@ -44,6 +46,10 @@ public interface HealthIndicatorService {
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList, userActions);
+        String helpURL = null;
+        if (status.indicatesHealthProblem()) {
+            helpURL = helpURL();
+        }
+        return new HealthIndicatorResult(name(), component(), status, summary, helpURL, details, impactsList, userActions);
     }
 }

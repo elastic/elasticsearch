@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -86,6 +85,9 @@ import java.util.SortedMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service responsible for submitting open/close index requests as well as for adding index blocks
@@ -376,12 +378,7 @@ public class MetadataIndexStateService {
             blockedIndices.put(index, indexBlock);
         }
 
-        logger.info(
-            () -> new ParameterizedMessage(
-                "closing indices {}",
-                blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))
-            )
-        );
+        logger.info(() -> format("closing indices %s", blockedIndices.keySet().stream().map(Object::toString).collect(joining(","))));
         return ClusterState.builder(currentState).blocks(blocks).build();
     }
 

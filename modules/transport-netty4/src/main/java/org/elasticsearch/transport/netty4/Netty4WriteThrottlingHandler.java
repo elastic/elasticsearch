@@ -119,12 +119,11 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 write.buf.readerIndex(readerIndex + bufferSize);
                 write.buf.discardReadBytes();
             } else {
-                writeBuffer = write.buf.retain();
+                writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
             needsFlush = true;
             if (sliced == false) {
-                currentWrite.buf.release();
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();

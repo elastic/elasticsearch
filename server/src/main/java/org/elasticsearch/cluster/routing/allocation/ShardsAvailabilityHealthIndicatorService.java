@@ -369,6 +369,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      */
     List<UserAction.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<UserAction.Definition> actions = new ArrayList<>();
+        LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
@@ -381,6 +382,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             default:
                 break;
         }
+        if (actions.isEmpty()) {
+            actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
+        }
         return actions;
     }
 
@@ -392,7 +396,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @return a list of actions for the user to take
      */
     private List<UserAction.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
-        LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
+        LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationService.getAllocationDeciders(),
             state,
@@ -403,12 +407,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
-        LOGGER.trace(
-            "[{}]: Obtained decision: [{}/{}]",
-            shardRouting.shardId(),
-            allocateDecision.isDecisionTaken(),
-            allocateDecision.getAllocationDecision()
-        );
+        if (LOGGER.isTraceEnabled()) {
+            if (allocateDecision.isDecisionTaken()) {
+                LOGGER.trace("[{}]: Allocation decision [{}]", shardRouting.shardId(), allocateDecision.getAllocationDecision());
+            } else {
+                LOGGER.trace("[{}]: Decision taken [false]", shardRouting.shardId());
+            }
+        }
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(

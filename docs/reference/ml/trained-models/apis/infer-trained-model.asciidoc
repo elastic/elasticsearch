@@ -46,9 +46,10 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 `docs`::
 (Required, array)
 An array of objects to pass to the model for inference. The objects should
-contain the fields matching your configured trained model input. Typically for NLP models, the field
-name is `text_field`. Currently for NLP models, only a single value is allowed. For {dfanalytics} or
-imported classification or regression models, more than one value is allowed.
+contain the fields matching your configured trained model input. Typically for 
+NLP models, the field name is `text_field`. Currently for NLP models, only a 
+single value is allowed. For {dfanalytics} or imported classification or 
+regression models, more than one value is allowed.
 
 ////
 [[infer-trained-model-results]]
@@ -159,8 +160,8 @@ The API returns in this case:
 ----
 // NOTCONSOLE
 
-Zero-shot classification models require extra configuration defining the class labels.
-These labels are passed in the zero-shot inference config.
+Zero-shot classification models require extra configuration defining the class 
+labels. These labels are passed in the zero-shot inference config.
 
 [source,console]
 --------------------------------------------------
@@ -186,7 +187,8 @@ POST _ml/trained_models/model2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns the predicted label and the confidence, as well as the top classes:
+The API returns the predicted label and the confidence, as well as the top 
+classes:
 
 [source,console-result]
 ----
@@ -221,6 +223,39 @@ The API returns the predicted label and the confidence, as well as the top class
 ----
 // NOTCONSOLE
 
+Question answering models require extra configuration defining the question to 
+answer.
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/model2/_infer
+{
+  "docs": [
+    {
+      "text_field": "<long text to extract answer>"
+    }
+  ],
+  "inference_config": {
+    "question_answering": {
+      "question": "<question to be answered>"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns a response similar to the following:
+
+[source,console-result]
+----
+{
+    "predicted_value": <string subsection of the text that is the answer>,
+    "start_offset": <character offset in document to start>,
+    "end_offset": <character offset end of the answer,
+    "prediction_probability": <prediction score>
+}
+----
+// NOTCONSOLE
 
 The tokenization truncate option can be overridden when calling the API:
 

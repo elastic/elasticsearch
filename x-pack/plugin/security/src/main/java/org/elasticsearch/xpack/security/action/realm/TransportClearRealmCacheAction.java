@@ -86,6 +86,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
             for (Realm realm : realms) {
                 clearCache(realm, nodeRequest.getUsernames());
             }
+            clearAuthenticationServiceCache(nodeRequest.getUsernames());
             return new ClearRealmCacheResponse.Node(clusterService.localNode());
         }
 

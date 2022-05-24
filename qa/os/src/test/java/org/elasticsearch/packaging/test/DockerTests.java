@@ -959,13 +959,16 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat(infos, hasSize(2));
 
-        assertThat("Incorrect UID", info.uid(), equalTo(1000));
-        assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
+        for (ProcessInfo info : infos) {
+            assertThat("Incorrect UID", info.uid(), equalTo(1000));
+            assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
 
-        assertThat("Incorrect GID", info.gid(), equalTo(0));
-        assertThat("Incorrect group", info.group(), equalTo("root"));
+            assertThat("Incorrect GID", info.gid(), equalTo(0));
+            assertThat("Incorrect group", info.group(), equalTo("root"));
+        }
     }
 
     /**
@@ -973,7 +976,9 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "tini");
+        assertThat(infos, hasSize(1));
+        ProcessInfo info = infos.get(0);
 
         assertThat("Incorrect PID", info.pid(), equalTo(1));
 

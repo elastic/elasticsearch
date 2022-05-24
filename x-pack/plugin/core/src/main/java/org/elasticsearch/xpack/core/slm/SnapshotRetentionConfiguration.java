@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +32,8 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class SnapshotRetentionConfiguration implements ToXContentObject, Writeable {
 
@@ -253,8 +254,8 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 final long snapshotAge = nowSupplier.getAsLong() - si.startTime();
                 if (snapshotAge > this.expireAfter.getMillis()) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}]: ELIGIBLE as snapshot age of {} is older than {}",
+                        () -> format(
+                            "[%s]: ELIGIBLE as snapshot age of %s is older than %s",
                             snapName,
                             new TimeValue(snapshotAge).toHumanReadableString(3),
                             this.expireAfter.toHumanReadableString(3)
@@ -263,8 +264,8 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     return true;
                 } else {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
+                        () -> format(
+                            "[%s]: INELIGIBLE as snapshot age of [%sms] is newer than %s",
                             snapName,
                             new TimeValue(snapshotAge).toHumanReadableString(3),
                             this.expireAfter.toHumanReadableString(3)

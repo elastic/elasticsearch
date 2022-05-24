@@ -81,6 +81,11 @@
       "track_total_hits":{
         "type":"boolean|long",
         "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
+      },
+      "with_labels":{
+        "type":"boolean",
+        "description":"If true, the hits and aggs layers will contain additional point features with suggested label positions for the original features.",
+        "default":false
       }
     },
     "body":{

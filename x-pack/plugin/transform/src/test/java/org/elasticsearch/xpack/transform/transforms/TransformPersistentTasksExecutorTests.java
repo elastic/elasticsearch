@@ -240,7 +240,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
-                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting))
             );
         }
 
@@ -279,7 +279,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();
             routingTable.add(
-                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
             );
         }
     }

@@ -378,7 +378,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 this::getMapperService
             )
         );
-        assertThat(e.getMessage(), equalTo("index [" +  indexToRemove + "] not found"));
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
     }
 
     private MapperService getMapperService(IndexMetadata im) {

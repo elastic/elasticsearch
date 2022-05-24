@@ -234,8 +234,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 updatedAssignmentStats.add(
                     new AssignmentStats(
                         stat.getModelId(),
-                        stat.getInferenceThreads(),
-                        stat.getModelThreads(),
+                        stat.getThreadsPerAllocation(),
+                        stat.getNumberOfAllocations(),
                         stat.getQueueCapacity(),
                         stat.getStartTime(),
                         updatedNodeStats
@@ -304,8 +304,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.timeoutCount(),
                     presentValue.lastUsed(),
                     presentValue.startTime(),
-                    presentValue.inferenceThreads(),
-                    presentValue.modelThreads(),
+                    presentValue.threadsPerAllocation(),
+                    presentValue.numberOfAllocations(),
                     presentValue.peakThroughput(),
                     presentValue.throughputLastPeriod(),
                     presentValue.avgInferenceTimeLastPeriod()
@@ -320,8 +320,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         listener.onResponse(
             new AssignmentStats(
                 task.getModelId(),
-                task.getParams().getInferenceThreads(),
-                task.getParams().getModelThreads(),
+                task.getParams().getThreadsPerAllocation(),
+                task.getParams().getNumberOfAllocations(),
                 task.getParams().getQueueCapacity(),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state()).getModelAssignment(task.getModelId()).getStartTime(),
                 nodeStats

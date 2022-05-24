@@ -92,6 +92,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
 
+    public static final String HELP_URL = "https://ela.st/fix-shard-allocation";
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
@@ -111,7 +113,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
+    public HealthIndicatorResult calculate(boolean explain) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -119,36 +126,39 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, includeDetails);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, includeDetails);
+                    status.addReplica(replicaShard, state, shutdown, explain);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
             status.getSummary(),
-            status.getDetails(includeDetails),
+            status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(includeDetails)
+            status.getUserActions(explain)
         );
     }
 
-    // TODO: #85572 Fill in help URLs once they are finalized
+    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
     public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition(
         "restore_from_snapshot",
         Explanations.Allocation.NO_COPIES,
-        null
+        RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
     );
+
+    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
     public static final UserAction.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new UserAction.Definition(
         "explain_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster. Diagnose the issue by "
             + "calling the allocation explain api for an index [GET _cluster/allocation/explain]. Choose a node to which you expect a "
             + "shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch "
             + "from allocating a shard there.",
-        null
+        DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
+    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final UserAction.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new UserAction.Definition(
         "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
@@ -157,8 +167,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "] index settings are set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
             + "].",
-        null
+        ENABLE_INDEX_ALLOCATION_GUIDE
     );
+    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
     public static final UserAction.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new UserAction.Definition(
         "enable_cluster_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
@@ -167,95 +178,89 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "] cluster setting is set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
             + "].",
-        null
+        ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "enable_data_tiers_" + tier,
-                        "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to "
-                            + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
-                            + "the ["
-                            + tier
-                            + "] role to the cluster.",
-                        null
-                    )
+    public static final String ENABLE_TIER_ACTION_GUIDE = "http://ela.st/enable-tier";
+    public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "enable_data_tiers_" + tier,
+                    "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to "
+                        + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
+                        + "the ["
+                        + tier
+                        + "] role to the cluster.",
+                    ENABLE_TIER_ACTION_GUIDE
                 )
-            );
-        ACTION_ENABLE_TIERS_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
+    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new UserAction.Definition(
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached these "
             + "indices' shard limits. Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
-        null
+        INCREASE_SHARD_LIMIT_ACTION_GUIDE
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_shard_limit_index_setting_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
-                            + tier
-                            + "] tier has reached these indices' shard limits. Increase the values for the ["
-                            + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
-                            + "] index setting on each index or add more nodes to the target tiers.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_shard_limit_index_setting_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                        + tier
+                        + "] tier has reached these indices' shard limits. Increase the values for the ["
+                        + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                        + "] index setting on each index or add more nodes to the target tiers.",
+                    INCREASE_SHARD_LIMIT_ACTION_GUIDE
                 )
-            );
-        ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
+    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new UserAction.Definition(
         "increase_shard_limit_cluster_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached this "
             + "cluster's shard limit. Increase the values for the ["
             + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] cluster setting or add more nodes to the target tiers.",
-        null
+        INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_shard_limit_cluster_setting_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
-                            + tier
-                            + "] tier has reached this cluster's shard limit. Increase the values for the ["
-                            + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
-                            + "] cluster setting or add more nodes to the target tiers.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_shard_limit_cluster_setting_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                        + tier
+                        + "] tier has reached this cluster's shard limit. Increase the values for the ["
+                        + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                        + "] cluster setting or add more nodes to the target tiers.",
+                    INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
                 )
-            );
-        ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
+    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new UserAction.Definition(
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
-        null
+            + ".data] from each index's settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
+        MIGRATE_TO_TIERS_ACTION_GUIDE
     );
 
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new UserAction.Definition(
@@ -263,38 +268,35 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
-        null
+            + ".data] from each index's settings try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
+        MIGRATE_TO_TIERS_ACTION_GUIDE
     );
 
+    public static final String NODE_CAPACITY_ACTION_GUIDE = "http://ela.st/node-capacity";
     public static final UserAction.Definition ACTION_INCREASE_NODE_CAPACITY = new UserAction.Definition(
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
             + "allocate each shard copy on a different node. Increase the number of nodes in the cluster or decrease the number of "
             + "replicas your indices are using.",
-        null
+        NODE_CAPACITY_ACTION_GUIDE
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_tier_capacity_for_allocations_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers "
-                            + "because there are not enough nodes in the ["
-                            + tier
-                            + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
-                            + "decrease the number of replicas your indices are using.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_tier_capacity_for_allocations_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers "
+                        + "because there are not enough nodes in the ["
+                        + tier
+                        + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
+                        + "decrease the number of replicas your indices are using.",
+                    NODE_CAPACITY_ACTION_GUIDE
                 )
-            );
-        ACTION_INCREASE_TIER_CAPACITY_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
     private class ShardAllocationCounts {
         private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
@@ -307,7 +309,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<UserAction.Definition, Set<String>> userActions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -323,7 +325,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (includeDetails) {
+                        if (explain) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
                                 definition -> addUserAction(definition, routing.getIndexName())
                             );
@@ -367,6 +369,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      */
     List<UserAction.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<UserAction.Definition> actions = new ArrayList<>();
+        LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
@@ -379,6 +382,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             default:
                 break;
         }
+        if (actions.isEmpty()) {
+            actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
+        }
         return actions;
     }
 
@@ -390,7 +396,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @return a list of actions for the user to take
      */
     private List<UserAction.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
-        LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
+        LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationService.getAllocationDeciders(),
             state,
@@ -401,12 +407,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
-        LOGGER.trace(
-            "[{}]: Obtained decision: [{}/{}]",
-            shardRouting.shardId(),
-            allocateDecision.isDecisionTaken(),
-            allocateDecision.getAllocationDecision()
-        );
+        if (LOGGER.isTraceEnabled()) {
+            if (allocateDecision.isDecisionTaken()) {
+                LOGGER.trace("[{}]: Allocation decision [{}]", shardRouting.shardId(), allocateDecision.getAllocationDecision());
+            } else {
+                LOGGER.trace("[{}]: Decision taken [false]", shardRouting.shardId());
+            }
+        }
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(
@@ -677,12 +684,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            primaries.increment(routing, state, shutdowns, includeDetails);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            primaries.increment(routing, state, shutdowns, explain);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            replicas.increment(routing, state, shutdowns, includeDetails);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            replicas.increment(routing, state, shutdowns, explain);
         }
 
         public HealthStatus getStatus() {
@@ -704,9 +711,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", " unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", " creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
+                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
+                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
                     ).flatMap(Function.identity()).collect(joining(", "))
@@ -725,8 +732,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean includeDetails) {
-            if (includeDetails) {
+        public HealthIndicatorDetails getDetails(boolean explain) {
+            if (explain) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -788,11 +795,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
-         * @param includeDetails true if user actions should be generated, false if they should be omitted.
-         * @return A summary of user actions. Alternatively, an empty list if none were found or includeDetails is false.
+         * @param explain true if user actions should be generated, false if they should be omitted.
+         * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<UserAction> getUserActions(boolean includeDetails) {
-            if (includeDetails) {
+        public List<UserAction> getUserActions(boolean explain) {
+            if (explain) {
                 Map<UserAction.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
                     Set<String> indicesWithPrimariesUnassigned = actionsToAffectedIndices.get(actionDefinition);

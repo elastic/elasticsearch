@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -18,9 +19,8 @@ public class SecurityProfileUser extends User {
 
     public static final String NAME = UsernamesField.SECURITY_PROFILE_NAME;
     public static final SecurityProfileUser INSTANCE = new SecurityProfileUser();
-    private static final String ROLE_NAME = UsernamesField.SECURITY_PROFILE_ROLE;
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
-        ROLE_NAME,
+        UsernamesField.SECURITY_PROFILE_ROLE,
         null,
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
@@ -36,11 +36,11 @@ public class SecurityProfileUser extends User {
     );
 
     private SecurityProfileUser() {
-        super(NAME, ROLE_NAME);
+        super(NAME, Strings.EMPTY_ARRAY);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
         assert enabled();
-        assert roles() != null && roles().length == 1;
+        assert roles() != null && roles().length == 0;
     }
 
     @Override

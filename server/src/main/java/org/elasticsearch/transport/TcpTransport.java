@@ -80,6 +80,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -653,7 +654,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 List<TcpServerChannel> channels = entry.getValue();
                 ActionListener<Void> closeFailLogger = ActionListener.wrap(
                     c -> {},
-                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)
+                    e -> logger.warn(() -> "Error closing serverChannel for profile [" + profile + "]", e)
                 );
                 channels.forEach(c -> c.addCloseListener(closeFailLogger));
                 CloseableChannel.closeChannels(channels, true);
@@ -707,15 +708,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     );
                 }
             } else if (isConnectException(e)) {
-                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "connect exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof BindException) {
-                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "bind exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
-                        channel
-                    ),
+                    () -> format("cancelled key exception caught on transport layer [%s], disconnecting from relevant node", channel),
                     e
                 );
             } else if (e instanceof HttpRequestOnTransportException) {
@@ -729,11 +727,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     closeChannel = false;
                 }
             } else if (e instanceof StreamCorruptedException) {
-                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+                logger.warn(() -> format("%s, [%s], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
-                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+                logger.debug(() -> format("%s on [%s], closing connection", e.getMessage(), channel));
             } else {
-                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+                logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }
         } finally {
             if (closeChannel) {
@@ -744,9 +742,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected static void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(() -> "bind exception from server channel caught on transport layer [" + channel + "]", e);
         } else {
-            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            logger.error(() -> "exception from server channel caught on transport layer [" + channel + "]", e);
         }
     }
 
@@ -756,7 +754,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
-        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
+        logger.trace(() -> format("Tcp transport channel accepted: %s", channel));
     }
 
     /**

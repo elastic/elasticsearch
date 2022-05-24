@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -73,7 +72,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     record DeleteShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
+            logger.error(() -> "failed to delete shutdown for node [" + request.getNodeId() + "]", e);
             listener.onFailure(e);
         }
     }

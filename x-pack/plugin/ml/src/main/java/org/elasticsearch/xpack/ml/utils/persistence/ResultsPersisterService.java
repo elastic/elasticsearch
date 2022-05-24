@@ -52,6 +52,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.status;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class ResultsPersisterService {
@@ -447,22 +448,19 @@ public class ResultsPersisterService {
         @Override
         public boolean shouldRetry(Exception e) {
             if (isIrrecoverable(e)) {
-                LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
+                LOGGER.warn(() -> "[" + jobId + "] experienced failure that cannot be automatically retried", e);
                 return false;
             }
 
             // If the outside conditions have changed and retries are no longer needed, do not retry.
             if (shouldRetry.get() == false) {
-                LOGGER.info(
-                    () -> new ParameterizedMessage("[{}] should not retry {} after [{}] attempts", jobId, getName(), currentAttempt),
-                    e
-                );
+                LOGGER.info(() -> format("[%s] should not retry %s after [%s] attempts", jobId, getName(), currentAttempt), e);
                 return false;
             }
 
             // If the configured maximum number of retries has been reached, do not retry.
             if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn(() -> new ParameterizedMessage("[{}] failed to {} after [{}] attempts.", jobId, getName(), currentAttempt), e);
+                LOGGER.warn(() -> format("[%s] failed to %s after [%s] attempts.", jobId, getName(), currentAttempt), e);
                 return false;
             }
             return true;
@@ -475,7 +473,7 @@ public class ResultsPersisterService {
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
             String msg = new ParameterizedMessage("failed to {} after [{}] attempts. Will attempt again.", getName(), currentAttempt)
                 .getFormattedMessage();
-            LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+            LOGGER.warn(() -> format("[%s] %s", jobId, msg));
             msgHandler.accept(msg);
             // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
             // Its good to have a random window along the exponentially increasing curve
@@ -486,7 +484,7 @@ public class ResultsPersisterService {
         @Override
         public void cancel(Exception e) {
             super.cancel(e);
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] retrying cancelled for action [{}]", jobId, getName()), e);
+            LOGGER.debug(() -> format("[%s] retrying cancelled for action [%s]", jobId, getName()), e);
         }
     }
 

@@ -123,10 +123,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRe
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -193,11 +191,14 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.ActionListenerUtils.anyCollection;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -478,6 +479,79 @@ public class AuthorizationServiceTests extends ESTestCase {
             );
         }
 
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testActionsForUserMatchingSystemUserRoleNameDenied() {
+        final Authentication authentication = createAuthentication(new User(SystemUser.NAME, SystemUser.ROLE_NAME));
+        final IndexRequest request = mock(IndexRequest.class);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        RoleDescriptor role = new RoleDescriptor(SystemUser.ROLE_NAME, new String[] {}, null, null, null, null, null, null);
+        roleMap.put(SystemUser.ROLE_NAME, role);
+        final String[] actions = {
+            "indices:monitor/whatever",
+            "internal:whatever",
+            "cluster:monitor/whatever",
+            "cluster:admin/reroute",
+            "indices:admin/mapping/put",
+            "indices:admin/template/put",
+            "indices:admin/seq_no/global_checkpoint_sync",
+            "indices:admin/seq_no/retention_lease_sync",
+            "indices:admin/seq_no/retention_lease_background_sync",
+            "indices:admin/seq_no/add_retention_lease",
+            "indices:admin/seq_no/remove_retention_lease",
+            "indices:admin/seq_no/renew_retention_lease",
+            "indices:admin/settings/update" };
+        for (String action : actions) {
+            assertThrowsAuthorizationException(
+                () -> authorize(authentication, action, request),
+                action,
+                authentication.getEffectiveSubject().getUser().principal()
+            );
+            verify(auditTrail).accessDenied(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
+            );
+        }
+
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testSystemUserActionMatchingCustomRoleNameDenied() {
+        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        RoleDescriptor role = new RoleDescriptor(
+            SystemUser.ROLE_NAME,
+            new String[] { ClusterPrivilegeResolver.ALL.name() },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        roleMap.put(SystemUser.ROLE_NAME, role);
+
+        String actionNotAuthorizedForSystemUser = PutUserAction.NAME;
+        assertThat(SystemUser.isAuthorized(actionNotAuthorizedForSystemUser), is(false));
+        TransportRequest request = mock(TransportRequest.class);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, actionNotAuthorizedForSystemUser, request),
+            actionNotAuthorizedForSystemUser,
+            authentication.getEffectiveSubject().getUser().principal()
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(actionNotAuthorizedForSystemUser),
+            eq(request),
+            authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
+        );
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -2670,10 +2744,95 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testAuthorizationEngineSelectionForCheckPrivileges() throws Exception {
+        AuthorizationEngine engine = mock(AuthorizationEngine.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
+        authorizationService = new AuthorizationService(
+            Settings.EMPTY,
+            rolesStore,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(Settings.EMPTY),
+            engine,
+            Collections.emptySet(),
+            licenseState,
+            TestIndexNameExpressionResolver.newInstance(),
+            operatorPrivilegesService,
+            RESTRICTED_INDICES
+        );
+
+        Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
+        AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(2));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(Subject.class));
+            Subject subjectArg = (Subject) arg1;
+            final Object arg2 = i.getArguments()[1];
+            assertThat(arg2, instanceOf(ActionListener.class));
+            ActionListener<AuthorizationInfo> listener = (ActionListener<AuthorizationInfo>) arg2;
+            if (subjectArg.equals(subject)) {
+                listener.onResponse(authorizationInfo);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
+        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = randomFrom(
+            ALL_CHECKS_SUCCESS_NO_DETAILS,
+            SOME_CHECKS_FAILURE_NO_DETAILS
+        );
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(4));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(AuthorizationInfo.class));
+            AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
+            final Object arg4 = i.getArguments()[3];
+            assertThat(arg4, instanceOf(ActionListener.class));
+            ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
+                AuthorizationEngine.PrivilegesCheckResult>) arg4;
+            if (authorizationInfoArg.equals(authorizationInfo)) {
+                listener.onResponse(privilegesCheckResult);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine)
+            .checkPrivileges(
+                any(AuthorizationInfo.class),
+                any(AuthorizationEngine.PrivilegesToCheck.class),
+                anyCollection(),
+                anyActionListener()
+            );
+
+        PlainActionFuture<AuthorizationEngine.PrivilegesCheckResult> future = new PlainActionFuture<>();
+        authorizationService.checkPrivileges(
+            subject,
+            new AuthorizationEngine.PrivilegesToCheck(
+                new String[0],
+                new IndicesPrivileges[0],
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
+            ),
+            List.of(),
+            future
+        );
+        assertThat(future.get(), is(privilegesCheckResult));
+    }
+
     public void testAuthorizationEngineSelection() {
         final AuthorizationEngine engine = new AuthorizationEngine() {
             @Override
             public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 
@@ -2728,22 +2887,16 @@ public class AuthorizationServiceTests extends ESTestCase {
 
             @Override
             public void checkPrivileges(
-                Authentication authentication,
                 AuthorizationInfo authorizationInfo,
-                HasPrivilegesRequest hasPrivilegesRequest,
+                PrivilegesToCheck privilegesToCheck,
                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                ActionListener<HasPrivilegesResponse> listener
+                ActionListener<PrivilegesCheckResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }
 
             @Override
-            public void getUserPrivileges(
-                Authentication authentication,
-                AuthorizationInfo authorizationInfo,
-                GetUserPrivilegesRequest request,
-                ActionListener<GetUserPrivilegesResponse> listener
-            ) {
+            public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };

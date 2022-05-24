@@ -48,6 +48,7 @@ public class ScriptModule {
                 ScoreScript.CONTEXT,
                 NumberSortScript.CONTEXT,
                 StringSortScript.CONTEXT,
+                BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,

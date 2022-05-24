@@ -36,7 +36,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     private boolean master = false;
 
-    private volatile ImmutableOpenMap<String, IndexMetadata> lastIndexMetadataMap = ImmutableOpenMap.of();
+    private volatile Map<String, IndexMetadata> lastIndexMetadataMap = ImmutableOpenMap.of();
     private volatile boolean updateTaskPending = false;
 
     public SystemIndexMetadataUpgradeService(SystemIndices systemIndices, ClusterService clusterService) {
@@ -51,7 +51,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         if (master && updateTaskPending == false) {
-            final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
+            final Map<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
 
             if (lastIndexMetadataMap != indexMetadataMap) {
                 for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
@@ -86,11 +86,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
+            final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
-            for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
-                final IndexMetadata indexMetadata = cursor.getValue();
-                if (indexMetadata != lastIndexMetadataMap.get(cursor.getKey())) {
+            for (Map.Entry<String, IndexMetadata> entry : indexMetadataMap.entrySet()) {
+                final IndexMetadata indexMetadata = entry.getValue();
+                if (indexMetadata != lastIndexMetadataMap.get(entry.getKey())) {
                     final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex())
                         || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
                     IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);

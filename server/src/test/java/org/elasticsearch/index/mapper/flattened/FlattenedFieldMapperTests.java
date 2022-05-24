@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlatte
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -420,5 +421,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("value"), fields[0].binaryValue());
         IndexableField[] keyed = doc.rootDoc().getFields("a.b.c._keyed");
         assertEquals(new BytesRef("d\0value"), keyed[0].binaryValue());
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

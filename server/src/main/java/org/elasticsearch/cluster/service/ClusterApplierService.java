@@ -52,6 +52,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.core.Strings.format;
 
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
@@ -399,8 +400,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
+                () -> format(
+                    "failed to execute cluster state applier in [%s], state:\nversion [%s], source [%s]\n%s",
                     executionTime,
                     previousClusterState.version(),
                     source,
@@ -591,7 +592,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 assert false : inner;
-                logger.error(new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error(() -> "exception thrown by listener notifying of failure from [" + source + "]", inner);
             }
         }
 
@@ -601,10 +602,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 listener.onResponse(null);
             } catch (Exception e) {
                 assert false : e;
-                logger.error(
-                    new ParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
-                    e
-                );
+                logger.error(() -> "exception thrown by listener while notifying of cluster state processed from [" + source + "]", e);
             }
         }
     }

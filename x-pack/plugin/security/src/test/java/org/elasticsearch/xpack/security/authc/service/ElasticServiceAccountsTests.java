@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyReque
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -151,7 +152,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             null,
             RESTRICTED_INDICES
         ).build();
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
             role.cluster()
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
@@ -309,7 +310,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             RESTRICTED_INDICES
         ).build();
 
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final TransportRequest request = mock(TransportRequest.class);
 
         // manage
@@ -413,7 +414,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
     private void assertRoleHasManageMl(Role role) {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
 
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));

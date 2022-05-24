@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
@@ -145,7 +146,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
+        logger.trace(() -> "[" + request.getModelId() + "] received deploy request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -176,7 +177,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAssignment -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> new ParameterizedMessage("[{}] creating new assignment failed", request.getModelId()), e);
+                logger.warn(() -> "[" + request.getModelId() + "] creating new assignment failed", e);
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
@@ -223,8 +224,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
                         modelBytes,
-                        request.getInferenceThreads(),
-                        request.getModelThreads(),
+                        request.getThreadsPerAllocation(),
+                        request.getNumberOfAllocations(),
                         request.getQueueCapacity()
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()
@@ -509,8 +510,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] tested with state [{}] and nodes {} still initializing",
+                () -> format(
+                    "[%s] tested with state [%s] and nodes %s still initializing",
                     modelId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing

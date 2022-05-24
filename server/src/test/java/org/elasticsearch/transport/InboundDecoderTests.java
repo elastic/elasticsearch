@@ -80,7 +80,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrapOrInc(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -102,7 +102,7 @@ public class InboundDecoderTests extends ESTestCase {
             fragments.clear();
 
             final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
-            final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
+            final ReleasableBytesReference releasable2 = new ReleasableBytesReference(bytes2, () -> {});
             int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
             assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
@@ -147,7 +147,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrapOrInc(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(partialHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -207,7 +207,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrapOrInc(bytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -259,7 +259,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrapOrInc(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -319,14 +319,14 @@ public class InboundDecoderTests extends ESTestCase {
 
         try (
             RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
-            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
         ) {
             final BytesReference bytes = serializedBytes.getBytesReference();
             int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrapOrInc(bytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -366,7 +366,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            try (ReleasableBytesReference r = ReleasableBytesReference.wrapOrInc(bytes)) {
+            try (ReleasableBytesReference r = new ReleasableBytesReference(bytes, () -> {})) {
                 releasable1 = r;
                 expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
             }

@@ -251,6 +251,7 @@ public class InboundPipelineTests extends ESTestCase {
                 () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY))
             );
             assertEquals("Pipeline state corrupted by uncaught exception", ise.getMessage());
+            pipeline.close();
         }
     }
 
@@ -284,7 +285,7 @@ public class InboundPipelineTests extends ESTestCase {
             final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
             for (int i = 0; i < totalHeaderSize - 1; ++i) {
-                try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
+                try (ReleasableBytesReference slice = ReleasableBytesReference.wrapOrInc(reference.slice(i, 1))) {
                     pipeline.handleBytes(new FakeTcpChannel(), slice);
                 }
             }

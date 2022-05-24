@@ -9,8 +9,11 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CompletableContext;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,7 +85,13 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(OutboundMessage.SerializedBytes serializedBytes, ActionListener<Void> listener) {
-        messageCaptor.set(serializedBytes.getBytesReference());
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        try {
+            serializedBytes.getBytesReference().writeTo(bytesStreamOutput);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        messageCaptor.set(bytesStreamOutput.bytes());
         listenerCaptor.set(listener);
     }
 

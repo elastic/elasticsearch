@@ -64,14 +64,18 @@ public class ShardsAvailabilityActionGuideTests extends ESTestCase {
     }
 
     public void testIncreaseShardLimitIndexSettingInTier() {
-        assertThat(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(DataTier.DATA_HOT).helpURL(),
-            is(INCREASE_SHARD_LIMIT_ACTION_GUIDE));
+        assertThat(
+            ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(DataTier.DATA_HOT).helpURL(),
+            is(INCREASE_SHARD_LIMIT_ACTION_GUIDE)
+        );
         assertThat(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING.helpURL(), is(INCREASE_SHARD_LIMIT_ACTION_GUIDE));
     }
 
     public void testIncreaseShardLimitClusterSettingInTier() {
-        assertThat(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(DataTier.DATA_HOT).helpURL(),
-            is(INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE));
+        assertThat(
+            ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(DataTier.DATA_HOT).helpURL(),
+            is(INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE)
+        );
         assertThat(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING.helpURL(), is(INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE));
     }
 

@@ -135,8 +135,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
         addAdditionalField(additionalFields, Property.TITLE, metadata.get(TikaCoreProperties.TITLE));
+        // These two were supposedly removed in tika 2, but some parsers seem to still generate them:
         addAdditionalField(additionalFields, Property.AUTHOR, metadata.get("Author"));
         addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get(TikaCoreProperties.SUBJECT));
         addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
 
         if (properties.contains(Property.CONTENT_LENGTH)) {

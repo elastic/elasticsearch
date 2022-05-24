@@ -284,6 +284,7 @@ public class AttachmentProcessorTests extends ESTestCase {
                 "content_type",
                 "content_length",
                 "date",
+                "keywords",
                 "identifier",
                 "contributor",
                 "publisher",

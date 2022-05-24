@@ -123,7 +123,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
         assert assertConsistent(this.indices);
-
     }
 
     private static boolean assertConsistent(List<Index> indices) {

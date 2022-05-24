@@ -7,6 +7,7 @@
 
 package org.elasticsearch.integration;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -84,14 +85,18 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
+        boolean shouldBreakIndexName = randomBoolean();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
             .submitUnbatchedStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
+                    String brokenIndexName = shouldBreakIndexName
+                        ? original.getIndices().get(0).getName() + "-broken"
+                        : original.getIndices().get(0).getName();
                     DataStream broken = new DataStream(
                         original.getName(),
-                        List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+                        List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)),
                         original.getGeneration(),
                         original.getMetadata(),
                         original.isHidden(),
@@ -121,8 +126,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 
         // Many APIs fail with NPE, because of broken data stream:
-        expectThrows(NullPointerException.class, () -> client.admin().indices().stats(new IndicesStatsRequest()).actionGet());
-        expectThrows(NullPointerException.class, () -> client.search(new SearchRequest()).actionGet());
+        var expectedExceptionClass = shouldBreakIndexName ? ElasticsearchSecurityException.class : NullPointerException.class;
+        expectThrows(expectedExceptionClass, () -> client.admin().indices().stats(new IndicesStatsRequest()).actionGet());
+        expectThrows(expectedExceptionClass, () -> client.search(new SearchRequest()).actionGet());
 
         // Regular remove fails
         var e = expectThrows(
@@ -132,7 +138,14 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                 new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
             ).actionGet()
         );
-        assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]"));
+        if (shouldBreakIndexName) {
+            assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] not found"));
+        } else {
+            assertThat(
+                e.getMessage(),
+                equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]")
+            );
+        }
 
         // Force remove succeeds
         assertAcked(

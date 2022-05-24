@@ -46,11 +46,11 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         // wildcard expressions that resolve to zero indices, and do not attempt
         // to resolve expressions as aliases
         private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(
-            false,
-            false,
+            true,
             true,
             false,
-            true,
+            false,
+            false,
             false,
             true,
             false

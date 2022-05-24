@@ -143,7 +143,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         // Note, that old backing index still exists, but it is still hidden.
         // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
         indicesStatsResponse = client.admin().indices().stats(new IndicesStatsRequest()).actionGet();
-        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(shouldBreakIndexName ? 1 : 2));
     }
 
 }

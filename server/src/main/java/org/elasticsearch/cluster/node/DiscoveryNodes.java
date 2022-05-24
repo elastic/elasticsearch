@@ -574,10 +574,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        out.writeVInt(nodes.size());
-        for (DiscoveryNode node : this) {
-            node.writeTo(out);
-        }
+        out.writeCollection(nodes.values());
     }
 
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {

@@ -73,7 +73,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -213,8 +212,8 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(ignoreAbove, nullValue, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreAbove, nullValue, meta };
         }
 
         Builder ignoreAbove(int ignoreAbove) {
@@ -876,7 +875,7 @@ public class WildcardFieldMapper extends FieldMapper {
         String nullValue,
         Version indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -884,6 +883,11 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ngramFieldType.setTokenized(true);
         this.ngramFieldType.freeze();
         assert ngramFieldType.indexOptions() == IndexOptions.DOCS;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), fieldType().analyzer);
     }
 
     /** Values that have more chars than the return value of this method will

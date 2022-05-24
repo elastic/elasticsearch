@@ -20,13 +20,13 @@ import java.util.Set;
 /**
  * A "bundle" is a group of jars that will be loaded in their own classloader
  */
-public class PluginBundle {
-    public final PluginInfo plugin;
+class PluginBundle {
+    public final PluginDescriptor plugin;
     public final Set<URL> urls;
     public final Set<URL> spiUrls;
     public final Set<URL> allUrls;
 
-    public PluginBundle(PluginInfo plugin, Path dir) throws IOException {
+    PluginBundle(PluginDescriptor plugin, Path dir) throws IOException {
         this.plugin = Objects.requireNonNull(plugin);
 
         Path spiDir = dir.resolve("spi");
@@ -38,6 +38,10 @@ public class PluginBundle {
             allUrls.addAll(spiUrls);
         }
         this.allUrls = allUrls;
+    }
+
+    public PluginDescriptor pluginDescriptor() {
+        return this.plugin;
     }
 
     static Set<URL> gatherUrls(Path dir) throws IOException {
@@ -53,6 +57,10 @@ public class PluginBundle {
             }
         }
         return urls;
+    }
+
+    boolean hasSPI() {
+        return spiUrls != null;
     }
 
     Set<URL> getExtensionUrls() {

@@ -38,9 +38,9 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testShouldReturnGroupedIndicators() {
 
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
 
         var service = new HealthService(
             Collections.emptyList(),
@@ -88,6 +88,7 @@ public class HealthServiceTests extends ESTestCase {
             GREEN,
             null,
             null,
+            null,
             Collections.emptyList(),
             Collections.emptyList()
         );
@@ -97,6 +98,7 @@ public class HealthServiceTests extends ESTestCase {
             YELLOW,
             null,
             null,
+            null,
             Collections.emptyList(),
             Collections.emptyList()
         );
@@ -104,9 +106,9 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     public void testMissingComponentOrIndicator() {
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
 
         var service = new HealthService(
             Collections.emptyList(),
@@ -133,11 +135,11 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testPreflightIndicatorResultsPresent() {
         // Preflight check
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", GREEN, null, null, null, null);
+        var hasMaster = new HealthIndicatorResult("has_master", "coordination", GREEN, null, null, null, null, null);
         // Other indicators
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(hasMaster)),
@@ -216,12 +218,12 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() {
         // Preflight checks
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null);
-        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null);
+        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null, null);
+        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null, null);
         // Other indicators
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
@@ -320,11 +322,11 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     public void testAllIndicatorsUnknownWhenClusterStateNotRecovered() {
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null);
-        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null);
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null);
+        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null, null);
+        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null, null);
+        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
@@ -436,6 +438,11 @@ public class HealthServiceTests extends ESTestCase {
             @Override
             public String component() {
                 return result.component();
+            }
+
+            @Override
+            public String helpURL() {
+                return result.helpURL();
             }
 
             @Override

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,6 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Reads state documents of a stream, splits them and persists to an index via a bulk request.
@@ -153,7 +154,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 );
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
-                LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
+                LOGGER.error(() -> format("[%s] %s", jobId, msg), ex);
                 auditor.error(jobId, msg + " error: " + ex.getMessage());
             }
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -80,6 +79,8 @@ import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Holder class for several ingest related services.
@@ -747,8 +748,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                 if (e != null) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "failed to execute pipeline [{}] for document [{}/{}]",
+                        () -> format(
+                            "failed to execute pipeline [%s] for document [%s/%s]",
                             pipelineId,
                             indexRequest.index(),
                             indexRequest.id()
@@ -802,12 +803,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             });
         } catch (Exception e) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "failed to execute pipeline [{}] for document [{}/{}]",
-                    pipelineId,
-                    indexRequest.index(),
-                    indexRequest.id()
-                ),
+                () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
             onFailure.accept(slot, e);

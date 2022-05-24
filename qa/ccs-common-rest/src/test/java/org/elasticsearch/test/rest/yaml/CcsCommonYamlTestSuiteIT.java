@@ -195,7 +195,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
                 rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
             } else if (section instanceof IsFalseAssertion falseAssertion) {
-                if (lastAPIDoSection.startsWith("async_") && ((IsFalseAssertion) section).getField().endsWith("_clusters")) {
+                if ((lastAPIDoSection.startsWith("async_") || lastAPIDoSection.equals("search"))
+                    && ((IsFalseAssertion) section).getField().endsWith("_clusters")) {
                     // in ccs scenarios, the response "_cluster" section will be there
                     rewrittenSection = new IsTrueAssertion(falseAssertion.getLocation(), falseAssertion.getField());
                 }

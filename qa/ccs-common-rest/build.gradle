@@ -73,7 +73,6 @@ tasks.register("ccs-remote", RestIntegTestTask) {
 
   systemProperty 'tests.rest.blacklist',
     [
-      'search/70_response_filtering/Search with response filtering', // makes assertions on "_clusters" section
       'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
       'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
       'search/350_point_in_time/basic', // [indices] cannot be used with point in time

@@ -119,11 +119,12 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 write.buf.readerIndex(readerIndex + bufferSize);
                 write.buf.discardReadBytes();
             } else {
-                writeBuffer = write.buf;
+                writeBuffer = write.buf.retain();
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
             needsFlush = true;
             if (sliced == false) {
+                currentWrite.buf.release();
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
@@ -161,10 +162,12 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
             final WriteOperation current = currentWrite;
             currentWrite = null;
             current.failAsClosedChannel();
+            current.buf.release();
         }
         WriteOperation queuedWrite;
         while ((queuedWrite = queuedWrites.poll()) != null) {
             queuedWrite.failAsClosedChannel();
+            queuedWrite.buf.release();
         }
     }
 
@@ -172,7 +175,6 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
         void failAsClosedChannel() {
             promise.tryFailure(new ClosedChannelException());
-            buf.release();
         }
     }
 

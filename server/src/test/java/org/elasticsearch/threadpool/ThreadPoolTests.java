@@ -51,6 +51,12 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(ThreadPool.boundedBy(value, min, max), equalTo(value));
     }
 
+    public void testOneEighthAllocatedProcessorsMinOne() {
+        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(32), equalTo(4));
+    }
+
     public void testAbsoluteTime() throws Exception {
         TestThreadPool threadPool = new TestThreadPool("test");
         try {

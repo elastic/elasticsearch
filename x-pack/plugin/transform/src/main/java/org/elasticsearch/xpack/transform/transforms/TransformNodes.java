@@ -208,7 +208,7 @@ public final class TransformNodes {
      *
      * @param nodes nodes to select from
      * @param requiresRemote whether this transform requires access to remote indices
-     * @param metadata
+     * @param metadata cluster state's metadata to fetch information about nodes being shutdown
      * @return selected node or {@code Optional.empty()} if none of the nodes satisfy the conditions
      */
     static Optional<DiscoveryNode> selectAnyNodeThatCanRunThisTransform(DiscoveryNodes nodes, boolean requiresRemote, Metadata metadata) {

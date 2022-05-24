@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.internal.Client;
@@ -518,7 +517,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ReadinessService.PORT,
         StableMasterHealthIndicatorService.ACCEPTABLE_IDENTITY_CHANGES_SETTING,
         StableMasterHealthIndicatorService.ACCEPTABLE_NULL_TRANSITIONS_SETTING,
-        MasterHistory.MAX_HISTORY_AGE_SETTING
+        MasterHistory.MAX_HISTORY_AGE_SETTING,
+        ReadinessService.PORT
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

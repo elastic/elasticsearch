@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -52,6 +51,8 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class keeps track of the memory requirement of ML jobs.
@@ -549,10 +550,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             }, e -> {
                 logIfNecessary(
                     () -> logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to calculate anomaly detector job established model memory requirement",
-                            jobId
-                        ),
+                        () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                         e
                     )
                 );
@@ -561,10 +559,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         } catch (Exception e) {
             logIfNecessary(
                 () -> logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to calculate anomaly detector job established model memory requirement",
-                        jobId
-                    ),
+                    () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                     e
                 )
             );

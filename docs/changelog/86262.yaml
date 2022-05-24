@@ -1,5 +1,0 @@
-pr: 86262
-summary: Fix `assertDefaultThreadContext` enumerating allowed headers
-area: Infra/Core
-type: bug
-issues: []

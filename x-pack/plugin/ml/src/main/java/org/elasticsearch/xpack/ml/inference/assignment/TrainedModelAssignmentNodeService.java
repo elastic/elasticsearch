@@ -252,10 +252,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to set routing state to stopping as assignment already removed",
-                            task.getModelId()
-                        ),
+                        () -> format("[%s] failed to set routing state to stopping as assignment already removed", task.getModelId()),
                         e
                     );
                 } else {
@@ -408,8 +405,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] model loaded but failed to start accepting routes as assignment to this node was removed",
+                        () -> format(
+                            "[%s] model loaded but failed to start accepting routes as assignment to this node was removed",
                             modelId
                         ),
                         e
@@ -436,11 +433,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }, error -> {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] model is [{}] but failed to notify master",
-                        modelId,
-                        routingStateAndReason.getState()
-                    ),
+                    () -> format("[%s] model is [%s] but failed to notify master", modelId, routingStateAndReason.getState()),
                     error
                 );
                 listener.onFailure(error);

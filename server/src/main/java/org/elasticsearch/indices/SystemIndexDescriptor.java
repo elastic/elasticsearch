@@ -264,7 +264,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
             assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
             assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
-            assert Objects.isNull(origin) : "Unmanaged index descriptors should not supply origins";
             this.mappingVersion = null;
         }
 
@@ -456,7 +455,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getOrigin() {
-        assert isAutomaticallyManaged() : "Do not check origin for unmanaged system indices";
         return this.origin;
     }
 

@@ -14,28 +14,37 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,9 +61,30 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
-        node2 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
-        node3 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
+        node1 = new DiscoveryNode(
+            "node1",
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+        node2 = new DiscoveryNode(
+            "node2",
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+        node3 = new DiscoveryNode(
+            "node3",
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -116,11 +146,19 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30m"));
-        assertThat(3, equalTo(result.impacts().size()));
-        SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
-        assertThat(2, equalTo(details.details().size()));
+        assertThat(result.impacts().size(), equalTo(3));
+        HealthIndicatorDetails details = result.details();
+        Map<String, Object> detailsMap = xContentToMap(details);
+        assertThat(detailsMap.size(), equalTo(2));
+        Collection<Object> recentMasters = ((Collection<Object>) detailsMap.get("recent_masters"));
         // We don't show nulls in the recent_masters list:
-        assertThat(6, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
+        assertThat(recentMasters.size(), equalTo(6));
+        for (Object recentMaster : recentMasters) {
+            Map<String, String> recentMasterMap = (Map<String, String>) recentMaster;
+            assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
+            assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
+        }
+
     }
 
     public void testMasterGoesNull() throws Exception {
@@ -170,13 +208,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
-        SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
-        assertThat(details.details().size(), equalTo(1));
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder = ((ToXContent) details.details().get("current_master")).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.flush();
-        assertThat(builder.getOutputStream().toString(), equalTo("null"));
-
+        HealthIndicatorDetails details = result.details();
+        Map<String, Object> detailsMap = xContentToMap(details);
+        assertThat(detailsMap.size(), equalTo(1));
+        assertThat(((Map) detailsMap.get("current_master")).get("name"), equalTo(null));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
@@ -210,13 +245,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
-        SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
-        assertThat(details.details().size(), equalTo(3));
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder = ((ToXContent) details.details().get("current_master")).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.flush();
-        assertThat(builder.getOutputStream().toString(), equalTo("null"));
-        assertThat(details.details().get("exception_fetching_history"), equalTo("Failure on master"));
+        HealthIndicatorDetails details = result.details();
+        Map<String, Object> detailsMap = xContentToMap(details);
+        assertThat(detailsMap.size(), equalTo(2));
+        assertThat(((Map) detailsMap.get("current_master")).get("name"), equalTo(null));
+        assertThat(((Map) detailsMap.get("exception_fetching_history")).get("message"), equalTo("Failure on master"));
     }
 
     public void testMasterGoesNullLocallyButRemotelyChangesIdentity() throws Exception {
@@ -480,5 +513,13 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         return new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
+    }
+
+    private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+        return parser.map();
     }
 }

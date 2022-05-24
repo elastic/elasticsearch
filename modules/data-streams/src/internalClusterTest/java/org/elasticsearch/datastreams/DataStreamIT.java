@@ -52,6 +52,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -1734,7 +1735,7 @@ public class DataStreamIT extends ESIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
+            .submitStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
@@ -1765,7 +1766,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     logger.error("error while adding a broken data stream", e);
                     latch.countDown();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         latch.await();
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 

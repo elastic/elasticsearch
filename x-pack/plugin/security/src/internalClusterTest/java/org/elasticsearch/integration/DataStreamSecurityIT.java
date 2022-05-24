@@ -15,6 +15,7 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -87,7 +88,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
         boolean shouldBreakIndexName = randomBoolean();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
+            .submitStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
@@ -121,7 +122,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                     logger.error("error while adding a broken data stream", e);
                     latch.countDown();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         latch.await();
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 

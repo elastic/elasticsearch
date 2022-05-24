@@ -31,7 +31,7 @@ public abstract class UpdateByQueryScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private Metadata metadata;
+    private final Metadata metadata;
 
     public UpdateByQueryScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
@@ -48,10 +48,7 @@ public abstract class UpdateByQueryScript {
     }
 
     public Map<String, Object> getCtx() {
-        if (metadata == null) {
-            return null;
-        }
-        return metadata.getCtx();
+        return metadata != null ? metadata.getCtx() : null;
     }
 
     public abstract void execute();

@@ -50,10 +50,7 @@ public abstract class IngestScript {
     }
 
     public Map<String, Object> getCtx() {
-        if (metadata == null) {
-            return null;
-        }
-        return metadata.store.getMap();
+        return metadata != null ? metadata.store.getMap() : null;
     }
 
     public Metadata meta() {

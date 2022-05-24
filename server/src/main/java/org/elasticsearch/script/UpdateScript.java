@@ -52,10 +52,7 @@ public abstract class UpdateScript {
 
     /** Return the update context for this script. */
     public Map<String, Object> getCtx() {
-        if (metadata == null) {
-            return null;
-        }
-        return metadata.store.getMap();
+        return metadata != null ? metadata.store.getMap() : null;
     }
 
     public Metadata meta() {
@@ -76,9 +73,7 @@ public abstract class UpdateScript {
      * _op is read/write with valid values: NOOP ("none"), INDEX, DELETE, CREATE
      *
      * _version_type is unavailable.
-     */
-
-    /**
+     * ....
      * Metadata for insertions done via scripted upsert with an {@link UpdateScript}
      *
      * The only metadata available is the timestamp and the Op.

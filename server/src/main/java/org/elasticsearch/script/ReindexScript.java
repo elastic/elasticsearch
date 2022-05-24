@@ -47,10 +47,7 @@ public abstract class ReindexScript {
     }
 
     public Map<String, Object> getCtx() {
-        if (metadata == null) {
-            return null;
-        }
-        return metadata.getCtx();
+        return metadata != null ? metadata.getCtx() : null;
     }
 
     public abstract void execute();

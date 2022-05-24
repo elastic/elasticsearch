@@ -8,9 +8,11 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -52,6 +54,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             BASIC_AUTH_HEADER,
             basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
         );
+        final var client = client().filterWithHeader(headers);
 
         var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
@@ -66,14 +69,16 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                 null
             )
         );
-        assertAcked(client().filterWithHeader(headers).execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
+        assertAcked(client.execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
 
         String dataStreamName = "logs-es";
         var request = new CreateDataStreamAction.Request(dataStreamName);
-        assertAcked(client().filterWithHeader(headers).execute(CreateDataStreamAction.INSTANCE, request).actionGet());
-        assertAcked(
-            client().filterWithHeader(headers).admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet()
-        );
+        assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertAcked(client.admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+
+        var indicesStatsResponse = client.admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
+
         ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
 
@@ -115,33 +120,37 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         latch.await();
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 
+        // Many APIs fail with NPE, because of broken data stream:
+        expectThrows(NullPointerException.class, () -> client.admin().indices().stats(new IndicesStatsRequest()).actionGet());
+        expectThrows(NullPointerException.class, () -> client.search(new SearchRequest()).actionGet());
+
         // Regular remove fails
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().filterWithHeader(headers)
-                .execute(
-                    ModifyDataStreamsAction.INSTANCE,
-                    new ModifyDataStreamsAction.Request(
-                        List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName()))
-                    )
-                )
-                .actionGet()
+            () -> client.execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
+            ).actionGet()
         );
         assertThat(e.getMessage(), equalTo("index [" + ghostReference.getName() + "] is not part of data stream [" + dataStreamName + "]"));
 
         // Force remove succeeds
         assertAcked(
-            client().filterWithHeader(headers)
-                .execute(
-                    ModifyDataStreamsAction.INSTANCE,
-                    new ModifyDataStreamsAction.Request(
-                        List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, ghostReference.getName()))
-                    )
+            client.execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    List.of(DataStreamAction.forceRemoveBackingIndex(dataStreamName, ghostReference.getName()))
                 )
-                .actionGet()
+            ).actionGet()
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+
+        // Data stream resolves now to one backing index.
+        // Note, that old backing index still exists, but it is still hidden.
+        // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
+        indicesStatsResponse = client.admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
     }
 
 }

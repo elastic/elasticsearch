@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -1724,6 +1725,8 @@ public class DataStreamIT extends ESIntegTestCase {
         var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        var indicesStatsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
         ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
 
@@ -1765,6 +1768,10 @@ public class DataStreamIT extends ESIntegTestCase {
         latch.await();
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 
+        // Many APIs fail with NPE, because of broken data stream:
+        expectThrows(NullPointerException.class, () -> client().admin().indices().stats(new IndicesStatsRequest()).actionGet());
+        expectThrows(NullPointerException.class, () -> client().search(new SearchRequest()).actionGet());
+
         // Regular remove fails
         var e = expectThrows(
             IllegalArgumentException.class,
@@ -1786,6 +1793,11 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        // Data stream resolves now to one backing index.
+        // Note, that old backing index still exists, but it is still hidden.
+        // The modify data stream api only fixed the data stream by removing a broken reference to a backing index.
+        indicesStatsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

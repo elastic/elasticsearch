@@ -103,10 +103,11 @@ tasks.named("testingConventions").configure {
     }
 }
 
+File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateModulesList = tasks.register("generateModulesList") {
     List<String> modules = project(':modules').subprojects.collect { it.name }
     modules.add('x-pack')
-    File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
+    File modulesFile = new File(generatedResourcesDir, "modules.txt")
     processResources.from(modulesFile)
     inputs.property('modules', modules)
     outputs.file(modulesFile)
@@ -120,7 +121,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
     plugins.remove('example')
 
-    File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
+    File pluginsFile = new File(generatedResourcesDir, 'plugins.txt')
     processResources.from(pluginsFile)
     inputs.property('plugins', plugins)
     outputs.file(pluginsFile)
@@ -133,6 +134,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
+sourceSets.main.output.dir(generatedResourcesDir)
 
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {

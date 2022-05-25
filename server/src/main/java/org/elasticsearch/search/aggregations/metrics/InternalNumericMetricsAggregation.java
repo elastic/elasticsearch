@@ -98,6 +98,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             super(in, readFormat);
         }
 
+
         public abstract double value(String name);
 
         public String valueAsString(String name) {

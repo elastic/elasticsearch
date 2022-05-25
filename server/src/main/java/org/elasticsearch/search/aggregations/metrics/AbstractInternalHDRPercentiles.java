@@ -78,7 +78,14 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public double value(String name) {
-        return value(Double.parseDouble(name));
+        try {
+            return value(Double.parseDouble(name));
+        } catch (NumberFormatException ex) {
+            if (this.keys.length == 1) {
+                return value(this.keys[0]);
+            }
+            throw ex;
+        }
     }
 
     @Override

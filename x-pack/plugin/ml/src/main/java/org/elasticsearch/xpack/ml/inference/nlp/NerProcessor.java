@@ -71,19 +71,6 @@ public class NerProcessor extends NlpTask.Processor {
         IobTag.fromTag("I_LOC")    // Location
     };
 
-    public enum Entity {
-        NONE,
-        MISC,
-        PER,
-        ORG,
-        LOC;
-
-        @Override
-        public String toString() {
-            return name().toUpperCase(Locale.ROOT);
-        }
-    }
-
     private final NlpTask.RequestBuilder requestBuilder;
     private final IobTag[] iobMap;
     private final String resultsField;

@@ -12,6 +12,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TopkFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
 
 import java.util.ArrayList;
@@ -40,16 +41,7 @@ public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Do
     public void collect(TSIDValue<Double> number, long bucket) {
         PriorityQueue<TSIDValue<Double>> queue = values.get(bucket);
         if (queue == null) {
-            queue = new PriorityQueue<>(topkSize) {
-                @Override
-                protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
-                    if (isTop) {
-                        return a.value > b.value;
-                    } else {
-                        return a.value < b.value;
-                    }
-                }
-            };
+            queue = TopkFunction.getTopkQueue(topkSize, isTop);
             values.put(bucket, queue);
         }
 

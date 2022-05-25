@@ -38,7 +38,7 @@ public class Downsample implements ToXContentObject, Writeable {
 
     static {
         PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
+            ConstructingObjectParser.optionalConstructorArg(),
             p -> new DateHistogramInterval(p.text()),
             RANGE_FIELD,
             ObjectParser.ValueType.STRING
@@ -63,7 +63,7 @@ public class Downsample implements ToXContentObject, Writeable {
     }
 
     public Downsample(StreamInput in) throws IOException {
-        this.range = new DateHistogramInterval(in);
+        this.range = in.readOptionalWriteable(DateHistogramInterval::new);
         this.function = Function.resolve(in.readString());
         this.parameters = in.readMap();
     }
@@ -87,8 +87,10 @@ public class Downsample implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(RANGE_FIELD.getPreferredName(), range);
         builder.field(FUNCTION_FIELD.getPreferredName(), function);
+        if (range != null) {
+            builder.field(RANGE_FIELD.getPreferredName(), range);
+        }
         if (parameters != null) {
             builder.field(PARAMS_FIELD.getPreferredName(), parameters);
         }
@@ -98,7 +100,7 @@ public class Downsample implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        range.writeTo(out);
+        out.writeOptionalWriteable(range);
         out.writeString(function.name());
         out.writeGenericMap(parameters);
     }

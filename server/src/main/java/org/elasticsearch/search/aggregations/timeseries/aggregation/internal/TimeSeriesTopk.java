@@ -16,6 +16,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TopkFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -76,16 +77,7 @@ public class TimeSeriesTopk extends InternalAggregation {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        PriorityQueue<TSIDValue<Double>> queue = new PriorityQueue<>(topkSize) {
-            @Override
-            protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
-                if (isTop) {
-                    return a.value > b.value;
-                } else {
-                    return a.value < b.value;
-                }
-            }
-        };
+        PriorityQueue<TSIDValue<Double>> queue = TopkFunction.getTopkQueue(topkSize, isTop);
 
         for (InternalAggregation internalAggregation : aggregations) {
             TimeSeriesTopk timeSeriesTopk = (TimeSeriesTopk) internalAggregation;

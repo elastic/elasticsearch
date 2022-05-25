@@ -44,6 +44,10 @@ public class TimeSeriesCountValues extends InternalAggregation {
         return NAME;
     }
 
+    public Map<Long, AtomicInteger> getValueCount() {
+        return valueCount;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(formatter);

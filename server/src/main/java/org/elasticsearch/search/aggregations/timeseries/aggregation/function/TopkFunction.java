@@ -24,16 +24,7 @@ public class TopkFunction implements AggregatorFunction<TSIDValue<Double>, List<
     private final boolean isTop;
 
     public TopkFunction(int size, boolean isTop) {
-        queue = new PriorityQueue<>(size) {
-            @Override
-            protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
-                if (isTop) {
-                    return a.value > b.value;
-                } else {
-                    return a.value < b.value;
-                }
-            }
-        };
+        queue = getTopkQueue(size, isTop);
         this.isTop = isTop;
         this.topkSize = size;
     }
@@ -56,4 +47,18 @@ public class TopkFunction implements AggregatorFunction<TSIDValue<Double>, List<
     public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
         return new TimeSeriesTopk(TimeSeriesTopk.NAME, get(), topkSize, isTop, formatter, metadata);
     }
+
+    public static PriorityQueue<TSIDValue<Double>> getTopkQueue(int size, boolean isTop) {
+        return new PriorityQueue<TSIDValue<Double>>(size) {
+            @Override
+            protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
+                if (isTop) {
+                    return a.value < b.value;
+                } else {
+                    return a.value > b.value;
+                }
+            }
+        };
+    }
+
 }

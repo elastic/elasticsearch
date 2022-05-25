@@ -127,7 +127,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         this.aggregator = aggregator;
         this.aggregatorParams = aggregatorParams;
         this.needAggregator = this.aggregator != null;
-        this.downsampleRange = downsample != null ? downsample.getRange().estimateMillis() : -1;
+        this.downsampleRange = downsample != null && downsample.getRange() != null ? downsample.getRange().estimateMillis() : -1;
         this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;

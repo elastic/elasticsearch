@@ -91,7 +91,7 @@ public enum Aggregator {
         public AggregatorFunction<?, ?> getAggregatorFunction(Map<String, Object> aggregatorParams) {
             int size = 0;
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
-                size = (int) aggregatorParams.get("size");
+                size = ((Double) aggregatorParams.get("size")).intValue();
             }
             return new TopkFunction(size, true);
         }
@@ -100,7 +100,7 @@ public enum Aggregator {
         public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays, Map<String, Object> aggregatorParams) {
             int size = 0;
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
-                size = (int) aggregatorParams.get("size");
+                size = ((Double) aggregatorParams.get("size")).intValue();
             }
             return new TopkBucketFunction(size, true);
         }
@@ -110,7 +110,7 @@ public enum Aggregator {
         public AggregatorFunction<?, ?> getAggregatorFunction(Map<String, Object> aggregatorParams) {
             int size = 0;
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
-                size = (int) aggregatorParams.get("size");
+                size = ((Double) aggregatorParams.get("size")).intValue();
             }
             return new TopkFunction(size, false);
         }
@@ -119,7 +119,7 @@ public enum Aggregator {
         public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays, Map<String, Object> aggregatorParams) {
             int size = 0;
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
-                size = (int) aggregatorParams.get("size");
+                size = ((Double) aggregatorParams.get("size")).intValue();
             }
             return new TopkBucketFunction(size, false);
         }

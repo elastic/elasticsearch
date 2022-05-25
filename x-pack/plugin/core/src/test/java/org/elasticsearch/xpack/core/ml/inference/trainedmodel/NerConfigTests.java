@@ -53,7 +53,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
     public static NerConfig createRandom() {
         Set<String> randomClassificationLabels = new HashSet<>(
-            Stream.generate(() -> randomFrom("O", "B_MISC", "I_MISC", "B_PER", "I_PER", "B_ORG", "I_ORG", "B_LOC", "I_LOC"))
+            Stream.generate(() -> randomFrom("O", "B_PER", "I_PER", "B_ORG", "I_ORG", "B_LOC", "I_LOC", "B_CUSTOM", "I_CUSTOM"))
                 .limit(10)
                 .toList()
         );

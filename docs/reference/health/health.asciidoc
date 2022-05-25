@@ -267,7 +267,7 @@ The API returns a response with just the data component.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/data/shard_availability
+GET _internal/_health/data/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator

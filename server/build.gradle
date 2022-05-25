@@ -108,8 +108,8 @@ def generateModulesList = tasks.register("generateModulesList") {
     List<String> modules = project(':modules').subprojects.collect { it.name }
     modules.add('x-pack')
     File modulesFile = new File(generatedResourcesDir, "modules.txt")
-    processResources.from(modulesFile)
     inputs.property('modules', modules)
+    outputs.file(modulesFile)
     doLast {
         modulesFile.parentFile.mkdirs()
         modulesFile.setText(modules.join('\n'), 'UTF-8')
@@ -121,17 +121,15 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     plugins.remove('example')
 
     File pluginsFile = new File(generatedResourcesDir, 'plugins.txt')
-    processResources.from(pluginsFile)
     inputs.property('plugins', plugins)
+    outputs.file(pluginsFile)
     doLast {
         pluginsFile.parentFile.mkdirs()
         pluginsFile.setText(plugins.join('\n'), 'UTF-8')
     }
 }
 
-tasks.named("processResources").configure {
-    dependsOn generateModulesList, generatePluginsList
-}
+sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
 if (BuildParams.isSnapshotBuild() == false) {

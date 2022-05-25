@@ -348,12 +348,9 @@ public class CppLogMessageHandler implements Closeable {
             seenFatalError = true;
         } catch (IOException e) {
             if (jobId != null) {
-                LOGGER.warn(
-                    () -> format("[%s] IO failure receiving C++ log message: %s", new Object[] { jobId, bytesRef.utf8ToString() }),
-                    e
-                );
+                LOGGER.warn(() -> format("[%s] IO failure receiving C++ log message: %s", jobId, bytesRef.utf8ToString()), e);
             } else {
-                LOGGER.warn(() -> format("IO failure receiving C++ log message: %s", new Object[] { bytesRef.utf8ToString() }), e);
+                LOGGER.warn(() -> format("IO failure receiving C++ log message: %s", bytesRef.utf8ToString()), e);
             }
         }
     }

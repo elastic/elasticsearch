@@ -441,7 +441,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 if (logger.isTraceEnabled()) {
                     logger.warn(
                         () -> format(
-                            "failed to apply updated cluster state in [%s]:\nversion [%s], uuid [%s], source [%s]\n%s",
+                            """
+                                failed to apply updated cluster state in [%s]:
+                                version [%s], uuid [%s], source [%s]
+                                %s
+                            """,
                             executionTime,
                             newClusterState.version(),
                             newClusterState.stateUUID(),

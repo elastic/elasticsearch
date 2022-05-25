@@ -201,7 +201,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                 } else {
                     logger.warn(
                         () -> format(
-                            "[%s] and [%s} have not been specified or are not valid distinguished names,"
+                            "[%s] and [%s] have not been specified or are not valid distinguished names,"
                                 + "so connection health checking is disabled",
                             RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
                             RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)

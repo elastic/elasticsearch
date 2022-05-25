@@ -666,21 +666,20 @@ public abstract class RangeAggregator extends BucketsAggregator {
                         }
                     }
                 };
-            } else {
-                super.nonsingletonRanges++;
-                return new LeafBucketCollectorBase(sub, values) {
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        if (values.advanceExact(doc)) {
-                            final int valuesCount = values.docValueCount();
-                            for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                                final double value = values.nextValue();
-                                lo = NumericRangeAggregator.this.collect(sub, doc, value, bucket, lo);
-                            }
+            }
+            super.nonsingletonRanges++;
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                            final double value = values.nextValue();
+                            lo = NumericRangeAggregator.this.collect(sub, doc, value, bucket, lo);
                         }
                     }
-                };
-            }
+                }
+            };
         }
 
         protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)

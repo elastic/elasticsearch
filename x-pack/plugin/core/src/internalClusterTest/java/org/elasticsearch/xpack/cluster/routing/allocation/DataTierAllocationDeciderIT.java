@@ -272,6 +272,8 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         updateDesiredNodes(desiredNodesWithoutColdTier);
 
+        client().admin().cluster().prepareReroute().get();
+
         var newReplicaCount = client().admin()
             .indices()
             .prepareGetIndex()

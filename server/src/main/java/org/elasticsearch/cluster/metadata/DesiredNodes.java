@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -51,12 +53,18 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HISTORY_ID_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> DesiredNode.fromXContent(p, DesiredNode.ParsingContext.CLUSTER_STATE),
+            NODES_FIELD
+        );
     }
 
     private final String historyID;
     private final long version;
     private final Map<String, DesiredNode> nodes;
+    private final List<DesiredNode> members;
+    private final List<DesiredNode> notMembers;
 
     public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
@@ -66,6 +74,16 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         this.historyID = historyID;
         this.version = version;
         this.nodes = toMap(nodes);
+        this.members = nodes.stream().filter(DesiredNode::isMember).toList();
+        this.notMembers = nodes.stream().filter(dn -> dn.isMember() == false).toList();
+    }
+
+    private DesiredNodes(String historyID, long version, Map<String, DesiredNode> nodes) {
+        this.historyID = historyID;
+        this.version = version;
+        this.nodes = Collections.unmodifiableMap(nodes);
+        this.members = nodes.values().stream().filter(DesiredNode::isMember).toList();
+        this.notMembers = nodes.values().stream().filter(dn -> dn.isMember() == false).toList();
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
@@ -93,6 +111,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         return builder;
     }
 
+    @Nullable
     public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
         return DesiredNodesMetadata.fromClusterState(clusterState).getLatestDesiredNodes();
     }
@@ -106,7 +125,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     public boolean hasSameHistoryId(DesiredNodes other) {
-        return historyID.equals(other.historyID);
+        return other != null && historyID.equals(other.historyID);
     }
 
     private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
@@ -161,6 +180,17 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         return List.copyOf(nodes.values());
     }
 
+    public List<DesiredNode> members() {
+        assert members.stream().allMatch(DesiredNode::isMember);
+        return members;
+    }
+
+    public List<DesiredNode> notMembers() {
+        assert notMembers.stream().allMatch(desiredNode -> desiredNode.isMember() == false);
+
+        return notMembers;
+    }
+
     @Override
     public Iterator<DesiredNode> iterator() {
         return nodes.values().iterator();
@@ -179,6 +209,83 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
                 throw new IllegalStateException("duplicate desired node external id [" + left.externalId() + "]");
             }, TreeMap::new))
         );
+    }
+
+    public static ClusterState withDesiredNodesMembershipUpdated(ClusterState clusterState) {
+        final var desiredNodes = latestFromClusterState(clusterState);
+        if (desiredNodes == null) {
+            return clusterState;
+        }
+
+        return withMembershipInformationUpgraded(clusterState, desiredNodes);
+    }
+
+    public static ClusterState withMembershipInformationUpgraded(ClusterState clusterState, DesiredNodes desiredNodes) {
+        if (desiredNodes == null) {
+            return clusterState;
+        }
+
+        final Map<String, DesiredNode> updatedStateDesiredNodes = new HashMap<>(desiredNodes.nodes);
+
+        boolean membershipInformationModified = false;
+        for (DiscoveryNode discoveryNode : clusterState.nodes()) {
+            final var desiredNode = desiredNodes.find(discoveryNode.getExternalId());
+            if (desiredNode != null && desiredNode.isMember() == false) {
+                updatedStateDesiredNodes.put(desiredNode.externalId(), desiredNode.asMember());
+                membershipInformationModified = true;
+            }
+        }
+
+        if (membershipInformationModified || desiredNodes != latestFromClusterState(clusterState)) {
+            final var updatedClusterState = clusterState.copyAndUpdateMetadata(
+                metadata -> metadata.putCustom(
+                    DesiredNodesMetadata.TYPE,
+                    new DesiredNodesMetadata(new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), updatedStateDesiredNodes))
+                )
+            );
+            assert knownDesiredNodesAreCorrect(updatedClusterState);
+            return updatedClusterState;
+        } else {
+            assert knownDesiredNodesAreCorrect(clusterState);
+            return clusterState;
+        }
+    }
+
+    public DesiredNodes withMembershipInfoFrom(DesiredNodes previousDesiredNodes) {
+        if (previousDesiredNodes == this) {
+            return this;
+        }
+        final Map<String, DesiredNode> updatedStateDesiredNodes = new HashMap<>(nodes);
+
+        boolean modified = false;
+        if (hasSameHistoryId(previousDesiredNodes)) {
+            for (DesiredNode desiredNode : nodes.values()) {
+                final var previousDesiredNode = previousDesiredNodes.find(desiredNode.externalId());
+                if (previousDesiredNode != null && previousDesiredNode.membershipStatus() != desiredNode.membershipStatus()) {
+                    updatedStateDesiredNodes.put(
+                        desiredNode.externalId(),
+                        desiredNode.withMembershipStatus(previousDesiredNode.membershipStatus())
+                    );
+                    modified = true;
+                }
+            }
+        }
+
+        if (modified) {
+            return new DesiredNodes(historyID, version, updatedStateDesiredNodes);
+        } else {
+            return this;
+        }
+    }
+
+    public static boolean knownDesiredNodesAreCorrect(ClusterState clusterState) {
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        return desiredNodes == null
+            || clusterState.nodes()
+                .stream()
+                .map(node -> desiredNodes.find(node.getExternalId()))
+                .filter(Objects::nonNull)
+                .allMatch(DesiredNode::isMember);
     }
 
     public static class MembershipInformation {

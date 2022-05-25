@@ -8,8 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -144,7 +146,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
-        return proposedDesiredNodes;
+        return proposedDesiredNodes.withMembershipInfoFrom(latestDesiredNodes);
     }
 
     private record UpdateDesiredNodesTask(UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener)
@@ -170,8 +172,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
-            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
-            var desiredNodes = initialDesiredNodes;
+            var desiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             final List<PendingTask> pendingTaskListeners = new ArrayList<>();
             for (final var taskContext : taskContexts) {
 
@@ -186,7 +187,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 pendingTaskListeners.add(new PendingTask(taskContext, replacedExistingHistoryId));
             }
-            if (desiredNodes == initialDesiredNodes) {
+
+            final var updatedClusterState = DesiredNodes.withMembershipInformationUpgraded(currentState, desiredNodes);
+            if (updatedClusterState == currentState) {
                 for (final var pendingTaskListener : pendingTaskListeners) {
                     pendingTaskListener.setClusterStateUpdateTaskListener(pendingTaskListener.getUpdateRequestListener());
                 }
@@ -227,7 +230,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 for (final var pendingTaskListener : pendingTaskListeners) {
                     pendingTaskListener.setClusterStateUpdateTaskListener(clusterStateGroupedActionListener);
                 }
-                return replaceDesiredNodes(currentState, desiredNodes);
+                return updatedClusterState;
             }
         }
 

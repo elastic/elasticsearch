@@ -38,7 +38,11 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> DesiredNode.fromXContent(p, DesiredNode.ParsingContext.API),
+            NODES_FIELD
+        );
     }
 
     public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes) {

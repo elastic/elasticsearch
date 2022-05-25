@@ -17,7 +17,7 @@ import java.io.IOException;
 public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
     @Override
     protected DesiredNode doParseInstance(XContentParser parser) throws IOException {
-        return DesiredNode.fromXContent(parser);
+        return DesiredNode.fromXContent(parser, DesiredNode.ParsingContext.CLUSTER_STATE);
     }
 
     @Override

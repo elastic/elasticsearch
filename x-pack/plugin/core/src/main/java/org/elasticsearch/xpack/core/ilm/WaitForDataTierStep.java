@@ -37,12 +37,7 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
         boolean present = DataTierAllocationDecider.preferredAvailableTier(
             DataTier.parseTierList(tierPreference),
             clusterState.nodes(),
-            // We only use the member desired nodes when we try to remove
-            // a tier (i.e. the cold tier) to allow shards to move back to
-            // less "preferable" tiers (i.e. move from cold back to warm)
-            // meaning that it's ok not providing desired node membership info
-            // here as the desired nodes won't change the preferred tier in this use case.
-            DesiredNodes.MembershipInformation.EMPTY
+            DesiredNodes.latestFromClusterState(clusterState)
         ).isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);

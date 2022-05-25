@@ -172,8 +172,9 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
-    public DesiredNodes.MembershipInformation getDesiredNodesMembershipInfo() {
-        return null;
+    @Nullable
+    public DesiredNodes desiredNodes() {
+        return DesiredNodes.latestFromClusterState(clusterState);
     }
 
     /**

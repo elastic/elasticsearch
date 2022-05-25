@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,23 +26,29 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -486,6 +495,74 @@ public class JoinTaskExecutorTests extends ESTestCase {
                 assertThat(e, instanceOf(NotMasterException.class));
             }
         );
+    }
+
+    public void testDesiredNodesMembershipIsUpgraded() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = newDiscoveryNode("master");
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
+            .build();
+
+        final var node = newDiscoveryNode("node-1");
+
+        final var desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(random()),
+            10,
+            List.of(desiredNode(node.getName()), knownDesiredNode(masterNode.getName()), knownDesiredNode("other"))
+        );
+
+        for (final var desiredNode : desiredNodes) {
+            if (desiredNode.externalId().equals(node.getName())) {
+                assertThat(desiredNode.isMember(), is(equalTo(false)));
+            } else {
+                assertThat(desiredNode.isMember(), is(equalTo(true)));
+            }
+        }
+
+        clusterState = clusterState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes))
+        );
+        var tasks = List.of(JoinTask.singleNode(node, "join", NOT_COMPLETED_LISTENER, 0L));
+
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, joinTaskExecutor, tasks);
+
+        final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        assertThat(updatedDesiredNodes, is(notNullValue()));
+
+        assertThat(updatedDesiredNodes.nodes(), hasSize(3));
+        for (DesiredNode updatedDesiredNode : updatedDesiredNodes) {
+            assertThat(updatedDesiredNode.isMember(), is(equalTo(true)));
+        }
+    }
+
+    private DiscoveryNode newDiscoveryNode(String nodeName) {
+        return new DiscoveryNode(
+            nodeName,
+            UUIDs.randomBase64UUID(random()),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+    }
+
+    private DesiredNode desiredNode(String nodeName) {
+        return new DesiredNode(
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
+            1,
+            ByteSizeValue.ofGb(1),
+            ByteSizeValue.ofGb(1),
+            Version.CURRENT
+        );
+    }
+
+    private DesiredNode knownDesiredNode(String nodeName) {
+        return desiredNode(nodeName).asMember();
     }
 
     private static JoinTask createRandomTask(DiscoveryNode node, String reason, long term) {

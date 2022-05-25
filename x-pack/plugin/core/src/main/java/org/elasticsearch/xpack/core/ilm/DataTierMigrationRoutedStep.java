@@ -56,12 +56,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
             clusterState.getNodes(),
-            // We only use the member desired nodes when we try to remove
-            // a tier (i.e. the cold tier) to allow shards to move back to
-            // less "preferable" tiers (i.e. move from cold back to warm)
-            // meaning that it's ok not providing desired node membership info
-            // here as the desired nodes won't change the preferred tier in this use case.
-            DesiredNodes.MembershipInformation.EMPTY
+            DesiredNodes.latestFromClusterState(clusterState)
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {

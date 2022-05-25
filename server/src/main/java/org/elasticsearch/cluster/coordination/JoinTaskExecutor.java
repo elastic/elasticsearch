@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodes.knownDesiredNodesAreCorrect;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
@@ -179,7 +181,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.withDesiredNodesMembershipUpdated(
+                newState.nodes(nodesBuilder).build()
+            );
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
                 || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["
@@ -187,6 +192,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "] to ["
                     + updatedState.nodes().getMinNodeVersion()
                     + "]";
+            assert knownDesiredNodesAreCorrect(clusterStateWithNewNodesAndDesiredNodes);
             return updatedState;
         } else {
             // we must return a new cluster state instance to force publishing. This is important

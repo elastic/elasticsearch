@@ -114,7 +114,7 @@ public class MlMetadata implements Metadata.Custom {
         }
         this.upgradeMode = in.readBoolean();
         this.resetMode = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             this.maxMlNodeSeen = in.readLong();
             this.cpuRatio = in.readDouble();
         } else {
@@ -131,7 +131,7 @@ public class MlMetadata implements Metadata.Custom {
         }
         out.writeBoolean(upgradeMode);
         out.writeBoolean(resetMode);
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeLong(maxMlNodeSeen);
             out.writeDouble(cpuRatio);
         }
@@ -182,7 +182,7 @@ public class MlMetadata implements Metadata.Custom {
             }
             upgradeMode = in.readBoolean();
             resetMode = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 this.maxMlNodeSeen = in.readLong();
                 this.cpuRatio = in.readDouble();
             } else {
@@ -211,7 +211,7 @@ public class MlMetadata implements Metadata.Custom {
             }
             out.writeBoolean(upgradeMode);
             out.writeBoolean(resetMode);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
                 out.writeLong(maxMlNodeSeen);
                 out.writeDouble(cpuRatio);
             }

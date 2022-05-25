@@ -95,7 +95,10 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // we are running in the foreground, so wait for the server to exit
-        server.waitFor();
+        int exitCode = server.waitFor();
+        if (exitCode != ExitCodes.OK) {
+            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+        }
     }
 
     private void printVersion(Terminal terminal) {

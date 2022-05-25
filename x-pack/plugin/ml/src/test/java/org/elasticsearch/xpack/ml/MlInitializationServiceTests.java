@@ -237,7 +237,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     private static List<DiscoveryNode> buildNodesWithAttr(Map<String, String> nodeAttr) {
-        return IntStream.range(1, randomInt(10))
+        return IntStream.range(1, randomIntBetween(1, 10))
             .mapToObj(
                 i -> new DiscoveryNode(
                     "ml-node-" + i,

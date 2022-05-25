@@ -286,7 +286,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     Consumer<ServerArgs> argsValidator;
-    Consumer<Path> pidFileValidator;
     private final MockServerProcess mockServer = new MockServerProcess();
 
     AutoConfigMethod autoConfigCallback;

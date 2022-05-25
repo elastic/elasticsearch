@@ -188,6 +188,39 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(result.getEntityGroups().get(1).getClassName(), equalTo("LOC"));
     }
 
+    public void testProcessResults_withCustomIobMap() {
+
+        NerProcessor.IobTag[] iobMap = new NerProcessor.IobTag[] {
+            NerProcessor.IobTag.fromTag("B_LOC"),
+            NerProcessor.IobTag.fromTag("I_LOC"),
+            NerProcessor.IobTag.fromTag("B_SOFTWARE"),
+            NerProcessor.IobTag.fromTag("I_SOFTWARE"),
+            NerProcessor.IobTag.fromTag("O") };
+
+        NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(iobMap, null, true);
+        TokenizationResult tokenization = tokenize(
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+            "Elasticsearch in London"
+        );
+
+        double[][][] scores = {
+            {
+                { 0.01, 0.01, 7, 3, 0 }, // el
+                { 0.01, 0.01, 0, 0, 0 }, // ##astic
+                { 0, 0, 0, 0, 0 }, // ##search
+                { 0, 0, 0, 0, 5 }, // in
+                { 6, 0, 0, 0, 0 } // london
+            } };
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L));
+
+        assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](SOFTWARE&Elasticsearch) in [London](LOC&London)"));
+        assertThat(result.getEntityGroups().size(), equalTo(2));
+        assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo("SOFTWARE"));
+        assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo("LOC"));
+    }
+
     public void testGroupTaggedTokens() throws IOException {
         String input = "Hi Sarah Jessica, I live in Manchester and work for Elastic";
         List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);

@@ -25,7 +25,6 @@ not be included yet.
 * <<find-structure,Find structure API>>
 * <<fleet-apis,Fleet APIs>>
 * <<graph-explore-api,Graph explore API>>
-* <<health-api,Health API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<ingest-apis,Ingest APIs>>
@@ -68,7 +67,6 @@ include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
 include::{es-repo-dir}/fleet/index.asciidoc[]
 include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
-include::{es-repo-dir}/health/health.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
 include::{es-repo-dir}/ingest/apis/index.asciidoc[]

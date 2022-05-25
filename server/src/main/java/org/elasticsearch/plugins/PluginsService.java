@@ -62,16 +62,6 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
-    /** The official plugins that can be installed simply by name. */
-    public static final Set<String> OFFICIAL_PLUGINS;
-    static {
-        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
-            OFFICIAL_PLUGINS = Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
@@ -201,12 +191,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
         var plugInspector = PluginIntrospector.getInstance();
+        var officialPlugins = getOfficialPlugins();
         List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
         for (PluginDescriptor descriptor : pluginDescriptors) {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
             assert plugin != null;
             Class<?> pluginClazz = plugin.instance.getClass();
-            boolean isOfficial = OFFICIAL_PLUGINS.contains(descriptor.getName());
+            boolean isOfficial = officialPlugins.contains(descriptor.getName());
             PluginApiInfo apiInfo = null;
             if (isOfficial == false) {
                 apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
@@ -214,6 +205,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
         }
         return runtimeInfos;
+    }
+
+    private static Set<String> getOfficialPlugins() {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            return Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

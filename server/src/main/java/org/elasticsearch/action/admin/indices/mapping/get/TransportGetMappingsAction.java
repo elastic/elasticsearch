@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
@@ -66,7 +67,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     ) {
         logger.trace("serving getMapping request based on version {}", state.version());
         final Metadata metadata = state.metadata();
-        final ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+        final Map<String, MappingMetadata> mappings = metadata.findMappings(
             concreteIndices,
             indicesService.getFieldFilter(),
             () -> checkCancellation(task)

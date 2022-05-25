@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
   - do:
       indices.create:
         index: test
@@ -51,8 +51,8 @@ setup:
 ---
 "bucket script sales percentage using greather than separator":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
       features: close_to
 
   - do:
@@ -98,8 +98,8 @@ setup:
 ---
 "bucket script sales percentage using dot separator":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
       features: close_to
 
   - do:
@@ -145,8 +145,8 @@ setup:
 ---
 "bucket script sales percentage using top_metrics with metric field":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
       features: close_to
 
   - do:
@@ -204,8 +204,8 @@ setup:
 ---
 "bucket script sales percentage using top_metrics without metric field":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
       features: close_to
 
   - do:
@@ -261,8 +261,8 @@ setup:
 ---
 "bucket script with invalid top metrics aggregation":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
 
   - do:
       catch: bad_request
@@ -305,8 +305,8 @@ setup:
 ---
 "bucket script with invalid top metrics aggregation field":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
 
   - do:
       catch: bad_request
@@ -349,8 +349,8 @@ setup:
 ---
 "bucket script with invalid top metrics non-numeric field":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
 
   - do:
       catch: bad_request
@@ -393,8 +393,8 @@ setup:
 ---
 "bucket script with multiple top metric fields using top metrics name":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
 
   - do:
       catch: bad_request
@@ -438,8 +438,8 @@ setup:
 ---
 "bucket script with multiple top metric fields using fully qualified top metrics field":
   - skip:
-      version: " - 8.2.0"
-      reason: bug fixed in 8.2.1
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
       features: close_to
 
   - do:

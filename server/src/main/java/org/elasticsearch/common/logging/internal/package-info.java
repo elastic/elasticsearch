@@ -9,4 +9,4 @@
 /**
  * Temporary package which will be moved to an impl submodule
  */
-package org.elasticsearch.common.logging.api.impl;
+package org.elasticsearch.common.logging.internal;

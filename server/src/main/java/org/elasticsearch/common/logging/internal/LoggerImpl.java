@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging.api.impl;
+package org.elasticsearch.common.logging.internal;
 
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.logging.Level;
@@ -28,17 +28,17 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public void log(Level level, String message) {
-        log4jLogger.log(Util.log4jLevel(level), message);
+        log4jLogger.log(LevelUtil.log4jLevel(level), message);
     }
 
     @Override
     public void log(Level level, Supplier<String> messageSupplier, Throwable throwable) {
-        log4jLogger.log(Util.log4jLevel(level), mapSupplier(messageSupplier), throwable);
+        log4jLogger.log(LevelUtil.log4jLevel(level), mapSupplier(messageSupplier), throwable);
     }
 
     @Override
     public Level getLevel() {
-        return Util.elasticsearchLevel(log4jLogger.getLevel());
+        return LevelUtil.elasticsearchLevel(log4jLogger.getLevel());
     }
 
     @Override
@@ -78,7 +78,7 @@ public final class LoggerImpl implements Logger {
 
     @Override
     public boolean isEnabled(Level level) {
-        return log4jLogger.isEnabled(Util.log4jLevel(level));
+        return log4jLogger.isEnabled(LevelUtil.log4jLevel(level));
     }
 
     @Override

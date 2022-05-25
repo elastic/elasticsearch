@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.common.logging.internal.LogManagerFactoryImpl;
+
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;
@@ -355,5 +357,5 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
-    provides org.elasticsearch.logging.spi.LogManagerFactory with org.elasticsearch.common.logging.api.impl.LogManagerFactory;
+    provides org.elasticsearch.logging.internal.spi.LogManagerFactory with LogManagerFactoryImpl;
 }

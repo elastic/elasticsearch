@@ -6,15 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging.api.impl;
+package org.elasticsearch.common.logging.internal;
 
-import org.elasticsearch.logging.spi.StandardLevels;
+import org.elasticsearch.logging.internal.spi.StandardLevels;
 
-public final class Util {
+public final class LevelUtil {
 
-    private Util() {}
+    private LevelUtil() {}
 
     public static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
+
         return switch (level.getSeverity()) {
             case StandardLevels.OFF -> org.apache.logging.log4j.Level.OFF;
             case StandardLevels.FATAL -> org.apache.logging.log4j.Level.FATAL;

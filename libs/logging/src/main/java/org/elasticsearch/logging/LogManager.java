@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.spi.LogManagerFactory;
+import org.elasticsearch.logging.internal.spi.LogManagerFactory;
 
 /**
  * A class used for creating loggers.

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.spi;
+package org.elasticsearch.logging.internal.spi;
 
 import org.elasticsearch.logging.Logger;
 

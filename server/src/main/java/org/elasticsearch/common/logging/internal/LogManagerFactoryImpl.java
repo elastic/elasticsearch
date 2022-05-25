@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging.api.impl;
+package org.elasticsearch.common.logging.internal;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.spi.LogManagerFactory;
 
-public class LogManagerFactory implements org.elasticsearch.logging.spi.LogManagerFactory {
+public class LogManagerFactoryImpl implements LogManagerFactory {
     @Override
     public Logger getLogger(String name) {
         // TODO PG logger impl instance caching
@@ -20,6 +21,7 @@ public class LogManagerFactory implements org.elasticsearch.logging.spi.LogManag
 
     @Override
     public Logger getLogger(Class<?> clazz) {
+        clazz.getModule();
         return new LoggerImpl(LogManager.getLogger(clazz));
     }
 }

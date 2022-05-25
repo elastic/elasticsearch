@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging.api.impl;
+package org.elasticsearch.common.logging.internal;
 
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.logging.Level;

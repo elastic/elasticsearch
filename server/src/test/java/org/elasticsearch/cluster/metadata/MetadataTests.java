@@ -774,22 +774,18 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1", "index2", "index3" },
-                index -> {
-                    if (index.equals("index1")) {
-                        return field -> field.startsWith("name.") == false
-                            && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false
-                            && field.equals("address.location") == false;
-                    }
-                    if (index.equals("index2")) {
-                        return field -> false;
-                    }
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
-                },
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
+                if (index.equals("index1")) {
+                    return field -> field.startsWith("name.") == false
+                        && field.startsWith("properties.key.") == false
+                        && field.equals("age") == false
+                        && field.equals("address.location") == false;
+                }
+                if (index.equals("index2")) {
+                    return field -> false;
+                }
+                return MapperPlugin.NOOP_FIELD_PREDICATE;
+            }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");

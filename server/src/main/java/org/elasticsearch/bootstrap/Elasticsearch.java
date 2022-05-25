@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -67,7 +69,8 @@ class Elasticsearch {
                 serverArgs.daemonize(),
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
-                serverArgs.keystorePassword()
+                serverArgs.keystorePassword(),
+                serverArgs.pidFile()
             );
 
             err.println(BootstrapInfo.SERVER_READY_MARKER);
@@ -182,12 +185,10 @@ class Elasticsearch {
             return;
         }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (Files.exists(pidFile)) {
-                try {
-                    Files.delete(pidFile);
-                } catch (IOException e) {
-                    // ignore, nothing we can do because are shutting down
-                }
+            try {
+                Files.deleteIfExists(pidFile);
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to delete pid file " + pidFile, e);
             }
         }, "elasticsearch[pidfile-cleanup]"));
 
@@ -212,10 +213,10 @@ class Elasticsearch {
         }
     }
 
-    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword, Path pidFile)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword);
+            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword, pidFile);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

@@ -310,4 +310,21 @@ public class ThreadPoolTests extends ESTestCase {
             assertTrue(terminate(threadPool));
         }
     }
+
+    public void testForceMergeThreadPoolSize() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            final int expectedSize = Math.max(1, allocatedProcessors / 8);
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.FORCE_MERGE);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
 }

@@ -332,9 +332,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
         logger.info("--> reducing disk size of node [{}/{}] so that all shards can fit on the node", otherDataNode, otherDataNodeId);
-        ShardIdSize shardIdToIgnore = randomFrom(shardIds);
-        long totalSpace = shardIds.stream().filter(e -> e.equals(shardIdToIgnore) == false).mapToLong(ShardIdSize::size).sum()
-            + WATERMARK_BYTES + 1024L;
+        long totalSpace = shardIds.stream().mapToLong(ShardIdSize::size).sum() + WATERMARK_BYTES + 1024L - 1L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
@@ -375,6 +373,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
                 .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
                 .toList();
+            record ShardIdState(ShardId shardId, ShardRoutingState state) {}
+            logger.info("Mounted shards {}", searchableSnapshotShards.stream().map(s -> new ShardIdState(s.shardId(), s.state())).toList());
+
             assertThat(
                 (int) searchableSnapshotShards.stream().filter(s -> s.state() == ShardRoutingState.STARTED).count(),
                 equalTo(searchableSnapshotShards.size() - 1)

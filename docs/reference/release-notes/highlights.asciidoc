@@ -11,7 +11,7 @@ endif::[]
 Other versions:
 
 {ref-bare}/8.2/release-highlights.html[8.2]
-{ref-bare}/8.1/release-highlights.html[8.1]
+| {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
 // The notable-highlights tag marks entries that

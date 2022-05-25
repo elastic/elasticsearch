@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -208,9 +207,6 @@ public class BucketHelpers {
                     value = ((Number) propertyValue).doubleValue();
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-                } else if (propertyValue instanceof NumericMetricsAggregation.MultiValue) {
-                    final String metricName = aggPathAsList.get(aggPathAsList.size() - 1);
-                    value = ((NumericMetricsAggregation.MultiValue) propertyValue).value(metricName);
                 } else {
                     throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }

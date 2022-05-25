@@ -229,18 +229,20 @@ public class BwcVersions {
         return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
-    public List<Version> getIndexCompatible() {
-        return filterSupportedVersions(
-            versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList()
-        );
+    public List<Version> getLocalIndexCompatible() {
+        return filterSupportedVersions(getAllIndexCompatible());
+    }
+
+    public List<Version> getAllIndexCompatible() {
+        return versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
-        getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
+        getLocalIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
-        getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
+        getLocalIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public List<Version> getWireCompatible() {
@@ -272,7 +274,7 @@ public class BwcVersions {
     }
 
     public List<Version> getUnreleasedIndexCompatible() {
-        List<Version> unreleasedIndexCompatible = new ArrayList<>(getIndexCompatible());
+        List<Version> unreleasedIndexCompatible = new ArrayList<>(getLocalIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedIndexCompatible);
     }

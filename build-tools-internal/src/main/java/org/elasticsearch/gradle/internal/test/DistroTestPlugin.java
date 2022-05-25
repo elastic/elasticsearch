@@ -142,7 +142,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
 
             if ((distribution.getType() == DEB || distribution.getType() == RPM) && distribution.getBundledJdk()) {
-                for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
+                for (Version version : BuildParams.getBwcVersions().getLocalIndexCompatible()) {
                     final ElasticsearchDistribution bwcDistro;
                     if (version.equals(Version.fromString(distribution.getVersion()))) {
                         // this is the same as the distribution we are testing
@@ -258,7 +258,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Map<String, TaskProvider<?>> versionTasks(Project project, String taskPrefix) {
         Map<String, TaskProvider<?>> versionTasks = new HashMap<>();
 
-        for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
+        for (Version version : BuildParams.getBwcVersions().getLocalIndexCompatible()) {
             versionTasks.put(version.toString(), project.getTasks().register(taskPrefix + ".v" + version));
         }
 

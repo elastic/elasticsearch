@@ -1,0 +1,495 @@
+setup:
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+                format: "yyyy-MM-dd"
+              size:
+                type: keyword
+              price:
+                type: double
+              discount:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "small", "price": "33.90", "discount": 0.13 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-02", "size": "small", "price": "31.90", "discount": 0.14 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "medium", "price": "45.00", "discount": 0.25 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "medium", "price": "35.89", "discount": 0.20 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-02", "size": "small", "price": "33.90", "discount": 0.12 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "small", "price": "29.90", "discount": 0.05 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-02", "size": "medium", "price": "19.89", "discount": 0.12 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "medium", "price": "16.90", "discount": 0.13 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-02", "size": "small", "price": "23.90", "discount": 0.20 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-01", "size": "small", "price": "17.90", "discount": 0.15 }'
+          - '{ "index": { } }'
+          - '{ "date": "2020-05-02", "size": "medium", "price": "14.90", "discount": 0.12 }'
+
+---
+"bucket script sales percentage using greather than separator":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size>sales
+                      total_sales: total_sales
+                    script: "params.small_size_sales / params.total_sales * 100"
+
+
+  - match: { hits.total.value: 11 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.sales_per_month.buckets: 1 }
+  - match: { aggregations.sales_per_month.buckets.0.doc_count: 11 }
+  - match: { aggregations.sales_per_month.buckets.0.small_size.doc_count: 6 }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.sales.value: { value: 171.39, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.total_sales.value: { value: 303.98, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size_percentage.value: { value: 56.38, error: 0.01 } }
+
+
+---
+"bucket script sales percentage using dot separator":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                    script: "params.small_size_sales / params.total_sales * 100"
+
+
+  - match: { hits.total.value: 11 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.sales_per_month.buckets: 1 }
+  - match: { aggregations.sales_per_month.buckets.0.doc_count: 11 }
+  - match: { aggregations.sales_per_month.buckets.0.small_size.doc_count: 6 }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.sales.value: { value: 171.39, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.total_sales.value: { value: 303.98, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size_percentage.value: { value: 56.38, error: 0.01 } }
+
+
+---
+"bucket script sales percentage using top_metrics with metric field":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_discount:
+                      top_metrics:
+                        metrics:
+                          field: discount
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      # NOTE: we keep this notation valid for backward compatibility, but we make the additional
+                      # `.discount` metric qualifier not required (see next test)
+                      best_discount: small_size>best_discount.discount
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+
+  - match: { hits.total.value: 11 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.sales_per_month.buckets: 1 }
+  - match: { aggregations.sales_per_month.buckets.0.doc_count: 11 }
+  - match: { aggregations.sales_per_month.buckets.0.small_size.doc_count: 6 }
+  - length: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top: 1 }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.sort.0: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.metrics.discount: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.sales.value: { value: 171.39, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.total_sales.value: { value: 303.98, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size_percentage.value: { value: 45.10, error: 0.01 } }
+
+---
+"bucket script sales percentage using top_metrics without metric field":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_discount:
+                      top_metrics:
+                        metrics:
+                          field: discount
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      best_discount: small_size>best_discount
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+
+  - match: { hits.total.value: 11 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.sales_per_month.buckets: 1 }
+  - match: { aggregations.sales_per_month.buckets.0.doc_count: 11 }
+  - match: { aggregations.sales_per_month.buckets.0.small_size.doc_count: 6 }
+  - length: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top: 1 }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.sort.0: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.metrics.discount: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.sales.value: { value: 171.39, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.total_sales.value: { value: 303.98, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size_percentage.value: { value: 45.10, error: 0.01 } }
+
+---
+"bucket script with invalid top metrics aggregation":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_discount:
+                      top_metrics:
+                        metrics:
+                          field: discount
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      best_discount: small_size>unknown_metric
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+---
+"bucket script with invalid top metrics aggregation field":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_discount:
+                      top_metrics:
+                        metrics:
+                          field: discount
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      best_discount: small_size>best_discount>unknown_metric
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+---
+"bucket script with invalid top metrics non-numeric field":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_size:
+                      top_metrics:
+                        metrics:
+                          field: size
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      best_size: small_size>best_size
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+---
+"bucket script with multiple top metric fields using top metrics name":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_size:
+                      top_metrics:
+                        metrics:
+                          - field: size
+                          - field: discount
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      best_size: small_size>best_size
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+---
+"bucket script with multiple top metric fields using fully qualified top metrics field":
+  - skip:
+      version: " - 8.2.0"
+      reason: bug fixed in 8.2.1
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            sales_per_month:
+              date_histogram:
+                field: date
+                calendar_interval: month
+              aggs:
+                total_sales:
+                  sum:
+                    field: price
+                small_size:
+                  filter:
+                    term:
+                      size: small
+                  aggs:
+                    sales:
+                      sum:
+                        field: price
+                    best_discount:
+                      top_metrics:
+                        metrics:
+                          - field: discount
+                          - field: size
+                        sort:
+                          discount: desc
+                        size: 1
+                small_size_percentage:
+                  bucket_script:
+                    buckets_path:
+                      small_size_sales: small_size.sales
+                      total_sales: total_sales
+                      # NOTE: the additional `.discount` qualifier is required since the top metrics includes two metric fields
+                      best_discount: small_size>best_discount.discount
+                    script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
+
+
+  - match: { hits.total.value: 11 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.sales_per_month.buckets: 1 }
+  - match: { aggregations.sales_per_month.buckets.0.doc_count: 11 }
+  - match: { aggregations.sales_per_month.buckets.0.small_size.doc_count: 6 }
+  - length: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top: 1 }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.sort.0: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.best_discount.top.0.metrics.discount: { value: 0.200, error: 0.001 }}
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size.sales.value: { value: 171.39, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.total_sales.value: { value: 303.98, error: 0.01 } }
+  - close_to: { aggregations.sales_per_month.buckets.0.small_size_percentage.value: { value: 45.10, error: 0.01 } }

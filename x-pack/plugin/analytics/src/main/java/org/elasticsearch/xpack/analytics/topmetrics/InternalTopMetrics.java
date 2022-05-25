@@ -15,6 +15,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -33,7 +34,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
-public class InternalTopMetrics extends InternalMultiValueAggregation {
+public class InternalTopMetrics extends InternalMultiValueAggregation implements NumericMetricsAggregation.MultiValue {
     private final SortOrder sortOrder;
     private final int size;
     private final List<String> metricNames;
@@ -214,6 +215,35 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     @Override
     public Iterable<String> valueNames() {
         return metricNames;
+    }
+
+    /**
+     * Return the result of a value by name or the only available value,
+     * if only one metric is present.
+     *
+     * @param metricName
+     * @return
+     */
+    @Override
+    public double value(final String metricName) {
+        return Double.parseDouble(getValuesAsStrings(metricValueByNameOrSingleMetricValue(metricName)).get(0));
+    }
+
+    private String metricValueByNameOrSingleMetricValue(final String metricName) {
+        return metricNames.stream().filter(metricName::equals).findFirst().orElseGet(() -> {
+            if (metricNames.size() != 1) {
+                throw new IllegalArgumentException(
+                    "top_metrics ["
+                        + name
+                        + "] no such numeric metric ["
+                        + metricName
+                        + "] or multiple metrics available ["
+                        + String.join(", ", metricNames)
+                        + "]"
+                );
+            }
+            return metricNames.get(0);
+        });
     }
 
     @Override

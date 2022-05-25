@@ -1,0 +1,5 @@
+pr: 87117
+summary: Make top metrics field name optional when used in bucket script
+area: Aggregations
+type: bug
+issues: []

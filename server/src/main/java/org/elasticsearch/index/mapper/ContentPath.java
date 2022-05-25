@@ -20,6 +20,10 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
+    private int dottedFieldNamePrefixIndex = 0;
+
+    private String[] dottedFieldNamePrefix = new String[10];
+
     private boolean withinLeafObject = false;
 
     public ContentPath() {
@@ -33,13 +37,11 @@ public final class ContentPath {
     public ContentPath(int offset) {
         this.sb = new StringBuilder();
         this.offset = offset;
-        this.index = 0;
     }
 
     public ContentPath(String path) {
         this.sb = new StringBuilder();
         this.offset = 0;
-        this.index = 0;
         add(path);
     }
 
@@ -54,6 +56,28 @@ public final class ContentPath {
 
     public void remove() {
         path[index--] = null;
+    }
+
+    public void addDottedFieldNamePrefix(String name) {
+        dottedFieldNamePrefix[dottedFieldNamePrefixIndex++] = name;
+        if (dottedFieldNamePrefixIndex == dottedFieldNamePrefix.length) { // expand if needed
+            String[] newPath = new String[dottedFieldNamePrefix.length + 10];
+            System.arraycopy(path, 0, newPath, 0, dottedFieldNamePrefix.length);
+            dottedFieldNamePrefix = newPath;
+        }
+    }
+
+    public void removeDottedFieldNamePrefix() {
+        dottedFieldNamePrefix[dottedFieldNamePrefixIndex--] = null;
+    }
+
+    public String dottedFieldName(String name) {
+        sb.setLength(0);
+        for (int i = 0; i < dottedFieldNamePrefixIndex; i++) {
+            sb.append(dottedFieldNamePrefix[i]).append(DELIMITER);
+        }
+        sb.append(name);
+        return sb.toString();
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {

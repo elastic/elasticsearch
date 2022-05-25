@@ -316,11 +316,11 @@ public final class DocumentParser {
                     parseArray(context, mapper, currentFieldName);
                     break;
                 case VALUE_NULL:
-                    parseNullValue(context, mapper, currentFieldName);
+                    parseNullValue(context, mapper, context.path().dottedFieldName(currentFieldName));
                     break;
                 default:
                     if (token.isValue()) {
-                        parseValue(context, mapper, currentFieldName, token);
+                        parseValue(context, mapper, context.path().dottedFieldName(currentFieldName), token);
                     }
                     break;
             }
@@ -443,6 +443,9 @@ public final class DocumentParser {
     private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
         Mapper objectMapper = getMapper(context, mapper, currentFieldName);
+        if (mapper.subobjects() == false) {
+            //TODO here we want to check that the mapper is a field mapper that can handle objects, otherwise pretend we found no mapper
+        }
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
@@ -467,27 +470,43 @@ public final class DocumentParser {
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
+            boolean dottedFieldName = false;
+            boolean mustResetWithinLeafObject = false;
             Mapper dynamicObjectMapper;
             if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
+            } else if (mapper.subobjects() == false){
+                dynamicObjectMapper = mapper;
+                dottedFieldName = true;
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
                 context.addDynamicMapper(dynamicObjectMapper);
+                if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
+                    if (objectMapper.subobjects() == false) {
+                        context.path().setWithinLeafObject(true);
+                        mustResetWithinLeafObject = true;
+                    }
+                }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
             }
-            context.path().add(currentFieldName);
-            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
-                if (objectMapper.subobjects() == false) {
-                    context.path().setWithinLeafObject(true);
-                }
+            if (dottedFieldName) {
+                context.path().addDottedFieldNamePrefix(currentFieldName);
+            } else {
+                context.path().add(currentFieldName);
             }
             parseObjectOrField(context, dynamicObjectMapper);
-            context.path().setWithinLeafObject(false);
-            context.path().remove();
+            if (mustResetWithinLeafObject) {
+                context.path().setWithinLeafObject(false);
+            }
+            if (dottedFieldName) {
+                context.path().removeDottedFieldNamePrefix();
+            } else {
+                context.path().remove();
+            }
         }
     }
 

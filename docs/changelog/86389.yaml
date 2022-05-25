@@ -1,5 +1,5 @@
 pr: 86389
 summary: "[ML][Transform] retry transform search if remote clusters are skipped"
-area: "Transform"
+area: Transform
 type: bug
-issues: [84090]
+issues: []

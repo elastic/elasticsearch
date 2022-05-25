@@ -1,6 +1,0 @@
-pr: 86192
-summary: Check if searchable snapshots cache pre-allocation is successful in Windows
-area: Snapshot/Restore
-type: bug
-issues:
- - 85725

@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -65,10 +64,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             assert in instanceof PlaceHolderFieldMapper;
             unknownParams.putAll(((PlaceHolderFieldMapper) in).unknownParams);
-            super.merge(in, conflicts);
+            super.merge(in, conflicts, mapperBuilderContext);
         }
 
         @Override
@@ -86,8 +85,8 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of();
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
         }
 
         @Override

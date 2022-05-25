@@ -1,5 +1,0 @@
-pr: 83920
-summary: "TSDB: Reject the nested object fields that are configured time_series_dimension"
-area: TSDB
-type: enhancement
-issues: []

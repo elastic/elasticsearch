@@ -1,0 +1,6 @@
+pr: 87082
+summary: Increase `force_merge` threadpool size
+area: Engine
+type: enhancement
+issues:
+ - 84943

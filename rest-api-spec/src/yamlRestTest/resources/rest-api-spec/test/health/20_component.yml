@@ -1,7 +1,7 @@
 ---
 "cluster health test drilling down into a component":
   - skip:
-      version: "- 8.2.99"
+      version: "- 8.3.99"
       reason: "health drilldown was only added in 8.3.0, and master_is_stable in 8.4.0"
 
   - do:

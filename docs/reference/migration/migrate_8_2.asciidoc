@@ -9,7 +9,7 @@ your application to {es} 8.2.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.2.1-SNAPSHOT]
+coming::[8.2.2-SNAPSHOT]
 
 // NOTE: The notable-breaking-changes tagged regions are re-used in the
 // Installation and Upgrade Guide

@@ -11,8 +11,12 @@ package org.elasticsearch.index.search.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -21,13 +25,23 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
-
 public final class ShardSearchStats implements SearchOperationListener {
+
+    // This setting exists only for test purposes, and cannot be changed outside of tests
+    public static final Setting<Integer> MAX_SEARCH_STATS_GROUPS_SETTING = Setting.intSetting(
+        "index.stats.max_search_groups",
+        1000,
+        Setting.Property.IndexScope
+    );
 
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
-    private volatile Map<String, StatsHolder> groupsStats = emptyMap();
+    private final Map<String, StatsHolder> groupsStats = ConcurrentCollections.newConcurrentMap();
+    private final int maxGroups;
+
+    public ShardSearchStats(IndexSettings indexSettings) {
+        this.maxGroups = indexSettings.getValue(MAX_SEARCH_STATS_GROUPS_SETTING);
+    }
 
     /**
      * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
@@ -111,19 +125,22 @@ public final class ShardSearchStats implements SearchOperationListener {
         consumer.accept(totalStats);
         if (searchContext.groupStats() != null) {
             for (String group : searchContext.groupStats()) {
-                consumer.accept(groupStats(group));
+                StatsHolder stats = groupStats(group);
+                if (stats != null) {
+                    consumer.accept(stats);
+                }
             }
         }
     }
 
     private StatsHolder groupStats(String group) {
         StatsHolder stats = groupsStats.get(group);
-        if (stats == null) {
+        if (stats == null && groupsStats.size() < maxGroups) {
             synchronized (this) {
                 stats = groupsStats.get(group);
-                if (stats == null) {
+                if (stats == null && groupsStats.size() < maxGroups) {
                     stats = new StatsHolder();
-                    groupsStats = Maps.copyMapWithAddedEntry(groupsStats, group, stats);
+                    groupsStats.put(group, stats);
                 }
             }
         }

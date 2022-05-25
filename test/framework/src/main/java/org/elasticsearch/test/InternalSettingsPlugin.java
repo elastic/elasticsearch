@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -62,6 +63,7 @@ public final class InternalSettingsPlugin extends Plugin {
             IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
             IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
             IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
+            ShardSearchStats.MAX_SEARCH_STATS_GROUPS_SETTING,
             FsService.ALWAYS_REFRESH_SETTING
         );
     }

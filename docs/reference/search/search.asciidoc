@@ -654,7 +654,8 @@ exclude fields from this subset using the `excludes` property.
 (Optional, array of strings)
 Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
-<<indices-stats,indices stats API>>.
+<<indices-stats,indices stats API>>. At maximum, only 1,000 groups will be
+tracked. Beyond this number, no new groups will be added to the stats.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

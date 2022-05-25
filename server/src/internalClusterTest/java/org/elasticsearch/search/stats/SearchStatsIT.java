@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -20,13 +21,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -53,7 +57,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -242,5 +246,40 @@ public class SearchStatsIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
+    }
+
+    public void testMaxStatsGroups() {
+        // clear all stats first
+        client().admin().indices().prepareStats().clear().get();
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(ShardSearchStats.MAX_SEARCH_STATS_GROUPS_SETTING.getKey(), 2)
+            )
+        );
+        ensureGreen("test");
+
+        client().prepareIndex("test").setSource("field", "value").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        SearchResponse searchResponse = internalCluster().coordOnlyNodeClient()
+            .prepareSearch()
+            .setStats("group1", "group2", "group3")
+            .get();
+        assertAllSuccessful(searchResponse);
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().setGroups("*").get();
+        Set<String> groups = indicesStats.getTotal().getSearch().getGroupStats().keySet();
+        assertEquals(2, groups.size());
+
+        searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch().setStats("group1", "group4").get();
+        assertAllSuccessful(searchResponse);
+        indicesStats = client().admin().indices().prepareStats().setGroups("*").get();
+        assertEquals(groups, indicesStats.getTotal().getSearch().getGroupStats().keySet());
+
+        searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch().setStats("group5").get();
+        assertAllSuccessful(searchResponse);
+        indicesStats = client().admin().indices().prepareStats().setGroups("*").get();
+        assertEquals(groups, indicesStats.getTotal().getSearch().getGroupStats().keySet());
     }
 }

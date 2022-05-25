@@ -118,9 +118,9 @@ public class NerProcessorTests extends ESTestCase {
             assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
             assertThat(result.getEntityGroups().size(), equalTo(2));
             assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-            assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
+            assertThat(result.getEntityGroups().get(0).getClassName(), equalTo("ORG"));
             assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-            assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
+            assertThat(result.getEntityGroups().get(1).getClassName(), equalTo("LOC"));
         }
     }
 
@@ -146,9 +146,9 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo("ORG"));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo("LOC"));
     }
 
     public void testProcessResults_withIobMap() {
@@ -183,9 +183,9 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo("ORG"));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo("LOC"));
     }
 
     public void testGroupTaggedTokens() throws IOException {

@@ -86,7 +86,7 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        ServerArgs args = createArgs(options, env, keystorePassword);
+        ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
@@ -168,7 +168,7 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
-    protected void validatePidFile(Path pidFile) throws UserException {
+    private void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
             throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
@@ -178,14 +178,15 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+        throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
         if (options.has(pidfileOption)) {
             pidFile = options.valueOf(pidfileOption);
             if (pidFile.isAbsolute() == false) {
-                pidFile = Path.of("").resolve(pidFile).toAbsolutePath();
+                pidFile = processInfo.workingDir().resolve(pidFile.toString()).toAbsolutePath();
             }
             validatePidFile(pidFile);
         }

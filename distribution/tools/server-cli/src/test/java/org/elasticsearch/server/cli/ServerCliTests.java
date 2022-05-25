@@ -113,15 +113,12 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testPidDirectories() throws Exception {
         Path tmpDir = createTempDir();
-        Command command = newCommand();
 
         Path pidFileArg = tmpDir.resolve("pid");
-        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(pidFileArg.toString()));
         argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
         assertOk(new String[] { "-p", pidFileArg.toString() });
 
-        pidFileValidator = (path) -> assertThat(path.toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
-        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(Path.of("").resolve("pid").toAbsolutePath().toString()));
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(esHomeDir.resolve("pid").toAbsolutePath().toString()));
         assertOk(new String[] { "-p", "pid" });
     }
 
@@ -371,15 +368,6 @@ public class ServerCliTests extends CommandTestCase {
                 assertThat(toolname, equalTo("auto-configure-node"));
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;
-            }
-
-            @Override
-            protected void validatePidFile(Path pidFile) throws UserException {
-                if (pidFileValidator != null) {
-                    pidFileValidator.accept(pidFile);
-                } else {
-                    super.validatePidFile(pidFile);
-                }
             }
 
             @Override

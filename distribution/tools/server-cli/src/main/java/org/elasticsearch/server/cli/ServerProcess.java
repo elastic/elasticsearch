@@ -149,12 +149,9 @@ public class ServerProcess {
     /**
      * Waits for the subprocess to exit.
      */
-    public void waitFor() {
+    public int waitFor() {
         errorPump.drain();
-        int exitCode = nonInterruptible(jvmProcess::waitFor);
-        if (exitCode != ExitCodes.OK) {
-            throw new RuntimeException("server process exited with status code " + exitCode);
-        }
+        return nonInterruptible(jvmProcess::waitFor);
     }
 
     /**
@@ -171,7 +168,7 @@ public class ServerProcess {
         }
 
         sendShutdownMarker();
-        waitFor();
+        waitFor(); // ignore exit code, we are already shutting down
     }
 
     private static void sendArgs(ServerArgs args, OutputStream processStdin) {

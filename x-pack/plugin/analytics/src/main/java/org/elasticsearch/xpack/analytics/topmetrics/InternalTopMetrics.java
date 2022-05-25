@@ -235,9 +235,9 @@ public class InternalTopMetrics extends InternalMultiValueAggregation implements
                 throw new IllegalArgumentException(
                     "top_metrics ["
                         + name
-                        + "] no such numeric metric ["
+                        + "] no numeric metric available matching ["
                         + metricName
-                        + "] or multiple metrics available ["
+                        + "], available metrics ["
                         + String.join(", ", metricNames)
                         + "]"
                 );

@@ -52,9 +52,10 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testOneEighthAllocatedProcessorsMinOne() {
-        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(4), equalTo(1));
-        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(8), equalTo(1));
-        assertThat(ThreadPool.oneEighthAllocatedProcessorsMinOne(32), equalTo(4));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
     }
 
     public void testAbsoluteTime() throws Exception {

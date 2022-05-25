@@ -221,7 +221,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.FORCE_MERGE,
-            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessorsMinOne(allocatedProcessors), -1, false)
+            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1, false)
         );
         builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
         builders.put(
@@ -554,7 +554,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    static int oneEighthAllocatedProcessorsMinOne(final int allocatedProcessors) {
+    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 

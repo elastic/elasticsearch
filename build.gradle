@@ -105,7 +105,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.indexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date

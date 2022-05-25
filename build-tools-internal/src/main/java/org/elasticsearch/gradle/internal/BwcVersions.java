@@ -234,7 +234,10 @@ public class BwcVersions {
     }
 
     public List<Version> getAllIndexCompatible() {
-        return versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList();
+        return versions.stream()
+            .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
+            .map(v -> v.elasticsearch)
+            .toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {

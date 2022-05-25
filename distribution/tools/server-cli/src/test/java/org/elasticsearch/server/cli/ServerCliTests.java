@@ -271,12 +271,19 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
+    public void testServerExitsNonZero() throws Exception {
+        mockServerExitCode = 140;
+        int exitCode = executeMain();
+        assertThat(exitCode, equalTo(140));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
     Consumer<ServerArgs> argsValidator;
     private final MockServerProcess mockServer = new MockServerProcess();
+    int mockServerExitCode = 0;
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
@@ -285,6 +292,7 @@ public class ServerCliTests extends CommandTestCase {
     public void resetCommand() {
         argsValidator = null;
         autoConfigCallback = null;
+        mockServerExitCode = 0;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -330,9 +338,10 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public void waitFor() {
+        public int waitFor() {
             assert waitForCalled == false;
             waitForCalled = true;
+            return mockServerExitCode;
         }
 
         @Override

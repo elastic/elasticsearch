@@ -44,6 +44,9 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
 
+    public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
+    public static final String NO_CORRUPT_REPOS = "No corrupted snapshot repositories.";
+
     private final ClusterService clusterService;
 
     public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
@@ -72,7 +75,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (snapshotMetadata.repositories().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No repositories configured.",
+                NO_REPOS_CONFIGURED,
                 HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -91,7 +94,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (corrupted.isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No corrupted repositories.",
+                "No corrupted snapshot repositories.",
                 explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -130,7 +133,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     private static String createCorruptedRepositorySummary(List<String> corrupted) {
-        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted repositories: ");
+        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted snapshot repositories: ");
         collectionToDelimitedStringWithLimit(corrupted, ",", "[", "].", 1024, message);
         return message.toString();
     }

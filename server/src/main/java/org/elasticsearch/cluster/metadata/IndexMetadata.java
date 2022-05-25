@@ -866,6 +866,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
     public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+
+    public static final String INDEX_ROLLUP_STATUS_KEY = "index.rollup.status";
     public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
         INDEX_ROLLUP_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -875,6 +877,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         INDEX_ROLLUP_SOURCE_NAME_KEY,
         Property.IndexScope,
         Property.PrivateIndex
+    );
+
+    public enum RollupTaskStatus {
+        STARTED,
+        SUCCESS;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
+        RollupTaskStatus.class,
+        INDEX_ROLLUP_STATUS_KEY,
+        RollupTaskStatus.SUCCESS,
+        Property.IndexScope,
+        Property.InternalIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
@@ -1247,24 +1267,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
-        out.writeVInt(customData.size());
-        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(inSyncAllocationIds.size());
-        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
-            out.writeVInt(cursor.getKey());
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
-        }
-        out.writeVInt(rolloverInfos.size());
-        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
-            rolloverInfo.writeTo(out);
-        }
+        out.writeCollection(aliases.values());
+        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(
+            inSyncAllocationIds,
+            StreamOutput::writeVInt,
+            (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
+        );
+        out.writeCollection(rolloverInfos.values());
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }

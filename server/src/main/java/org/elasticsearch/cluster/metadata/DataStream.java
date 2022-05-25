@@ -35,13 +35,14 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -111,7 +112,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         IndexMode indexMode
     ) {
         this.name = name;
-        this.indices = Collections.unmodifiableList(indices);
+        this.indices = List.copyOf(indices);
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -121,7 +122,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        assert assertConsistent(this.indices);
+    }
+
+    private static boolean assertConsistent(List<Index> indices) {
         assert indices.size() > 0;
+        final Set<String> indexNames = new HashSet<>();
+        for (Index index : indices) {
+            final boolean added = indexNames.add(index.getName());
+            assert added : "found duplicate index entries in " + indices;
+        }
+        return true;
     }
 
     public String getName() {

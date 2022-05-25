@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
@@ -27,7 +28,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -412,8 +412,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             )
         );
 
-        // rollupV2
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             actions.add(RollupIndexerAction.INSTANCE);
             actions.add(RollupAction.INSTANCE);
         }
@@ -566,7 +566,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             )
         );
 
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             namedWriteables.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new));
         }
 

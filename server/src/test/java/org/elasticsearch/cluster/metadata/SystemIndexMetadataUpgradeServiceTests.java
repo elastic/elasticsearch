@@ -57,9 +57,10 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
      */
     public void testUpgradeVisibleIndexToSystemIndex() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
-        IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(false)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+            .build();
 
         assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
@@ -69,34 +70,38 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
      */
     public void testHiddenSettingRemovedFromSystemIndices() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
-        IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(true)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+            .build();
 
         assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
     public void testUpgradeIndexWithVisibleAlias() throws Exception {
-        IndexMetadata.Builder visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(false)
             .settings(getSettingsBuilder())
-            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false));
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false))
+            .build();
 
         assertSystemUpgradeHidesAlias(visibleAliasMetadata);
     }
 
     public void testSystemAliasesBecomeHidden() throws Exception {
-        IndexMetadata.Builder visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(true)
             .settings(getSettingsBuilder())
-            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false));
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false))
+            .build();
 
         assertSystemUpgradeHidesAlias(visibleAliasMetadata);
     }
 
-    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
+    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata hiddenIndexMetadata) throws Exception {
+        assertTrue("Metadata should require update but does not", service.requiresUpdate(hiddenIndexMetadata));
         Metadata.Builder clusterMetadata = new Metadata.Builder();
-        clusterMetadata.put(hiddenIndexMetadata);
+        clusterMetadata.put(IndexMetadata.builder(hiddenIndexMetadata));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
@@ -111,9 +116,10 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         assertThat(result.isHidden(), equalTo(true));
     }
 
-    private void assertSystemUpgradeHidesAlias(IndexMetadata.Builder visibleAliasMetadata) throws Exception {
+    private void assertSystemUpgradeHidesAlias(IndexMetadata visibleAliasMetadata) throws Exception {
+        assertTrue("Metadata should require update but does not", service.requiresUpdate(visibleAliasMetadata));
         Metadata.Builder clusterMetadata = new Metadata.Builder();
-        clusterMetadata.put(visibleAliasMetadata);
+        clusterMetadata.put(IndexMetadata.builder(visibleAliasMetadata));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())

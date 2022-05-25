@@ -132,7 +132,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
-        this.downsampleParams = downsample != null ? downsample.getParameters() : null;
+        this.downsampleParams = downsample != null && downsample.getParameters() != null ? new HashMap<>(downsample.getParameters()) : new HashMap<>();
+        this.downsampleParams.put(Function.RANGE_FIELD, downsampleRange);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order == null ? BucketOrder.key(true) : order;
         this.partiallyBuiltBucketComparator = order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
@@ -340,7 +341,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 for (int i = 0; i < valuesCount; i++) {
                     double value = values.nextValue();
                     if (false == timeBucketMetrics.containsKey(preRounding)) {
-                        timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(this));
+                        downsampleParams.put(Function.ROUNDING_FIELD, preRounding);
+                        timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(downsampleParams));
                     }
                     for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                         Long timestamp = entry.getKey();

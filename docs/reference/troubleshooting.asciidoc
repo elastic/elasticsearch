@@ -21,5 +21,3 @@ include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
 include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
-
-include::troubleshooting/data/increase-node-capacity.asciidoc[]

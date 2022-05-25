@@ -55,7 +55,7 @@ thread pool>>. This can result in low throughput and slow search speeds.
 
 [discrete]
 [[each-shard-has-overhead]]
-==== Each index and shard has overhead
+==== Each index, shard and field has overhead
 
 Every index and every shard requires some memory and CPU resources. In most
 cases, a small set of large shards uses fewer resources than many small shards.
@@ -68,20 +68,7 @@ This decreases the number of segments, which means less metadata is kept in
 heap memory.
 
 Every mapped field also carries some overhead in terms of memory usage and disk
-space. While the exact amount resource usage of each additional field depends
-on the type of field, an additional 1kB in memory use for each additional
-mapped field on data nodes is a good approximation in most cases.
-As a result, the more mapped fields you have per index, the fewer
-indices and shards each individual data node will be able to hold,
-all other things being equal. In addition to the per field overhead you should
-have heap available for the base Elasticsearch heap usage as well as the heap
-usage of the workload. For a small workload, 512MB of heap in addition to the
-per field overhead suffice in many cases. For light workloads, it may be possible to
-go even lower.
-For example, holding 1000 indices that each contain 4000 fields will require
-1000 × 4000 × 1024B = 4GB for the fields and another 512MB for a total of
-at least 4.5GB heap on the data node.
-By default {es} will automatically create a mapping for every field in
+space. By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to
 <<explicit-mapping,take control of your mappings>>.
 
@@ -190,18 +177,21 @@ index                                 prirep shard store
 [[shard-count-recommendation]]
 ==== Aim for 3000 indices or fewer per GB of heap memory on master nodes
 
-The number of indices a master node can manage is proportional to the node's
-heap memory. The exact amount of heap memory each additional index requires
-depends on various factors such as the size of the mapping and the number of
-shards per index. Where possible, the master node will deduplicate the mapping
-metadata across indices with identical mappings. Mapping metadata can be
-deduplicated across indices that are created from the same index template as
-long as they do not use dynamic mapping updates.
-Under the assumption that indices are mostly created identically from a small number of templates
-and no dynamic mapping updates are involved, a good rule of thumb is to aim for 3000 indices or
-fewer per GB of heap on master nodes. For example, if your cluster contains 12,000 indices then
-each dedicated master node should have at least 4GB of heap available. For non-dedicated master
-nodes, the same rule holds and should be added to the heap requirements of other node roles.
+The number of indices a master node can manage is proportional to its heap
+size. The exact amount of heap memory needed for each index depends on various
+factors such as the size of the mapping and the number of shards per index.
+
+Where possible, the master node will deduplicate the mapping metadata across
+indices with identical mappings. Mapping metadata will be deduplicated across
+indices which are created from the same index template and
+<<explicit-mapping,do not use dynamic mapping updates>>.
+
+If your indices are are mostly created from a small number of templates and do
+not use dynamic mapping updates then aim for 3000 indices or fewer per GB of
+heap on master nodes. For example, if your cluster contains 12000 indices then
+each dedicated master node should have at least 4GB of heap. For non-dedicated
+master nodes, the same rule holds and should be added to the heap requirements
+of the other roles of each node.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
@@ -220,6 +210,22 @@ node.
 GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
+
+[discrete]
+[[field-count-recommendation]]
+==== Allow 1kB of heap per field per index on data nodes, plus overheads
+
+The exact resource usage of each mapped field depends on its type, but in many
+cases you should allow approximately 1kB of heap overhead per mapped field per
+index held by each data node. You must also allow enough heap for {es}'s
+baseline usage as well as your workload such as indexing, searches and
+aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
+and you may need even less if your workload is very light.
+
+For example, if a data node holds shards from 1000 indices, each containing
+4000 mapped fields, then you should allow approximately 1000 × 4000 × 1kB = 4GB
+of heap for the fields and another 0.5GB of heap for its workload and other
+overheads, and therefore this node will need a heap size of at least 4.5GB.
 
 [discrete]
 [[avoid-node-hotspots]]

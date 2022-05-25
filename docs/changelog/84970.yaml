@@ -1,5 +1,0 @@
-pr: 84970
-summary: '`DotExpandingXContentParser` to expose the original token location'
-area: Search
-type: bug
-issues: []

@@ -93,15 +93,23 @@ public class ServerCliTests extends CommandTestCase {
         assertUsage(containsString(prefix + "[foo]"), "-E", "foo=bar", "foo", "-E", "baz=qux");
     }
 
-    public void testPidFile() throws Exception {
+    public void assertPidFile(String option) throws Exception {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
-        assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
+        terminal.reset();
         argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
-        terminal.reset();
-        assertOk("-p", pidFileArg.toString());
-        terminal.reset();
-        assertOk("--pidfile", pidFileArg.toString());
+        assertOk(option, pidFileArg.toString());
+    }
+
+    public void testPidFile() throws Exception {
+        assertPidFile("-p");
+        assertPidFile("--pidfile");
+
+        assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
+        Path pidParentFile = createTempFile();
+        assertUsage(containsString("exists but is not a directory"), "-p", pidParentFile.resolve("pid").toString());
+        assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
+
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
@@ -243,7 +251,7 @@ public class ServerCliTests extends CommandTestCase {
     public void testKeystorePassword() throws Exception {
         assertKeystorePassword(null); // no keystore exists
         assertKeystorePassword("");
-        assertKeystorePassword("dummypassword");
+        assertKeystorePassword("a-dummy-password");
     }
 
     public void testCloseStopsServer() throws Exception {
@@ -253,12 +261,29 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(mockServer.stopCalled, is(true));
     }
 
+    public void testIgnoreNullExceptionOutput() throws Exception {
+        Command command = newCommand();
+
+        autoConfigCallback = (t, options, env, processInfo) -> { throw new UserException(ExitCodes.NOOP, null); };
+        terminal.reset();
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(terminal.getErrorOutput(), not(containsString("null")));
+    }
+
+    public void testServerExitsNonZero() throws Exception {
+        mockServerExitCode = 140;
+        int exitCode = executeMain();
+        assertThat(exitCode, equalTo(140));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
     Consumer<ServerArgs> argsValidator;
     private final MockServerProcess mockServer = new MockServerProcess();
+    int mockServerExitCode = 0;
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
@@ -267,6 +292,7 @@ public class ServerCliTests extends CommandTestCase {
     public void resetCommand() {
         argsValidator = null;
         autoConfigCallback = null;
+        mockServerExitCode = 0;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -301,15 +327,21 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
+        public long pid() {
+            return 12345;
+        }
+
+        @Override
         public void detach() {
             assert detachCalled == false;
             detachCalled = true;
         }
 
         @Override
-        public void waitFor() {
+        public int waitFor() {
             assert waitForCalled == false;
             waitForCalled = true;
+            return mockServerExitCode;
         }
 
         @Override

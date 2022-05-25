@@ -55,18 +55,18 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNodeWithRandomSettings(Version version) {
-        return randomDesiredNodeWithRandomSettings(version, randomIntBetween(1, 256));
-    }
-
-    public static DesiredNode randomDesiredNodeWithRandomSettings(Version version, int numProcessors) {
-        return randomDesiredNode(version, numProcessors, DesiredNodesTestCase::putRandomSetting);
+        return randomDesiredNode(version, DesiredNodesTestCase::putRandomSetting);
     }
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
-        return randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
+        if (randomBoolean()) {
+            return randomDesiredNode(version, randomProcessor(), settingsProvider);
+        } else {
+            return randomDesiredNode(version, randomIntBetween(1, 256) + randomFloat(), settingsProvider);
+        }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
+    public static DesiredNode randomDesiredNode(Version version, float processors, Consumer<Settings.Builder> settingsProvider) {
         return new DesiredNode(
             randomSettings(settingsProvider),
             processors,
@@ -74,6 +74,25 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
             version
         );
+    }
+
+    public static DesiredNode randomDesiredNode(
+        Version version,
+        DesiredNode.ProcessorsRange processorsRange,
+        Consumer<Settings.Builder> settingsProvider
+    ) {
+        return new DesiredNode(
+            randomSettings(settingsProvider),
+            processorsRange,
+            ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
+            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
+            version
+        );
+    }
+
+    private static DesiredNode.ProcessorsRange randomProcessor() {
+        float minProcessors = randomFloat() + randomIntBetween(1, 16);
+        return new DesiredNode.ProcessorsRange(minProcessors, randomBoolean() ? null : minProcessors + randomIntBetween(0, 10));
     }
 
     public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {

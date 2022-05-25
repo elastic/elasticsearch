@@ -138,7 +138,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
             @Override
             protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {

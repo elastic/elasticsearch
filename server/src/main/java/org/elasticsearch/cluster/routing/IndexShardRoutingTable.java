@@ -620,11 +620,7 @@ public class IndexShardRoutingTable {
 
         public static void writeToThin(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
             out.writeVInt(indexShard.shardId.id());
-
-            out.writeVInt(indexShard.shards.length);
-            for (ShardRouting entry : indexShard.shards) {
-                entry.writeToThin(out);
-            }
+            out.writeArray((o, v) -> v.writeToThin(o), indexShard.shards);
         }
 
     }

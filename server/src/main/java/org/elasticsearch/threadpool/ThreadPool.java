@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
@@ -218,7 +219,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
+        builders.put(
+            Names.FORCE_MERGE,
+            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1, false)
+        );
         builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
         builders.put(
             Names.FETCH_SHARD_STORE,
@@ -479,14 +483,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
-                logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e);
+                logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
             }
-        },
-            (e) -> logger.warn(
-                () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor),
-                e
-            )
-        );
+        }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
     }
 
     protected final void stopCachedTimeThread() {
@@ -553,6 +552,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
+    }
+
+    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 
     public static int searchThreadPoolSize(final int allocatedProcessors) {

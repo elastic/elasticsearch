@@ -34,7 +34,22 @@ public class TestClasspathUtils {
         generateJdkJarHellCheck(projectRoot, ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
     }
 
-    private static void generateJdkJarHellCheck(File projectRoot, Implementation mainImplementation) {
+    private static void generateJdkJarHellCheck(File targetDir, Implementation mainImplementation) {
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+            .name("org.elasticsearch.jdk.JdkJarHellCheck")
+            .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
+            .withParameters(String[].class)
+            .intercept(mainImplementation)
+            .make();
+        try {
+            dynamicType.toJar(targetFile(targetDir));
+        } catch (IOException e) {
+            e.printStackTrace();
+            fail("Cannot setup jdk jar hell classpath");
+        }
+    }
+
+    private static void genenerateJar(File projectRoot, Implementation mainImplementation) {
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
             .name("org.elasticsearch.jdk.JdkJarHellCheck")
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
@@ -50,10 +65,7 @@ public class TestClasspathUtils {
     }
 
     private static File targetFile(File projectRoot) {
-        File targetFile = new File(
-            projectRoot,
-            "sample_jars/build/testrepo/org/elasticsearch/elasticsearch-core/current/elasticsearch-core-current.jar"
-        );
+        File targetFile = new File(projectRoot, "elasticsearch-core-current.jar");
 
         targetFile.getParentFile().mkdirs();
         return targetFile;

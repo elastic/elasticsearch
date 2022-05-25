@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -36,7 +37,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -328,7 +328,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             )
         );
 
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             entries.add(
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
             );

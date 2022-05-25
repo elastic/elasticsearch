@@ -64,6 +64,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -186,7 +187,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
-        logger.trace(() -> new ParameterizedMessage("will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
+        logger.trace(() -> format("will retry recovery with id [%s] in [%s]", recoveryId, retryAfter), reason);
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
@@ -737,11 +738,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void handleException(TransportException e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "[{}][{}] Got exception on recovery",
-                        request.shardId().getIndex().getName(),
-                        request.shardId().id()
-                    ),
+                    () -> format("[%s][%s] Got exception on recovery", request.shardId().getIndex().getName(), request.shardId().id()),
                     e
                 );
             }

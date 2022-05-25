@@ -50,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
@@ -321,20 +322,20 @@ public class FollowersChecker {
 
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
+                            logger.debug(() -> format("%s disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            logger.debug(() -> format("%s health check failed", FollowerChecker.this), exp);
                             reason = "health check failed";
                         } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            logger.debug(() -> format("%s failed too many times", FollowerChecker.this), exp);
                             reason = "followers check retry count exceeded [timeouts="
                                 + timeoutCountSinceLastSuccess
                                 + ", failures="
                                 + failureCountSinceLastSuccess
                                 + "]";
                         } else {
-                            logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
+                            logger.debug(() -> format("%s failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }

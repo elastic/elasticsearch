@@ -7,12 +7,10 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -46,30 +44,9 @@ final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     }
 
     @Override
-    public MultiGeoPointValues getGeoPointValues() {
+    public SortedNumericDocValues getSortedNumericDocValues() {
         try {
-            final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
-            return new MultiGeoPointValues() {
-
-                final GeoPoint point = new GeoPoint();
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return numericValues.advanceExact(doc);
-                }
-
-                @Override
-                public int docValueCount() {
-                    return numericValues.docValueCount();
-                }
-
-                @Override
-                public GeoPoint nextValue() throws IOException {
-                    final long encoded = numericValues.nextValue();
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
-                    return point;
-                }
-            };
+            return DocValues.getSortedNumeric(reader, fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

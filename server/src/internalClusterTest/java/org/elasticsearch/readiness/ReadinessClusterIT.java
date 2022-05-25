@@ -16,6 +16,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
@@ -133,6 +134,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
                 for (String dataNode : dataNodes) {
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+                    s.listenerThreadLatch.await(10, TimeUnit.SECONDS);
                     tcpReadinessProbeFalse(s);
                 }
 

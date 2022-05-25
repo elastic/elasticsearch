@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,6 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
@@ -122,11 +123,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
+                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
             } catch (IOException e) {
-                logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
+                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
             }
         }

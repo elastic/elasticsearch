@@ -90,6 +90,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -1475,8 +1476,8 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                    () -> format(
+                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
                         shardId,
                         request.targetNode(),
                         mds

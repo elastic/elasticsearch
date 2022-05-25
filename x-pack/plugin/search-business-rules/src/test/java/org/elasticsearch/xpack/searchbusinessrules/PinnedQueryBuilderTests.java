@@ -154,8 +154,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
@@ -178,8 +177,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },

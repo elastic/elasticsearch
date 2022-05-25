@@ -34,7 +34,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
-public class InternalTopMetrics extends InternalMultiValueAggregation implements NumericMetricsAggregation.MultiValue {
+public class InternalTopMetrics extends InternalMultiValueAggregation implements NumericMetricsAggregation.SingleValue {
     private final SortOrder sortOrder;
     private final int size;
     private final List<String> metricNames;
@@ -217,35 +217,6 @@ public class InternalTopMetrics extends InternalMultiValueAggregation implements
         return metricNames;
     }
 
-    /**
-     * Return the result of a value by name or the only available value,
-     * if only one metric is present.
-     *
-     * @param metricName
-     * @return
-     */
-    @Override
-    public double value(final String metricName) {
-        return Double.parseDouble(getValuesAsStrings(metricValueByNameOrSingleMetricValue(metricName)).get(0));
-    }
-
-    private String metricValueByNameOrSingleMetricValue(final String metricName) {
-        return metricNames.stream().filter(metricName::equals).findFirst().orElseGet(() -> {
-            if (metricNames.size() != 1) {
-                throw new IllegalArgumentException(
-                    "top_metrics ["
-                        + name
-                        + "] no numeric metric available matching ["
-                        + metricName
-                        + "], available metrics ["
-                        + String.join(", ", metricNames)
-                        + "]"
-                );
-            }
-            return metricNames.get(0);
-        });
-    }
-
     @Override
     protected boolean mustReduceOnSingleInternalAgg() {
         return false;
@@ -265,6 +236,19 @@ public class InternalTopMetrics extends InternalMultiValueAggregation implements
 
     List<TopMetric> getTopMetrics() {
         return topMetrics;
+    }
+
+    @Override
+    public double value() {
+        return Double.parseDouble(getValueAsString());
+    }
+
+    @Override
+    public String getValueAsString() {
+        final String metricName = metricNames.stream().findFirst().orElseThrow(
+            () -> new IllegalArgumentException("top_metrics [" + name + "] has no metric field")
+        );
+        return getValuesAsStrings(metricName).get(0);
     }
 
     private class ReduceState {

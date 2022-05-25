@@ -18,9 +18,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -60,9 +62,26 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         out.writeBoolean(keyed);
     }
 
-    @Override
-    public double value(String name) {
-        return value(Double.parseDouble(name));
+    public double value(final String keyName, final Iterator<Percentile> iterator) {
+        return Arrays.stream(keys).filter(key -> String.valueOf(key).equals(keyName)).findFirst().orElseGet(() -> {
+            if (keys.length != 1) {
+                throw new IllegalArgumentException(
+                    "percentiles ["
+                        + name
+                        + "] no percentiles available matching key ["
+                        + keyName
+                        + "], available keys ["
+                        + String.join(", ", Arrays.stream(keys).mapToObj(String::valueOf).collect(Collectors.joining()))
+                        + "]"
+                );
+            }
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("percentiles [" + name + "] no percentile value available");
+            }
+            return value(iterator.next().getValue());
+        }
+
+        );
     }
 
     @Override

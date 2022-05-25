@@ -61,6 +61,11 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     }
 
     @Override
+    public double value(String keyName) {
+        return super.value(keyName, iterator());
+    }
+
+    @Override
     protected AbstractInternalTDigestPercentiles createReduced(
         String name,
         double[] keys,

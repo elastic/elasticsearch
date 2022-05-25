@@ -36,6 +36,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     }
 
     @Override
+    public double value(String keyName) {
+        return super.value(keyName, iterator());
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

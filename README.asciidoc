@@ -22,7 +22,7 @@ The simplest way to set up Elasticsearch is to create a managed deployment with
 https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
 Cloud].
 
-If you prefer to install and manage Elasticsearch yourself, you can download
+If you prefer to install and manage Elasticsearch yourself, download
 the latest version from 
 https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 

@@ -43,10 +43,8 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.InternalDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -519,7 +517,6 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
-            final DesiredNodesMembershipService desiredNodesMembershipService = new InternalDesiredNodesMembershipService(clusterService);
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
@@ -527,8 +524,7 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                systemIndices,
-                desiredNodesMembershipService
+                systemIndices
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -889,12 +885,7 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            HealthService healthService = createHealthService(
-                clusterService,
-                clusterModule,
-                masterHistoryService,
-                desiredNodesMembershipService
-            );
+            HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -978,7 +969,6 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-                b.bind(DesiredNodesMembershipService.class).toInstance(desiredNodesMembershipService);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1037,19 +1027,14 @@ public class Node implements Closeable {
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
-        MasterHistoryService masterHistoryService,
-        DesiredNodesMembershipService desiredNodesMembershipService
+        MasterHistoryService masterHistoryService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new InstanceHasMasterHealthIndicatorService(clusterService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(
-                clusterService,
-                clusterModule.getAllocationService(),
-                desiredNodesMembershipService
-            )
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

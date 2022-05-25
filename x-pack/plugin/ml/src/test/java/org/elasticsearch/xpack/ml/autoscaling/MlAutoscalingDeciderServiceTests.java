@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1471,11 +1470,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
-            return null;
-        }
-
-        @Override
-        public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
             return null;
         }
 

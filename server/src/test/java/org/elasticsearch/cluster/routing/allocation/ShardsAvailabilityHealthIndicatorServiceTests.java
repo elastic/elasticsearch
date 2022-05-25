@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -1471,7 +1469,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
             return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
         });
-        final DesiredNodesMembershipService desiredNodesMembershipService = () -> DesiredNodes.MembershipInformation.EMPTY;
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, desiredNodesMembershipService);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService);
     }
 }

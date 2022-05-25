@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -48,8 +47,6 @@ public interface AutoscalingDeciderContext {
      * shards
      */
     SnapshotShardSizeInfo snapshotShardSizeInfo();
-
-    DesiredNodes.MembershipInformation desiredNodesMembershipInformation();
 
     /**
      * For long running ops, call this from time to time to check if operation has been cancelled.

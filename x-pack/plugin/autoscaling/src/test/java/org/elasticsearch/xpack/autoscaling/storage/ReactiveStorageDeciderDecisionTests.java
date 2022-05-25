@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -440,7 +439,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             state,
             createClusterInfo(state),
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }
@@ -553,11 +551,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return null;
-        }
-
-        @Override
-        public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
-            return DesiredNodes.MembershipInformation.EMPTY;
         }
 
         @Override

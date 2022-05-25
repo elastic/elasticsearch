@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -130,8 +129,7 @@ public class AllocationServiceTests extends ESTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -259,7 +257,6 @@ public class AllocationServiceTests extends ESTestCase {
             new AllocationDeciders(Collections.emptyList()),
             clusterState,
             ClusterInfo.EMPTY,
-            null,
             null,
             0L
         );

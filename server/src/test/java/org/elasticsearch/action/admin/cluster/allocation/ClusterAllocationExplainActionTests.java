@@ -55,7 +55,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             clusterState,
             null,
             null,
-            null,
             System.nanoTime()
         );
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
@@ -78,7 +77,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null, null)
+            }, null, null)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
@@ -270,6 +269,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, null, System.nanoTime());
+        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, System.nanoTime());
     }
 }

@@ -1108,7 +1108,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             clusterState,
             null,
             null,
-            null,
             0L
         );
         routingAllocation.debugDecision(true);

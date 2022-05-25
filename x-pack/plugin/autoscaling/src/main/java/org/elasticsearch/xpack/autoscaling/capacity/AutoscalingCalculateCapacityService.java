@@ -11,7 +11,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -110,7 +109,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingMemoryInfo memoryInfo,
-        DesiredNodes.MembershipInformation desiredNodesMembershipInfo,
         Runnable ensureNotCancelled
     ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -122,15 +120,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                     .map(
                         e -> Tuple.tuple(
                             e.getKey(),
-                            calculateForPolicy(
-                                e.getValue().policy(),
-                                state,
-                                clusterInfo,
-                                shardSizeInfo,
-                                memoryInfo,
-                                desiredNodesMembershipInfo,
-                                ensureNotCancelled
-                            )
+                            calculateForPolicy(e.getValue().policy(), state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled)
                         )
                     )
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
@@ -146,7 +136,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingMemoryInfo memoryInfo,
-        DesiredNodes.MembershipInformation desiredNodesMembershipInfo,
         Runnable ensureNotCancelled
     ) {
         if (hasUnknownRoles(policy)) {
@@ -163,7 +152,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             clusterInfo,
             shardSizeInfo,
             memoryInfo,
-            desiredNodesMembershipInfo,
             ensureNotCancelled
         );
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
@@ -205,18 +193,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingMemoryInfo memoryInfo,
-        DesiredNodes.MembershipInformation desiredNodesMembershipInfo,
         Runnable ensureNotCancelled
     ) {
-        return new DefaultAutoscalingDeciderContext(
-            roles,
-            state,
-            clusterInfo,
-            shardSizeInfo,
-            memoryInfo,
-            desiredNodesMembershipInfo,
-            ensureNotCancelled
-        );
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled);
     }
 
     /**
@@ -250,7 +229,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
         private final Runnable ensureNotCancelled;
-        private final DesiredNodes.MembershipInformation desiredNodesMembershipInfo;
 
         DefaultAutoscalingDeciderContext(
             SortedSet<String> roles,
@@ -258,7 +236,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             ClusterInfo clusterInfo,
             SnapshotShardSizeInfo snapshotShardSizeInfo,
             AutoscalingMemoryInfo memoryInfo,
-            DesiredNodes.MembershipInformation desiredNodesMembershipInfo,
             Runnable ensureNotCancelled
         ) {
             this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
@@ -268,7 +245,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.clusterInfo = clusterInfo;
             this.snapshotShardSizeInfo = snapshotShardSizeInfo;
             this.memoryInfo = memoryInfo;
-            this.desiredNodesMembershipInfo = desiredNodesMembershipInfo;
             this.currentNodes = state.nodes()
                 .stream()
                 .filter(this::rolesFilter)
@@ -368,11 +344,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return snapshotShardSizeInfo;
-        }
-
-        @Override
-        public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
-            return desiredNodesMembershipInfo;
         }
 
         public void ensureNotCancelled() {

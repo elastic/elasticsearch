@@ -53,8 +53,6 @@ public class RoutingAllocation {
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
-    private final DesiredNodes.MembershipInformation desiredNodesMembershipInformation;
-
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
@@ -81,10 +79,9 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        DesiredNodes.MembershipInformation desiredNodesMembershipInformation,
         long currentNanoTime
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, desiredNodesMembershipInformation, currentNanoTime);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
     }
 
     /**
@@ -94,7 +91,6 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param clusterInfo information about node disk usage and shard disk usage
      * @param shardSizeInfo information about snapshot shard sizes
-     * @param desiredNodesMembershipInformation information about the desired nodes that are cluster members
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(
@@ -103,7 +99,6 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        DesiredNodes.MembershipInformation desiredNodesMembershipInformation,
         long currentNanoTime
     ) {
         this.deciders = deciders;
@@ -111,7 +106,6 @@ public class RoutingAllocation {
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
-        this.desiredNodesMembershipInformation = desiredNodesMembershipInformation;
         this.currentNanoTime = currentNanoTime;
         Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
         for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
@@ -179,7 +173,7 @@ public class RoutingAllocation {
     }
 
     public DesiredNodes.MembershipInformation getDesiredNodesMembershipInfo() {
-        return desiredNodesMembershipInformation;
+        return null;
     }
 
     /**

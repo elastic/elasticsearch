@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,7 +49,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
-    private final DesiredNodesMembershipService desiredNodesMembershipService;
 
     @Inject
     public TransportClusterAllocationExplainAction(
@@ -62,8 +60,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDeciders allocationDeciders,
-        AllocationService allocationService,
-        DesiredNodesMembershipService desiredNodesMembershipService
+        AllocationService allocationService
     ) {
         super(
             ClusterAllocationExplainAction.NAME,
@@ -80,7 +77,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
         this.allocationService = allocationService;
-        this.desiredNodesMembershipService = desiredNodesMembershipService;
     }
 
     @Override
@@ -101,7 +97,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             state,
             clusterInfo,
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             System.nanoTime()
         );
 

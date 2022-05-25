@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -114,8 +113,7 @@ public class ClusterModule extends AbstractModule {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
-        SystemIndices systemIndices,
-        DesiredNodesMembershipService desiredNodesMembershipService
+        SystemIndices systemIndices
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -123,13 +121,7 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
-        this.allocationService = new AllocationService(
-            allocationDeciders,
-            shardsAllocator,
-            clusterInfoService,
-            snapshotsInfoService,
-            desiredNodesMembershipService
-        );
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }
 

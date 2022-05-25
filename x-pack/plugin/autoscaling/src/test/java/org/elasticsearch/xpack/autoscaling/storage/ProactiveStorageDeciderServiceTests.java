@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -128,11 +127,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
 
             @Override
-            public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
-                return null;
-            }
-
-            @Override
             public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
@@ -183,8 +177,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             Set.of(),
-            Set.of(),
-            null
+            Set.of()
         );
 
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
@@ -216,8 +209,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of(),
-            null
+            Set.of()
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -261,8 +253,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of(),
-            null
+            Set.of()
         );
 
         for (int window = 0; window < between(1, 20); ++window) {
@@ -313,7 +304,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         randomAllocate(allocation);
@@ -345,7 +335,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         startAll(allocation);

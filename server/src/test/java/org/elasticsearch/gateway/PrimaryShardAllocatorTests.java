@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -498,7 +497,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                     return shardSize;
                 }
             },
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }
@@ -529,15 +527,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(
-            deciders,
-            state.mutableRoutingNodes(),
-            state,
-            null,
-            null,
-            DesiredNodes.MembershipInformation.EMPTY,
-            System.nanoTime()
-        );
+        return new RoutingAllocation(deciders, state.mutableRoutingNodes(), state, null, null, System.nanoTime());
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

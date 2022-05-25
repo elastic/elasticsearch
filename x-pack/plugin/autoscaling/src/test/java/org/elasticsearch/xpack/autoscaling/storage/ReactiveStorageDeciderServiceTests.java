@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -237,7 +236,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             initialClusterState,
             null,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
@@ -285,8 +283,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of(),
-            null
+            Set.of()
         );
 
         assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
@@ -362,8 +359,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             shardSizeInfo,
             Set.of(),
-            Set.of(),
-            DesiredNodes.MembershipInformation.EMPTY
+            Set.of()
         );
 
         assertThat(allocationState.sizeOf(primaryShard), equalTo(expected));
@@ -454,8 +450,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of(),
-            DesiredNodes.MembershipInformation.EMPTY
+            Set.of()
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
@@ -530,18 +525,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
-            DesiredNodes.MembershipInformation.EMPTY
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            null,
-            null,
-            DesiredNodes.MembershipInformation.EMPTY,
-            randomLong()
-        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
         return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
 
@@ -641,18 +628,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
-            DesiredNodes.MembershipInformation.EMPTY
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            null,
-            null,
-            DesiredNodes.MembershipInformation.EMPTY,
-            randomLong()
-        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
 
         assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));
     }

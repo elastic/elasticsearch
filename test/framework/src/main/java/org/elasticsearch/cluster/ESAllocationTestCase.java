@@ -9,8 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
-import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -82,8 +80,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            FakeDesiredNodesMembershipService.INSTANCE
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
@@ -93,8 +90,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            FakeDesiredNodesMembershipService.INSTANCE
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
@@ -116,8 +112,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             gatewayAllocator,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService,
-            FakeDesiredNodesMembershipService.INSTANCE
+            snapshotsInfoService
         );
     }
 
@@ -297,17 +292,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             GatewayAllocator gatewayAllocator,
             ShardsAllocator shardsAllocator,
             ClusterInfoService clusterInfoService,
-            SnapshotsInfoService snapshotsInfoService,
-            DesiredNodesMembershipService desiredNodesMembershipService
+            SnapshotsInfoService snapshotsInfoService
         ) {
-            super(
-                allocationDeciders,
-                gatewayAllocator,
-                shardsAllocator,
-                clusterInfoService,
-                snapshotsInfoService,
-                desiredNodesMembershipService
-            );
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {

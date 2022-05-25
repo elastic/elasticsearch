@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -80,14 +79,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 new NodeReplacementAllocationDecider()
             )
         );
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            null,
-            null,
-            DesiredNodes.MembershipInformation.EMPTY,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()

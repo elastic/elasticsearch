@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -581,7 +580,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }
@@ -626,7 +624,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }

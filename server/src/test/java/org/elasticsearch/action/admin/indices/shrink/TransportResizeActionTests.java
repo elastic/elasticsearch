@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -135,8 +134,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -165,8 +163,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -208,8 +205,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -256,8 +252,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -321,8 +316,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();

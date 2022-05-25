@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
-import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -73,7 +72,6 @@ public class AllocationService {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
-    private final DesiredNodesMembershipService desiredNodesMembershipService;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -81,10 +79,9 @@ public class AllocationService {
         GatewayAllocator gatewayAllocator,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        DesiredNodesMembershipService desiredNodesMembershipService
+        SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, desiredNodesMembershipService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -92,14 +89,12 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        DesiredNodesMembershipService desiredNodesMembershipService
+        SnapshotsInfoService snapshotsInfoService
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
-        this.desiredNodesMembershipService = desiredNodesMembershipService;
     }
 
     /**
@@ -136,7 +131,6 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
@@ -216,7 +210,6 @@ public class AllocationService {
             tmpState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime
         );
 
@@ -291,7 +284,6 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
 
@@ -318,7 +310,6 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
@@ -455,7 +446,6 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         // don't short circuit deciders, we want a full explanation
@@ -496,7 +486,6 @@ public class AllocationService {
             fixedClusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         reroute(allocation);

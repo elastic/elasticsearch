@@ -10,7 +10,6 @@ package org.elasticsearch.benchmark.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -71,8 +70,7 @@ public final class Allocators {
             NoopGatewayAllocator.INSTANCE,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            () -> DesiredNodes.MembershipInformation.EMPTY
+            EmptySnapshotsInfoService.INSTANCE
         );
     }
 

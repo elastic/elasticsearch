@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -119,8 +117,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         Metadata metadata = Metadata.builder()
@@ -200,8 +197,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -233,8 +229,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -305,8 +300,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         Metadata metadata = Metadata.builder()
@@ -356,8 +350,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -421,8 +414,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -455,8 +447,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -558,8 +549,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         Metadata metadata = Metadata.builder()
@@ -632,8 +622,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         Metadata metadata = Metadata.builder()
@@ -743,8 +732,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
 
         Metadata metadata = Metadata.builder()
@@ -945,7 +933,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -978,7 +965,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -1029,8 +1015,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefor we will have sufficient disk space on node1.
@@ -1115,8 +1100,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             cis,
-            EmptySnapshotsInfoService.INSTANCE,
-            FakeDesiredNodesMembershipService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE
         );
         ClusterState result = strategy.reroute(clusterState, "reroute");
 
@@ -1142,7 +1126,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -1269,8 +1252,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
-            snapshotShardSizeInfoRef::get,
-            FakeDesiredNodesMembershipService.INSTANCE
+            snapshotShardSizeInfoRef::get
         );
 
         // reroute triggers snapshot shard size fetching

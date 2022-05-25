@@ -586,7 +586,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Decision.Type decisionType,
         String explanationMessage
     ) {
-        final var allocation = new RoutingAllocation(allocationDeciders, null, state, null, null, desiredNodesMembershipInformation, 0);
+        final var allocation = new RoutingAllocation(allocationDeciders, null, state, null, null, 0);
         allocation.debugDecision(true);
 
         final var routingNode = new RoutingNode(node.getId(), node, shard);

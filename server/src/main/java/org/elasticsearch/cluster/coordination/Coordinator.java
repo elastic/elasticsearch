@@ -93,6 +93,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -697,10 +698,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.of(null, channelType),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
-                    e
-                );
+                logger.warn(() -> format("failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
                 listener.onFailure(
                     new IllegalStateException(
                         String.format(
@@ -1332,8 +1330,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             synchronized (mutex) {
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterStatePublicationEvent.getNewState().term()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed publication as node is no longer master for term {}",
+                        () -> format(
+                            "[%s] failed publication as node is no longer master for term %s",
                             clusterStatePublicationEvent.getSummary(),
                             clusterStatePublicationEvent.getNewState().term()
                         )
@@ -1351,8 +1349,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 if (currentPublication.isPresent()) {
                     assert false : "[" + currentPublication.get() + "] in progress, cannot start new publication";
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed publication as already publication in progress",
+                        () -> format(
+                            "[%s] failed publication as already publication in progress",
                             clusterStatePublicationEvent.getSummary()
                         )
                     );

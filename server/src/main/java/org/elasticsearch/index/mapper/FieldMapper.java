@@ -61,6 +61,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+    @SuppressWarnings("rawtypes")
+    static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
     protected final MappedFieldType mappedFieldType;
     protected final MultiFields multiFields;
@@ -616,7 +618,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * Returns the current value of the parameter
          */
         public T getValue() {
-            return isSet ? value : defaultValue.get();
+            return isSet ? value : getDefaultValue();
         }
 
         @Override
@@ -640,7 +642,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public boolean isConfigured() {
-            return isSet && Objects.equals(value, defaultValue.get()) == false;
+            return isSet && Objects.equals(value, getDefaultValue()) == false;
         }
 
         /**
@@ -773,8 +775,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
-                serializer.serialize(builder, name, getValue());
+            T value = getValue();
+            if (serializerCheck.check(includeDefaults, isConfigured(), value)) {
+                serializer.serialize(builder, name, value);
             }
         }
 
@@ -1159,7 +1162,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * @return the list of parameters defined for this mapper
          */
-        protected abstract List<Parameter<?>> getParameters();
+        protected abstract Parameter<?>[] getParameters();
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

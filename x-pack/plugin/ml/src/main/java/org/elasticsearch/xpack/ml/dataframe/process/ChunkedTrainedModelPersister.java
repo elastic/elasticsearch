@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Strings.format;
 
 public class ChunkedTrainedModelPersister {
 
@@ -166,8 +167,8 @@ public class ChunkedTrainedModelPersister {
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] stored trained model definition chunk [{}] [{}]",
+                () -> format(
+                    "[%s] stored trained model definition chunk [%s] [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getModelId(),
                     trainedModelDefinitionDoc.getDocNum()

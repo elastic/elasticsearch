@@ -50,6 +50,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecutor<SnapshotUpgradeTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(SnapshotUpgradeTaskExecutor.class);
@@ -150,7 +152,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     logger.info("[{}] [{}] finished upgrading snapshot", jobId, snapshotId);
                     task.markAsCompleted();
                 } else {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed upgrading snapshot [{}]", jobId, snapshotId), e);
+                    logger.warn(() -> format("[%s] failed upgrading snapshot [%s]", jobId, snapshotId), e);
                     auditor.warning(
                         jobId,
                         "failed upgrading snapshot [" + snapshotId + "] with exception " + ExceptionsHelper.unwrapCause(e).getMessage()
@@ -159,14 +161,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 }
             }),
             e -> {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed upgrading snapshot [{}] as ml state alias creation failed",
-                        jobId,
-                        snapshotId
-                    ),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed upgrading snapshot [%s] as ml state alias creation failed", jobId, snapshotId), e);
                 auditor.warning(
                     jobId,
                     "failed upgrading snapshot [" + snapshotId + "] with exception " + ExceptionsHelper.unwrapCause(e).getMessage()
@@ -296,10 +291,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     )
                 );
             }, failure -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] [{}] failed to clean up potentially bad snapshot", jobId, snapshotId),
-                    failure
-                );
+                logger.warn(() -> format("[%s] [%s] failed to clean up potentially bad snapshot", jobId, snapshotId), failure);
                 task.markAsFailed(
                     new ElasticsearchStatusException(
                         "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "
@@ -323,7 +315,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 );
                 return;
             }
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId), e);
+            logger.warn(() -> format("[%s] [%s] failed to load bad snapshot for deletion", jobId, snapshotId), e);
             task.markAsFailed(
                 new ElasticsearchStatusException(
                     "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "

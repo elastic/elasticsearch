@@ -1981,7 +1981,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        //service cannot hold subobjects, yet incoming docs may have objects in it, which are treated as if flat paths were provided
+        // service cannot hold subobjects, yet incoming docs may have objects in it, which are treated as if flat paths were provided
         ParsedDocument parsedDocument = mapper.parse(source("""
             {
               "metrics": {
@@ -2020,7 +2020,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        //the root cannot hold subobjects, yet incoming docs may have objects in it, which means that no intermediate objects are mapped
+        // the root cannot hold subobjects, yet incoming docs may have objects in it, which means that no intermediate objects are mapped
         ParsedDocument parsedDocument = mapper.parse(source("""
             {
               "host" : {
@@ -2056,8 +2056,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        //the root cannot hold subobjects, yet incoming docs may have objects in it. This verifies that different ways of
-        //specifying the same path in a document are treated in the same way
+        // the root cannot hold subobjects, yet incoming docs may have objects in it. This verifies that different ways of
+        // specifying the same path in a document are treated in the same way
         ParsedDocument parsedDocument = mapper.parse(source("""
             {
               "service.time" : 100,
@@ -2090,42 +2090,40 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseDocWithInnerObjectsNullValues() throws Exception {
-        //null values are handled separately while parsing hence we want to make sure that the field paths are propagated correctly
-        DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> {
-                b.startObject("metrics");
+        // null values are handled separately while parsing hence we want to make sure that the field paths are propagated correctly
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
                 {
-                    b.field("type", "object").field("subobjects", false);
-                    b.startObject("properties");
-                    {
-                        b.startObject("service.time");
-                        b.field("type", "long");
-                        b.field("null_value", -1);
-                        b.endObject();
-                    }
-                    {
-                        b.startObject("service.time.max");
-                        b.field("type", "long");
-                        b.field("null_value", -1);
-                        b.endObject();
-                    }
-                    {
-                        b.startObject("service.time.min");
-                        b.field("type", "long");
-                        b.field("null_value", -1);
-                        b.endObject();
-                    }
-                    {
-                        b.startObject("service.time.avg");
-                        b.field("type", "long");
-                        b.field("null_value", -1);
-                        b.endObject();
-                    }
+                    b.startObject("service.time");
+                    b.field("type", "long");
+                    b.field("null_value", -1);
+                    b.endObject();
+                }
+                {
+                    b.startObject("service.time.max");
+                    b.field("type", "long");
+                    b.field("null_value", -1);
+                    b.endObject();
+                }
+                {
+                    b.startObject("service.time.min");
+                    b.field("type", "long");
+                    b.field("null_value", -1);
+                    b.endObject();
+                }
+                {
+                    b.startObject("service.time.avg");
+                    b.field("type", "long");
+                    b.field("null_value", -1);
                     b.endObject();
                 }
                 b.endObject();
-            })
-        );
+            }
+            b.endObject();
+        }));
 
         ParsedDocument parsedDocument = mapper.parse(source("""
             {
@@ -2151,22 +2149,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @AwaitsFix(bugUrl = "will fix as part of this same PR")
     public void testSubobjectsFalseDocsWithInnerObjectMappedAsNonObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> {
-                b.startObject("metrics");
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
                 {
-                    b.field("type", "object").field("subobjects", false);
-                    b.startObject("properties");
-                    {
-                        b.startObject("service.time");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
+                    b.startObject("service.time");
+                    b.field("type", "long");
                     b.endObject();
                 }
                 b.endObject();
-            })
-        );
+            }
+            b.endObject();
+        }));
         ParsedDocument parsedDocument = mapper.parse(source("""
             {
               "metrics": {
@@ -2221,7 +2217,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
-        ObjectMapper metrics = (ObjectMapper)root.getMapper("metrics");
+        ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(4, metrics.mappers.size());
         assertNotNull(metrics.getMapper("service.time"));
         assertNotNull(metrics.getMapper("service.time.min"));
@@ -2250,29 +2246,27 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
-        ObjectMapper metrics = (ObjectMapper)root.getMapper("metrics");
+        ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(2, metrics.mappers.size());
         assertNotNull(metrics.getMapper("service.time"));
         assertNotNull(metrics.getMapper("service.time.max"));
     }
 
     public void testSubobjectsFalseParseGeoPoint() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> {
-                b.startObject("metrics");
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
                 {
-                    b.field("type", "object").field("subobjects", false);
-                    b.startObject("properties");
-                    {
-                        b.startObject("location");
-                        b.field("type", "geo_point");
-                        b.endObject();
-                    }
+                    b.startObject("location");
+                    b.field("type", "geo_point");
                     b.endObject();
                 }
                 b.endObject();
-            })
-        );
+            }
+            b.endObject();
+        }));
 
         ParsedDocument parsedDocument = mapper.parse(source("""
             {

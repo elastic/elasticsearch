@@ -444,7 +444,7 @@ public final class DocumentParser {
         assert currentFieldName != null;
         Mapper objectMapper = getMapper(context, mapper, currentFieldName);
         if (mapper.subobjects() == false) {
-            //TODO here we want to check that the mapper is a field mapper that can handle objects, otherwise pretend we found no mapper
+            // TODO here we want to check that the mapper is a field mapper that can handle objects, otherwise pretend we found no mapper
         }
         if (objectMapper != null) {
             context.path().add(currentFieldName);
@@ -477,7 +477,7 @@ public final class DocumentParser {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
-            } else if (mapper.subobjects() == false){
+            } else if (mapper.subobjects() == false) {
                 dynamicObjectMapper = mapper;
                 dottedFieldName = true;
             } else {

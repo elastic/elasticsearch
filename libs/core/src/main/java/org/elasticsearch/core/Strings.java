@@ -18,7 +18,7 @@ public class Strings {
     /**
      * Returns a formatted string using the specified format string and
      * arguments.
-     *
+     * <p>
      * This method calls {@link String#format(Locale, String, Object...)}
      * with Locale.ROOT
      * If format is incorrect the function will return format without populating
@@ -27,7 +27,8 @@ public class Strings {
     public static String format(String format, Object... args) {
         try {
             return String.format(Locale.ROOT, format, args);
-        } catch (Throwable e) {
+        } catch (Exception e) {
+            assert false : "Exception thrown when formatting [" + format + "]. " + e.getClass().getCanonicalName() + ". " + e.getMessage();
             return format;
         }
     }

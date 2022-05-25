@@ -184,7 +184,8 @@ setup:
                       small_size_sales: small_size.sales
                       total_sales: total_sales
                       # NOTE: we keep this notation valid for backward compatibility, but we make the additional
-                      # `.discount` metric qualifier not required (see next test)
+                      # `.discount` metric qualifier not required (see next test) if top_metrics includes a single
+                      # metric field
                       best_discount: small_size>best_discount.discount
                     script: "(params.small_size_sales - params.small_size_sales * params.best_discount) / params.total_sales * 100"
 

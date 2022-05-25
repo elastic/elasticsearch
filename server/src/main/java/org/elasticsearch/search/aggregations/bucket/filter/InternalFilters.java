@@ -148,10 +148,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeVInt(buckets.size());
-        for (InternalBucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+        out.writeList(buckets);
     }
 
     @Override

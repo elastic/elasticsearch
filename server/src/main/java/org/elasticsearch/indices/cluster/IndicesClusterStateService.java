@@ -78,6 +78,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
@@ -771,8 +772,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception inner) {
             inner.addSuppressed(failure);
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "[{}][{}] failed to remove shard after failure ([{}])",
+                () -> format(
+                    "[%s][%s] failed to remove shard after failure ([%s])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
                     message
@@ -787,17 +788,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
-            logger.warn(
-                () -> new ParameterizedMessage("{} marking and sending shard failed due to [{}]", shardRouting.shardId(), message),
-                failure
-            );
+            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "[{}][{}] failed to mark shard as failed (because of [{}])",
+                () -> format(
+                    "[%s][%s] failed to mark shard as failed (because of [%s])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
                     message

@@ -1,5 +1,0 @@
-pr: 85058
-summary: "Fix: nested top metrics sort on keyword field"
-area: Aggregations
-type: bug
-issues: []

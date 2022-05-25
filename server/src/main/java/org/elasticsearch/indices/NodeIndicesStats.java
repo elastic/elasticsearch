@@ -169,14 +169,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeVInt(statsByShard.size());
-        for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-            entry.getKey().writeTo(out);
-            out.writeVInt(entry.getValue().size());
-            for (IndexShardStats indexShardStats : entry.getValue()) {
-                indexShardStats.writeTo(out);
-            }
-        }
+        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
     }
 
     @Override

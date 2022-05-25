@@ -84,22 +84,25 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         if (shouldBeSystem) {
-            return shouldBeHidden(indexMetadata) || shouldHideAliases(indexMetadata);
+            return isVisible(indexMetadata) || hasVisibleAlias(indexMetadata);
         }
 
         return false;
     }
 
-    private boolean shouldBeHidden(IndexMetadata indexMetadata) {
+    // package-private for testing
+    boolean isVisible(IndexMetadata indexMetadata) {
         return indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false;
     }
 
-    private boolean shouldBeSystem(IndexMetadata indexMetadata) {
+    // package-private for testing
+    boolean shouldBeSystem(IndexMetadata indexMetadata) {
         return systemIndices.isSystemIndex(indexMetadata.getIndex())
             || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
     }
 
-    private boolean shouldHideAliases(IndexMetadata indexMetadata) {
+    // package-private for testing
+    boolean hasVisibleAlias(IndexMetadata indexMetadata) {
         return indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()));
     }
 
@@ -129,12 +132,12 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         builder.system(indexMetadata.isSystem() == false);
                         updated = true;
                     }
-                    if (shouldBeSystem && shouldBeHidden(indexMetadata)) {
+                    if (shouldBeSystem && isVisible(indexMetadata)) {
                         builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         builder.settingsVersion(builder.settingsVersion() + 1);
                         updated = true;
                     }
-                    if (shouldBeSystem && shouldHideAliases(indexMetadata)) {
+                    if (shouldBeSystem && hasVisibleAlias(indexMetadata)) {
                         for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
                             if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
                                 builder.removeAlias(aliasMetadata.alias());

@@ -245,9 +245,9 @@ public class InternalTopMetrics extends InternalMultiValueAggregation implements
 
     @Override
     public String getValueAsString() {
-        final String metricName = metricNames.stream().findFirst().orElseThrow(
-            () -> new IllegalArgumentException("top_metrics [" + name + "] has no metric field")
-        );
+        final String metricName = metricNames.stream()
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("top_metrics [" + name + "] has no metric field"));
         return getValuesAsStrings(metricName).get(0);
     }
 

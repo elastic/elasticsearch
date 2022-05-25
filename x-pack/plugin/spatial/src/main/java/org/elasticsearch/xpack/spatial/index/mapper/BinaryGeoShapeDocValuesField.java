@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+// TODO make for cartesian
 public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
 
     private final List<IndexableField> fields;

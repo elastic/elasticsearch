@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.apache.lucene.geo.XYEncodingUtils;
 
 // TODO make cartesian
-final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
+final class ShapeCoordinateEncoder implements CoordinateEncoder {
 
     @Override
     public int encodeX(double x) {
@@ -21,7 +20,7 @@ final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
         if (x == Double.POSITIVE_INFINITY) {
             return Integer.MAX_VALUE;
         }
-        return GeoEncodingUtils.encodeLongitude(x);
+        return XYEncodingUtils.encode((float) x);
     }
 
     @Override
@@ -32,26 +31,26 @@ final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
         if (y == Double.POSITIVE_INFINITY) {
             return Integer.MAX_VALUE;
         }
-        return GeoEncodingUtils.encodeLatitude(y);
+        return XYEncodingUtils.encode((float) y);
     }
 
     @Override
     public double decodeX(int x) {
-        return GeoEncodingUtils.decodeLongitude(x);
+        return XYEncodingUtils.decode(x);
     }
 
     @Override
     public double decodeY(int y) {
-        return GeoEncodingUtils.decodeLatitude(y);
+        return XYEncodingUtils.decode(y);
     }
 
     @Override
     public double normalizeX(double x) {
-        return GeoUtils.normalizeLon(x);
+        return x;
     }
 
     @Override
     public double normalizeY(double y) {
-        return GeoUtils.normalizeLat(y);
+        return y;
     }
 }

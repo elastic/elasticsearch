@@ -45,6 +45,7 @@ import java.text.ParseException;
  */
 public abstract class GeoShapeValues {
 
+    // TODO make for cartesian
     public static GeoShapeValues EMPTY = new GeoShapeValues() {
         private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
 

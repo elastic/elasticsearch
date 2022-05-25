@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 
 import java.io.IOException;
 
+// TODO make for cartesian
 public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
 
     static GeoShapeValuesSourceType INSTANCE = new GeoShapeValuesSourceType();

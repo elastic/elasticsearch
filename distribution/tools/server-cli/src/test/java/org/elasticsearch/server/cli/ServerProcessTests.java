@@ -407,8 +407,9 @@ public class ServerProcessTests extends ESTestCase {
             nonInterruptibleVoid(mainReady::await);
             server.stop();
         }).start();
-        server.waitFor();
+        int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
+        assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
     }
 
@@ -423,8 +424,7 @@ public class ServerProcessTests extends ESTestCase {
         };
         var server = startProcess(false, false, "");
         mainExit.countDown();
-        var e = expectThrows(RuntimeException.class, server::waitFor);
-        assertThat(e.getMessage(), equalTo("server process exited with status code -9"));
-        assertThat(terminal.getErrorOutput(), containsString("fatal message"));
+        int exitCode = server.waitFor();
+        assertThat(exitCode, equalTo(-9));
     }
 }

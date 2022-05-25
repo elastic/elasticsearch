@@ -62,6 +62,7 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
 
     @Override
     protected FlushResponse newResponse(
+        List<ReplicationResponse> shardsResponses,
         int successfulShards,
         int failedShards,
         int totalNumCopies,

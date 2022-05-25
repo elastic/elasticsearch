@@ -171,10 +171,11 @@ public abstract class TransportBroadcastReplicationAction<
                 }
             }
         }
-        listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));
+        listener.onResponse(newResponse(shardsResponses, successfulShards, failedShards, totalNumCopies, shardFailures));
     }
 
     protected abstract Response newResponse(
+        List<ShardResponse> shardsResponses,
         int successfulShards,
         int failedShards,
         int totalNumCopies,

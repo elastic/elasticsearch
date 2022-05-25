@@ -66,6 +66,7 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
 
     @Override
     protected RefreshResponse newResponse(
+        List<ReplicationResponse> shardsResponses,
         int successfulShards,
         int failedShards,
         int totalNumCopies,

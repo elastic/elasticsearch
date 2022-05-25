@@ -270,6 +270,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         @Override
         protected BroadcastResponse newResponse(
+            List<ReplicationResponse> shardsResponses,
             int successfulShards,
             int failedShards,
             int totalNumCopies,

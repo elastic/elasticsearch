@@ -87,7 +87,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -516,7 +515,6 @@ public class PersistedClusterStateService {
 
         final Map<String, MappingMetadata> mappingsByHash = new HashMap<>();
         consumeFromType(searcher, MAPPING_TYPE_NAME, document -> document.getField(MAPPING_HASH_FIELD_NAME).stringValue(), bytes -> {
-            logger.trace("found mapping metadata: {}", Base64.getEncoder().encodeToString(BytesReference.toBytes(bytes)));
             final var mappingMetadata = readXContent(bytes, parser -> {
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new CorruptStateException(
@@ -537,16 +535,10 @@ public class PersistedClusterStateService {
                         "invalid mapping metadata: expected VALUE_EMBEDDED_OBJECT but got [" + parser.currentToken() + "]"
                     );
                 }
-                final var binaryValue = parser.binaryValue();
-                logger.trace("loading mapping: {}", Base64.getEncoder().encodeToString(binaryValue));
-                return new MappingMetadata(new CompressedXContent(binaryValue));
+                return new MappingMetadata(new CompressedXContent(parser.binaryValue()));
             });
             final var hash = mappingMetadata.source().getSha256();
-            logger.trace(
-                "found mapping metadata with hash {}: {}",
-                hash,
-                Base64.getEncoder().encodeToString(BytesReference.toBytes(bytes))
-            );
+            logger.trace("found mapping metadata with hash {}", hash);
             if (mappingsByHash.put(hash, mappingMetadata) != null) {
                 throw new CorruptStateException("duplicate metadata found for mapping hash [" + hash + "]");
             }

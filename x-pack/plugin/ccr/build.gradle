@@ -34,6 +34,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
   testImplementation(project(":modules:analysis-common"))
+  testImplementation(project(":modules:data-streams"))
 }
 
 tasks.named("testingConventions").configure {

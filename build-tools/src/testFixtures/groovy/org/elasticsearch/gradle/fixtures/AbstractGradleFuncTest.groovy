@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
+import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -30,14 +31,22 @@ abstract class AbstractGradleFuncTest extends Specification {
     File settingsFile
     File buildFile
     File propertiesFile
+    File projectDir
 
     def setup() {
+        projectDir = testProjectDir.root
         settingsFile = testProjectDir.newFile('settings.gradle')
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+    }
+
+    def cleanup() {
+        if (Boolean.getBoolean('test.keep.samplebuild')) {
+            FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
+        }
     }
 
     File subProject(String subProjectPath) {
@@ -76,6 +85,10 @@ abstract class AbstractGradleFuncTest extends Specification {
     def assertOutputContains(String givenOutput, String expected) {
         assert normalized(givenOutput).contains(normalized(expected))
         true
+    }
+
+    def assertNoDeprecationWarning(BuildResult result) {
+        assertOutputMissing(result.getOutput(), "Deprecated Gradle features were used in this build");
     }
 
     def assertOutputMissing(String givenOutput, String expected) {
@@ -163,10 +176,10 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
     }
 
-    def cleanup() {
-       if (Boolean.getBoolean('test.keep.samplebuild')) {
-            FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
-       }
+    File dir(String path) {
+        def dir = file(projectDir, path)
+        dir.mkdirs()
+        dir
     }
 
     static class ProjectConfigurer {

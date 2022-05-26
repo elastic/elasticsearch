@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
@@ -311,7 +310,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
-        final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
+        final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
             "Expected mappings to contain a key for [" + concreteIndex + "], but found: " + mappings.toString(),
             mappings.containsKey(concreteIndex),

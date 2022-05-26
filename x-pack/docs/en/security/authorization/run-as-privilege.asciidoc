@@ -2,26 +2,44 @@
 [[run-as-privilege]]
 = Submitting requests on behalf of other users
 
-{es} roles support a privilege that enables an authenticated
-user to submit requests on behalf of other users. For example, if your external application is trusted to
-authenticate users, Elasticsearch can authenticate the external application, and use the _run as_ mechanism to execute requests authorized as those other users
-according to {es} permissions without having to re-authenticate each user.
+{es} roles support a `run_as` privilege that enables an authenticated user to 
+submit requests on behalf of other users. For example, if your external 
+application is trusted to authenticate users, {es} can authenticate the external 
+application and use the _run as_ mechanism to issue authorized requests as 
+other users without having to re-authenticate each user.
 
-To "run as" (impersonate) another user, the first user must be authenticated by a mechanism that
-supports run-as delegation, and the second user must be authorized by a mechanism that supports delegated run-as lookups by username.
+To "run as" (impersonate) another user, the first user (the authenticating user)
+must be authenticated by a mechanism that supports run-as delegation. The second 
+user (the `run_as` user) must be authorized by a mechanism that supports
+delegated run-as lookups by username.
 
-Authentication mechanisms that support run-as delegation are API Key, Native, File, LDAP, AD, PKI, Kerberos, and JWT. 
+The `run_as` privilege essentially operates like a secondary form of
+<<authorization_realms,delegated authorization>>. Delegated authorization applies 
+to the authenticating user, and the `run_as` privilege applies to the user who
+is being impersonated.
 
-NOTE: Authentication mechanisms that do not support run-as delegation are Service tokens, Token service, SAML 2.0, and OIDC 1.0.
+Authenticating user::
+--
+For the authenticating user, the following realms (plus API keys) all support
+`run_as` delegation: `native`, `file`, Active Directory, JWT, Kerberos, LDAP and
+PKI.
 
-Authorization mechanisms that support delegated run-as lookups by username are Native, File, LDAP, and AD.
+Service tokens, the {es} Token Service, SAML 2.0, and OIDC 1.0 do not
+support `run_as` delegation.
+--
 
-NOTE: Authorization mechanisms that do not support delegated run-as lookups by username are Service tokens, Token service, API Key, PKI, SAML 2.0, OIDC 1.0, Kerberos, and JWT.
-supports the _run as_ mechanism. The internal `native` and `file` realms
-inherently support this capability, as does the JWT realm. To support `run_as`,
-in the LDAP realm, you have to run in
+`run_as` user::
+--
+For the `run_as` user, the the following realms support delegated
+`run_as` lookups by username: `native`, `file`, Active Directory, LDAP.
+
+NOTE: To support `run_as` in the LDAP realm, you have to run in
 <<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
 to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
+
+Service tokens, the {es} Token Service, PKI, SAML 2.0, OIDC 1.0, Kerberos, JWT,
+and API keys do not support delegated `run_as` lookups.
+--
 
 To submit requests on behalf of other users, you need to have the `run_as`
 privilege in your <<defining-roles,roles>>. For example, the following request
@@ -55,11 +73,12 @@ curl -H "es-security-runas-user: jacknich" -u es-admin -X GET http://localhost:9
 ----
 
 The `run_as` user passed in through the `es-security-runas-user` header must be
-available from a realm that supports delegated authorization lookup by username. Because the Kerberos, OpenID
-Connect, PKI, and SAML realms don't support user lookup, these realms can't use
-`run_as` directly. However, users that authenticate from one of these realms can
-run requests on behalf of users from the `native`, `file`, LDAP, and Active
-Directory realms. For example, an OIDC user can authenticate to {es} and submit
+available from a realm that supports delegated authorization lookup by username. 
+Realms that don't support user lookup can't use `run_as` directly. However, users 
+that authenticate from one of these realms can run requests on behalf of users 
+from other realms.
+
+For example, a user in the JWT realm can authenticate to {es} and submit
 requests as a `run_as` user in the `native` realm. {es} will retrieve the
 indicated `runas` user and submit the request using their roles.
 
@@ -70,14 +89,12 @@ You can apply the `run_as` privilege when creating roles with the
 a role that contains the `run_as` privilege inherit all privileges from their
 role, and can also submit requests on behalf of the indicated users.
 
-The `run_as` privilege essentially operates like a secondary form of
-<<authorization_realms,delegated authorization>>. After a user successfully
-authenticates to {es}, an authorization process determines whether the user
-behind an incoming request is allowed to run that request. If the authenticated
-user has the `run_as` privilege in their list of permissions, {es} _discards_ the 
-authenticated user and associated roles. It then looks in each of the configured
-realms in the realm chain until it finds the username that's associated with the
-`run_as` user, and uses those roles to submit any requests.
+After a user successfully authenticates to {es}, an authorization process determines whether the user behind an incoming request is allowed to run 
+that request. If the authenticated user has the `run_as` privilege in their list 
+of permissions, {es} _discards_ the authenticated user and associated roles. It 
+then looks in each of the configured realms in the realm chain until it finds the 
+username that's associated with the `run_as` user, and uses those roles to submit 
+any requests.
 
 Consider an admin role and an analyst role. The admin role has higher privileges,
 but might also want to submit requests as another user to test and verify their

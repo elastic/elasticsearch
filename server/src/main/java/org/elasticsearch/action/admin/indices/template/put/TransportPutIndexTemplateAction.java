@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -102,7 +101,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                    logger.debug(() -> "failed to put template [" + request.name() + "]", e);
                     listener.onFailure(e);
                 }
             }

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
@@ -54,6 +53,8 @@ import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CreateSystemIndicesIT extends ESIntegTestCase {
@@ -98,9 +99,45 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is first used, when it is referenced via its concrete
      * index name.
      */
-    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() {
+    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() throws Exception {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        doCreateTest(() -> indexDoc(nonPrimarySystemIndex, "1", "foo", "bar"), nonPrimarySystemIndex);
+        internalCluster().startNodes(1);
+
+        // Trigger the creation of the system index
+        indexDoc(nonPrimarySystemIndex, "1", "foo", "bar");
+        ensureGreen(nonPrimarySystemIndex);
+
+        assertFalse(indexExists(PRIMARY_INDEX_NAME));
+        assertTrue(indexExists(INDEX_NAME + "-2"));
+
+        // Check that a non-primary system index is not assigned as the write index for the alias
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .actionGet();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(1));
+        assertThat(
+            getAliasesResponse.getAliases().get(nonPrimarySystemIndex).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build())
+        );
+    }
+
+    /**
+     * This is weird behavior, but it's what we have. You can autocreate a non-primary system index,
+     * but you can't directly create one.
+     */
+    public void testNonPrimarySystemIndexCreationThrowsError() {
+        final String nonPrimarySystemIndex = INDEX_NAME + "-2";
+        internalCluster().startNodes(1);
+
+        // Create the system index
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex(nonPrimarySystemIndex));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot create system index with name " + nonPrimarySystemIndex + "; descriptor primary index is " + PRIMARY_INDEX_NAME)
+        );
     }
 
     /**
@@ -133,11 +170,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
                 .get()
         );
 
-        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
-
-        assertTrue(indexExists(PRIMARY_INDEX_NAME));
-        assertFalse(indexExists(INDEX_NAME + "-2"));
 
         assertHasAliases(Set.of(".test-index", ".test-index-legacy-alias"));
 
@@ -167,12 +201,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             ).get()
         );
 
-        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
-
-        // Attempting to directly create a non-primary system index only creates the primary index
-        assertTrue(indexExists(PRIMARY_INDEX_NAME));
-        assertFalse(indexExists(INDEX_NAME + "-2"));
 
         assertHasAliases(Set.of(".test-index", ".test-index-composable-alias"));
 
@@ -245,6 +275,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).writeIndex(), equalTo(true));
     }
 
     private void assertHasAliases(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -253,15 +284,20 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
-        // Attempting to directly create a non-primary system index only creates the primary index
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
         assertThat(
             getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)
         );
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+        for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME)) {
+            assertThat(aliasMetadata.isHidden(), equalTo(true));
+            if (aliasMetadata.alias().equals(INDEX_NAME)) {
+                assertThat(aliasMetadata.writeIndex(), is(true));
+            } else {
+                assertThat(aliasMetadata.writeIndex(), is(nullValue()));
+            }
+        }
     }
 
     /**
@@ -274,7 +310,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
-        final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
+        final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
             "Expected mappings to contain a key for [" + concreteIndex + "], but found: " + mappings.toString(),
             mappings.containsKey(concreteIndex),

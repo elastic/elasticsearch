@@ -22,6 +22,7 @@ public record HealthIndicatorResult(
     String component,
     HealthStatus status,
     String summary,
+    String helpURL,
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<UserAction> userActions
@@ -32,6 +33,7 @@ public record HealthIndicatorResult(
             in.readString(),
             in.readString(),
             HealthStatus.fromStreamInput(in),
+            in.readString(),
             in.readString(),
             null,
             in.readList(HealthIndicatorImpact::new),
@@ -44,6 +46,9 @@ public record HealthIndicatorResult(
         builder.startObject();
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
+        if (helpURL != null) {
+            builder.field("help_url", helpURL);
+        }
         if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
             builder.field("details", details, params);
         }
@@ -63,6 +68,7 @@ public record HealthIndicatorResult(
         out.writeString(component);
         status.writeTo(out);
         out.writeString(summary);
+        out.writeString(helpURL);
         details.writeTo(out);
         out.writeList(impacts);
         out.writeList(userActions);

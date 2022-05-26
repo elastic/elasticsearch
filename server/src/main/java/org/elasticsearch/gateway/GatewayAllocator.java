@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -41,6 +40,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.set.Sets.difference;
+import static org.elasticsearch.core.Strings.format;
 
 public class GatewayAllocator implements ExistingShardsAllocator {
 
@@ -181,9 +183,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
             // making the wrong decision here is not catastrophic so we only need to cover the common case.
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "new nodes {} found, clearing primary async-fetch-store cache",
-                    Sets.difference(newEphemeralIds, lastSeenEphemeralIds)
+                () -> format(
+                    "new nodes %s found, clearing primary async-fetch-store cache",
+                    difference(newEphemeralIds, lastSeenEphemeralIds)
                 )
             );
             asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));

@@ -36,7 +36,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -113,8 +112,8 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(index, hasDocValues, store, coerce, format, locale, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, hasDocValues, store, coerce, format, locale, meta };
         }
 
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {

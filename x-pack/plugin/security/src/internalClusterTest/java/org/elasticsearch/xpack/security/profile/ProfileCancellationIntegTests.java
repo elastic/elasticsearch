@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,9 +98,16 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         assertBusy(() -> {
             final List<Task> tasks = getTasksForXOpaqueId(xOpaqueId);
             final List<String> taskActions = tasks.stream().map(Task::getAction).toList();
-            assertThat(taskActions, hasItems(equalTo(SuggestProfilesAction.NAME), startsWith(SearchAction.NAME)));
-            tasks.forEach(t -> taskIds.add(t.getId()));
-        });
+            assertThat(
+                taskActions,
+                hasItems(equalTo(SuggestProfilesAction.NAME), equalTo(SearchAction.NAME), startsWith(SearchAction.NAME))
+            );
+            assertThat(isShardSearchBlocked(), is(true));
+            tasks.forEach(t -> {
+                logger.info("task " + t.getId() + "/" + t.getAction() + " registered");
+                taskIds.add(t.getId());
+            });
+        }, 20, TimeUnit.SECONDS);
 
         // Cancel the suggest request and all tasks should be cancelled
         cancellable.cancel();
@@ -113,7 +122,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 taskIds.remove(cancellableTask.getId());
             });
             assertThat(taskIds, empty());
-        });
+        }, 20, TimeUnit.SECONDS);
 
         disableSearchBlock();
         latch.await();
@@ -162,11 +171,21 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         }
     }
 
+    private boolean isShardSearchBlocked() {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            if (pluginsService.filterPlugins(SearchBlockPlugin.class).stream().anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static class SearchBlockPlugin extends Plugin implements ActionPlugin {
         protected static final Logger logger = LogManager.getLogger(SearchBlockPlugin.class);
 
         private final String nodeId;
         private final AtomicBoolean shouldBlockOnSearch = new AtomicBoolean(false);
+        private final AtomicBoolean shardSearchBlocked = new AtomicBoolean(false);
 
         public SearchBlockPlugin(Settings settings, Path configPath) throws Exception {
             nodeId = settings.get("node.name");
@@ -176,12 +195,20 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSearchOperationListener(new SearchOperationListener() {
+
                 @Override
-                public void onNewReaderContext(ReaderContext readerContext) {
+                public void onPreQueryPhase(SearchContext c) {
+                    logger.info("onPreQueryPhase");
+                }
+
+                @Override
+                public void onNewReaderContext(ReaderContext c) {
                     try {
                         logger.info("blocking search on " + nodeId);
-                        assertBusy(() -> assertFalse(shouldBlockOnSearch.get()));
+                        shardSearchBlocked.set(true);
+                        assertBusy(() -> assertFalse(shouldBlockOnSearch.get()), 20, TimeUnit.SECONDS);
                         logger.info("unblocking search on " + nodeId);
+                        shardSearchBlocked.set(false);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -195,6 +222,10 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
 
         void disableSearchBlock() {
             shouldBlockOnSearch.set(false);
+        }
+
+        boolean isShardSearchBlocked() {
+            return shardSearchBlocked.get();
         }
     }
 }

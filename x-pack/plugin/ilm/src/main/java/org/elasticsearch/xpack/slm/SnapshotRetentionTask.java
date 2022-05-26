@@ -297,7 +297,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(new ParameterizedMessage("unable to retrieve snapshots for [{}] repositories", repositories), e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
                 listener.onFailure(e);
             }));
     }

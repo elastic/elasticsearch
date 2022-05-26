@@ -14,8 +14,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.CodeSigner;
 import java.security.CodeSource;
@@ -27,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.jar.Manifest;
 
@@ -217,7 +223,87 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new CompoundEnumeration<>(tmp);
     }
 
+    // -- modules
+
+    /**
+     * Returns a module finder capable of finding the modules that are loadable by this embedded
+     * impl class loader.
+     *
+     * <p> The module finder returned by this method can be used during resolution in order to
+     * create a configuration. This configuration can subsequently be materialized as a module layer
+     * in which classes and resources are loaded by this embedded impl class loader.
+     *
+     * @param missingModules a set of module names to ignore if not present
+     */
+    InMemoryModuleFinder moduleFinder(Set<String> missingModules) throws IOException {
+        Path[] modulePath = modulePath();
+        assert modulePath.length >= 1;
+        InMemoryModuleFinder moduleFinder = InMemoryModuleFinder.of(missingModules, modulePath);
+        if (modulePath[0].getFileSystem().provider().getScheme().equals("jar")) {
+            modulePath[0].getFileSystem().close();
+        }
+        return moduleFinder;
+    }
+
+    /**
+     * Returns the base prefix for a versioned prefix. Otherwise, the given prefix if not versioned.
+     * For example, given "IMPL-JARS/x-content/jackson-core-2.13.2.jar/META-INF/versions/9", returns
+     * "IMPL-JARS/x-content/jackson-core-2.13.2.jar".
+     */
+    static String basePrefix(String prefix) {
+        int idx = prefix.indexOf(MRJAR_VERSION_PREFIX);
+        if (idx == -1) {
+            return prefix;
+        }
+        return prefix.substring(0, idx - 1);
+    }
+
+    private Path[] modulePath() throws IOException {
+        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet()
+            .stream()
+            .map(EmbeddedImplClassLoader::basePrefix)
+            .distinct()
+            .map(pfx -> path.resolve(pfx))
+            .toArray(Path[]::new);
+        URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
+        if (rootURI.getScheme().equals("file")) {
+            return entries.apply(Path.of(rootURI));
+        } else if (rootURI.getScheme().equals("jar")) {
+            FileSystem fileSystem = FileSystems.newFileSystem(rootURI, Map.of(), ClassLoader.getSystemClassLoader());
+            Path rootPath = fileSystem.getPath("/");
+            return entries.apply(rootPath);
+        } else {
+            throw new IOException("unknown scheme:" + rootURI.getScheme());
+        }
+    }
+
     // -- infra
+
+    /**
+     * Returns the root URI for a given url. The root URI is the base URI where all classes and
+     * resources can be searched for by appending a prefixes.
+     *
+     * Depending on whether running from a jar (distribution), or an exploded archive (testing),
+     * the given url will have one of two schemes, "file", or "jar:file". For example:
+     *  distro- jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar!/IMPL-JARS/x-content/xlib-2.10.4.jar
+     *  rootURI jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar
+     *
+     *  test  - file:/x/git/es_modules/libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/xlib-2.10.4.jar
+     *  rootURI file:/x/git/es_modules/libs/x-content/build/generated-resources/impl
+     */
+    static URI rootURI(URL url) {
+        try {
+            URI uri = url.toURI();
+            if (uri.getScheme().equals("jar")) {
+                String s = uri.toString();
+                return URI.create(s.substring(0, s.lastIndexOf("!/")));
+            } else {
+                return URI.create(getParent(getParent(getParent(uri.toString()))));
+            }
+        } catch (URISyntaxException unexpected) {
+            throw new AssertionError(unexpected); // should never happen
+        }
+    }
 
     private static Map<JarMeta, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;

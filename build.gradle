@@ -182,17 +182,6 @@ allprojects {
 
   ext.bwc_tests_enabled = bwc_tests_enabled
 
-  // ignore missing javadocs
-  tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
-    // the -quiet here is because of a bug in gradle, in that adding a string option
-    // by itself is not added to the options. By adding quiet, both this option and
-    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
-    // command already adds -quiet, so we are just duplicating it
-    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-    javadoc.options.encoding = 'UTF8'
-    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
-  }
-
   // eclipse configuration
   apply plugin: 'elasticsearch.eclipse'
 
@@ -268,60 +257,6 @@ allprojects {
             }
           }
         }
-      }
-    }
-
-
-    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
-    // org.elasticsearch:elasticsearch must be the last one or all the links for the
-    // other packages (e.g org.elasticsearch.client) will point to server rather than
-    // their own artifacts.
-    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
-      Closure sortClosure = { a, b -> b.group <=> a.group }
-      Closure depJavadocClosure = { shadowed, dep ->
-        if ((dep instanceof ProjectDependency) == false) {
-          return
-        }
-        Project upstreamProject = dep.dependencyProject
-        if (upstreamProject == null) {
-          return
-        }
-        if (shadowed) {
-          /*
-           * Include the source of shadowed upstream projects so we don't
-           * have to publish their javadoc.
-           */
-          project.evaluationDependsOn(upstreamProject.path)
-          project.javadoc.source += upstreamProject.javadoc.source
-          /*
-           * Instead we need the upstream project's javadoc classpath so
-           * we don't barf on the classes that it references.
-           */
-          project.javadoc.classpath += upstreamProject.javadoc.classpath
-        } else {
-          // Link to non-shadowed dependant projects
-          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.archivesBaseName
-          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
-          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
-        }
-      }
-      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compileClasspath.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(hasShadow, c) })
-      project.configurations.compileOnly.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(false, c) })
-      if (hasShadow) {
-        // include any dependencies for shadow JAR projects that are *not* bundled in the shadow JAR
-        project.configurations.shadow.dependencies
-                .findAll()
-                .toSorted(sortClosure)
-                .each({ c -> depJavadocClosure(false, c) })
       }
     }
   }

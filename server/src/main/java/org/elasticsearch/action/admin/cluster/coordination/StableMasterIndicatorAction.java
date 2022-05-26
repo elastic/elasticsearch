@@ -145,8 +145,12 @@ public class StableMasterIndicatorAction extends ActionType<StableMasterIndicato
         ) {
             listener.onResponse(
                 new Response(
-                    new StableMasterHealthIndicatorService(clusterService, discoveryModule.getCoordinator(), masterHistoryService, transportService)
-                        .calculate(request.explain)
+                    new StableMasterHealthIndicatorService(
+                        clusterService,
+                        discoveryModule.getCoordinator(),
+                        masterHistoryService,
+                        transportService
+                    ).calculate(request.explain)
                 )
             );
         }

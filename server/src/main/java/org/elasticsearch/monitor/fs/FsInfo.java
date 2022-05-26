@@ -461,10 +461,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(ioStats);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
+        out.writeArray(paths);
     }
 
     public Path getTotal() {

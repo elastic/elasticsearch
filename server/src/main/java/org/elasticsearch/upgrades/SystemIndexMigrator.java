@@ -117,7 +117,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             stateIndexName = taskState.getCurrentIndex();
             stateFeatureName = taskState.getCurrentFeature();
 
-            SystemIndices.Feature feature = systemIndices.getFeatures().get(stateFeatureName);
+            SystemIndices.Feature feature = systemIndices.getFeature(stateFeatureName);
             if (feature == null) {
                 markAsFailed(
                     new IllegalStateException(
@@ -144,7 +144,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             systemIndices.getFeatures()
-                .values()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
                 .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
@@ -157,10 +156,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
-                    new IllegalStateException(
-                        new ParameterizedMessage("indices must be open to be migrated, but indices {} are closed", closedIndices)
-                            .getFormattedMessage()
-                    )
+                    new IllegalStateException("indices must be open to be migrated, but indices " + closedIndices + " are closed")
                 );
                 return;
             }

@@ -9,11 +9,13 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -21,6 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.LongGCDisruption;
@@ -41,9 +45,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -90,6 +96,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         ensureNoMaster(unluckyNode);
+        // because it has had a master within the last 30s:
+        assertGreenMasterStability(internalCluster().client(unluckyNode));
 
         networkDisconnect.stopDisrupting();
 
@@ -98,6 +106,21 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
         // The elected master shouldn't have changed, since the unlucky node never could have elected itself as master
         assertThat(internalCluster().getMasterName(), equalTo(masterNode));
+        assertGreenMasterStability(internalCluster().client());
+    }
+
+    private void assertGreenMasterStability(Client client) throws ExecutionException, InterruptedException {
+        assertMasterStability(client, HealthStatus.GREEN, "The cluster has a stable master node");
+    }
+
+    private void assertMasterStability(Client client, HealthStatus expectedStatus, String expectedSummarySubstring)
+        throws ExecutionException, InterruptedException {
+        GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
+        assertThat(healthResponse.getStatus(), equalTo(expectedStatus));
+        assertThat(
+            healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
+            containsString(expectedSummarySubstring)
+        );
     }
 
     private void ensureNoMaster(String node) throws Exception {
@@ -113,6 +136,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      */
     public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
         testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
+        assertGreenMasterStability(internalCluster().client());
     }
 
     /**
@@ -129,6 +153,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "10s")
                 .build()
         );
+        assertGreenMasterStability(internalCluster().client());
     }
 
     private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
@@ -264,6 +289,175 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2()))
             );
         }
+        assertGreenMasterStability(internalCluster().client());
     }
 
+    public void testRepeatedMasterIdentityChangesRecognizedAsUnstable() throws Exception {
+        /*
+         * In this test we force multiple master identity changes, and make sure that the returned status is YELLOW. In order to not
+         * accidentally test the case where the node transitions to null multiple times, we set the identity change threshold very low
+         * and the null transition threshold very high.
+         */
+        testRepeatedMasterChanges(1, 100, "The master has changed ");
+    }
+
+    public void testRepeatedMasterNullChangesRecognizedAsUnstable() throws Exception {
+        /*
+         * In this test we force multiple master transitions to null, and make sure that the returned status is YELLOW. In order to not
+         * accidentally test the case where the master identity changes multiple times, we set the identity change threshold very high
+         * and the null transition threshold very low.
+         */
+        testRepeatedMasterChanges(100, 1, "and no master multiple times in the last 30m");
+    }
+
+    /**
+     * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
+     * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
+     * YELLOW, and that expectedMasterStabilitySummarySubstring is contained in the summary.
+     * @param acceptableIdentityChanges The value to use for the health.master_history.acceptable_identity_changes setting
+     * @param acceptableNullTransitions The value to use for the health.master_history.acceptable_null_transitions setting
+     * @param expectedMasterStabilitySummarySubstring A string to expect in the master stability health indictor summary
+     * @throws Exception
+     */
+    private void testRepeatedMasterChanges(
+        int acceptableIdentityChanges,
+        int acceptableNullTransitions,
+        String expectedMasterStabilitySummarySubstring
+    ) throws Exception {
+        final List<String> nodes = internalCluster().startNodes(
+            3,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(StableMasterHealthIndicatorService.ACCEPTABLE_IDENTITY_CHANGES_SETTING.getKey(), acceptableIdentityChanges)
+                .put(StableMasterHealthIndicatorService.ACCEPTABLE_NULL_TRANSITIONS_SETTING.getKey(), acceptableNullTransitions)
+                .build()
+        );
+        ensureStableCluster(3);
+        // Force the master to change 5 times:
+        for (int i = 0; i < 5; i++) {
+            // Save the current master node as old master node, because that node will get frozen
+            final String oldMasterNode = internalCluster().getMasterName();
+
+            // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
+            SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
+
+            // Save the majority side
+            final List<String> majoritySide = new ArrayList<>(nodes);
+            majoritySide.remove(oldMasterNode);
+
+            // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
+            final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
+            for (final String node : majoritySide) {
+                masters.put(node, new ArrayList<>());
+                internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
+                    DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
+                    DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+                    if (Objects.equals(previousMaster, currentMaster) == false) {
+                        logger.info(
+                            "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
+                            node,
+                            event.state(),
+                            event.previousState()
+                        );
+                        String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                        String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
+                        masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
+                    }
+                });
+            }
+
+            final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
+            internalCluster().getInstance(ClusterService.class, oldMasterNode).addListener(event -> {
+                if (event.state().nodes().getMasterNodeId() == null) {
+                    oldMasterNodeSteppedDown.countDown();
+                }
+            });
+            internalCluster().clearDisruptionScheme();
+            internalCluster().setDisruptionScheme(masterNodeDisruption);
+            logger.info("--> freezing node [{}]", oldMasterNode);
+            masterNodeDisruption.startDisrupting();
+
+            // Wait for majority side to elect a new master
+            assertBusy(() -> {
+                for (final Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
+                    final List<Tuple<String, String>> transitions = entry.getValue();
+                    assertTrue(entry.getKey() + ": " + transitions, transitions.stream().anyMatch(transition -> transition.v2() != null));
+                }
+            });
+
+            // Save the new elected master node
+            final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
+            logger.info("--> new detected master node [{}]", newMasterNode);
+
+            // Stop disruption
+            logger.info("--> unfreezing node [{}]", oldMasterNode);
+            masterNodeDisruption.stopDisrupting();
+
+            oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
+            logger.info("--> [{}] stepped down as master", oldMasterNode);
+            ensureStableCluster(3);
+
+            assertThat(masters.size(), equalTo(2));
+        }
+        assertMasterStability(internalCluster().client(), HealthStatus.YELLOW, expectedMasterStabilitySummarySubstring);
+    }
+
+    public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
+        /*
+         * In this test we have a single master-eligible node. We pause it repeatedly (simulating a long GC pause for example) so that
+         * other nodes decide it is no longer the master. However since there is no other master-eligible node, another node is never
+         * elected master. And the master node never recognizes that it had a problem. So when we run the master stability check on one
+         * of the data nodes, it will see that there is a problem (the master has gone null repeatedly), but when it checks with the
+         * master, the master says everything is fine. So we expect a GREEN status.
+         */
+        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(
+            1,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .build()
+        );
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(
+            2,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .build()
+        );
+        ensureStableCluster(3);
+        for (int i = 0; i < 5; i++) {
+            final String masterNode = masterNodes.get(0);
+
+            // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
+            SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), masterNode);
+
+            final CountDownLatch dataNodeMasterSteppedDown = new CountDownLatch(2);
+            internalCluster().getInstance(ClusterService.class, masterNode).addListener(event -> {
+                if (event.state().nodes().getMasterNodeId() == null) {
+                    dataNodeMasterSteppedDown.countDown();
+                }
+            });
+            internalCluster().getInstance(ClusterService.class, dataNodes.get(0)).addListener(event -> {
+                if (event.state().nodes().getMasterNodeId() == null) {
+                    dataNodeMasterSteppedDown.countDown();
+                }
+            });
+            internalCluster().getInstance(ClusterService.class, dataNodes.get(1)).addListener(event -> {
+                if (event.state().nodes().getMasterNodeId() == null) {
+                    dataNodeMasterSteppedDown.countDown();
+                }
+            });
+            internalCluster().clearDisruptionScheme();
+            internalCluster().setDisruptionScheme(masterNodeDisruption);
+            logger.info("--> freezing node [{}]", masterNode);
+            masterNodeDisruption.startDisrupting();
+            dataNodeMasterSteppedDown.await(30, TimeUnit.SECONDS);
+            // Stop disruption
+            logger.info("--> unfreezing node [{}]", masterNode);
+            masterNodeDisruption.stopDisrupting();
+            ensureStableCluster(3);
+        }
+        assertGreenMasterStability(internalCluster().client(dataNodes.get(0)));
+    }
 }

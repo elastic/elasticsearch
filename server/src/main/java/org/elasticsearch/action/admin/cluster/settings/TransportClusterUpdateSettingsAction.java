@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -138,11 +138,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
-        submitUnbatchedTask(UPDATE_TASK_SOURCE, new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
-
-            private volatile boolean changed = false;
-
+        submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
             @Override
             protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
                 return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
@@ -205,7 +201,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failed to perform [{}]", REROUTE_TASK_SOURCE), e);
+                        logger.debug(() -> "failed to perform [" + REROUTE_TASK_SOURCE + "]", e);
                         if (MasterService.isPublishFailureException(e)) {
                             listener.onResponse(
                                 new ClusterUpdateSettingsResponse(
@@ -223,22 +219,41 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
+                logger.debug(() -> "failed to perform [" + UPDATE_TASK_SOURCE + "]", e);
                 super.onFailure(e);
             }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) {
-                final ClusterState clusterState = updater.updateSettings(
-                    currentState,
-                    clusterSettings.upgradeSettings(request.transientSettings()),
-                    clusterSettings.upgradeSettings(request.persistentSettings()),
-                    logger
-                );
-                changed = clusterState != currentState;
-                return clusterState;
-            }
         });
+    }
+
+    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+        protected volatile boolean changed = false;
+        protected final SettingsUpdater updater;
+        protected final ClusterUpdateSettingsRequest request;
+        private final ClusterSettings clusterSettings;
+
+        public ClusterUpdateSettingsTask(
+            final ClusterSettings clusterSettings,
+            Priority priority,
+            ClusterUpdateSettingsRequest request,
+            ActionListener<? extends AcknowledgedResponse> listener
+        ) {
+            super(priority, request, listener);
+            this.clusterSettings = clusterSettings;
+            this.updater = new SettingsUpdater(clusterSettings);
+            this.request = request;
+        }
+
+        @Override
+        public ClusterState execute(final ClusterState currentState) {
+            final ClusterState clusterState = updater.updateSettings(
+                currentState,
+                clusterSettings.upgradeSettings(request.transientSettings()),
+                clusterSettings.upgradeSettings(request.persistentSettings()),
+                logger
+            );
+            changed = clusterState != currentState;
+            return clusterState;
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

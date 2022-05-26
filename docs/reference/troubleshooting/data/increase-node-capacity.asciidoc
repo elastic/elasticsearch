@@ -1,0 +1,18 @@
+[[increase-node-capacity]]
+== Not enough nodes to place all shard replicas
+
+Elasticsearch tries to keep copies of the data (index shard replicas) on different nodes so that
+if one node fails the data is still available on another node. If the index has a preferred tier,
+Elasticsearch will only try to place the copies of the data for that index on nodes in that tier.
+
+Users might want to influence this behavior by adding more nodes to the cluster (or tier if tiers are
+in use), or by configuring the
+<<dynamic-index-number-of-replicas,`index.number_of_replicas`>>
+index setting to reduce the number of replcas that need to be stored.
+
+In order to fix this follow the next steps:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/increase-node-capacity-widget.asciidoc[]
+
+
+

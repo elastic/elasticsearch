@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -208,7 +209,7 @@ public class BucketHelpers {
                     value = ((Number) propertyValue).doubleValue();
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-                } else if (propertyValue instanceof NumericMetricsAggregation.MultiValue) {
+                } else if (Version.V_7_0_1.onOrAfter(Version.V_8_4_0) && propertyValue instanceof NumericMetricsAggregation.MultiValue) {
                     final String metricName = aggPathAsList.get(aggPathAsList.size() - 1);
                     value = ((NumericMetricsAggregation.MultiValue) propertyValue).value(metricName);
                 } else {

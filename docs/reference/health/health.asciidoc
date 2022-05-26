@@ -61,8 +61,9 @@ is controlled by the worst component status.
 
 `<indicator>`::
     (Optional, string) Limit the information returned for a `component` to
-    a specific indicator. It can be used only if `component` is specified.
-    Supported indicators in each component are:
+    a specific indicator. An indicator can be used only if its corresponding
+    `component` is specified. Supported indicators and their corresponding
+    components are:
 +
 --
   `instance_has_master`::
@@ -92,8 +93,6 @@ is controlled by the worst component status.
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
@@ -105,7 +104,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `status`::
     (Optional, string) Health status of the cluster, based on the aggregated status of all components
-    in the cluster. Statuses are:
+    in the cluster. If the health of a specific component or indicator is being requested, this top
+    level status will be omitted. Statuses are:
 
     `green`:::
     The cluster is healthy.
@@ -119,9 +119,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
     `red`:::
     The cluster is experiencing an outage or certain features are unavailable for use.
-
-    If the health of a specific component or indicator is being requested, this top level status
-    will be omitted.
 
 `components`::
     (object) Information about the health of the cluster components.
@@ -137,7 +134,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 =====
 `status`::
     (Optional, string) Health status of the component, based on the aggregated status of all indicators
-    in the component. Statuses are:
+    in the component. If the health of a specific indicator is being requested, this component level status
+    will be omitted. Statuses are:
 
     `green`:::
     The component is healthy.
@@ -151,9 +149,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
     `red`:::
     The component is experiencing an outage or certain features are unavailable for use.
-
-    If the health of a specific indicator is being requested, the component level status
-    will be omitted.
 
 `indicators`::
     (object) Information about the health of the indicators under a component

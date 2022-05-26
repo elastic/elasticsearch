@@ -1,6 +1,6 @@
 pr: 87076
-summary: Fix CCR following a datastream with closed indices on the follower corrupting
-  the datastream
+summary: Prevent invalid datastream metadata when CCR follows a datastream with
+  closed indices on the follower
 area: "CCR"
 type: bug
 issues:

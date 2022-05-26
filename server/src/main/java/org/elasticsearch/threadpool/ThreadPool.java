@@ -219,7 +219,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
+        builders.put(
+            Names.FORCE_MERGE,
+            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1, false)
+        );
         builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
         builders.put(
             Names.FETCH_SHARD_STORE,
@@ -549,6 +552,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
+    }
+
+    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 
     public static int searchThreadPoolSize(final int allocatedProcessors) {

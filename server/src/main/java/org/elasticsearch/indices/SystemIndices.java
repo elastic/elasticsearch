@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -305,24 +304,6 @@ public class SystemIndices {
      */
     public @Nullable SystemDataStreamDescriptor findMatchingDataStreamDescriptor(String name) {
         return dataStreamDescriptors.get(name);
-    }
-
-    /**
-     * Builds a predicate that tests if a system index should be accessible based on the provided product name
-     * contained in headers.
-     * @param threadContext the threadContext containing headers used for system index access
-     * @return Predicate to check external system index metadata with
-     */
-    public Predicate<IndexMetadata> getProductSystemIndexMetadataPredicate(ThreadContext threadContext) {
-        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-        if (product == null) {
-            return indexMetadata -> false;
-        }
-        final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
-        if (automaton == null) {
-            return indexMetadata -> false;
-        }
-        return indexMetadata -> automaton.run(indexMetadata.getIndex().getName());
     }
 
     /**

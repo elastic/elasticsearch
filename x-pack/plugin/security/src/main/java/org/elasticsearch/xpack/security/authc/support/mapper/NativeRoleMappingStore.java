@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -142,10 +143,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         ),
                         ex -> {
                             logger.error(
-                                new ParameterizedMessage(
-                                    "failed to load role mappings from index [{}] skipping all mappings.",
-                                    SECURITY_MAIN_ALIAS
-                                ),
+                                () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
                                 ex
                             );
                             listener.onResponse(Collections.emptyList());

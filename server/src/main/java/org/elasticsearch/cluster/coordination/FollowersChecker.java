@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -310,7 +309,7 @@ public class FollowersChecker {
                     @Override
                     public void handleException(TransportException exp) {
                         if (running() == false) {
-                            logger.debug(new ParameterizedMessage("{} no longer running", FollowerChecker.this), exp);
+                            logger.debug(() -> format("%s no longer running", FollowerChecker.this), exp);
                             return;
                         }
 
@@ -351,7 +350,7 @@ public class FollowersChecker {
 
                 @Override
                 public void onRejection(Exception e) {
-                    logger.debug(new ParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason), e);
+                    logger.debug(() -> format("rejected task to fail node [%s] with reason [%s]", discoveryNode, reason), e);
                     if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
                         assert esRejectedExecutionException.isExecutorShutdown();
                     } else {
@@ -376,10 +375,7 @@ public class FollowersChecker {
                 @Override
                 public void onFailure(Exception e) {
                     assert false : e;
-                    logger.error(
-                        new ParameterizedMessage("unexpected failure when failing node [{}] with reason [{}]", discoveryNode, reason),
-                        e
-                    );
+                    logger.error(() -> format("unexpected failure when failing node [%s] with reason [%s]", discoveryNode, reason), e);
                 }
 
                 @Override

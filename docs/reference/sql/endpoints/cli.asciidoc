@@ -91,7 +91,7 @@ allow_partial_search_results set to true
 `fetch_size = <number>` (default `1000`)::
 
 Allows to change the size of fetches for query execution.
-Each fetch is delimited by fetch separator (if explicitly set)
+Each fetch is delimited by fetch separator (if explicitly set).
 
 [source,sqlcli]
 --------------------------------------------------
@@ -103,7 +103,7 @@ fetch size set to 2000
 
 `fetch_separator = <string>` (empty string by default)::
 
-Allows to change the separator string between fetches
+Allows to change the separator string between fetches.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -114,8 +114,8 @@ fetch separator set to "---------------------"
 
 `lenient = <boolean>` (default `false`)::
 
-If false, the API returns an error for fields containing <<array,array values>>.
-If true, the API returns the first value from the array with no guarantee of consistent results. Defaults to false.
+If `false`, {es-sql} returns an error for fields containing <<array,array values>>.
+If `true`, {es-sql} returns the first value from the array with no guarantee of consistent results.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -127,12 +127,12 @@ lenient set to true
 
 `info`::
 
-Returns server information
+Returns server information.
 
 [source,sqlcli]
 --------------------------------------------------
 sql> info;
-Node:runTask-0 Cluster:runTask Version:8.4
+Node:mynode Cluster:elasticsearch Version:8.3
 --------------------------------------------------
 
 
@@ -140,7 +140,7 @@ Node:runTask-0 Cluster:runTask Version:8.4
 
 `exit`::
 
-Closes the CLI
+Closes the CLI.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -152,18 +152,18 @@ Bye!
 
 `cls`::
 
-Cleans the screen
+Clears the screen.
 
 [source,sqlcli]
 --------------------------------------------------
-sql> cls
+sql> cls;
 --------------------------------------------------
 
 
 
 `logo`::
 
-Prints Elastic logo
+Prints Elastic logo.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -196,6 +196,6 @@ Ela        ticEl         ticElasti              cE
               ElasticElast
 
                        SQL
-                  8.4.0
+                      8.3.0
 
 --------------------------------------------------

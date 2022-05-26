@@ -25,9 +25,9 @@ public class NodeLoad {
     private final String nodeId;
     private final boolean useMemory;
     private final String error;
-    private int numAssignedAnomalyDetectorJobs;
-    private int numAssignedDataFrameAnalyticsJobs;
-    private int numAssignedNativeInferenceJobs;
+    private final int numAssignedAnomalyDetectorJobs;
+    private final int numAssignedDataFrameAnalyticsJobs;
+    private final int numAssignedNativeInferenceJobs;
     private final long assignedNativeCodeOverheadMemory;
     private final long assignedAnomalyDetectorMemory;
     private final long assignedDataFrameAnalyticsMemory;

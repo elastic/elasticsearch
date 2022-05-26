@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentiles implements Percentiles {
     public static final String NAME = "tdigest_percentiles";
@@ -58,6 +60,29 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     @Override
     public double value(double key) {
         return percentile(key);
+    }
+
+    @Override
+    public double value(String keyName) {
+        return Arrays.stream(keys).filter(key -> String.valueOf(key).equals(keyName)).findFirst().orElseGet(() -> {
+            if (keys.length != 1) {
+                throw new IllegalArgumentException(
+                    "percentiles ["
+                        + name
+                        + "] no percentiles available matching key ["
+                        + keyName
+                        + "], available metrics ["
+                        + String.join(", ", Arrays.stream(keys).mapToObj(String::valueOf).collect(Collectors.joining()))
+                        + "]"
+                );
+            }
+            if (!this.iterator().hasNext()) {
+                throw new IllegalArgumentException("percentiles [" + name + "] no percentile value available");
+            }
+                return this.iterator().next().getValue();
+        }
+
+        );
     }
 
     @Override

@@ -6,10 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.operator;
+package org.elasticsearch.operator.service;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

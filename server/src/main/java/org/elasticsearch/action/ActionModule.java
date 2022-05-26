@@ -266,7 +266,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.elasticsearch.operator.OperatorClusterStateController;
+import org.elasticsearch.operator.service.OperatorClusterStateController;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;

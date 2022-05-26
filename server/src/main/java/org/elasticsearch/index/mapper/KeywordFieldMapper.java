@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -79,6 +78,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -280,10 +280,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (normalizer == null) {
                     if (indexCreatedVersion.isLegacyIndexVersion()) {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "Could not find normalizer [{}] of legacy index, falling back to default",
-                                normalizerName
-                            )
+                            () -> format("Could not find normalizer [%s] of legacy index, falling back to default", normalizerName)
                         );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {

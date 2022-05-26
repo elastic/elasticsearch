@@ -158,7 +158,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that a legacy template applying a system alias creates a hidden alias.
+     * Check that a legacy template does not create an alias for a system index
      */
     public void testCreateSystemAliasViaV1Template() throws Exception {
         assertAcked(
@@ -173,13 +173,13 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
 
-        assertHasAliases(Set.of(".test-index", ".test-index-legacy-alias"));
+        assertHasAlias(Set.of(".test-index"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     /**
-     * Check that a composable template applying a system alias creates a hidden alias.
+     * Check that a composable template does not create an alias for a system index
      */
     public void testCreateSystemAliasViaComposableTemplate() throws Exception {
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
@@ -204,7 +204,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertAcked(prepareCreate(PRIMARY_INDEX_NAME));
         ensureGreen(PRIMARY_INDEX_NAME);
 
-        assertHasAliases(Set.of(".test-index", ".test-index-composable-alias"));
+        assertHasAlias(Set.of(".test-index"));
 
         assertAcked(
             client().execute(
@@ -278,14 +278,14 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).writeIndex(), equalTo(true));
     }
 
-    private void assertHasAliases(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
+    private void assertHasAlias(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(1));
         assertThat(
             getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)

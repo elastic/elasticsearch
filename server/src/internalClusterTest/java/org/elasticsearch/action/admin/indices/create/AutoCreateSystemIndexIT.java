@@ -168,7 +168,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that a template applying a system alias creates a hidden alias.
+     * Check that a legacy template does not create an alias for a system index
      */
     public void testAutoCreateSystemAliasViaV1Template() throws Exception {
         assertAcked(
@@ -186,13 +186,13 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-legacy-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     /**
-     * Check that a composable template applying a system alias creates a hidden alias.
+     * Check that a composable template does not create an alias for a system index
      */
     public void testAutoCreateSystemAliasViaComposableTemplate() throws Exception {
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
@@ -220,7 +220,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-composable-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index"));
 
         assertAcked(
             client().execute(
@@ -237,7 +237,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             .get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
         assertThat(
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)

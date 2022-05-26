@@ -38,23 +38,9 @@ process again.
 
 In most cases, the discovery process completes quickly, and the master node
 remains elected for a long period of time. If the cluster has no master for
-more than a few seconds or the master is unstable, the logs for each node will
-contain information explaining why:
-
-* All nodes repeatedly log messages indicating that a master cannot be
-discovered or elected using a logger called
-`org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
-default, this happens every 10 seconds.
-
-* If a node wins the election, it logs a message containing
-`elected-as-master`. If this happens repeatedly, the master node is unstable.
-
-* When a node discovers the master or believes the master to have failed, it
-logs a message containing `master node changed`.
-
-* If a node is unable to discover or elect a master for several minutes, it
-starts to report additional details about the failures in its logs. Be sure to
-capture log messages covering at least five minutes of discovery problems.
+more than a few seconds, or the master is unstable, or some nodes are unable to
+discover or join a stable master, then {es} will record information in its logs
+explaining why.
 
 If your cluster doesn't have a stable master, many of its features won't work
 correctly. The cluster may report many kinds of error to clients and in its
@@ -62,14 +48,40 @@ logs. You must fix the master node's instability before addressing these other
 issues. It will not be possible to solve any other issues while the master node
 is unstable.
 
-On master-eligible nodes, the logs from the `ClusterFormationFailureHelper` may
-indicate that a master election requires a certain set of nodes and that it has
-not discovered enough nodes to form a quorum. If so, you must address the
-reason preventing {es} from discovering the missing nodes. The missing nodes
-are needed to reconstruct the cluster metadata. Without the cluster metadata,
-the data in your cluster is meaningless. The cluster metadata is stored on a
-subset of the master-eligible nodes in the cluster. If a quorum cannot be
-discovered then the missing nodes were the ones holding the cluster metadata.
+If your cluster has a stable master which some nodes cannot discover or join
+then these nodes will report many kinds of error to clients and in their logs.
+You must address the obstacles preventing these nodes from joining the cluster
+before addressing other issues. It will not be possible to solve any other
+issues reported by these nodes while they are not able to join the cluster.
+
+To properly troubleshoot discovery and election problems you will need to
+collect and analyse logs covering at least five minutes from all nodes. There
+are a few possibilities for discovery and election problems:
+
+No master is elected::
+--
+
+When a node wins the master election, it logs a message containing
+`elected-as-master` and all nodes will log a message containing `master node
+changed` identifying the new elected master node. If there is no elected master
+node and no node can win an election then all nodes will repeatedly log
+messages about the problem using a logger called
+`org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
+default, this happens every 10 seconds.
+
+Master elections only involve master-eligible nodes, so you should focus on the
+logs from master-eligible nodes in this situation. These nodes' logs will
+indicate the requirements for a master election, such as the discovery of a
+certain set of nodes.
+
+If the logs indicate that {es} cannot discover enough nodes to form a quorum
+then you must address the reason preventing {es} from discovering the missing
+nodes. The missing nodes are needed to reconstruct the cluster metadata.
+Without the cluster metadata, the data in your cluster is meaningless. The
+cluster metadata is stored on a subset of the master-eligible nodes in the
+cluster. If a quorum cannot be discovered then the missing nodes were the ones
+holding the cluster metadata.
+
 Ensure there are enough nodes running to form a quorum and that every node can
 communicate with every other node over the network. {es} will report
 information about failures to form a cluster in its logs, and will report
@@ -78,22 +90,52 @@ more than a few minutes. If you cannot start enough nodes to form a quorum,
 start a new cluster and restore data from a recent snapshot. Refer to
 <<modules-discovery-quorums>> for more information.
 
-On master-eligible nodes, the logs from the `ClusterFormationFailureHelper` may
-also indicate that it has discovered a possible quorum of master-eligible
-nodes. If so, the usual reason that the cluster cannot elect a master is that
-one of the other nodes cannot discover a quorum. Inspect the logs on the other
+If the logs indicate that {es} has discovered a possible quorum of nodes then
+the usual reason that the cluster cannot elect a master is that one of the
+other nodes cannot discover a quorum. Inspect the logs on the other
 master-eligible nodes and ensure that every node has discovered a quorum.
 
-If your cluster has a stable master which some nodes cannot discover or join
-then these nodes will report many kinds of error to clients and in their logs.
-You must address the obstacles preventing these nodes from joining the cluster
-before addressing other issues. It will not be possible to solve any other
-issues reported by these nodes while they are not able to join the cluster. On
-these nodes, the logs from the `ClusterFormationFailureHelper` will indicate
-which master-eligible nodes they can discover. {es} will report information
-about failures to join a cluster in its logs, and will report additional
-details about network connectivity there if the problems persist for more than
-a few minutes.
+--
+
+Master is elected but unstable::
+--
+
+When a node wins the master election, it logs a message containing
+`elected-as-master`. If this happens repeatedly, the elected master node is
+unstable. In this situation, focus on the logs from the master-eligible nodes
+to understand why the election winner stops being the master and triggers
+another election.
+
+--
+
+Node cannot discover or join stable master::
+--
+
+If there is a stable elected master but a node cannot discover or join its
+cluster, it will repeatedly log messages about the problem using the
+`ClusterFormationFailureHelper` logger, and other log messages may provide
+additional information about related failures. {es} will start to report more
+detailed information, for instance describing network connectivity problems, if
+the node cannot join the cluster for more than a few minutes. Be sure to
+analyse at least five minutes of logs to fully understand the problem. There
+may also be useful information in the elected master's logs.
+
+Note that if a node cannot join its cluster then many of {es}'s features will
+not work correctly, and these failures may also be reported in its logs. You
+must address the obstacles preventing the node from joining the cluster before
+trying to address any other failures. It will not be possible to solve other
+issues while a node is unable to join the cluster.
+
+--
+
+Node joins cluster and leaves again::
+--
+
+If a node joins the cluster but {es} determines it to be faulty then it will be
+removed from the cluster again. See <<cluster-fault-detection-troubleshooting>>
+for more information about troubleshooting this situation.
+
+--
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

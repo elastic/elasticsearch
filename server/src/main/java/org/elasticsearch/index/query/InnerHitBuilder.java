@@ -223,10 +223,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
+            out.writeNamedWriteableList(sorts);
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);

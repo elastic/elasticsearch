@@ -97,7 +97,7 @@ public record ProfileDocument(
     }
 
     static ProfileDocument fromSubjectWithUid(Subject subject, String uid) {
-        assert uid.startsWith(computeBaseUidForSubject(subject) + "_");
+        assert uid.startsWith(computeBaseUidForSubject(subject) + "_") || uid.startsWith("u_" + subject.getUser().principal() + "_");
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             uid,

@@ -407,27 +407,24 @@ public class ServerProcessTests extends ESTestCase {
             nonInterruptibleVoid(mainReady::await);
             server.stop();
         }).start();
-        server.waitFor();
+        int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
+        assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
     }
 
     public void testProcessDies() throws Exception {
-        CountDownLatch mainReady = new CountDownLatch(1);
         CountDownLatch mainExit = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
             stderr.println(BootstrapInfo.SERVER_READY_MARKER);
-            mainReady.countDown();
             stderr.println("fatal message");
+            stderr.close(); // mimic pipe break if cli process dies
             nonInterruptibleVoid(mainExit::await);
             exitCode.set(-9);
         };
         var server = startProcess(false, false, "");
-        nonInterruptibleVoid(mainReady::await);
-        process.processStderr.close(); // mimic pipe break if cli process dies
         mainExit.countDown();
-        var e = expectThrows(RuntimeException.class, server::waitFor);
-        assertThat(e.getMessage(), equalTo("server process exited with status code -9"));
-        assertThat(terminal.getErrorOutput(), containsString("fatal message"));
+        int exitCode = server.waitFor();
+        assertThat(exitCode, equalTo(-9));
     }
 }

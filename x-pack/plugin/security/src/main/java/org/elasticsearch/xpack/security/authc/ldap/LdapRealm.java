@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPException;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -48,6 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
@@ -303,7 +304,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 IOUtils.closeWhileHandlingException(ldapSessionAtomicReference.get());
             }
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Exception occurred during {} for {}", action, LdapRealm.this), e);
+                logger.debug(() -> format("Exception occurred during %s for %s", action, LdapRealm.this), e);
             }
             resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
         }

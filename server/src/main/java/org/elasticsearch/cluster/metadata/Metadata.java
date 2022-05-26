@@ -450,7 +450,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
         return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
     }
 
@@ -463,7 +463,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -521,7 +521,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      *
      * @param onNextIndex a hook that gets notified for each index that's processed
      */
-    public ImmutableOpenMap<String, MappingMetadata> findMappings(
+    public Map<String, MappingMetadata> findMappings(
         String[] concreteIndices,
         Function<String, Predicate<String>> fieldFilter,
         Runnable onNextIndex
@@ -545,7 +545,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
+    public Map<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
         final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
@@ -838,11 +838,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         throw new IndexNotFoundException(index);
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> indices() {
+    public Map<String, IndexMetadata> indices() {
         return this.indices;
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> getIndices() {
+    public Map<String, IndexMetadata> getIndices() {
         return indices();
     }
 
@@ -934,7 +934,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             .orElse(Collections.emptyMap());
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
@@ -1212,10 +1212,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
-        out.writeVInt(templates.size());
-        for (IndexTemplateMetadata template : templates.values()) {
-            template.writeTo(out);
-        }
+        out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
     }
 
@@ -1405,7 +1402,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
+        public Builder indices(Map<String, IndexMetadata> indices) {
             for (var value : indices.values()) {
                 put(value, false);
             }
@@ -1487,7 +1484,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
+        public Builder templates(Map<String, IndexTemplateMetadata> templates) {
             this.templates.putAllFromMap(templates);
             return this;
         }
@@ -1580,7 +1577,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        private DataStreamMetadata dataStreamMetadata() {
+        public DataStreamMetadata dataStreamMetadata() {
             return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 
@@ -1632,7 +1629,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+        public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
@@ -2093,7 +2090,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
 
-        static boolean assertDataStreams(ImmutableOpenMap<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
+        static boolean assertDataStreams(Map<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
             // Sanity check, because elsewhere a more user friendly error should have occurred:
             List<String> conflictingAliases = null;
 

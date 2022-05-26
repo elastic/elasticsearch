@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +31,8 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -121,7 +122,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     protected static void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
-        logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
+        logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
             channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {

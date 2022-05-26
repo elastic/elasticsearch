@@ -433,18 +433,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         boolean hasIncludes = includeValues != null;
         out.writeBoolean(hasIncludes);
         if (hasIncludes) {
-            out.writeVInt(includeValues.size());
-            for (BytesRef value : includeValues) {
-                out.writeBytesRef(value);
-            }
+            out.writeCollection(includeValues, StreamOutput::writeBytesRef);
         }
         boolean hasExcludes = excludeValues != null;
         out.writeBoolean(hasExcludes);
         if (hasExcludes) {
-            out.writeVInt(excludeValues.size());
-            for (BytesRef value : excludeValues) {
-                out.writeBytesRef(value);
-            }
+            out.writeCollection(excludeValues, StreamOutput::writeBytesRef);
         }
         out.writeVInt(incNumPartitions);
         out.writeVInt(incZeroBasedPartition);

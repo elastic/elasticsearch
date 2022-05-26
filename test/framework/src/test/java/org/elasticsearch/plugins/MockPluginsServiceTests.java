@@ -87,7 +87,7 @@ public class MockPluginsServiceTests extends ESTestCase {
 
         assertThat(pam.getModuleInfos(), empty());
 
-        List<String> pluginNames = pam.getPluginInfos().stream().map(PluginDescriptor::getName).toList();
+        List<String> pluginNames = pam.getPluginInfos().stream().map(PluginRuntimeInfo::descriptor).map(PluginDescriptor::getName).toList();
         assertThat(pluginNames, containsInAnyOrder(containsString("TestPlugin1"), containsString("TestPlugin2")));
     }
 }

@@ -13,15 +13,17 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,7 +36,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
@@ -130,7 +131,6 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
     public void testComplicatedBucketPath() throws IOException {
         Query query = new MatchAllDocsQuery();
         final String textField = "text";
-        AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
@@ -141,9 +141,9 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             "the_avg_bucket",
             "filter>terms['value']>histo>foo"
         );
-
+        IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
                 for (String date : dataset) {
                     if (frequently()) {
@@ -153,51 +153,23 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, asLong(date)));
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD, randomInt()));
                     document.add(new SortedSetDocValuesField(textField, new BytesRef("value")));
-                    document.add(
-                        new KeywordFieldMapper.KeywordField(textField, new BytesRef("value"), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                    );
                     indexWriter.addDocument(document);
                     document.clear();
                 }
             }
 
-            InternalAvg avgResult;
-            InternalDateHistogram histogramResult;
             InternalFilter filterResult;
-            InternalTerms<?, ?> internalTerms;
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
                 MappedFieldType keywordField = keywordField(textField);
 
-                avgResult = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    avgBuilder,
-                    10000,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
-                );
-                histogramResult = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    histo,
-                    10000,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
-                );
-                internalTerms = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    termsBuilder,
-                    10000,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
-                );
                 filterResult = searchAndReduce(
                     indexSearcher,
                     query,
                     filterAggregationBuilder,
-                    10000,
                     new MappedFieldType[] { fieldType, valueFieldType, keywordField }
                 );
             }
@@ -207,9 +179,6 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             List<Aggregation> reducedAggs = new ArrayList<>(4);
 
             reducedAggs.add(filterResult);
-            reducedAggs.add(internalTerms);
-            reducedAggs.add(histogramResult);
-            reducedAggs.add(avgResult);
             Aggregations aggregations = new Aggregations(reducedAggs);
             InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);

@@ -95,7 +95,10 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // we are running in the foreground, so wait for the server to exit
-        server.waitFor();
+        int exitCode = server.waitFor();
+        if (exitCode != ExitCodes.OK) {
+            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+        }
     }
 
     private void printVersion(Terminal terminal) {
@@ -153,7 +156,9 @@ class ServerCli extends EnvironmentAwareCommand {
             };
             if (options.has(enrollmentTokenOption) == false && okCode) {
                 // we still want to print the error, just don't fail startup
-                terminal.errorPrintln(e.getMessage());
+                if (e.getMessage() != null) {
+                    terminal.errorPrintln(e.getMessage());
+                }
                 changed = false;
             } else {
                 throw e;

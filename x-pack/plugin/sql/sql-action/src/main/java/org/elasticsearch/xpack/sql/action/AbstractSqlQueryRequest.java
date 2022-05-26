@@ -455,10 +455,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(query);
-        out.writeVInt(params.size());
-        for (SqlTypedParamValue param : params) {
-            writeSqlTypedParamValue(out, param);
-        }
+        out.writeCollection(params, AbstractSqlQueryRequest::writeSqlTypedParamValue);
         out.writeZoneId(zoneId);
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalString(catalog);

@@ -25,6 +25,8 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
     private String[] clusterPrivileges;
     private IndicesPrivileges[] indexPrivileges;
     private ApplicationResourcePrivileges[] applicationPrivileges;
+    // this is hard-coded for now, but it doesn't have to be
+    private final boolean runDetailedCheck = true;
 
     public HasPrivilegesRequest() {}
 
@@ -40,9 +42,14 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
     }
 
+    public AuthorizationEngine.PrivilegesToCheck getPrivilegesToCheck() {
+        return new AuthorizationEngine.PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges, runDetailedCheck);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
-        return new AuthorizationEngine.PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges).validate(null);
+        assert getPrivilegesToCheck().runDetailedCheck();
+        return getPrivilegesToCheck().validate(null);
     }
 
     /**
@@ -86,6 +93,13 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     public void applicationPrivileges(ApplicationResourcePrivileges... appPrivileges) {
         this.applicationPrivileges = appPrivileges;
+    }
+
+    public void privilegesToCheck(AuthorizationEngine.PrivilegesToCheck privilegesToCheck) {
+        assert privilegesToCheck.runDetailedCheck() == runDetailedCheck;
+        clusterPrivileges(privilegesToCheck.cluster());
+        indexPrivileges(privilegesToCheck.index());
+        applicationPrivileges(privilegesToCheck.application());
     }
 
     @Override

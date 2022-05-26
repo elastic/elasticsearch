@@ -137,10 +137,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
-        out.writeVInt(shardFailures.length);
-        for (DefaultShardOperationFailedException exp : shardFailures) {
-            exp.writeTo(out);
-        }
+        out.writeArray(shardFailures);
     }
 
     @Override

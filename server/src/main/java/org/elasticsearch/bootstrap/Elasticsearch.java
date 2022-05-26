@@ -105,7 +105,6 @@ class Elasticsearch {
     }
 
     private static void gracefullyExit(PrintStream err, int exitCode) {
-        err.println("EXITING with non-zero status: " + exitCode);
         printLogsSuggestion(err);
         err.flush();
         exit(exitCode);

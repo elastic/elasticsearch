@@ -116,10 +116,10 @@ public class ServerCliTests extends CommandTestCase {
 
         Path pidFileArg = tmpDir.resolve("pid");
         argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
-        assertOk(new String[] { "-p", pidFileArg.toString() });
+        assertOk("-p", pidFileArg.toString());
 
         argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(esHomeDir.resolve("pid").toAbsolutePath().toString()));
-        assertOk(new String[] { "-p", "pid" });
+        assertOk("-p", "pid");
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {

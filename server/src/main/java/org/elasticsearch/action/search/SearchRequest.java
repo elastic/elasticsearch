@@ -268,7 +268,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         }
     }
@@ -318,7 +318,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "] or greater."
             );
         }
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         }
     }

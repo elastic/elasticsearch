@@ -286,7 +286,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             /*
@@ -379,7 +379,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     + "] or greater."
             );
         }
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {

@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -17,6 +16,8 @@ import org.elasticsearch.core.Tuple;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Container class for a {@code SecretKey} with a unique identifier, and a 4-byte wide {@code Integer} nonce, that can be used for a
@@ -81,9 +82,7 @@ final class SingleUseKey {
                 );
                 if (nonceAndKey.nonce < MAX_NONCE) {
                     // this is the commonly used code path, where just the nonce is incremented
-                    logger.trace(
-                        () -> new ParameterizedMessage("Key with id [{}] reused with nonce [{}]", nonceAndKey.keyId, nonceAndKey.nonce)
-                    );
+                    logger.trace(() -> format("Key with id [%s] reused with nonce [%s]", nonceAndKey.keyId, nonceAndKey.nonce));
                     return nonceAndKey;
                 } else {
                     // this is the infrequent code path, where a new key is generated and the nonce is reset back

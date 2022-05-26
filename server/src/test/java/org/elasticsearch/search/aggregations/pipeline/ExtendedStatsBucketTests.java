@@ -71,9 +71,9 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         assertThat(
             validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "global>metric")),
             equalTo(
-                "Validation Failed: 1: The first aggregation in "
+                "Validation Failed: 1: Unable to find unqualified multi-bucket aggregation in "
                     + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + ". Path must include a multi-bucket aggregation for aggregation [name] found :"
                     + GlobalAggregationBuilder.class.getName()
                     + " for buckets path: global>metric;"
             )

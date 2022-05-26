@@ -439,21 +439,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception e) {
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
-                    logger.warn(
-                        () -> format(
-                            """
-                                failed to apply updated cluster state in [%s]:
-                                version [%s], uuid [%s], source [%s]
-                                %s
-                            """,
-                            executionTime,
-                            newClusterState.version(),
-                            newClusterState.stateUUID(),
-                            source,
-                            newClusterState
-                        ),
-                        e
-                    );
+                    logger.warn(() -> format("""
+                            failed to apply updated cluster state in [%s]:
+                            version [%s], uuid [%s], source [%s]
+                            %s
+                        """, executionTime, newClusterState.version(), newClusterState.stateUUID(), source, newClusterState), e);
                 } else {
                     logger.warn(
                         () -> format(

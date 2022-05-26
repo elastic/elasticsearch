@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -80,6 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
@@ -348,8 +348,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             @Override
                             public void onFailure(Exception e) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
-                                        "exception when executing blob cache maintenance task after deletion of {} (snapshot:{}, index:{})",
+                                    () -> format(
+                                        "exception when executing blob cache maintenance task after deletion of %s (snapshot:%s, index:%s)",
                                         deletedIndex,
                                         snapshotId,
                                         indexId
@@ -558,10 +558,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             }
                         } catch (Exception e) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "exception when parsing blob store cache entry with id [{}], skipping",
-                                    searchHit.getId()
-                                ),
+                                () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
                                 e
                             );
                         }
@@ -621,8 +618,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final Exception e = error.get();
                 if (e != null) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "periodic maintenance task completed with failure ({} deleted documents out of a total of {})",
+                        () -> format(
+                            "periodic maintenance task completed with failure (%s deleted documents out of a total of %s)",
                             deletes.get(),
                             total.get()
                         ),
@@ -630,8 +627,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     );
                 } else {
                     logger.info(
-                        () -> new ParameterizedMessage(
-                            "periodic maintenance task completed ({} deleted documents out of a total of {})",
+                        () -> format(
+                            "periodic maintenance task completed (%s deleted documents out of a total of %s)",
                             deletes.get(),
                             total.get()
                         )

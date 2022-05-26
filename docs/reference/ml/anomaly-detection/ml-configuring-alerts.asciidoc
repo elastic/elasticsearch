@@ -274,17 +274,17 @@ Contains the following properties:
 .Properties of `context.results`
 [%collapsible%open]
 ====
-`datafeed_id`:::
+`datafeed_id` ^*^:::
 The {dfeed} identifier.
 
-`datafeed_state`:::
+`datafeed_state` ^*^:::
 The state of the {dfeed}. It can be `starting`, `started`, 
 `stopping`, `stopped`.
 
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`job_state`:::
+`job_state` ^*^:::
 The state of the job. It can be `opening`, `opened`, `closing`, 
 `closed`, or `failed`.
 ====
@@ -300,10 +300,10 @@ Contains the following properties:
 .Properties of `context.results` 
 [%collapsible%open]
 ====
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`memory_status`:::
+`memory_status` ^*^:::
 The status of the mathematical model. It can have one of the following values:
 
 * `soft_limit`: The model used more than 60% of the configured memory limit and 
@@ -312,21 +312,23 @@ The status of the mathematical model. It can have one of the following values:
 * `hard_limit`: The model used more space than the configured memory limit. As a 
   result, not all incoming data was processed.
 
-`model_bytes`:::
+The `memory_status` is `ok` for recovered alerts.
+
+`model_bytes` ^*^:::
 The number of bytes of memory used by the models.
 
-`model_bytes_exceeded`:::
+`model_bytes_exceeded` ^*^:::
 The number of bytes over the high limit for memory usage at the last allocation 
 failure.
 
-`model_bytes_memory_limit`:::
+`model_bytes_memory_limit` ^*^:::
 The upper limit for model memory usage.
 
-`log_time`:::
+`log_time` ^*^:::
 The timestamp of the model size statistics according to server time. Time 
 formatting is based on the {kib} settings.
 
-`peak_model_bytes`:::
+`peak_model_bytes` ^*^:::
 The peak number of bytes of memory ever used by the model.
 ====
 
@@ -336,22 +338,25 @@ The peak number of bytes of memory ever used by the model.
 A preconstructed message for the rule.
 
 `context.results`::
+For recovered alerts, `context.results` is either empty (when there is no 
+delayed data) or the same as for an active alert (when the number of missing 
+documents is less than the _Number of documents_ treshold set by the user). 
 Contains the following properties:
 +
 .Properties of `context.results`
 [%collapsible%open]
 ====
-`annotation`:::
+`annotation` ^*^:::
 The annotation corresponding to the data delay in the job.
 
-`end_timestamp`:::
+`end_timestamp` ^*^:::
 Timestamp of the latest finalized buckets with missing documents. Time 
 formatting is based on the {kib} settings.
 
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`missed_docs_count`:::
+`missed_docs_count` ^*^:::
 The number of missed documents.
 ====
 

@@ -79,7 +79,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
             if (!this.iterator().hasNext()) {
                 throw new IllegalArgumentException("percentiles [" + name + "] no percentile value available");
             }
-                return this.iterator().next().getValue();
+            return this.iterator().next().getValue();
         }
 
         );

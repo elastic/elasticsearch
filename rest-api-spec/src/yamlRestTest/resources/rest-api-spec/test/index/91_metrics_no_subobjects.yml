@@ -1,5 +1,5 @@
 ---
-"Metrics indexing":
+"Metrics object indexing":
   - skip:
       features: allowed_warnings_regex
       version: " - 8.2.99"
@@ -17,6 +17,9 @@
                   mapping:
                     type: object
                     subobjects: false
+                    properties:
+                      host.name:
+                        type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -26,15 +29,62 @@
         id: 1
         refresh: true
         body:
-          { metrics.time: 10, metrics.time.max: 100, metrics.time.min: 1 }
+          { metrics.host.name: localhost, metrics.host.id: 1, metrics.time: 10, metrics.time.max: 100, metrics.time.min: 1 }
 
   - do:
       field_caps:
         index: test-1
-        fields: metrics.time*
+        fields: metrics*
+  - match: {fields.metrics\.host\.id.long.searchable: true}
+  - match: {fields.metrics\.host\.id.long.aggregatable: true}
+  - match: {fields.metrics\.host\.name.keyword.searchable: true}
+  - match: {fields.metrics\.host\.name.keyword.aggregatable: true}
   - match: {fields.metrics\.time.long.searchable: true}
   - match: {fields.metrics\.time.long.aggregatable: true}
   - match: {fields.metrics\.time\.max.long.searchable: true}
   - match: {fields.metrics\.time\.max.long.aggregatable: true}
   - match: {fields.metrics\.time\.min.long.searchable: true}
   - match: {fields.metrics\.time\.min.long.aggregatable: true}
+
+---
+"Root without subobjects":
+  - skip:
+      features: allowed_warnings_regex
+      version: " - 8.2.99"
+      reason: added in 8.3.0
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          mappings:
+            subobjects: false
+            properties:
+              host.name:
+                type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { host.name: localhost, host.id: 1, time: 10, time.max: 100, time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: [host*, time*]
+  - match: {fields.host\.name.keyword.searchable: true}
+  - match: {fields.host\.name.keyword.aggregatable: true}
+  - match: {fields.host\.id.long.searchable: true}
+  - match: {fields.host\.id.long.aggregatable: true}
+  - match: {fields.time.long.searchable: true}
+  - match: {fields.time.long.aggregatable: true}
+  - match: {fields.time\.max.long.searchable: true}
+  - match: {fields.time\.max.long.aggregatable: true}
+  - match: {fields.time\.min.long.searchable: true}
+  - match: {fields.time\.min.long.aggregatable: true}

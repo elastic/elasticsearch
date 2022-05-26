@@ -30,17 +30,17 @@
 ///////////////
 TermEqualityAnalyzer
 SELECT some.string FROM test WHERE some.string = 'value';
-"term":{"some.string.typical":{"value":"value",
+"term":{"some.string.typical":{"value":"value"
 ;
 
 TermEqualityNotAnalyzed
 SELECT some.string FROM test WHERE int = 5;
-CONTAINS "term":{"int":{"value":5,
+CONTAINS "term":{"int":{"value":5
 ;
 
 TermEqualityForDate
 SELECT some.string FROM test WHERE date = 5;
-"term":{"date":{"value":5,
+"term":{"date":{"value":5
 ;
 
 EqualsAndInOnTheSameField

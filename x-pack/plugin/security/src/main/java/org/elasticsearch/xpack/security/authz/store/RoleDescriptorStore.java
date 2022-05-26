@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
@@ -41,6 +40,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
@@ -136,18 +137,12 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
-                logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
+                logger.debug(() -> format("Could not find roles with names %s", rolesRetrievalResult.getMissingRoles()));
             }
             final Set<RoleDescriptor> effectiveDescriptors = maybeSkipRolesUsingDocumentOrFieldLevelSecurity(
                 rolesRetrievalResult.getRoleDescriptors()
             );
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Exposing effective role descriptors [{}] for role names [{}]",
-                    effectiveDescriptors,
-                    roleNames
-                )
-            );
+            logger.trace(() -> format("Exposing effective role descriptors [%s] for role names [%s]", effectiveDescriptors, roleNames));
             effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
             // TODO: why not populate negativeLookupCache here with missing roles?
 
@@ -231,9 +226,9 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
                 if (result.isSuccess()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "Roles [{}] were resolved by [{}]",
-                            result.getDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+                        () -> format(
+                            "Roles [%s] were resolved by [%s]",
+                            result.getDescriptors().stream().map(RoleDescriptor::getName).collect(joining(",")),
                             rolesProvider
                         )
                     );
@@ -244,10 +239,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(
-                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
-                        result.getFailure()
-                    );
+                    logger.warn(() -> format("role [%s] retrieval failed from [%s]", roleNames, rolesProvider), result.getFailure());
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);

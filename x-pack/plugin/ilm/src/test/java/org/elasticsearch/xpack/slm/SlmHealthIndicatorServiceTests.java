@@ -49,6 +49,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "SLM is running",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -70,12 +71,12 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     YELLOW,
                     "SLM is not running",
+                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             3,
-                            "Scheduled snapshots are not running. There might not be backups of the data that could be used to restore if"
-                                + " data is lost in the future.",
+                            "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
@@ -97,7 +98,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No policies configured",
+                    "No SLM policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -117,7 +119,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No policies configured",
+                    "No SLM policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

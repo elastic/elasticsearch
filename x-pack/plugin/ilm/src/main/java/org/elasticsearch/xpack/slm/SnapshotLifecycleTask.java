@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -40,6 +39,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
@@ -157,8 +158,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
                         logger.error(
-                            new ParameterizedMessage(
-                                "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
+                            () -> format(
+                                "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
                                 policyMetadata.getPolicy().getId()
                             ),
                             e

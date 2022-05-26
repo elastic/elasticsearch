@@ -104,7 +104,8 @@ public interface AuthorizationEngine {
      * This could include retrieval of permissions from an index or external system.
      * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
      * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
-     * authorizing a specific request, i.e. {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
+     * authorizing a specific request, i.e.
+     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
      *
      * @param subject object representing the effective user
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
@@ -253,16 +254,27 @@ public interface AuthorizationEngine {
         }
     }
 
+    /**
+     * This encapsulates the privileges that can be checked for access. It's intentional that the privileges to be checked are specified
+     * in the same manner that they are granted in the {@link RoleDescriptor}. The privilege check can be detailed or not, per the
+     * {@link #runDetailedCheck} parameter. The detailed response {@link PrivilegesCheckResult} of a check run, also shows which privileges
+     * are NOT granted.
+     */
     record PrivilegesToCheck(
         String[] cluster,
         RoleDescriptor.IndicesPrivileges[] index,
-        RoleDescriptor.ApplicationResourcePrivileges[] application
+        RoleDescriptor.ApplicationResourcePrivileges[] application,
+        boolean runDetailedCheck
     ) {
         public static PrivilegesToCheck readFrom(StreamInput in) throws IOException {
             return new PrivilegesToCheck(
                 in.readOptionalStringArray(),
                 in.readOptionalArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
-                in.readOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::new, RoleDescriptor.ApplicationResourcePrivileges[]::new)
+                in.readOptionalArray(
+                    RoleDescriptor.ApplicationResourcePrivileges::new,
+                    RoleDescriptor.ApplicationResourcePrivileges[]::new
+                ),
+                in.readBoolean()
             );
         }
 
@@ -270,6 +282,7 @@ public interface AuthorizationEngine {
             out.writeOptionalStringArray(cluster);
             out.writeOptionalArray(RoleDescriptor.IndicesPrivileges::write, index);
             out.writeOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
+            out.writeBoolean(runDetailedCheck);
         }
 
         public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -306,12 +319,16 @@ public interface AuthorizationEngine {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             PrivilegesToCheck that = (PrivilegesToCheck) o;
-            return Arrays.equals(cluster, that.cluster) && Arrays.equals(index, that.index) && Arrays.equals(application, that.application);
+            return runDetailedCheck == that.runDetailedCheck
+                && Arrays.equals(cluster, that.cluster)
+                && Arrays.equals(index, that.index)
+                && Arrays.equals(application, that.application);
         }
 
         @Override
         public int hashCode() {
-            int result = Arrays.hashCode(cluster);
+            int result = Objects.hash(runDetailedCheck);
+            result = 31 * result + Arrays.hashCode(cluster);
             result = 31 * result + Arrays.hashCode(index);
             result = 31 * result + Arrays.hashCode(application);
             return result;
@@ -329,16 +346,67 @@ public interface AuthorizationEngine {
                 + ","
                 + "application="
                 + Arrays.toString(application)
+                + ","
+                + "detailed="
+                + runDetailedCheck
                 + "}";
         }
     }
 
-    record PrivilegesCheckResult(
-        boolean allMatch,
-        Map<String, Boolean> cluster,
-        Map<String, ResourcePrivileges> index,
-        Map<String, Collection<ResourcePrivileges>> application
-    ) {}
+    /**
+     * The result of a (has) privilege check. This is not to be used as an Elasticsearch authorization result (though clients can base their
+     * authorization decisions on this response). The {@link #allChecksSuccess} field tells if all the privileges are granted over
+     * all the resources. The {@link #details} field is only present (non-null) if the check has been run in a detailed mode
+     * {@link PrivilegesToCheck#runDetailedCheck}, and contains a run-down of which privileges are granted over which resources or not.
+     */
+    final class PrivilegesCheckResult {
+
+        public static final PrivilegesCheckResult ALL_CHECKS_SUCCESS_NO_DETAILS = new PrivilegesCheckResult(true, null);
+        public static final PrivilegesCheckResult SOME_CHECKS_FAILURE_NO_DETAILS = new PrivilegesCheckResult(false, null);
+
+        private final boolean allChecksSuccess;
+
+        @Nullable
+        private final Details details;
+
+        public PrivilegesCheckResult(boolean allChecksSuccess, Details details) {
+            this.allChecksSuccess = allChecksSuccess;
+            this.details = details;
+        }
+
+        public boolean allChecksSuccess() {
+            return allChecksSuccess;
+        }
+
+        public @Nullable Details getDetails() {
+            return details;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PrivilegesCheckResult that = (PrivilegesCheckResult) o;
+            return allChecksSuccess == that.allChecksSuccess && Objects.equals(details, that.details);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(allChecksSuccess, details);
+        }
+
+        public record Details(
+            Map<String, Boolean> cluster,
+            Map<String, ResourcePrivileges> index,
+            Map<String, Collection<ResourcePrivileges>> application
+        ) {
+            public Details {
+                Objects.requireNonNull(cluster);
+                Objects.requireNonNull(index);
+                Objects.requireNonNull(application);
+            }
+        }
+    }
 
     /**
      * Implementation of authorization info that is used in cases where we were not able to resolve

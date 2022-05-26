@@ -15,8 +15,8 @@ import java.util.List;
 
 public class Sample extends AbstractJoin {
 
-    public Sample(Source source, List<KeyedFilter> queries, KeyedFilter... query) {
-        super(source, queries, query);
+    public Sample(Source source, List<KeyedFilter> queries) {
+        super(source, queries);
     }
 
     @Override

@@ -64,7 +64,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         createIndex(defaultValidationIndexName, (String) null);
 
         for (String[] test : testBadRequests) {
-            assert400BadRequest(test[0], test[1]);
+            assertBadRequest(test[0], test[1], 400);
         }
 
         bulkIndex("""
@@ -77,10 +77,6 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             """, "Fetch size cannot be greater than [1000]", 500);
 
         deleteIndexWithProvisioningClient(defaultValidationIndexName);
-    }
-
-    private void assert400BadRequest(String query, String errorMessage) throws IOException {
-        assertBadRequest(query, errorMessage, 400);
     }
 
     private void assertBadRequest(String query, String errorMessage, int errorCode) throws IOException {

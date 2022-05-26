@@ -49,7 +49,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     @Before
     public void setup() throws Exception {
         RestClient provisioningClient = provisioningClient();
-        boolean shouldLoadData = false == Arrays.stream(index.split(","))
+        boolean dataLoaded = Arrays.stream(index.split(","))
             .anyMatch(
                 indexName -> doWithRequest(
                     new Request("HEAD", "/" + unqualifiedIndexName(indexName)),
@@ -58,7 +58,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 )
             );
 
-        if (shouldLoadData) {
+        if (dataLoaded == false) {
             DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
         }
     }

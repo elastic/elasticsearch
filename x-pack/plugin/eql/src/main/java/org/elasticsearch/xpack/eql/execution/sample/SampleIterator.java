@@ -74,7 +74,7 @@ public class SampleIterator implements Executable {
     }
 
     /*
-     * Starting point of the iterator, which also goes through all the criterions and gathers initial results pages.
+     * Starting point of the iterator, which also goes through all the criteria and gathers initial results pages.
      */
     private void advance(ActionListener<Payload> listener) {
         int currentCriterion = stack.size();

@@ -74,6 +74,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
     private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));
+    private static final int MAX_SAMPLE_QUERIES = 5;
 
     public LogicalPlanBuilder(ParserParams params) {
         super(params);
@@ -415,8 +416,13 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
             queries.add(joinTerm);
             int numberOfQueries = queries.size();
-            if (numberOfQueries > 5) {
-                throw new ParsingException(source(joinTermCtx), "A sample cannot contain more than 5 queries, found [{}]", numberOfQueries);
+            if (numberOfQueries > MAX_SAMPLE_QUERIES) {
+                throw new ParsingException(
+                    source(joinTermCtx),
+                    "A sample cannot contain more than {} queries, found [{}]",
+                    MAX_SAMPLE_QUERIES,
+                    numberOfQueries
+                );
             }
 
             Set<String> uniqueKeyNames = new HashSet<>(keySize);

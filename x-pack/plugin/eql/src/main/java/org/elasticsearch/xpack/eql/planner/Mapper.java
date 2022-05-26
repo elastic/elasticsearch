@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
@@ -72,20 +73,22 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     matches.add(map(keyed.child()));
                 }
 
-                if (p instanceof Sequence sequence) {
-                    return new SequenceExec(
-                        p.source(),
-                        keys,
-                        matches,
-                        Expressions.asAttributes(sequence.until().keys()),
-                        map(sequence.until().child()),
-                        sequence.timestamp(),
-                        sequence.tiebreaker(),
-                        sequence.direction(),
-                        sequence.maxSpan()
-                    );
+                if (p instanceof Sample sample) {
+                    return new SampleExec(p.source(), matches, keys);
                 }
-                return new SampleExec(p.source(), matches, keys);
+
+                Sequence s = (Sequence) p;
+                return new SequenceExec(
+                    p.source(),
+                    keys,
+                    matches,
+                    Expressions.asAttributes(s.until().keys()),
+                    map(s.until().child()),
+                    s.timestamp(),
+                    s.tiebreaker(),
+                    s.direction(),
+                    s.maxSpan()
+                );
             }
 
             if (p instanceof LocalRelation) {

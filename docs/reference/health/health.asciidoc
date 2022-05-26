@@ -93,8 +93,6 @@ is controlled by the worst component status.
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
 [role="child_attributes"]
 [[health-api-response-body]]
 ==== {api-response-body-title}

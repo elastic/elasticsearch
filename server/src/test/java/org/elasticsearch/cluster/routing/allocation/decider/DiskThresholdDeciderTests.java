@@ -923,8 +923,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(IndexShardRoutingTable.builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(IndexShardRoutingTable.builder(secondRouting.shardId()).addShard(secondRouting))
             );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(
@@ -955,8 +955,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting))
             );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(
@@ -1115,7 +1115,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable forceAssignedRoutingTable = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard))
             )
             .build();
         clusterState = ClusterState.builder(clusterState).routingTable(forceAssignedRoutingTable).build();

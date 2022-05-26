@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.DomainConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -79,13 +81,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
+import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
@@ -100,6 +106,7 @@ public class ProfileService {
     private final Client client;
     private final SecurityIndexManager profileIndex;
     private final ClusterService clusterService;
+    private final Function<String, DomainConfig> domainConfigLookup;
     private final ThreadPool threadPool;
 
     public ProfileService(
@@ -108,6 +115,7 @@ public class ProfileService {
         Client client,
         SecurityIndexManager profileIndex,
         ClusterService clusterService,
+        Function<String, DomainConfig> domainConfigLookup,
         ThreadPool threadPool
     ) {
         this.settings = settings;
@@ -115,6 +123,7 @@ public class ProfileService {
         this.client = client;
         this.profileIndex = profileIndex;
         this.clusterService = clusterService;
+        this.domainConfigLookup = domainConfigLookup;
         this.threadPool = threadPool;
     }
 
@@ -172,8 +181,16 @@ public class ProfileService {
 
         searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
-                // The initial differentiator is 0 for new profile
-                createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", listener);
+                final DomainConfig domainConfig = getDomainConfigForSubject(subject);
+                if (domainConfig == null || false == domainConfig.literalUsername()) {
+                    assert domainConfig == null || domainConfig.suffix() == null;
+                    // The initial differentiator is 0 for new profile
+                    createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", listener);
+                } else {
+                    assert domainConfig.suffix() != null;
+                    validateUsername(subject);
+                    createNewProfile(subject, "u_" + subject.getUser().principal() + "_" + domainConfig.suffix(), listener);
+                }
             } else {
                 updateProfileForActivate(subject, versionedDocument, listener);
 
@@ -373,7 +390,7 @@ public class ProfileService {
                             }
                         }
                         if (loggedException != null) {
-                            logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
+                            logger.debug(() -> format("Failed to retrieve profiles %s", failures), loggedException);
                         }
                         listener.onResponse(new Tuple<>(retrievedDocs, failures));
                     }, listener::onFailure))
@@ -393,10 +410,10 @@ public class ProfileService {
                 }
             } else {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
+                    () -> format(
+                        "searching existing profile document for user [%s] from any of the realms [%s] under domain [%s]",
                         subject.getUser().principal(),
-                        Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
+                        collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
                         subject.getRealm().getDomain().name()
                     )
                 );
@@ -470,7 +487,33 @@ public class ProfileService {
         });
     }
 
-    private void createNewProfile(Subject subject, String uid, ActionListener<Profile> listener) throws IOException {
+    private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
+        + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
+        + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
+        + "and printable symbols in the Basic Latin (ASCII) block.";
+
+    private void validateUsername(Subject subject) {
+        final RealmDomain realmDomain = subject.getRealm().getDomain();
+        assert realmDomain != null;
+        assert domainConfigLookup.apply(realmDomain.name()) != null;
+        assert domainConfigLookup.apply(realmDomain.name()).literalUsername();
+
+        final String username = subject.getUser().principal();
+        assert username != null;
+
+        if (username.length() < 1 || username.length() > 256) {
+            throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
+        }
+
+        for (char character : username.toCharArray()) {
+            if (VALID_NAME_CHARS.contains(character) == false) {
+                throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
+            }
+        }
+    }
+
+    // Package private for testing
+    void createNewProfile(Subject subject, String uid, ActionListener<Profile> listener) throws IOException {
         // When the code reaches here, we are sure no existing profile matches the subject's username and realm info
         // We go ahead to create the new profile document. If there is another concurrent creation request, it should
         // attempt to create a doc with the same ID and cause version conflict which is handled.
@@ -552,16 +595,18 @@ public class ProfileService {
                 );
                 updateProfileForActivate(subject, versionedDocument, listener);
             } else {
-                // The profile document is NOT a match, this means either genuine hash collision or profile document
-                // was manually updated, e.g. realm or user rename etc. So we attempt to differentiate from the
-                // existing profile document by increase the differentiator number by 1.
-                incrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
+                // The profile document is NOT a match, this means either:
+                // 1. Genuine hash collision
+                // 2. A different user has the same username
+                // 3. Profile document was manually updated
+                // So we attempt to differentiate from the existing profile document by increase the differentiator number by 1.
+                maybeIncrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
             }
         }, listener::onFailure));
     }
 
     // Package private for tests
-    void incrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
+    void maybeIncrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
         throws IOException {
         final String uid = profileDocument.uid();
         final int index = uid.lastIndexOf("_");
@@ -575,6 +620,26 @@ public class ProfileService {
             listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain a differentiator", uid));
             return;
         }
+
+        final DomainConfig domainConfig = getDomainConfigForSubject(subject);
+        // The user is from a domain that is configured to have a fixed suffix and should not auto-increment for clashing UID
+        if (domainConfig != null && domainConfig.suffix() != null) {
+            assert differentiatorString.equals(domainConfig.suffix());
+            listener.onFailure(
+                new ElasticsearchException(
+                    "cannot create new profile for ["
+                        + subject.getUser().principal()
+                        + "]."
+                        + " A profile with uid ["
+                        + profileDocument.uid()
+                        + "] already exists and suffix setting of domain ["
+                        + domainConfig.name()
+                        + "] does not support auto-increment."
+                )
+            );
+            return;
+        }
+
         final int differentiator;
         try {
             differentiator = Integer.parseInt(differentiatorString);
@@ -592,6 +657,21 @@ public class ProfileService {
         // New uid by increment the differentiator by 1
         final String newUid = baseUid + "_" + (differentiator + 1);
         createNewProfile(subject, newUid, listener);
+    }
+
+    private DomainConfig getDomainConfigForSubject(Subject subject) {
+        final RealmDomain realmDomain = subject.getRealm().getDomain();
+        if (realmDomain != null) {
+            final DomainConfig domainConfig = domainConfigLookup.apply(realmDomain.name());
+            if (domainConfig == null) {
+                throw new ElasticsearchException(
+                    "subject realm is under a domain [" + realmDomain.name() + "], but no associated domain config is found"
+                );
+            }
+            return domainConfig;
+        } else {
+            return null;
+        }
     }
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)

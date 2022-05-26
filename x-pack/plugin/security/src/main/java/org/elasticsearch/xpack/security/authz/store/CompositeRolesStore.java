@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -71,6 +70,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -251,8 +251,8 @@ public class CompositeRolesStore {
                 // superuser role.
                 if (includesSuperuserRole(roleReference)) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
+                        () -> format(
+                            "there was a failure resolving the roles [%s], falling back to the [%s] role instead",
                             roleReference.id(),
                             Strings.arrayToCommaDelimitedString(superuserRole.names())
                         ),

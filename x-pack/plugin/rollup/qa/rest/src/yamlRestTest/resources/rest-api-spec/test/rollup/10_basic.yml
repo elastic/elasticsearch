@@ -1,87 +1,156 @@
 setup:
   - skip:
-      features: headers
+      version: " - 8.2.99"
+      reason: tsdb indexing changed in 8.3.0
+
   - do:
       indices.create:
-        index: docs
+        index: test
         body:
           settings:
-            number_of_shards:   1
+            number_of_shards: 1
             number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
           mappings:
             properties:
-              timestamp:
+              "@timestamp":
                 type: date
-              color:
+              metricset:
                 type: keyword
-              price:
-                type: integer
-
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
   - do:
       bulk:
         refresh: true
+        index: test
         body:
-          - index:
-              _index: docs
-              _id:    "1"
-          - timestamp: "2020-01-01T05:10:00Z"
-            color: "blue"
-            price: 10
-          - index:
-              _index: docs
-              _id:    "2"
-          - timestamp: "2020-01-01T05:30:00Z"
-            color: "blue"
-            price: 20
-          - index:
-              _index: docs
-              _id:    "3"
-          - timestamp: "2020-01-01T06:10:00Z"
-            color: "red"
-            price: 30
-          - index:
-              _index: docs
-              _id:    "4"
-          - timestamp: "2020-01-01T06:30:00Z"
-            color: "green"
-            price: 40
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
 
 ---
 "Rollup index":
   - skip:
-      version: " - 7.99.99"
-      reason: "rolling up an index directly is only supported in 8.0+"
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
   - do:
       rollup.rollup:
-        index: docs
-        rollup_index: rollup_docs
+        index: test
+        rollup_index: rollup-test
         body:  >
           {
-            "groups" : {
-              "date_histogram": {
-                "field": "timestamp",
-                "calendar_interval": "1h"
-              },
-              "terms": {
-                "fields": ["color"]
-              }
-            },
-            "metrics": [
-              {
-                "field": "price",
-                "metrics": ["max", "sum", "avg"]
-              }
-            ]
+            "fixed_interval": "1h"
           }
   - is_true: acknowledged
 
   - do:
-      indices.forcemerge:
-        index: rollup_docs
-        max_num_segments: 1
+      search:
+        index: rollup-test
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+  - match:  { hits.hits.0._source._doc_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match:  { hits.hits.0._source.metricset: pod }
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 2001818691 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 2005177954 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  - is_false: hits.hits.0._source.k8s\.pod\.ip   # k8s.pod.ip isn't a dimension and is not rolled up
+
+  # Assert rollup index settings
+  - do:
+      indices.get_settings:
+        index: rollup-test
+
+  - match: { rollup-test.settings.index.mode: time_series }
+  - match: { rollup-test.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { rollup-test.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { rollup-test.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { rollup-test.settings.index.rollup.source.name: test }
+  - match: { rollup-test.settings.index.number_of_shards: "1" }
+  - match: { rollup-test.settings.index.number_of_replicas: "0" }
+
+  # Assert source index has been deleted
+  - do:
+      catch: /no such index \[test\]/
+      indices.get:
+        index: test
+
+---
+"Rollup non-existing index":
+  - skip:
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
+  - do:
+      catch: /no such index \[non-existing-index\]/
+      rollup.rollup:
+        index: non-existing-index
+        rollup_index: rollup-test
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Rollup to existing rollup index":
+  - skip:
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
 
   - do:
-      search:
-        index: rollup_docs
-        body: { query: { match_all: {} } }
-  - length:   { hits.hits: 3  }
+      indices.create:
+        index: rollup-test
+
+  - do:
+      catch: /resource_already_exists_exception/
+      rollup.rollup:
+        index: test
+        rollup_index: rollup-test
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }

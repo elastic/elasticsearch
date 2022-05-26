@@ -69,8 +69,8 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             RoutingTable.builder()
                 .add(
                     IndexRoutingTable.builder(index)
-                        .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
-                        .addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).build())
+                        .addIndexShard(IndexShardRoutingTable.builder(initShard.shardId()).addShard(initShard))
+                        .addIndexShard(IndexShardRoutingTable.builder(relocatingShard.shardId()).addShard(relocatingShard))
                 )
                 .build()
         );
@@ -147,9 +147,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .add(
                     IndexRoutingTable.builder(index)
                         .addIndexShard(
-                            new IndexShardRoutingTable.Builder(relocatingPrimary.shardId()).addShard(relocatingPrimary)
-                                .addShard(replica)
-                                .build()
+                            new IndexShardRoutingTable.Builder(relocatingPrimary.shardId()).addShard(relocatingPrimary).addShard(replica)
                         )
                 )
                 .build()

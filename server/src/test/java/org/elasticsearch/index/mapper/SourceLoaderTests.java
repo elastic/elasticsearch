@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,10 +40,40 @@ public class SourceLoaderTests extends MapperServiceTestCase {
 
     public void testDotsInFieldName() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceMapping(b -> { b.startObject("foo.bar.baz").field("type", "keyword").endObject(); })
+            syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
         );
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar":{"baz":"aaa"}}}"""));
+    }
+
+    public void testNoSubobjectsIntermediateObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("foo");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("bar.baz").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+            {"foo":{"bar.baz":"aaa"}}"""));
+    }
+
+    public void testNoSubobjectsRootObject() throws IOException {
+        XContentBuilder mappings = topMapping(b -> {
+            b.startObject("_source").field("synthetic", true).endObject();
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("foo.bar.baz").field("type", "keyword").endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createDocumentMapper(mappings);
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+            {"foo.bar.baz":"aaa"}"""));
     }
 
     public void testSorted() throws IOException {

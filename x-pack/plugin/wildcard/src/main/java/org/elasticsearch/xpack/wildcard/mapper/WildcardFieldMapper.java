@@ -73,7 +73,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -213,8 +212,8 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(ignoreAbove, nullValue, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreAbove, nullValue, meta };
         }
 
         Builder ignoreAbove(int ignoreAbove) {

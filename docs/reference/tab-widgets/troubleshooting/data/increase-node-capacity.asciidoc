@@ -25,27 +25,12 @@ DELETE my-index-000001
 // tag::cloud[]
 One way to get the replica shards assigned is to add an availability zone. This will increase the number
 of data nodes in the {es} cluster so that the replica shards can be placed. This can be done by
-editing your deployment.
-
-. Log in to the {ess-console}[{ecloud} console].
-+
-
-. Click the **Manage** button, and choose **Edit deployment**.
-
-. In the {es} section, find the tier where the replica shards could not be assigned. Select a higher number
-of availability zones for that tier.
-+
-
-[role="screenshot"]
-image::images/data-tiers/ess-advanced-config-data-tiers.png[{kib} Console,align="center"]
-
-If it is not possible to increase the number of availability zones, you can reduce the number of replicas of your index
-data. We'll achieve this by inspecting the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting
-index setting and decreasing the configured value.
+editing your deployment. But first you need to discover which tier an index is targeting for assignment.
+Do this using {kib}.
 
 **Use {kib}**
 
-//tag::kibana-api-ex[]
+//tag::kibana-api-ex-1[]
 . Log in to the {ess-console}[{ecloud} console].
 +
 
@@ -63,6 +48,58 @@ and go to **Dev Tools > Console**.
 +
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
+
+To inspect which tier an index is targeting for assignment, use the <<indices-get-settings, get index setting>>
+API to retrieve the configured value for the `index.routing.allocation.include._tier_preference`
+setting:
+
+[source,console]
+----
+GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference?flat_settings
+----
+// TEST[continued]
+
+
+The reponse will look like this:
+
+[source,console-result]
+----
+{
+  "my-index-000001": {
+    "settings": {
+      "index.routing.allocation.include._tier_preference": "data_warm,data_hot" <1>
+    }
+  }
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
+
+<1> Represents a comma separated list of data tier node roles this index is allowed
+to be allocated on, the first one in the list being the one with the higher priority
+i.e. the tier the index is targeting.
+e.g. in this example the tier preference is `data_warm,data_hot` so the index is
+targeting the `warm` tier and more nodes with the `data_warm` role are needed in
+the {es} cluster.
+
+//end::kibana-api-ex-2[]
+
+. Now that you know the tier, go back to the deployment's landing page and click the
+**Manage** button, and choose **Edit deployment**.
+
+. In the {es} section, find the tier where the replica shards could not be assigned. Select a higher number
+of availability zones for that tier.
++
+
+[role="screenshot"]
+image::images/data-tiers/ess-advanced-config-data-tiers.png[{kib} Console,align="center"]
+
+If it is not possible to increase the number of availability zones, you can reduce the number of replicas of your index
+data. We'll achieve this by inspecting the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting
+index setting and decreasing the configured value.
+
+//tag::kibana-api-ex-2[]
+. Access {kib} as described above.
 
 . Inspect the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting. The examples below
 use `my-index-000001` as the index name, but replace that with your index name:
@@ -112,7 +149,7 @@ is decreased from the previous value of `2` to `1`. It can be set as low as 0 bu
 cnfiguring it to 0 may lead to temporary availability loss during node restarts
 or permanent data loss in case of data corruption.
 
-//end::kibana-api-ex[]
+//end::kibana-api-ex-2[]
 // end::cloud[]
 
 // tag::self-managed[]

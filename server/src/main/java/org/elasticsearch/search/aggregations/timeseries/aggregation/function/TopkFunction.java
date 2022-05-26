@@ -49,7 +49,7 @@ public class TopkFunction implements AggregatorFunction<TSIDValue<Double>, List<
     }
 
     public static PriorityQueue<TSIDValue<Double>> getTopkQueue(int size, boolean isTop) {
-        return new PriorityQueue<TSIDValue<Double>>(size) {
+        return new PriorityQueue<>(size) {
             @Override
             protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
                 if (isTop) {

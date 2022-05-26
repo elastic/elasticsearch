@@ -52,7 +52,7 @@ public class IRateFunction implements AggregatorFunction<TimePoint, Double> {
 
     public static double instantValue(boolean isRate, TimePoint lastSample, TimePoint previousSample, long count) {
         if (count < 2) {
-            return 0d;
+            return Double.NaN;
         }
 
         double resultValue;
@@ -64,7 +64,7 @@ public class IRateFunction implements AggregatorFunction<TimePoint, Double> {
 
         long sampledInterval = lastSample.getTimestamp() - previousSample.getTimestamp();
         if (sampledInterval == 0) {
-            return 0d;
+            return Double.NaN;
         }
 
         if (isRate) {

@@ -94,7 +94,7 @@ public class RateFunction implements AggregatorFunction<TimePoint, Double> {
         long rangeEnd = timestamp;
 
         if (count < 2) {
-            return 0d;
+            return Double.NaN;
         }
 
         double resultValue = lastSample.getValue() - firstSample.getValue();

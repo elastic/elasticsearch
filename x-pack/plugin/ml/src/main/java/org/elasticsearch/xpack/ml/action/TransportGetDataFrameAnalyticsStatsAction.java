@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -68,6 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -268,8 +268,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     if (itemResponse.isFailure()) {
                         SearchRequest itemRequest = multiSearchRequest.requests().get(i);
                         logger.error(
-                            new ParameterizedMessage(
-                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                            () -> format(
+                                "[%s] Item failure encountered during multi search for request [indices=%s, source=%s]: %s",
                                 config.getId(),
                                 itemRequest.indices(),
                                 itemRequest.source(),

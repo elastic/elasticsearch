@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,6 +62,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATT
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class MlInitializationService implements ClusterStateListener {
+
+    private static final double BYTES_IN_GB = ByteSizeValue.ofGb(1).getBytes();
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
@@ -177,13 +178,7 @@ public class MlInitializationService implements ClusterStateListener {
             List<DiscoveryNode> mlNodes = event.state()
                 .nodes()
                 .stream()
-                .filter(
-                    n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
-                        && NodesShutdownMetadata.getShutdowns(event.state())
-                            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-                            .map(allNodes -> allNodes.get(n.getId()))
-                            .isEmpty()
-                )
+                .filter(n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE))
                 .toList();
             final MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
             Optional<UpdateCpuRatioTask> ratioUpdate = ratioUpdateIfNecessary(mlNodes, mlMetadata);
@@ -208,12 +203,13 @@ public class MlInitializationService implements ClusterStateListener {
         MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
         boolean changed = false;
         for (var taskContext : taskContexts) {
-            if (taskContext.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
-                currentBuilder.setMaxMlNodeSeen(taskContext.getTask().maxNodeSeen());
-                currentBuilder.setCpuRatio(taskContext.getTask().cpuRatio());
+            if (taskContext.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSizeSeen()) {
+                currentBuilder.setMaxMlNodeSizeSeen(taskContext.getTask().maxNodeSeen());
+                currentBuilder.setMemoryToCpuRatio(taskContext.getTask().cpuRatio());
                 changed = true;
             }
-            taskContext.success(ActionListener.wrap(cs -> {}, e -> {}));
+            // We don't care about the new cluster state in the task context, but we do want to delegate failures.
+            taskContext.success(ActionListener.wrap(cs -> {}, taskContext::onFailure));
         }
         if (changed) {
             return ClusterState.builder(currentState)
@@ -230,11 +226,17 @@ public class MlInitializationService implements ClusterStateListener {
                 .get();
             try {
                 long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
-                long cpu = Long.parseLong(biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR));
-                if (memory > currentMetadata.getMaxMlNodeSeen()) {
-                    return Optional.of(new UpdateCpuRatioTask(memory, Math.max(ByteSizeValue.ofBytes(memory).getGb(), 1.0) / cpu));
+                String cpuProcessorsStr = biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR);
+                // On nodes older than v8.4.0 this is not set.
+                if (cpuProcessorsStr == null) {
+                    return Optional.empty();
+                }
+                long cpu = Long.parseLong(cpuProcessorsStr);
+                if (memory > currentMetadata.getMaxMlNodeSizeSeen()) {
+                    return Optional.of(new UpdateCpuRatioTask(memory, Math.max(memory / BYTES_IN_GB, 1.0) / cpu));
                 }
             } catch (NumberFormatException ex) {
+                assert false : "Unable to parse memory and available processors " + ex.getMessage();
                 logger.debug("Unable to parse machine memory and number cpus", ex);
             }
         }

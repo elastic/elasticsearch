@@ -53,7 +53,6 @@ public class MlInitializationServiceTests extends ESTestCase {
     private static final ClusterName CLUSTER_NAME = new ClusterName("my_cluster");
 
     private ThreadPool threadPool;
-    private ExecutorService executorService;
     private ClusterService clusterService;
     private Client client;
     private MlAssignmentNotifier mlAssignmentNotifier;
@@ -61,7 +60,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
-        executorService = mock(ExecutorService.class);
+        ExecutorService executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
@@ -160,7 +159,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         Optional<MlInitializationService.UpdateCpuRatioTask> newRatio = MlInitializationService.ratioUpdateIfNecessary(
             nodes,
             MlMetadata.Builder.from(MlMetadataTests.randomInstance())
-                .setMaxMlNodeSeen(randomLongBetween(0, ByteSizeValue.ofGb(8).getBytes() - 1))
+                .setMaxMlNodeSizeSeen(randomLongBetween(0, ByteSizeValue.ofGb(8).getBytes() - 1))
                 .build()
         );
         assertThat(newRatio.isPresent(), is(true));
@@ -179,11 +178,43 @@ public class MlInitializationServiceTests extends ESTestCase {
         Optional<MlInitializationService.UpdateCpuRatioTask> newRatio = MlInitializationService.ratioUpdateIfNecessary(
             nodes,
             MlMetadata.Builder.from(MlMetadataTests.randomInstance())
-                .setMaxMlNodeSeen(randomLongBetween(ByteSizeValue.ofGb(8).getBytes() + 1, Long.MAX_VALUE / 2))
-                .setCpuRatio(4.0)
+                .setMaxMlNodeSizeSeen(randomLongBetween(ByteSizeValue.ofGb(8).getBytes() + 1, Long.MAX_VALUE / 2))
+                .setMemoryToCpuRatio(4.0)
                 .build()
         );
         assertThat(newRatio.isPresent(), is(false));
+    }
+
+    public void testRatioUpdateWhenAvailableProcessorsIsMissing() {
+        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(8).getBytes()));
+        List<DiscoveryNode> nodes = buildNodesWithAttr(nodeAttr);
+        Optional<MlInitializationService.UpdateCpuRatioTask> newRatio = MlInitializationService.ratioUpdateIfNecessary(
+            nodes,
+            MlMetadataTests.randomInstance()
+        );
+        assertThat(newRatio.isPresent(), is(false));
+    }
+
+    public void testRatioUpdateOnFractionalGbNode() {
+        long newNodeSize = ByteSizeValue.ofGb(2).getBytes() - ByteSizeValue.ofMb(360).getBytes();
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(newNodeSize),
+            MachineLearning.AVAILABLE_PROCESSORS_NODE_ATTR,
+            "2"
+        );
+        List<DiscoveryNode> nodes = buildNodesWithAttr(nodeAttr);
+        Optional<MlInitializationService.UpdateCpuRatioTask> newRatio = MlInitializationService.ratioUpdateIfNecessary(
+            nodes,
+            MlMetadata.Builder.from(MlMetadataTests.randomInstance())
+                .setMaxMlNodeSizeSeen(randomFrom(0L, ByteSizeValue.ofGb(1).getBytes() - ByteSizeValue.ofMb(360).getBytes()))
+                .setMemoryToCpuRatio(1.0)
+                .build()
+        );
+        assertThat(newRatio.isPresent(), is(true));
+        assertThat(newRatio.get().maxNodeSeen(), equalTo(newNodeSize));
+        // Our ratio should be the size of the node in Gb divided by the number of processors (2)
+        assertThat(newRatio.get().cpuRatio(), closeTo((double) newNodeSize / ByteSizeValue.ofGb(1).getBytes() / 2.0, 1e-15));
     }
 
     public void testUpdateRatioClusterStateExecutor() {
@@ -192,7 +223,7 @@ public class MlInitializationServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         MlMetadata.TYPE,
-                        new MlMetadata.Builder(MlMetadataTests.randomInstance()).setMaxMlNodeSeen(
+                        new MlMetadata.Builder(MlMetadataTests.randomInstance()).setMaxMlNodeSizeSeen(
                             randomLongBetween(0, ByteSizeValue.ofGb(2).getBytes())
                         ).build()
                     )
@@ -206,8 +237,8 @@ public class MlInitializationServiceTests extends ESTestCase {
                 new TestTaskContext(new MlInitializationService.UpdateCpuRatioTask(ByteSizeValue.ofGb(8).getBytes(), 0.5))
             )
         );
-        assertThat(MlMetadata.getMlMetadata(newState).getCpuRatio(), equalTo(0.5));
-        assertThat(MlMetadata.getMlMetadata(newState).getMaxMlNodeSeen(), equalTo(ByteSizeValue.ofGb(8).getBytes()));
+        assertThat(MlMetadata.getMlMetadata(newState).getMemoryToCpuRatio(), equalTo(0.5));
+        assertThat(MlMetadata.getMlMetadata(newState).getMaxMlNodeSizeSeen(), equalTo(ByteSizeValue.ofGb(8).getBytes()));
     }
 
     public void testUpdateRatioClusterStateExecutorAllTooSmallorEmpty() {
@@ -216,9 +247,9 @@ public class MlInitializationServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         MlMetadata.TYPE,
-                        new MlMetadata.Builder(MlMetadataTests.randomInstance()).setMaxMlNodeSeen(
+                        new MlMetadata.Builder(MlMetadataTests.randomInstance()).setMaxMlNodeSizeSeen(
                             randomLongBetween(ByteSizeValue.ofGb(8).getBytes(), Long.MAX_VALUE / 2)
-                        ).setCpuRatio(0.5).build()
+                        ).setMemoryToCpuRatio(0.5).build()
                     )
             )
             .build();
@@ -237,7 +268,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     private static List<DiscoveryNode> buildNodesWithAttr(Map<String, String> nodeAttr) {
-        return IntStream.range(1, randomIntBetween(1, 10))
+        return IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(
                 i -> new DiscoveryNode(
                     "ml-node-" + i,

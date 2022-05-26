@@ -37,8 +37,8 @@ public class MlMetadata implements Metadata.Custom {
     public static final String TYPE = "ml";
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
-    public static final ParseField MAX_ML_NODE_SEEN = new ParseField("max_ml_node_seen");
-    public static final ParseField CPU_RATIO = new ParseField("cpu_ratio");
+    public static final ParseField MAX_ML_NODE_SIZE_SEEN = new ParseField("max_ml_node_size_seen");
+    public static final ParseField MEMORY_TO_CPU_RATIO = new ParseField("memory_to_cpu_ratio");
 
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(false, false, null, null);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
@@ -47,20 +47,20 @@ public class MlMetadata implements Metadata.Custom {
     static {
         LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
         LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
-        LENIENT_PARSER.declareLong(Builder::setMaxMlNodeSeen, MAX_ML_NODE_SEEN);
-        LENIENT_PARSER.declareDouble(Builder::setCpuRatio, CPU_RATIO);
+        LENIENT_PARSER.declareLong(Builder::setMaxMlNodeSizeSeen, MAX_ML_NODE_SIZE_SEEN);
+        LENIENT_PARSER.declareDouble(Builder::setMemoryToCpuRatio, MEMORY_TO_CPU_RATIO);
     }
 
     private final boolean upgradeMode;
     private final boolean resetMode;
-    private final long maxMlNodeSeen;
-    private final double cpuRatio;
+    private final long maxMlNodeSizeSeen;
+    private final double memoryToCpuRatio;
 
-    private MlMetadata(boolean upgradeMode, boolean resetMode, Long maxMlNodeSeen, Double cpuRatio) {
+    private MlMetadata(boolean upgradeMode, boolean resetMode, Long maxMlNodeSizeSeen, Double memoryToCpuRatio) {
         this.upgradeMode = upgradeMode;
         this.resetMode = resetMode;
-        this.maxMlNodeSeen = Optional.ofNullable(maxMlNodeSeen).orElse(-1L);
-        this.cpuRatio = Optional.ofNullable(cpuRatio).orElse(0.0);
+        this.maxMlNodeSizeSeen = Optional.ofNullable(maxMlNodeSizeSeen).orElse(-1L);
+        this.memoryToCpuRatio = Optional.ofNullable(memoryToCpuRatio).orElse(0.0);
     }
 
     public boolean isUpgradeMode() {
@@ -71,12 +71,12 @@ public class MlMetadata implements Metadata.Custom {
         return resetMode;
     }
 
-    public long getMaxMlNodeSeen() {
-        return maxMlNodeSeen;
+    public long getMaxMlNodeSizeSeen() {
+        return maxMlNodeSizeSeen;
     }
 
-    public double getCpuRatio() {
-        return cpuRatio;
+    public double getMemoryToCpuRatio() {
+        return memoryToCpuRatio;
     }
 
     @Override
@@ -115,11 +115,11 @@ public class MlMetadata implements Metadata.Custom {
         this.upgradeMode = in.readBoolean();
         this.resetMode = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            this.maxMlNodeSeen = in.readLong();
-            this.cpuRatio = in.readDouble();
+            this.maxMlNodeSizeSeen = in.readLong();
+            this.memoryToCpuRatio = in.readDouble();
         } else {
-            this.maxMlNodeSeen = -1;
-            this.cpuRatio = 0.0;
+            this.maxMlNodeSizeSeen = -1;
+            this.memoryToCpuRatio = 0.0;
         }
     }
 
@@ -132,8 +132,8 @@ public class MlMetadata implements Metadata.Custom {
         out.writeBoolean(upgradeMode);
         out.writeBoolean(resetMode);
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeLong(maxMlNodeSeen);
-            out.writeDouble(cpuRatio);
+            out.writeLong(maxMlNodeSizeSeen);
+            out.writeDouble(memoryToCpuRatio);
         }
     }
 
@@ -149,9 +149,9 @@ public class MlMetadata implements Metadata.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
         builder.field(RESET_MODE.getPreferredName(), resetMode);
-        if (maxMlNodeSeen > 0) {
-            builder.field(MAX_ML_NODE_SEEN.getPreferredName(), maxMlNodeSeen);
-            builder.field(CPU_RATIO.getPreferredName(), cpuRatio);
+        if (maxMlNodeSizeSeen > 0) {
+            builder.field(MAX_ML_NODE_SIZE_SEEN.getPreferredName(), maxMlNodeSizeSeen);
+            builder.field(MEMORY_TO_CPU_RATIO.getPreferredName(), memoryToCpuRatio);
         }
         return builder;
     }
@@ -160,14 +160,14 @@ public class MlMetadata implements Metadata.Custom {
 
         final boolean upgradeMode;
         final boolean resetMode;
-        final long maxMlNodeSeen;
-        final double cpuRatio;
+        final long maxMlNodeSizeSeen;
+        final double memoryToCpuRatio;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.upgradeMode = after.upgradeMode;
             this.resetMode = after.resetMode;
-            this.maxMlNodeSeen = after.maxMlNodeSeen;
-            this.cpuRatio = after.cpuRatio;
+            this.maxMlNodeSizeSeen = after.maxMlNodeSizeSeen;
+            this.memoryToCpuRatio = after.memoryToCpuRatio;
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
@@ -183,11 +183,11 @@ public class MlMetadata implements Metadata.Custom {
             upgradeMode = in.readBoolean();
             resetMode = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.maxMlNodeSeen = in.readLong();
-                this.cpuRatio = in.readDouble();
+                this.maxMlNodeSizeSeen = in.readLong();
+                this.memoryToCpuRatio = in.readDouble();
             } else {
-                this.maxMlNodeSeen = -1;
-                this.cpuRatio = 0.0;
+                this.maxMlNodeSizeSeen = -1;
+                this.memoryToCpuRatio = 0.0;
             }
         }
 
@@ -198,7 +198,7 @@ public class MlMetadata implements Metadata.Custom {
          */
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new MlMetadata(upgradeMode, resetMode, maxMlNodeSeen, cpuRatio);
+            return new MlMetadata(upgradeMode, resetMode, maxMlNodeSizeSeen, memoryToCpuRatio);
         }
 
         @Override
@@ -212,8 +212,8 @@ public class MlMetadata implements Metadata.Custom {
             out.writeBoolean(upgradeMode);
             out.writeBoolean(resetMode);
             if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-                out.writeLong(maxMlNodeSeen);
-                out.writeDouble(cpuRatio);
+                out.writeLong(maxMlNodeSizeSeen);
+                out.writeDouble(memoryToCpuRatio);
             }
         }
 
@@ -248,21 +248,21 @@ public class MlMetadata implements Metadata.Custom {
         MlMetadata that = (MlMetadata) o;
         return upgradeMode == that.upgradeMode
             && resetMode == that.resetMode
-            && maxMlNodeSeen == that.maxMlNodeSeen
-            && Double.compare(that.cpuRatio, cpuRatio) == 0;
+            && maxMlNodeSizeSeen == that.maxMlNodeSizeSeen
+            && Double.compare(that.memoryToCpuRatio, memoryToCpuRatio) == 0;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(upgradeMode, resetMode, maxMlNodeSeen, cpuRatio);
+        return Objects.hash(upgradeMode, resetMode, maxMlNodeSizeSeen, memoryToCpuRatio);
     }
 
     public static class Builder {
 
         private boolean upgradeMode;
         private boolean resetMode;
-        private Long maxMlNodeSeen;
-        private Double cpuRatio;
+        private Long maxMlNodeSizeSeen;
+        private Double memoryToCpuRatio;
 
         public static Builder from(@Nullable MlMetadata previous) {
             return new Builder(previous);
@@ -274,8 +274,8 @@ public class MlMetadata implements Metadata.Custom {
             if (previous != null) {
                 upgradeMode = previous.upgradeMode;
                 resetMode = previous.resetMode;
-                maxMlNodeSeen = previous.maxMlNodeSeen;
-                cpuRatio = previous.cpuRatio;
+                maxMlNodeSizeSeen = previous.maxMlNodeSizeSeen;
+                memoryToCpuRatio = previous.memoryToCpuRatio;
             }
         }
 
@@ -289,22 +289,22 @@ public class MlMetadata implements Metadata.Custom {
             return this;
         }
 
-        public Builder setMaxMlNodeSeen(Long maxMlNodeSeen) {
-            this.maxMlNodeSeen = maxMlNodeSeen;
+        public Builder setMaxMlNodeSizeSeen(Long maxMlNodeSizeSeen) {
+            this.maxMlNodeSizeSeen = maxMlNodeSizeSeen;
             return this;
         }
 
-        public long getMaxMlNodeSeen() {
-            return Optional.ofNullable(maxMlNodeSeen).orElse(-1L);
+        public long getMaxMlNodeSizeSeen() {
+            return Optional.ofNullable(maxMlNodeSizeSeen).orElse(-1L);
         }
 
-        public Builder setCpuRatio(Double cpuRatio) {
-            this.cpuRatio = cpuRatio;
+        public Builder setMemoryToCpuRatio(Double memoryToCpuRatio) {
+            this.memoryToCpuRatio = memoryToCpuRatio;
             return this;
         }
 
         public MlMetadata build() {
-            return new MlMetadata(upgradeMode, resetMode, maxMlNodeSeen, cpuRatio);
+            return new MlMetadata(upgradeMode, resetMode, maxMlNodeSizeSeen, memoryToCpuRatio);
         }
     }
 

@@ -511,6 +511,9 @@ public class MachineLearning extends Plugin
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
+    /**
+     * This is the ratio of memory (in Gb) to the number of processors available on the node.
+     */
     public static final String CPU_RATIO_NODE_ATTR = "ml.memory_cpu_ratio";
     public static final String INSTANCE_CONFIGURATION_NODE_ATTR = "instance_configuration";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
@@ -762,7 +765,7 @@ public class MachineLearning extends Plugin
      * Specifically, this means the `ml.machine_memory` calculation is considered the total node memory.
      * This value may or may not be give to Elasticsearch via an override (system_memory).
      *
-     * Consequently, the ratio returned here should closely match the `ml.machine_memory/available_processors` value.
+     * Consequently, the ratio returned here should closely match `ByteSizeValue.ofBytes(ml.machine_memory).getGb()/available_processors`.
      * On smaller instances, this may not be the case (as the floor for processors is at least one).
      *
      * @param instanceConfiguration The ESS instance configuration
@@ -775,7 +778,7 @@ public class MachineLearning extends Plugin
         if (instanceConfiguration.startsWith("gcp")) {
             if (instanceConfiguration.contains("68x32x")) {
                 return OptionalDouble.of(2.0);
-            } else if (instanceConfiguration.startsWith("68x16x")) {
+            } else if (instanceConfiguration.contains("68x16x")) {
                 return OptionalDouble.of(4.0);
             }
         }

@@ -26,8 +26,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         Long biggestMlNodeSeen = randomBoolean() ? null : randomLongBetween(-1L, Long.MAX_VALUE / 2);
         return builder.isResetMode(randomBoolean())
             .isUpgradeMode(randomBoolean())
-            .setMaxMlNodeSeen(biggestMlNodeSeen)
-            .setCpuRatio(biggestMlNodeSeen != null && biggestMlNodeSeen > 0 ? randomDouble() : null)
+            .setMaxMlNodeSizeSeen(biggestMlNodeSeen)
+            .setMemoryToCpuRatio(biggestMlNodeSeen != null && biggestMlNodeSeen > 0 ? randomDouble() : null)
             .build();
     }
 
@@ -70,7 +70,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     protected MlMetadata mutateInstance(MlMetadata instance) {
         boolean isUpgrade = instance.isUpgradeMode();
         boolean isReset = instance.isResetMode();
-        long biggestNode = instance.getMaxMlNodeSeen();
+        long biggestNode = instance.getMaxMlNodeSizeSeen();
         MlMetadata.Builder metadataBuilder = new MlMetadata.Builder(instance);
 
         switch (between(0, 2)) {
@@ -78,11 +78,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             case 1 -> metadataBuilder.isResetMode(isReset == false);
             case 2 -> {
                 long biggestMlNodeSeen = biggestNode > 0 ? 0 : randomLongBetween(1, Long.MAX_VALUE / 2);
-                metadataBuilder.setMaxMlNodeSeen(biggestMlNodeSeen);
+                metadataBuilder.setMaxMlNodeSizeSeen(biggestMlNodeSeen);
                 if (biggestMlNodeSeen > 0) {
-                    metadataBuilder.setCpuRatio(randomDouble());
+                    metadataBuilder.setMemoryToCpuRatio(randomDouble());
                 } else {
-                    metadataBuilder.setCpuRatio(null);
+                    metadataBuilder.setMemoryToCpuRatio(null);
                 }
             }
             default -> throw new AssertionError("Illegal randomisation branch");

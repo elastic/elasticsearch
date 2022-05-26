@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -121,10 +120,7 @@ public final class JobModelSnapshotUpgrader {
                 try {
                     nativeStorageProvider.cleanupLocalTmpStorage(task.getDescription());
                 } catch (IOException e) {
-                    logger.error(
-                        new ParameterizedMessage("[{}] [{}] failed to delete temporary files snapshot upgrade", jobId, snapshotId),
-                        e
-                    );
+                    logger.error(() -> format("[%s] [%s] failed to delete temporary files snapshot upgrade", jobId, snapshotId), e);
                 }
             }
         );
@@ -176,7 +172,7 @@ public final class JobModelSnapshotUpgrader {
                 process = null;
                 processor = null;
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId), e);
+                logger.error(() -> format("[%s] failed to kill upgrade process for model snapshot [%s]", jobId, snapshotId), e);
             }
         } else {
             logger.warn("[{}] attempt to kill upgrade process for model snapshot [{}] when no such process exists", jobId, snapshotId);

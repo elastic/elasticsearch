@@ -1,0 +1,6 @@
+pr: 87158
+summary: Make the `bucket_path` full path optional if the target multi value aggregation
+  has a single value
+area: Aggregations
+type: bug
+issues: []

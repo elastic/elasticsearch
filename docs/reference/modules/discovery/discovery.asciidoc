@@ -62,10 +62,10 @@ No master is elected::
 --
 
 When a node wins the master election, it logs a message containing
-`elected-as-master` and all nodes will log a message containing `master node
-changed` identifying the new elected master node. If there is no elected master
-node and no node can win an election then all nodes will repeatedly log
-messages about the problem using a logger called
+`elected-as-master` and all nodes will log a message containing
+`master node changed` identifying the new elected master node. If there is no
+elected master node and no node can win an election then all nodes will
+repeatedly log messages about the problem using a logger called
 `org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
 default, this happens every 10 seconds.
 
@@ -133,7 +133,7 @@ Node joins cluster and leaves again::
 
 If a node joins the cluster but {es} determines it to be faulty then it will be
 removed from the cluster again. See <<cluster-fault-detection-troubleshooting>>
-for more information about troubleshooting this situation.
+for more information.
 
 --
 

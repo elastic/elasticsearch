@@ -113,6 +113,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
         }
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
+        // Metadata types from different scripts conflict with each other
         testWhitelists.removeAll(metaWhitelists);
         whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }

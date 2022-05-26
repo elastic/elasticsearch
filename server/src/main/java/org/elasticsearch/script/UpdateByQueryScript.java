@@ -9,17 +9,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.script.field.AbstractBulkMetadata;
+import org.elasticsearch.script.field.BulkMetadata;
 import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
 
 /**
- * A script for update by query.
- *
- * Metadata
- *   RO: _index, _id, _version, _routing
- *   RW: _op {@link Op} INDEX, NOOP, DELETE
+ * A script used by the update by query api
  */
 public abstract class UpdateByQueryScript {
 
@@ -57,7 +53,10 @@ public abstract class UpdateByQueryScript {
         UpdateByQueryScript newInstance(Map<String, Object> params, Metadata metadata);
     }
 
-    public static class Metadata extends AbstractBulkMetadata {
+    /**
+     * Metadata available to the script
+     */
+    public static class Metadata extends BulkMetadata {
         public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
             super(index, id, version, routing, op, source);
         }

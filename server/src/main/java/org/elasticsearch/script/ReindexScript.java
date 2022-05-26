@@ -9,16 +9,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.script.field.AbstractBulkMetadata;
+import org.elasticsearch.script.field.BulkMetadata;
 import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
 
 /**
- * A script for reindex.
- *
- * Metadata
- *   RW: _index (non-null), _id, _routing, _version, _op {@link org.elasticsearch.script.field.Op} One of NOOP, INDEX, DELETE
+ * A script used in the reindex api
  */
 public abstract class ReindexScript {
 
@@ -57,10 +54,12 @@ public abstract class ReindexScript {
     }
 
     /**
-     *  Metadata
-     *    RW: _index (non-null), _id, _routing, _version, _op {@link org.elasticsearch.script.field.Op} One of NOOP, INDEX, DELETE
+     * Metadata available to the script
+     * _index can't be null
+     * _id, _routing and _version are writable and nullable
+     * op must be NOOP, INDEX or DELETE
      */
-    public static class Metadata extends AbstractBulkMetadata {
+    public static class Metadata extends BulkMetadata {
         public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
             super(index, id, version, routing, op, source);
         }

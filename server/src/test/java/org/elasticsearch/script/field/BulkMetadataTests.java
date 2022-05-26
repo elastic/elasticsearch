@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
-public class AbstractBulkMetadataTests extends ESTestCase {
+public class BulkMetadataTests extends ESTestCase {
     private static final String INDEX = "myIndex";
     private static final String ID = "myId";
     private static final long VERSION = 5;
@@ -182,7 +182,7 @@ public class AbstractBulkMetadataTests extends ESTestCase {
         assertEquals("operation must be non-null, valid operations are [noop, index, delete]", err.getMessage());
     }
 
-    private static class TestBulkMetadata extends AbstractBulkMetadata {
+    private static class TestBulkMetadata extends BulkMetadata {
 
         TestBulkMetadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
             super(index, id, version, routing, op, source);

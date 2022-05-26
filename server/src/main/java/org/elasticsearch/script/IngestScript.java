@@ -63,6 +63,9 @@ public abstract class IngestScript {
         IngestScript newInstance(Map<String, Object> params, Metadata metadata);
     }
 
+    /**
+     * Metadata available to scripts, backed by the ctx map.
+     */
     public static class Metadata {
         private final MapBackedMetadata store;
         private final ZonedDateTime timestamp;
@@ -111,7 +114,7 @@ public abstract class IngestScript {
         }
 
         public void setVersionType(VersionType versionType) {
-            store.set(VERSION_TYPE, versionType != null ? VersionType.toString(versionType): null);
+            store.set(VERSION_TYPE, versionType != null ? VersionType.toString(versionType) : null);
         }
 
         public ZonedDateTime getTimestamp() {

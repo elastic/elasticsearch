@@ -8,33 +8,115 @@
 
 package org.elasticsearch.script.field;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
-public interface BulkMetadata {
-    List<String> extraKeys();
+/** Common operations for metadata updates done on bulk search operations: reindex and update by query */
+public abstract class BulkMetadata {
+    public static final String SOURCE = "_source";
+    protected MapBackedMetadata store;
+    protected static final Set<String> CTX_KEYS = Set.of(
+        MapBackedMetadata.INDEX,
+        MapBackedMetadata.ID,
+        MapBackedMetadata.VERSION,
+        MapBackedMetadata.ROUTING,
+        MapBackedMetadata.OP,
+        MapBackedMetadata.SOURCE
+    );
+    protected static final EnumSet<Op> VALID_OPS = EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE);
 
-    String getIndex();
+    protected final String index;
+    protected final String id;
+    protected final Long version;
+    protected final String routing;
+    protected final Op op;
 
-    boolean indexChanged();
+    public BulkMetadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
+        store = new MapBackedMetadata(6).setIndex(index).setId(id).setVersion(version).setRouting(routing).setOp(op).setSource(source);
+        this.index = index;
+        this.id = id;
+        this.version = version;
+        this.routing = routing;
+        this.op = op;
+    }
 
-    String getId();
+    public String getIndex() {
+        return store.getIndex();
+    }
 
-    boolean idChanged();
+    public boolean indexChanged() {
+        return Objects.equals(index, getIndex()) == false;
+    }
 
-    Long getVersion();
+    public String getId() {
+        return store.getId();
+    }
 
-    boolean versionChanged();
+    public boolean idChanged() {
+        return Objects.equals(id, getId()) == false;
+    }
 
-    String getRouting();
+    public String getRouting() {
+        return store.getRouting();
+    }
 
-    boolean routingChanged();
+    public boolean routingChanged() {
+        return Objects.equals(routing, getRouting()) == false;
+    }
 
-    Op getOp();
+    public Long getVersion() {
+        return store.getVersion();
+    }
 
-    boolean opChanged();
+    public boolean versionChanged() {
+        return Objects.equals(version, store.getRawVersion()) == false;
+    }
 
-    Map<String, Object> getSource();
+    public Op getOp() {
+        MapBackedMetadata.RawOp raw = store.getOp();
+        if (raw.str == null) {
+            throw new IllegalArgumentException("operation must be non-null, valid operations are " + Arrays.toString(VALID_OPS.toArray()));
+        }
+        if (VALID_OPS.contains(raw.op) == false) {
+            throw new IllegalArgumentException(
+                "Operation type [" + raw.str + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
+            );
+        }
+        return raw.op;
+    }
 
-    Map<String, Object> getCtx();
+    public void setOp(Op op) {
+        if (op == null) {
+            throw new IllegalArgumentException("operation must be non-null, valid operations are " + Arrays.toString(VALID_OPS.toArray()));
+        }
+        if (VALID_OPS.contains(op) == false) {
+            throw new IllegalArgumentException(
+                "Operation type [" + op.name + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
+            );
+        }
+        store.setOp(op);
+    }
+
+    public boolean opChanged() {
+        return Objects.equals(op, getOp()) == false;
+    }
+
+    public Map<String, Object> getCtx() {
+        return store.getMap();
+    }
+
+    public List<String> extraKeys() {
+        Set<String> keys = new HashSet<>(store.getMap().keySet());
+        keys.removeAll(CTX_KEYS);
+        return keys.stream().sorted().toList();
+    }
+
+    public Map<String, Object> getSource() {
+        return store.getSource();
+    }
 }

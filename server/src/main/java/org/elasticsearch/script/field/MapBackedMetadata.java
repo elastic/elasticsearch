@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import java.util.Map;
 import java.util.Objects;
 
-/** Metadata about an ingestion operation, implemented by scripting contexts */
+/** Metadata storage backed by a Map for compatibility with the ctx Map used by ingest and update scripts. */
 public class MapBackedMetadata {
     public static final String INDEX = "_index";
     public static final String ID = "_id";
@@ -123,13 +123,17 @@ public class MapBackedMetadata {
         }
     }
 
+    /**
+     * The Op and underlying String for error messages.
+     * str may be null. op is always non-null.
+     */
     public static class RawOp {
         public final Op op;
         public final String str;
 
         public RawOp(String str) {
             this.str = str;
-            this.op = str != null ? Op.fromString(str) : null;
+            this.op = Op.fromString(str);
         }
     }
 }

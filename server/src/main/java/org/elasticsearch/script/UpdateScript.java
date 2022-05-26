@@ -24,9 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Metadata
- *  RO: _index, _id, _routing, _version, _now (timestamp)
- *  RW: _op {@link org.elasticsearch.script.field.Op}, NOOP ("none"), INDEX, DELETE, CREATE
+ * A script used in the update API
  */
 public abstract class UpdateScript {
 
@@ -66,20 +64,15 @@ public abstract class UpdateScript {
     }
 
     /**
-     * Metadata for Updates via {@link UpdateScript} with script and upsert.
+     * Metadata for update scripts.  Update scripts have different metadata available for updates to existing
+     * documents and for inserts (via upsert).
      *
-     * _index, _id, _routing, _version and _now (timestamp) are read-only.
+     * Metadata unique to updates:
+     * _routing, _version
      *
-     * _op is read/write with valid values: NOOP ("none"), INDEX, DELETE, CREATE
-     *
-     * _version_type is unavailable.
-     * ....
-     * Metadata for insertions done via scripted upsert with an {@link UpdateScript}
-     *
-     * The only metadata available is the timestamp and the Op.
-     * The Op must be either "create" or "none" (Op.NOOP).
-     *
-     * _index, _id, _routing, _version, _version_type are unavailable.
+     * Common metadata:
+     * _index, _id, _now (timestamp)
+     * _op, which can be NOOP ("none"), INDEX, DELETE, CREATE for update and CREATE or "none" (Op.NOOP) for insert
      */
     public static class Metadata {
         private static final String TIMESTAMP = "_now";
@@ -89,7 +82,7 @@ public abstract class UpdateScript {
         private final ZonedDateTime timestamp;
 
         // insertions via upsert have fewer fields available. However, to allow the same script to be used on insertions
-        // and updates, the same Metadata class is used with the isInsert flag differniating the two behaviors.
+        // and updates, the same Metadata class is used with the isInsert flag differentiating the two behaviors.
         private final boolean isInsert;
         protected final EnumSet<Op> validOps;
         protected static final EnumSet<Op> INSERT_VALID_OPS = EnumSet.of(Op.NOOP, Op.CREATE);

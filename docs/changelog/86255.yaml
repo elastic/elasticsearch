@@ -1,5 +1,0 @@
-pr: 86255
-summary: "[s3-repository] Support generating AWS role session name in case it's not provided"
-area: Snapshot/Restore
-type: bug
-issues: []

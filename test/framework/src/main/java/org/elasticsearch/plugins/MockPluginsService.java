@@ -73,6 +73,9 @@ public class MockPluginsService extends PluginsService {
 
     @Override
     public PluginsAndModules info() {
-        return new PluginsAndModules(this.classpathPlugins.stream().map(LoadedPlugin::descriptor).toList(), List.of());
+        return new PluginsAndModules(
+            this.classpathPlugins.stream().map(LoadedPlugin::descriptor).map(PluginRuntimeInfo::new).toList(),
+            List.of()
+        );
     }
 }

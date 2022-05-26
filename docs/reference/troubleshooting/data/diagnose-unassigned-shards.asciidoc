@@ -1,0 +1,12 @@
+[[diagnose-unassigned-shards]]
+== Diagnose unassigned shards
+
+There are multiple reasons why shards might get unassigned, ranging from misconfigured
+allocation settings to lack of disk space.
+
+In order to diagnose the unassigned shards in your deployment use the following steps:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/diagnose-unassigned-shards-widget.asciidoc[]
+
+
+

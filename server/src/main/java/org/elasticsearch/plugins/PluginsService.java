@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -144,8 +146,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        this.info = new PluginsAndModules(pluginsList, modulesList);
-        this.plugins = loadBundles(seenBundles);
+        Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
+        this.info = new PluginsAndModules(getRuntimeInfos(pluginsList, loadedPlugins), modulesList);
+        this.plugins = List.copyOf(loadedPlugins.values());
 
         checkMandatoryPlugins(
             pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
@@ -155,7 +158,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(info.getPluginInfos(), "plugin", logger);
+        logPluginInfo(pluginsList, "plugin", logger);
     }
 
     // package-private for testing
@@ -183,6 +186,32 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
+        }
+    }
+
+    private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
+        var plugInspector = PluginIntrospector.getInstance();
+        var officialPlugins = getOfficialPlugins();
+        List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
+        for (PluginDescriptor descriptor : pluginDescriptors) {
+            LoadedPlugin plugin = plugins.get(descriptor.getName());
+            assert plugin != null;
+            Class<?> pluginClazz = plugin.instance.getClass();
+            boolean isOfficial = officialPlugins.contains(descriptor.getName());
+            PluginApiInfo apiInfo = null;
+            if (isOfficial == false) {
+                apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
+            }
+            runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
+        }
+        return runtimeInfos;
+    }
+
+    private static Set<String> getOfficialPlugins() {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            return Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -234,7 +263,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private List<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+    private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
@@ -247,7 +276,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         loadExtensions(loaded.values());
-        return List.copyOf(loaded.values());
+        return loaded;
     }
 
     // package-private for test visibility

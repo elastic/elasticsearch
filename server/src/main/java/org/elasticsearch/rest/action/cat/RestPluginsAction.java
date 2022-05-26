@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -100,7 +101,8 @@ public class RestPluginsAction extends AbstractCatAction {
             if (plugins == null) {
                 continue;
             }
-            for (PluginDescriptor pluginDescriptor : plugins.getPluginInfos()) {
+            for (PluginRuntimeInfo pluginInfo : plugins.getPluginInfos()) {
+                PluginDescriptor pluginDescriptor = pluginInfo.descriptor();
                 if (pluginDescriptor.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
                     continue;
                 }

@@ -11,9 +11,11 @@ package org.elasticsearch.script.field;
 import java.util.Locale;
 
 /**
- * Write operation for documents
+ * Write operation for documents.
+ *
+ * This is similar to {@link org.elasticsearch.action.DocWriteRequest.OpType} with NOOP and UNKNOWN added.
  */
-public enum Op { // This is a clone of org.elasticsearch.action.DocWriteRequest.OpType
+public enum Op {
     NOOP("noop"),
     INDEX("index"),
     DELETE("delete"),

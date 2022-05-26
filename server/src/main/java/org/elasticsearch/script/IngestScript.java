@@ -107,18 +107,11 @@ public abstract class IngestScript {
 
         public VersionType getVersionType() {
             String str = store.getString(VERSION_TYPE);
-            if (str == null) {
-                return null;
-            }
-            return VersionType.fromString(str.toLowerCase(Locale.ROOT));
+            return str != null ? VersionType.fromString(str.toLowerCase(Locale.ROOT)) : null;
         }
 
         public void setVersionType(VersionType versionType) {
-            if (versionType == null) {
-                store.set(VERSION_TYPE, null);
-            } else {
-                store.set(VERSION_TYPE, VersionType.toString(versionType));
-            }
+            store.set(VERSION_TYPE, versionType != null ? VersionType.toString(versionType): null);
         }
 
         public ZonedDateTime getTimestamp() {

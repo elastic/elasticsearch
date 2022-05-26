@@ -12,7 +12,7 @@ PUT my-index-000001
 PUT /my-index-000001/_settings
 {
   "index" : {
-    "number_of_replicas" : 0
+    "number_of_replicas" : 2
   }
 }
 
@@ -60,7 +60,7 @@ GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference
 // TEST[continued]
 
 
-The reponse will look like this:
+The response will look like this:
 
 [source,console-result]
 ----
@@ -74,7 +74,6 @@ The reponse will look like this:
 ----
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-
 <1> Represents a comma separated list of data tier node roles this index is allowed
 to be allocated on, the first one in the list being the one with the higher priority
 i.e. the tier the index is targeting.
@@ -84,7 +83,11 @@ the {es} cluster.
 
 //end::kibana-api-ex-2[]
 
-. Now that you know the tier, go back to the deployment's landing page and click the
+//tag::increase-azs[]
+[increase-azs]
+Now that you know the tier, increase the number of availability zones.
+
+. Go back to the deployment's landing page and click the
 **Manage** button, and choose **Edit deployment**.
 
 . In the {es} section, find the tier where the replica shards could not be assigned. Select a higher number
@@ -93,6 +96,7 @@ of availability zones for that tier.
 
 [role="screenshot"]
 image::images/data-tiers/ess-advanced-config-data-tiers.png[{kib} Console,align="center"]
+//end::increase-azs[]
 
 If it is not possible to increase the number of availability zones, you can reduce the number of replicas of your index
 data. We'll achieve this by inspecting the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting
@@ -101,8 +105,7 @@ index setting and decreasing the configured value.
 //tag::kibana-api-ex-2[]
 . Access {kib} as described above.
 
-. Inspect the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting. The examples below
-use `my-index-000001` as the index name, but replace that with your index name:
+. Inspect the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting.
 +
 [source,console]
 ----

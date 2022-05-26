@@ -72,14 +72,14 @@ you'd have to provide the full path, as well.
 [discrete]
 === CLI commands
 
-Apart from SQL, CLI can also execute some specific commands:
+Apart from SQL queries, CLI can also execute some specific commands:
 
 
-`allow_partial_search_results=<boolean>` (default `false`)::
+`allow_partial_search_results = <boolean>` (default `false`)::
 
-allows to enable/disable return of partial results.
-- If true, returns partial results if there are shard request timeouts or shard failures.
-- If false, returns an error with no partial results.
+If `true`, returns partial results if there are shard request timeouts or
+<<shard-failures,shard failures>>. If `false`, returns an error with
+no partial results.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -88,41 +88,10 @@ allow_partial_search_results set to true
 --------------------------------------------------
 
 
-`cls`::
+`fetch_size = <number>` (default `1000`)::
 
-cleans the screen
-
-[source,sqlcli]
---------------------------------------------------
-sql> cls
---------------------------------------------------
-
-
-`exit`::
-
-closes the CLI
-
-[source,sqlcli]
---------------------------------------------------
-sql> exit;
-Bye!
---------------------------------------------------
-
-
-`fetch_separator=<string>` (empty string by default)::
-
-allows to change the separator string between fetches
-
-[source,sqlcli]
---------------------------------------------------
-sql> fetch_separator = "foo";
-fetch separator set to "foo"
---------------------------------------------------
-
-
-`fetch_size=<number>` (default `1000`)::
-
-allows to change the size of fetches for query execution
+Allows to change the size of fetches for query execution.
+Each fetch is delimited by fetch separator (if explicitly set)
 
 [source,sqlcli]
 --------------------------------------------------
@@ -131,10 +100,22 @@ fetch size set to 2000
 --------------------------------------------------
 
 
-`lenient=<boolean>` (default `false`)::
 
-enables/disables fields multi-value leniency,
-ie. with `lenient = true`, in case of array values, return the first value, with no guarantee of consistent results.
+`fetch_separator = <string>` (empty string by default)::
+
+Allows to change the separator string between fetches
+
+[source,sqlcli]
+--------------------------------------------------
+sql> fetch_separator = "---------------------";
+fetch separator set to "---------------------"
+--------------------------------------------------
+
+
+`lenient = <boolean>` (default `false`)::
+
+If false, the API returns an error for fields containing <<array,array values>>.
+If true, the API returns the first value from the array with no guarantee of consistent results. Defaults to false.
 
 [source,sqlcli]
 --------------------------------------------------
@@ -143,9 +124,46 @@ lenient set to true
 --------------------------------------------------
 
 
+
+`info`::
+
+Returns server information
+
+[source,sqlcli]
+--------------------------------------------------
+sql> info;
+Node:runTask-0 Cluster:runTask Version:8.4
+--------------------------------------------------
+
+
+
+
+`exit`::
+
+Closes the CLI
+
+[source,sqlcli]
+--------------------------------------------------
+sql> exit;
+Bye!
+--------------------------------------------------
+
+
+
+`cls`::
+
+Cleans the screen
+
+[source,sqlcli]
+--------------------------------------------------
+sql> cls
+--------------------------------------------------
+
+
+
 `logo`::
 
-prints Elasticsearch logo
+Prints Elastic logo
 
 [source,sqlcli]
 --------------------------------------------------
@@ -178,6 +196,6 @@ Ela        ticEl         ticElasti              cE
               ElasticElast
 
                        SQL
-                  8.3.0-SNAPSHOT
+                  8.4.0
 
 --------------------------------------------------

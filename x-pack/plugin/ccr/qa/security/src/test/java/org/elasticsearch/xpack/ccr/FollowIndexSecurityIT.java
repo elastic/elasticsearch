@@ -105,8 +105,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 e.getMessage(),
                 containsString(
                     "insufficient privileges to follow index [unallowed-index], "
-                        + "privilege for action [indices:monitor/stats] is missing, "
-                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing, "
+                        + "privilege for action [indices:monitor/stats] is missing"
                 )
             );
             // Verify that the follow index has not been created and no node tasks are running
@@ -121,8 +121,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 e.getMessage(),
                 containsString(
                     "insufficient privileges to follow index [unallowed-index], "
-                        + "privilege for action [indices:monitor/stats] is missing, "
-                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing, "
+                        + "privilege for action [indices:monitor/stats] is missing"
                 )
             );
             assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));

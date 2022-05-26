@@ -1,6 +1,0 @@
-pr: 83482
-summary: Terms enum support for doc value only keyword fields
-area: Mapping
-type: enhancement
-issues:
- - 83451

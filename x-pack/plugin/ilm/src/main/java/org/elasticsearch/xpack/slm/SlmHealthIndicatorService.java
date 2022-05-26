@@ -37,6 +37,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "slm";
 
+    public static final String HELP_URL = "https://ela.st/fix-slm";
+
     private final ClusterService clusterService;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
@@ -54,12 +56,17 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
     public HealthIndicatorResult calculate(boolean explain) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No SLM policies configured",
                 createDetails(explain, slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -68,8 +75,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Scheduled snapshots are not running. There might not be backups of the data that could be used to restore if data is"
-                        + " lost in the future.",
+                    "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
                 )
             );

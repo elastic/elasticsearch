@@ -1,6 +1,0 @@
-pr: 86632
-summary: Make autoscaling and task assignment use same memory staleness definition
-area: Machine Learning
-type: bug
-issues:
- - 86616

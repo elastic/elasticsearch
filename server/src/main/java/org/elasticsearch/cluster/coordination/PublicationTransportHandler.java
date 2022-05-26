@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Implements the low-level mechanics of sending a cluster state to other nodes in the cluster during a publication.
  * <p>
@@ -369,10 +371,7 @@ public class PublicationTransportHandler {
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to serialize cluster state before publishing it to node {}", destination),
-                        e
-                    );
+                    logger.warn(() -> format("failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
                     return;
                 }
@@ -395,8 +394,8 @@ public class PublicationTransportHandler {
                 if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "resending full cluster state to node {} reason {}",
+                            () -> format(
+                                "resending full cluster state to node %s reason %s",
                                 destination,
                                 transportException.getDetailedMessage()
                             )
@@ -436,7 +435,7 @@ public class PublicationTransportHandler {
                 );
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
+                logger.warn(() -> format("error sending cluster state to %s", destination), e);
                 listener.onFailure(e);
             }
         }

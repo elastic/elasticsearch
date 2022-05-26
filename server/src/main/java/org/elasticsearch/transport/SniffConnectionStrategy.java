@@ -48,6 +48,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.elasticsearch.core.Strings.format;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -232,10 +233,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     // ISE if we fail the handshake with an version incompatible node
                     if (seedNodesSuppliers.hasNext()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "fetching nodes from external cluster [{}] failed moving to next seed node",
-                                clusterAlias
-                            ),
+                            () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
                             e
                         );
                         collectRemoteNodes(seedNodesSuppliers, listener);
@@ -289,7 +287,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
+                logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
             });
@@ -330,10 +328,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
-                    e
-                );
+                logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(openConnectionStep.result());
                 onFailure.accept(e);
             });
@@ -390,11 +385,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                                     // ISE if we fail the handshake with an version incompatible node
                                     // fair enough we can't connect just move on
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "[{}] failed to open managed connection to node [{}]",
-                                            clusterAlias,
-                                            node
-                                        ),
+                                        () -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node),
                                         e
                                     );
                                     handleNodes(nodesIter);

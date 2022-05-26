@@ -18,7 +18,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.junit.Before;
 
@@ -200,14 +200,14 @@ public class ListPluginsCommandTests extends CommandTestCase {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> execute());
-        assertEquals(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
+        assertEquals(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute());
-        final Path descriptorPath = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
+        final Path descriptorPath = pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES);
         assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
     }
 

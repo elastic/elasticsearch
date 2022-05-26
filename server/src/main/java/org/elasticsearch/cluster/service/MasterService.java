@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -422,8 +421,8 @@ public class MasterService extends AbstractLifecycleComponent {
         final String stateUUID = newClusterState.stateUUID();
         final String fullState = newClusterState.toString();
         logger.warn(
-            new ParameterizedMessage(
-                "took [{}] and then failed to publish updated cluster state (version: {}, uuid: {}) for [{}]:\n{}",
+            () -> format(
+                "took [%s] and then failed to publish updated cluster state (version: %s, uuid: %s) for [%s]:\n%s",
                 executionTime,
                 version,
                 stateUUID,

@@ -326,7 +326,7 @@ public class JoinHelper {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
+                logger.debug(() -> format("failure in response to %s from %s", startJoinRequest, destination), exp);
             }
         });
     }

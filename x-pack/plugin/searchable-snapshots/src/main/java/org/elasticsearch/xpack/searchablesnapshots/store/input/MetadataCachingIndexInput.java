@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
@@ -215,8 +214,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 );
             } catch (Exception e) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
+                    () -> format(
+                        "failed to store bytes [%s-%s] of file [%s] obtained from index cache",
                         cachedBlob.from(),
                         cachedBlob.to(),
                         fileInfo

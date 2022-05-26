@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 
 public class SqlSearchIT extends ESRestTestCase {
-    private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_3_0;
+    private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_4_0;
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;

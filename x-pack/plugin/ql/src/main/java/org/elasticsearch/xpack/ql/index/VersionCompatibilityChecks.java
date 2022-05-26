@@ -12,14 +12,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.Version.V_8_2_0;
-import static org.elasticsearch.Version.V_8_3_0;
+import static org.elasticsearch.Version.V_8_4_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class VersionCompatibilityChecks {
 
     public static final Version INTRODUCING_UNSIGNED_LONG = V_8_2_0;
-    public static final Version INTRODUCING_VERSION_FIELD_TYPE = V_8_3_0;
+    public static final Version INTRODUCING_VERSION_FIELD_TYPE = V_8_4_0;
 
     private VersionCompatibilityChecks() {}
 

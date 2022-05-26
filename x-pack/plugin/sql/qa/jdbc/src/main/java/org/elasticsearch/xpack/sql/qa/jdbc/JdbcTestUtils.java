@@ -27,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.elasticsearch.Version.V_8_2_0;
-import static org.elasticsearch.Version.V_8_3_0;
+import static org.elasticsearch.Version.V_8_4_0;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
@@ -158,7 +158,7 @@ final class JdbcTestUtils {
     }
 
     public static boolean isVersionFieldTypeSupported() {
-        return JDBC_DRIVER_VERSION.onOrAfter(V_8_3_0);
+        return JDBC_DRIVER_VERSION.onOrAfter(V_8_4_0);
     }
 
 }

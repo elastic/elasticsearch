@@ -71,7 +71,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
                         + name
                         + "] no percentiles available matching key ["
                         + keyName
-                        + "], available metrics ["
+                        + "], available keys ["
                         + String.join(", ", Arrays.stream(keys).mapToObj(String::valueOf).collect(Collectors.joining()))
                         + "]"
                 );

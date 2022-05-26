@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -80,21 +82,19 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
                     subject,
-                    new AuthorizationEngine.PrivilegesToCheck(
-                        request.clusterPrivileges(),
-                        request.indexPrivileges(),
-                        request.applicationPrivileges()
-                    ),
+                    request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
-                    listener.map(
-                        privilegesCheckResult -> new HasPrivilegesResponse(
+                    listener.map(privilegesCheckResult -> {
+                        AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
+                        assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
+                        return new HasPrivilegesResponse(
                             request.username(),
-                            privilegesCheckResult.allMatch(),
-                            privilegesCheckResult.cluster(),
-                            privilegesCheckResult.index().values(),
-                            privilegesCheckResult.application()
-                        )
-                    )
+                            privilegesCheckResult.allChecksSuccess(),
+                            checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
+                            checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
+                            checkResultDetails != null ? checkResultDetails.application() : Map.of()
+                        );
+                    })
                 ),
                 listener::onFailure
             )

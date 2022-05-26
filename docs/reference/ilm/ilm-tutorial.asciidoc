@@ -283,7 +283,7 @@ DELETE /_index_template/timeseries_template
 === Manage time series data without data streams
 
 Even though <<data-streams, data streams>> are a convenient way to scale
-and manage time series data, they are designed to be append-only. We recognise there
+and manage time series data, they are designed to be append-only. We recognize there
 might be use-cases where data needs to be updated or deleted in place and the
 data streams don't support delete and update requests directly,
 so the index APIs would need to be used directly on the data stream's backing indices.

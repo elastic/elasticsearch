@@ -188,7 +188,7 @@ public class RoutingAllocation {
         return (T) clusterState.customs().get(key);
     }
 
-    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
+    public Map<String, ClusterState.Custom> getCustoms() {
         return clusterState.getCustoms();
     }
 

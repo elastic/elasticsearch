@@ -241,7 +241,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
-        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
         String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();

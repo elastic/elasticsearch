@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -85,7 +84,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -184,7 +183,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        final Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -270,7 +269,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -400,7 +399,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -498,7 +497,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -578,7 +577,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("source").get();
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
+        Map<String, DiscoveryNode> dataNodes = client().admin()
             .cluster()
             .prepareState()
             .get()

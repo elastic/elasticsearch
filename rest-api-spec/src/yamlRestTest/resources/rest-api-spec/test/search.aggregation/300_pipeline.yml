@@ -81,12 +81,14 @@ setup:
 
 ---
 "Max pipeline on percentiles agg without specifying percent":
+  - skip:
+      features: close_to
 
   - do:
-      catch: /buckets_path must reference either a number value or a single value numeric metric aggregation, but \[the_percentiles\] contains multiple values. Please specify which to use\./
       search:
         rest_total_hits_as_int: true
         body:
+          size: 0
           aggs:
             the_terms:
               terms:
@@ -95,9 +97,42 @@ setup:
                 the_percentiles:
                   percentiles:
                     field: "int_field"
-            the_bad_max:
+                    keyed: false
+                    percents: [99]
+            the_max:
               max_bucket:
                 buckets_path: "the_terms>the_percentiles"
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.the_terms.buckets: 4 }
+
+  - match: { aggregations.the_terms.buckets.0.key: 1 }
+  - match: { aggregations.the_terms.buckets.0.doc_count: 1 }
+  - length: { aggregations.the_terms.buckets.0.the_percentiles.values: 1 }
+  - close_to: { aggregations.the_terms.buckets.0.the_percentiles.values.0.key: { value: 99.000000, error: 0.000001 } }
+  - close_to: { aggregations.the_terms.buckets.0.the_percentiles.values.0.value: { value: 1.000000, error: 0.000001 } }
+
+  - match: { aggregations.the_terms.buckets.1.key: 2 }
+  - match: { aggregations.the_terms.buckets.1.doc_count: 1 }
+  - length: { aggregations.the_terms.buckets.1.the_percentiles.values: 1 }
+  - close_to: { aggregations.the_terms.buckets.1.the_percentiles.values.0.key: { value: 99.000000, error: 0.000001 } }
+  - close_to: { aggregations.the_terms.buckets.1.the_percentiles.values.0.value: { value: 2.000000, error: 0.000001 } }
+
+  - match: { aggregations.the_terms.buckets.2.key: 3 }
+  - match: { aggregations.the_terms.buckets.2.doc_count: 1 }
+  - length: { aggregations.the_terms.buckets.2.the_percentiles.values: 1 }
+  - close_to: { aggregations.the_terms.buckets.2.the_percentiles.values.0.key: { value: 99.000000, error: 0.000001 } }
+  - close_to: { aggregations.the_terms.buckets.2.the_percentiles.values.0.value: { value: 3.000000, error: 0.000001 } }
+
+  - match: { aggregations.the_terms.buckets.3.key: 4 }
+  - match: { aggregations.the_terms.buckets.3.doc_count: 1 }
+  - length: { aggregations.the_terms.buckets.3.the_percentiles.values: 1 }
+  - close_to: { aggregations.the_terms.buckets.3.the_percentiles.values.0.key: { value: 99.000000, error: 0.000001 } }
+  - close_to: { aggregations.the_terms.buckets.3.the_percentiles.values.0.value: { value: 4.000000, error: 0.000001 } }
+
+  - close_to: { aggregations.the_max.value: { value: 4.000000, error: 0.000001 } }
+  - length: { aggregations.the_max.keys: 1 }
+  - match: { aggregations.the_max.keys.0: "4" }
 
 ---
 "Top level bucket_sort":

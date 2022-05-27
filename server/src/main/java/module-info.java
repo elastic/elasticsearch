@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;

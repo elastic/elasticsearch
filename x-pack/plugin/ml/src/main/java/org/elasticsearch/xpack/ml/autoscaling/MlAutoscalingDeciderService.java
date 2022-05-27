@@ -60,6 +60,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.PriorityQueue;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -189,6 +190,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     static Optional<Tuple<NativeMemoryCapacity, List<NodeLoad>>> determineUnassignableJobs(
         List<String> unassignedJobs,
         Function<String, Long> sizeFunction,
+        Consumer<NodeLoad.Builder> incrementCountFunction,
         int maxNumInQueue,
         List<NodeLoad> nodeLoads
     ) {
@@ -226,10 +228,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             if (nodeLoad.getFreeMemory() >= requiredMemory + requiredNativeCodeOverhead) {
                 assignmentIter.remove();
                 // Remove and add to the priority queue to make sure the biggest node with availability is first
+                nodeLoad = mostFreeMemoryFirst.poll();
+                incrementCountFunction.accept(nodeLoad);
                 mostFreeMemoryFirst.add(
-                    mostFreeMemoryFirst.poll()
-                        .incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
-                        .incNumAssignedJobs()
+                    nodeLoad.incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
                         .incAssignedAnomalyDetectorMemory(requiredMemory)
                 );
             }
@@ -858,6 +860,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> anomalyCapacityAndNewLoad = determineUnassignableJobs(
                 Stream.concat(waitingAnomalyJobs.stream(), waitingSnapshotUpgrades.stream()).toList(),
                 this::getAnomalyMemoryRequirement,
+                NodeLoad.Builder::incNumAssignedAnomalyDetectorJobs,
                 numAnomalyJobsInQueue,
                 nodeLoads
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, nodeLoads));
@@ -865,6 +868,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> analyticsCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAnalyticsJobs,
                 this::getAnalyticsMemoryRequirement,
+                NodeLoad.Builder::incNumAssignedDataFrameAnalyticsJobs,
                 numAnalyticsJobsInQueue,
                 anomalyCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, anomalyCapacityAndNewLoad.v2()));
@@ -872,6 +876,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
                 this::getAllocatedModelRequirement,
+                NodeLoad.Builder::incNumAssignedNativeInferenceJobs,
                 0,
                 analyticsCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, analyticsCapacityAndNewLoad.v2()));

@@ -10,39 +10,46 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -55,39 +62,42 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-    private String index;
-    private String rollupIndex;
-    private long startTime;
-    private int docCount;
+    public static final String FIELD_TIMESTAMP = "@timestamp";
+    public static final String FIELD_DIMENSION_1 = "dimension_kw";
+    public static final String FIELD_DIMENSION_2 = "dimension_long";
+    public static final String FIELD_NUMERIC_1 = "numeric_1";
+    public static final String FIELD_NUMERIC_2 = "numeric_2";
 
-    private String timestampFieldName = "@timestamp";
+    private static final int MAX_DIM_VALUES = 5;
+    private static final long MAX_NUM_BUCKETS = 10;
+
+    private String sourceIndex, sourceIndexClone, rollupIndex;
+    private long startTime;
+    private int docCount, numOfShards, numOfReplicas;
+    private List<String> dimensionValues;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -102,267 +112,262 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        index = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        sourceIndexClone = sourceIndex + "-clone";
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(10, 1000);
+        docCount = randomIntBetween(10, 9000);
+        numOfShards = randomIntBetween(1, 4);
+        numOfReplicas = randomIntBetween(0, 3);
+
+        // Values for keyword dimensions
+        dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
+        for (int j = 0; j < randomIntBetween(1, MAX_DIM_VALUES); j++) {
+            dimensionValues.add(randomAlphaOfLength(6));
+        }
 
         client().admin()
             .indices()
-            .prepareCreate(index)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            .prepareCreate(sourceIndex)
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", numOfShards)
+                    .put("index.number_of_replicas", numOfReplicas)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+                    .build()
+            )
             .setMapping(
-                "date_1",
+                FIELD_TIMESTAMP,
                 "type=date",
-                "numeric_1",
-                "type=double",
-                "numeric_2",
-                "type=float",
-                "numeric_nonaggregatable",
-                "type=double,doc_values=false",
-                "categorical_1",
-                "type=keyword"
+                FIELD_DIMENSION_1,
+                "type=keyword,time_series_dimension=true",
+                FIELD_DIMENSION_2,
+                "type=long,time_series_dimension=true",
+                FIELD_NUMERIC_1,
+                "type=long,time_series_metric=gauge",
+                FIELD_NUMERIC_2,
+                "type=double,time_series_metric=counter"
             )
             .get();
     }
 
-    public void testRollupShardIndexerCleansTempFiles() throws IOException {
-        // create rollup config and index documents into source index
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
+    public void testRollupIndex() throws IOException {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .endObject();
+        };
         bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+    }
 
-        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        Index srcIndex = resolveIndex(index);
-        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
-        IndexShard shard = indexService.getShard(0);
+    public void testNullSourceIndexName() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(null, rollupIndex, config)
+        );
+        assertThat(exception.getMessage(), containsString("source index is missing"));
+    }
 
-        // re-use source index as temp index for test
-        RollupShardIndexer indexer = new RollupShardIndexer(client(), indexService, shard.shardId(), config, index, 2);
-        indexer.execute();
-        // assert that files are deleted
-        assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
+    public void testNullRollupIndexName() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(sourceIndex, null, config)
+        );
+        assertThat(exception.getMessage(), containsString("rollup index name is missing"));
+    }
+
+    public void testNullRollupConfig() {
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(sourceIndex, rollupIndex, null)
+        );
+        assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
+    public void testRollupSparseMetrics() throws IOException {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues));
+            if (randomBoolean()) {
+                builder.field(FIELD_NUMERIC_1, randomInt());
+            }
+            if (randomBoolean()) {
+                builder.field(FIELD_NUMERIC_2, randomDouble());
+            }
+            return builder.endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        prepareSourceIndex(sourceIndex);
+
+        // Create an empty index with the same name as the rollup index
+        client().admin().indices().prepareCreate(rollupIndex).get();
+        ResourceAlreadyExistsException exception = expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> rollup(sourceIndex, rollupIndex, config)
         );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
+        assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
-    public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
-        assertTrue(client().admin().indices().prepareCreate(".rolluptmp-" + rollupIndex).get().isAcknowledged());
-        Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("already exists"));
+    public void testRollupEmptyIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+    }
+
+    public void testCannotRollupIndexWithNoMetrics() {
+        // Create a source index that contains no metric fields in its mapping
+        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        sourceIndexClone = sourceIndex + "-clone";
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", numOfShards)
+                    .put("index.number_of_replicas", numOfReplicas)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+                    .build()
+            )
+            .setMapping(
+                FIELD_TIMESTAMP,
+                "type=date",
+                FIELD_DIMENSION_1,
+                "type=keyword,time_series_dimension=true",
+                FIELD_DIMENSION_2,
+                "type=long,time_series_dimension=true"
+            )
+            .get();
+
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method
+        prepareSourceIndex(sourceIndex);
+        Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
+    }
+
+    public void testCannotRollupWriteableIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method and is empty and still writable
+        Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), containsString("Rollup requires setting [index.blocks.write = true] for index"));
+    }
+
+    public void testCannotRollupMissingIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        IndexNotFoundException exception = expectThrows(IndexNotFoundException.class, () -> rollup("missing-index", rollupIndex, config));
+        assertEquals("missing-index", exception.getIndex().getName());
+        assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
         bulkIndex(sourceSupplier);
-        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.noop());
+        prepareSourceIndex(sourceIndex);
+        client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), ActionListener.noop());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> rollup(index, rollupIndex, config)
+            () -> rollup(sourceIndex, rollupIndex, config)
         );
-        assertThat(exception.getMessage(), containsString(".rolluptmp-" + rollupIndex));
-    }
-
-    public void testTermsGrouping() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testHistogramGrouping() throws IOException {
-        long interval = randomLongBetween(1, 1000);
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDoubleBetween(0.0, 10000.0, true))
-            .field("numeric_2", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, new HistogramGroupConfig(interval, "numeric_1"), null),
-            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testMaxMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testMinMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("min")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testValueCountMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testAvgMetric() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            // Use integers to ensure that avg is comparable between rollup and original
-            .field("numeric_1", randomInt())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("avg")))
-        );
-        bulkIndex(sourceSupplier);
-        rollup(index, rollupIndex, config);
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    public void testValidationCheck() throws IOException {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            // use integers to ensure that avg is comparable between rollup and original
-            .field("numeric_nonaggregatable", randomInt())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg")))
-        );
-        bulkIndex(sourceSupplier);
-        Exception e = expectThrows(Exception.class, () -> rollup(index, rollupIndex, config));
-        assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
+        assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
     public void testRollupDatastream() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(timestampFieldName);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();
 
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(timestampFieldName, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
-            .endObject();
-        RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count")))
-        );
+        final Instant now = Instant.now();
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .endObject();
+        };
         bulkIndex(dataStreamName, sourceSupplier);
 
-        String oldIndexName = rollover(dataStreamName).getOldIndex();
-        String rollupIndexName = ".rollup-" + oldIndexName;
-        rollup(oldIndexName, rollupIndexName, config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName);
-        rollup(oldIndexName, rollupIndexName + "-2", config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName + "-2");
+        this.sourceIndex = rollover(dataStreamName).getOldIndex();
+        this.sourceIndexClone = sourceIndex + "-clone";
+        this.rollupIndex = ".rollup-" + sourceIndex;
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+
+        var r = client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })).get();
+        assertEquals(1, r.getDataStreams().size());
+        List<Index> indices = r.getDataStreams().get(0).getDataStream().getIndices();
+        // Assert that the rollup index is a member of the data stream
+        assertFalse(indices.stream().filter(i -> i.getName().equals(rollupIndex)).toList().isEmpty());
+        // Assert that the source index is not a member of the data stream
+        assertTrue(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
     }
 
-    private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
-        RollupActionDateHistogramGroupConfig randomConfig = ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random());
-        if (randomConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
-            return new RollupActionDateHistogramGroupConfig.FixedInterval(field, randomConfig.getInterval(), randomConfig.getTimeZone());
-        }
-        if (randomConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
-            return new RollupActionDateHistogramGroupConfig.CalendarInterval(field, randomConfig.getInterval(), randomConfig.getTimeZone());
-        }
-        throw new IllegalStateException("invalid RollupActionDateHistogramGroupConfig class type");
+    private DateHistogramInterval randomInterval() {
+        return ConfigTestHelpers.randomInterval();
     }
 
     private String randomDateForInterval(DateHistogramInterval interval) {
-        final long maxNumBuckets = 10;
-        final long endTime = startTime + maxNumBuckets * interval.estimateMillis();
-        return DATE_FORMATTER.formatMillis(randomLongBetween(startTime, endTime));
+        long endTime = startTime + MAX_NUM_BUCKETS * interval.estimateMillis();
+        return randomDateForRange(startTime, endTime);
+    }
+
+    private String randomDateForRange(long start, long end) {
+        return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
+    }
+
+    private void cloneSourceIndex(String sourceIndex, String sourceIndexClone) {
+        ResizeResponse r = client().admin()
+            .indices()
+            .prepareResizeIndex(sourceIndex, sourceIndexClone)
+            .setResizeType(ResizeType.CLONE)
+            .setSettings(
+                Settings.builder().put("index.number_of_shards", numOfShards).put("index.number_of_replicas", numOfReplicas).build()
+            )
+            .get();
+        assertTrue(r.isAcknowledged());
     }
 
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
-        bulkIndex(index, sourceSupplier);
+        bulkIndex(sourceIndex, sourceSupplier);
     }
 
     private void bulkIndex(String indexName, SourceSupplier sourceSupplier) throws IOException {
@@ -375,18 +380,43 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        int duplicates = 0;
+        for (BulkItemResponse response : bulkResponse.getItems()) {
+            if (response.isFailed()) {
+                if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
+                    // A duplicate event was created by random generator. We should not fail for this
+                    // reason.
+                    logger.info("We tried to insert a duplicate: " + response.getFailureMessage());
+                    duplicates++;
+                } else {
+                    fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                }
+            }
         }
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
+        int docsIndexed = docCount - duplicates;
+        logger.info("Indexed [" + docsIndexed + "] documents");
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
+    }
+
+    private void prepareSourceIndex(String sourceIndex) {
+        // Set the source index to read-only state
+        AcknowledgedResponse r = client().admin()
+            .indices()
+            .prepareUpdateSettings(sourceIndex)
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
+            .get();
+        assertTrue(r.isAcknowledged());
+
+        // The source index is deleted at the end of the rollup process.
+        // We clone the source index, so that we validate rollup results against the
+        // source index clone.
+        cloneSourceIndex(sourceIndex, sourceIndexClone);
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
-        AcknowledgedResponse rollupResponse = client().execute(
-            RollupAction.INSTANCE,
-            new RollupAction.Request(sourceIndex, rollupIndex, config)
-        ).actionGet();
-        assertTrue(rollupResponse.isAcknowledged());
+        AcknowledgedResponse response = client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config))
+            .actionGet();
+        assertTrue(response.isAcknowledged());
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
@@ -396,137 +426,124 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndexName) {
-        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String sourceIndexClone, String rollupIndex) {
+        // Retrieve field information for the metric fields
+        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndexClone).setFields("*").get();
+        Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().values().iterator().next().getMetricType() != null)
+            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().values().iterator().next().getMetricType()));
+
+        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config, metricFields);
         long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-        InternalComposite rollupResp = client().prepareSearch(rollupIndexName)
+        InternalComposite origResp = client().prepareSearch(sourceIndexClone)
             .addAggregation(aggregation)
             .get()
             .getAggregations()
             .get("resp");
+        InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
-            assertThat(origResp, equalTo(rollupResp));
+            assertEquals(origResp, rollupResp);
             aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-            rollupResp = client().prepareSearch(rollupIndexName).addAggregation(aggregation).get().getAggregations().get("resp");
+            origResp = client().prepareSearch(sourceIndexClone).addAggregation(aggregation).get().getAggregations().get("resp");
+            rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         }
-        assertThat(origResp, equalTo(rollupResp));
+        assertEquals(origResp, rollupResp);
 
-        SearchResponse resp = client().prepareSearch(rollupIndexName).setTrackTotalHits(true).get();
+        SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndexName).get();
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndexClone, rollupIndex).get();
         // Assert rollup metadata are set in index settings
+        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, "index.rollup.status"));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
-            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.uuid")
+            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.uuid"),
+            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
-            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.name")
+            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.name"),
+            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
         );
+        assertEquals(indexSettingsResp.getSetting(sourceIndexClone, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndexClone, "time_series.start_time"),
+            indexSettingsResp.getSetting(rollupIndex, "time_series.start_time")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndexClone, "time_series.end_time"),
+            indexSettingsResp.getSetting(rollupIndex, "time_series.end_time")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndexClone, "index.routing_path"),
+            indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_shards"),
+            indexSettingsResp.getSetting(rollupIndex, "index.number_of_shards")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_replicas"),
+            indexSettingsResp.getSetting(rollupIndex, "index.number_of_replicas")
+        );
+        assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
 
         // Assert field mappings
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
-            .get(rollupIndexName)
+            .get(rollupIndex)
             .getSourceAsMap()
             .get("properties");
 
-        RollupActionDateHistogramGroupConfig dateHistoConfig = config.getGroupConfig().getDateHistogram();
-        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(dateHistoConfig.getField()).get("type"));
-        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(dateHistoConfig.getField()).get("meta");
-        assertEquals(dateHistoConfig.getTimeZone(), dateTimeMeta.get("time_zone"));
-        assertEquals(dateHistoConfig.getInterval().toString(), dateTimeMeta.get(dateHistoConfig.getIntervalTypeName()));
+        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(config.getTimestampField()).get("type"));
+        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(config.getTimestampField()).get("meta");
+        assertEquals(config.getTimeZone(), dateTimeMeta.get("time_zone"));
+        assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
 
-        for (MetricConfig metricsConfig : config.getMetricsConfig()) {
-            assertEquals("aggregate_metric_double", mappings.get(metricsConfig.getField()).get("type"));
-            List<String> supportedMetrics = (List<String>) mappings.get(metricsConfig.getField()).get("metrics");
-            for (String m : metricsConfig.getMetrics()) {
-                if ("avg".equals(m)) {
-                    assertTrue(supportedMetrics.contains("sum") && supportedMetrics.contains("value_count"));
-                } else {
-                    assertTrue(supportedMetrics.contains(m));
-                }
+        metricFields.forEach((field, metricType) -> {
+            switch (metricType) {
+                case counter -> assertEquals("double", mappings.get(field).get("type"));
+                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                default -> fail("Unsupported field type");
             }
-        }
+            assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
+        });
 
-        HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
-        if (histoConfig != null) {
-            for (String field : histoConfig.getFields()) {
-                assertTrue((mappings.containsKey(field)));
-                Map<String, Object> meta = (Map<String, Object>) mappings.get(field).get("meta");
-                assertEquals(String.valueOf(histoConfig.getInterval()), meta.get("interval"));
-            }
-        }
-
-        TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
-        if (termsConfig != null) {
-            for (String field : termsConfig.getFields()) {
-                assertTrue(mappings.containsKey(field));
-            }
-        }
-
-        // Assert that temporary index was removed
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndexName).get()
-        );
+        // Assert that source index was removed
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
     }
 
-    private CompositeAggregationBuilder buildCompositeAggs(String name, RollupActionConfig config) {
+    private CompositeAggregationBuilder buildCompositeAggs(
+        String name,
+        RollupActionConfig config,
+        Map<String, TimeSeriesParams.MetricType> metricFields
+    ) {
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        // For time series indices, we use the _tsid field for the terms aggregation
+        sources.add(new TermsValuesSourceBuilder("tsid").field(TimeSeriesIdFieldMapper.NAME));
 
-        RollupActionDateHistogramGroupConfig dateHistoConfig = config.getGroupConfig().getDateHistogram();
-        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(dateHistoConfig.getField());
-        dateHisto.field(dateHistoConfig.getField());
-        if (dateHistoConfig.getTimeZone() != null) {
-            dateHisto.timeZone(ZoneId.of(dateHistoConfig.getTimeZone()));
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(config.getTimestampField());
+        dateHisto.field(config.getTimestampField());
+        if (config.getTimeZone() != null) {
+            dateHisto.timeZone(ZoneId.of(config.getTimeZone()));
         }
-        if (dateHistoConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
-            dateHisto.fixedInterval(dateHistoConfig.getInterval());
-        } else if (dateHistoConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
-            dateHisto.calendarInterval(dateHistoConfig.getInterval());
-        } else {
-            throw new IllegalStateException("unsupported RollupActionDateHistogramGroupConfig");
-        }
+        dateHisto.fixedInterval(config.getInterval());
         sources.add(dateHisto);
 
-        if (config.getGroupConfig().getHistogram() != null) {
-            HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
-            for (String field : histoConfig.getFields()) {
-                HistogramValuesSourceBuilder source = new HistogramValuesSourceBuilder(field).field(field)
-                    .interval(histoConfig.getInterval());
-                sources.add(source);
-            }
-        }
-
-        if (config.getGroupConfig().getTerms() != null) {
-            TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
-            for (String field : termsConfig.getFields()) {
-                TermsValuesSourceBuilder source = new TermsValuesSourceBuilder(field).field(field);
-                sources.add(source);
-            }
-        }
-
-        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(100);
-        if (config.getMetricsConfig() != null) {
-            for (MetricConfig metricConfig : config.getMetricsConfig()) {
-                for (String metricName : metricConfig.getMetrics()) {
-                    switch (metricName) {
-                        case "min" -> composite.subAggregation(new MinAggregationBuilder(metricName).field(metricConfig.getField()));
-                        case "max" -> composite.subAggregation(new MaxAggregationBuilder(metricName).field(metricConfig.getField()));
-                        case "sum" -> composite.subAggregation(new SumAggregationBuilder(metricName).field(metricConfig.getField()));
-                        case "value_count" -> composite.subAggregation(
-                            new ValueCountAggregationBuilder(metricName).field(metricConfig.getField())
-                        );
-                        case "avg" -> composite.subAggregation(new AvgAggregationBuilder(metricName).field(metricConfig.getField()));
-                        default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
-                    }
+        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(10);
+        metricFields.forEach((fieldname, metricType) -> {
+            for (String agg : metricType.supportedAggs()) {
+                switch (agg) {
+                    case "min" -> composite.subAggregation(new MinAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "max", "last_value" -> composite.subAggregation(new MaxAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "sum" -> composite.subAggregation(new SumAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "value_count" -> composite.subAggregation(
+                        new ValueCountAggregationBuilder(fieldname + "_" + agg).field(fieldname)
+                    );
+                    default -> throw new IllegalArgumentException("Unsupported metric type [" + agg + "]");
                 }
             }
-        }
+        });
         return composite;
     }
 
@@ -537,29 +554,59 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(null, new CompressedXContent("""
-            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
-            """.formatted(timestampFieldName)), null);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            idxTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
+        Template indexTemplate = new Template(
+            Settings.builder()
+                .put("index.number_of_shards", numOfShards)
+                .put("index.number_of_replicas", numOfReplicas)
+                .put("index.mode", "time_series")
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+                .build(),
+            new CompressedXContent("""
+                {
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "dimension_kw": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "dimension_long": {
+                            "type": "long",
+                            "time_series_dimension": true
+                        },
+                        "numeric_1": {
+                            "type": "long",
+                            "time_series_metric": "gauge"
+                        },
+                        "numeric_2": {
+                            "type": "double",
+                            "time_series_metric": "counter"
+                        }
+                    }
+                }
+                """),
             null
         );
-        assertTrue(
-            client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
-            ).actionGet().isAcknowledged()
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(dataStreamName + "*"),
+            indexTemplate,
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, false),
+            null
         );
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
+            .indexTemplate(template);
+        AcknowledgedResponse response = client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        assertTrue(response.isAcknowledged());
         assertTrue(
             client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
         );
         return dataStreamName;
     }
-
 }

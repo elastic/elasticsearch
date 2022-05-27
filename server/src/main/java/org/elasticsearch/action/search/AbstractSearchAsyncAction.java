@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -470,7 +469,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             phase.run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
             }
             onPhaseFailure(phase, "", e);
         }

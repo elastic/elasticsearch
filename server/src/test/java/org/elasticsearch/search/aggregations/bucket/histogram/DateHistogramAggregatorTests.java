@@ -993,7 +993,13 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     matchesMap().entry(
                         "d",
                         matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
-                            .entry("delegate_debug", matchesMap().entry("ranges", 2).entry("average_docs_per_range", 5005.0))
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("ranges", 2)
+                                    .entry("average_docs_per_range", 5005.0)
+                                    .entry("singletons", greaterThan(1))
+                                    .entry("non-singletons", 0)
+                            )
                     )
                 );
             },

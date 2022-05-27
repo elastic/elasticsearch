@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.common.logging.internal.LogManagerFactoryImpl;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -293,7 +292,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.document;
     exports org.elasticsearch.rest.action.ingest;
     exports org.elasticsearch.rest.action.search;
-    exports org.elasticsearch.rollup;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.search;
@@ -357,5 +355,5 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
-    provides org.elasticsearch.logging.internal.spi.LogManagerFactory with LogManagerFactoryImpl;
+    provides org.apache.logging.log4j.util.PropertySource with org.elasticsearch.common.logging.ESSystemPropertiesPropertySource;
 }

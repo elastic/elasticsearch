@@ -6,15 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rollup;
+package org.elasticsearch.common.logging;
 
-import org.elasticsearch.Build;
+import org.apache.logging.log4j.util.SystemPropertiesPropertySource;
 
-public class RollupV2 {
-    public static final boolean ROLLUP_V2_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
-        || "true".equals(System.getProperty("es.rollup_v2_feature_flag_enabled"));
+// This sucks!, but is resolved in log4J 2.18, as part of https://issues.apache.org/jira/browse/LOG4J2-3427
+public class ESSystemPropertiesPropertySource extends SystemPropertiesPropertySource {
 
-    public static boolean isEnabled() {
-        return ROLLUP_V2_FEATURE_FLAG_ENABLED;
-    }
+    public ESSystemPropertiesPropertySource() {}
 }

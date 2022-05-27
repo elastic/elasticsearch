@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -543,7 +542,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     String msg = "Detected a problem with your setup of machine learning, the state index alias ["
                         + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         + "] exists as index but must be an alias.";
-                    logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
+                    logger.error(() -> format("[%s] %s", jobId, msg), e);
                     // The close handler is responsible for auditing this and setting the job state to failed
                     closeHandler.accept(new IllegalStateException(msg, e), true);
                 } else {

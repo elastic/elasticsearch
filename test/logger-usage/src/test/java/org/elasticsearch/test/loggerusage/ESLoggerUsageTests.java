@@ -137,10 +137,6 @@ public class ESLoggerUsageTests extends ESTestCase {
         logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
-    public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
-    }
-
     public void checkNumberOfArguments1() {
         logger.info("Hello {}", "world");
     }
@@ -168,22 +164,6 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkFailNumberOfArguments3() {
         logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {

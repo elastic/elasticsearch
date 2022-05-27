@@ -10,7 +10,6 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -465,8 +464,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
+                    () -> format(
+                        "could not schedule execution of [%s] after [%s] on [%s] as executor is shut down",
                         command,
                         delay,
                         executor
@@ -580,11 +579,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug(
-                        new ParameterizedMessage(
-                            "could not schedule execution of [{}] on [{}] as executor is shut down",
-                            runnable,
-                            executor
-                        ),
+                        () -> format("could not schedule execution of [%s] on [%s] as executor is shut down", runnable, executor),
                         e
                     );
                 } else {

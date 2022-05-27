@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -954,7 +953,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(new ParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

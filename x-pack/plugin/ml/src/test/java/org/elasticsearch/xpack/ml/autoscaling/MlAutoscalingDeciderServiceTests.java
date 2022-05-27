@@ -187,9 +187,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(9).getBytes()
                         + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 3
                 )
-                .incNumAssignedJobs()
-                .incNumAssignedJobs()
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
+                .incNumAssignedAnomalyDetectorJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -235,10 +235,10 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(9).getBytes()
                         + ByteSizeValue.ofMb(128).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 4
                 )
-                .incNumAssignedJobs()
-                .incNumAssignedJobs()
-                .incNumAssignedJobs()
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
+                .incNumAssignedAnomalyDetectorJobs()
+                .incNumAssignedAnomalyDetectorJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -287,8 +287,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 while (forScaleUp.getFreeMemory() > Job.PROCESS_MEMORY_OVERHEAD.getBytes()) {
                     long jobSize = randomLongBetween(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), forScaleUp.getFreeMemory());
                     maxJobSize = Math.max(jobSize, maxJobSize);
-                    forScaleUp.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
-                    forScaleDown.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
+                    forScaleUp.incNumAssignedAnomalyDetectorJobs().incAssignedAnomalyDetectorMemory(jobSize);
+                    forScaleDown.incNumAssignedAnomalyDetectorJobs().incAssignedAnomalyDetectorMemory(jobSize);
                 }
                 // Create jobs for scale up
                 NodeLoad nodeLoadForScaleUp = forScaleUp.build();
@@ -296,7 +296,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 while (forScaleDown.getFreeMemory() > Job.PROCESS_MEMORY_OVERHEAD.getBytes()) {
                     long jobSize = randomLongBetween(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), forScaleDown.getFreeMemory());
                     maxJobSize = Math.max(jobSize, maxJobSize);
-                    forScaleDown.incNumAssignedJobs().incAssignedAnomalyDetectorMemory(jobSize);
+                    forScaleDown.incNumAssignedAnomalyDetectorJobs().incAssignedAnomalyDetectorMemory(jobSize);
                     String waitingJob = randomAlphaOfLength(10);
                     when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(eq(waitingJob))).thenReturn(jobSize);
                     when(mlMemoryTracker.getJobMemoryRequirement(eq(MlTasks.JOB_TASK_NAME), eq(waitingJob))).thenReturn(jobSize);
@@ -413,7 +413,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(anomalyDetectorJobSize.getBytes())
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         NativeMemoryCapacity currentScale = new NativeMemoryCapacity(anomalyDetectorJobSize.getBytes(), anomalyDetectorJobSize.getBytes());
@@ -535,7 +535,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         NativeMemoryCapacity currentScale = new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofGb(1).getBytes());
@@ -649,7 +649,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setMaxJobs(10)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(TEST_JOB_SIZE)
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build(),
             NodeLoad.builder("not_filled").setMaxMemory(TEST_JOB_SIZE + PER_NODE_OVERHEAD).setMaxJobs(10).setUseMemory(true).build()
         );
@@ -725,7 +725,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         // Current scale needs to be set to total cluster allowance for ML excluding per-node overhead
@@ -818,7 +818,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(TEST_JOB_SIZE)
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         // Current scale needs to be set to total cluster allowance for ML excluding per-node overhead
@@ -903,7 +903,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes() - PER_NODE_OVERHEAD)
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         NativeMemoryCapacity currentScale = new NativeMemoryCapacity(
@@ -971,7 +971,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes())
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
         NativeMemoryCapacity currentScale = new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofGb(1).getBytes());
@@ -1021,7 +1021,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setMaxJobs(10)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(TEST_JOB_SIZE)
-                .incNumAssignedJobs()
+                .incNumAssignedAnomalyDetectorJobs()
                 .build(),
             NodeLoad.builder("not_filled").setMaxMemory(TEST_JOB_SIZE + PER_NODE_OVERHEAD).setMaxJobs(10).setUseMemory(true).build()
         );
@@ -1071,19 +1071,19 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     .setMaxMemory(ByteSizeValue.ofGb(5).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("bar")
                     .setMaxMemory(ByteSizeValue.ofGb(5).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("baz")
                     .setMaxMemory(ByteSizeValue.ofGb(5).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build()
             );
             Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(
@@ -1110,19 +1110,19 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("bar")
                     .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("baz")
                     .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build()
             );
             Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(
@@ -1152,19 +1152,19 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     .setMaxMemory(ByteSizeValue.ofMb(100).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("bar")
                     .setMaxMemory(ByteSizeValue.ofMb(100).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build(),
                 NodeLoad.builder("baz")
                     .setMaxMemory(ByteSizeValue.ofMb(100).getBytes())
                     .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                     .incAssignedAnomalyDetectorMemory(ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD)
-                    .incNumAssignedJobs()
+                    .incNumAssignedAnomalyDetectorJobs()
                     .build()
             );
             Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(

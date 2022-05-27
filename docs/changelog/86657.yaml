@@ -1,5 +1,0 @@
-pr: 86657
-summary: Avoid breaking add/clear voting exclusions
-area: Cluster Coordination
-type: bug
-issues: []

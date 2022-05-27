@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -110,6 +111,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
+                    null,
                     Map.of("started_primaries", 2, "started_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -142,6 +144,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     unavailableReplicas.size() > 1
                         ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
                         : "This cluster has 1 unavailable replica.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of(
                         "started_primaries",
                         1,
@@ -153,11 +156,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             2,
-                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
                 )
             )
         );
@@ -176,6 +179,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -184,7 +188,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -200,6 +204,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -208,7 +213,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -269,7 +274,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorImpact(
                     2,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
+                    "Searches might be slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
                         + "yellow-index-1].",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -302,7 +307,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorImpact(
                     2,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
+                    "Searches might be slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
                         + "index-1, index-3].",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -329,6 +334,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting replica.",
+                    null,
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -350,6 +356,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
+                    null,
                     Map.of("started_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -377,16 +384,17 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
                             2,
-                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index "
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index "
                                 + "[restarting-index].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );
@@ -405,6 +413,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 creating primary.",
+                    null,
                     Map.of("creating_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -426,6 +435,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting primary.",
+                    null,
                     Map.of("restarting_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -452,6 +462,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -460,7 +471,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );
@@ -490,6 +501,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedTruncatedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
+                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     List.of(
                         new HealthIndicatorImpact(
                             1,
@@ -531,10 +543,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        // Cluster state with index, but its only shard is unassigned because the allocation deciders said none are allowed
+        // Cluster state with index, but its only shard is unassigned (Either deciders said no, or a node left)
         var clusterState = createClusterStateWith(
             List.of(indexMetadata),
-            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, randomFrom(decidersNo(), nodeLeft())))),
             List.of(),
             List.of()
         );
@@ -566,22 +578,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Get the list of user actions that are generated for this unassigned index shard
         ShardRouting shardRouting = clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
-        List<UserAction.Definition> actions = service.diagnoseAllocationResults(
-            shardRouting,
-            clusterState,
-            List.of(
-                new NodeAllocationResult(
-                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                    new Decision.Multi().add(Decision.single(Decision.Type.YES, EnableAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, "data_tier", null))
-                        .add(Decision.single(Decision.Type.YES, ShardsLimitAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, FilterAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, SameShardAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.NO, AwarenessAllocationDecider.NAME, null)), // Unhandled in indicator
-                    1
-                )
-            )
-        );
+        List<UserAction.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
         assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
@@ -1162,6 +1159,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String summary,
+        String helpURL,
         Map<String, Object> details,
         List<HealthIndicatorImpact> impacts,
         List<UserAction> actions
@@ -1171,14 +1169,29 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             DATA,
             status,
             summary,
+            helpURL,
             new SimpleHealthIndicatorDetails(addDefaults(details)),
             impacts,
             actions
         );
     }
 
-    private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String summary, List<HealthIndicatorImpact> impacts) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
+    private HealthIndicatorResult createExpectedTruncatedResult(
+        HealthStatus status,
+        String summary,
+        String helpUrl,
+        List<HealthIndicatorImpact> impacts
+    ) {
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            helpUrl,
+            HealthIndicatorDetails.EMPTY,
+            impacts,
+            Collections.emptyList()
+        );
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {
@@ -1311,9 +1324,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             shardId,
             primary,
             getSource(primary, allocation.state),
-            allocation.unassignedInfo == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null) : allocation.unassignedInfo
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
-        if (allocation.state == UNAVAILABLE || allocation.state == INITIALIZING) {
+        if (allocation.state == INITIALIZING) {
             return routing;
         }
         routing = routing.initialize(allocation.nodeId, null, 0);
@@ -1321,22 +1334,24 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         if (allocation.state == AVAILABLE) {
             return routing;
         }
-        routing = routing.moveToUnassigned(
-            new UnassignedInfo(
-                UnassignedInfo.Reason.NODE_RESTARTING,
-                null,
-                null,
-                -1,
-                allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
-                0,
-                false,
-                UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-                Set.of(),
-                allocation.nodeId
-            )
-        );
+        if (allocation.state == UNAVAILABLE) {
+            return routing.moveToUnassigned(Optional.ofNullable(allocation.unassignedInfo).orElse(randomFrom(nodeLeft(), decidersNo())));
+        }
         if (allocation.state == RESTARTING) {
-            return routing;
+            return routing.moveToUnassigned(
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.NODE_RESTARTING,
+                    null,
+                    null,
+                    -1,
+                    allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
+                    0,
+                    false,
+                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                    Set.of(),
+                    allocation.nodeId
+                )
+            );
         }
 
         throw new AssertionError("Unexpected state [" + allocation.state + "]");
@@ -1390,6 +1405,21 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             0,
             false,
             UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+            Collections.emptySet(),
+            null
+        );
+    }
+
+    private static UnassignedInfo nodeLeft() {
+        return new UnassignedInfo(
+            UnassignedInfo.Reason.NODE_LEFT,
+            null,
+            null,
+            0,
+            0,
+            0,
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
             null
         );

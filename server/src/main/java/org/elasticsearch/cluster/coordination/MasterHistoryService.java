@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 /**
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
@@ -33,17 +36,34 @@ public class MasterHistoryService {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
     private final ClusterService clusterService;
+    private final LongSupplier currentTimeMillisSupplier;
+    private final TimeValue acceptableRemoteHistoryAge;
     /*
      * This is a view of the master history one a remote node, or the exception that fetching it resulted in. This is populated
-     * asynchronously.
+     * asynchronously. It is non-private for testing. Note that this field is not nulled out after its time to live expires. That check
+     * is only done in getRemoteMasterHistory(). All non-testing access to this field needs to go through getRemoteMasterHistory().
      */
-    volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null); // non-private for testing
+    volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null, Long.MIN_VALUE);
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
+
+    private static final TimeValue DEFAULT_REMOTE_HISTORY_TIME_TO_LIVE = new TimeValue(5, TimeUnit.MINUTES);
+
+    /**
+     * This is the amount of time that can pass after a RemoteHistoryOrException is returned from the remote master until it is
+     * considered stale and not usable.
+     */
+    public static final Setting<TimeValue> REMOTE_HISTORY_TIME_TO_LIVE_SETTING = Setting.positiveTimeSetting(
+        "master_history.remote_history_time_to_live",
+        DEFAULT_REMOTE_HISTORY_TIME_TO_LIVE,
+        Setting.Property.NodeScope
+    );
 
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         this.clusterService = clusterService;
+        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
 
     /**
@@ -60,7 +80,8 @@ public class MasterHistoryService {
      * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously, and only if
      * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
      * remote machine will be thrown here. If the remote history has not been fetched or if something went wrong and there was no exception,
-     * the returned value will be null.
+     * the returned value will be null. If the remote history is old enough to be considered stale (that is, older than
+     * MAX_USABLE_REMOTE_HISTORY_AGE_SETTING), then the returned value will be null.
      * @return The MasterHistory from a remote node's point of view. This MasterHistory object will not be updated with future changes
      * @throws Exception the exception (if any) returned by the remote machine when fetching the history
      */
@@ -68,6 +89,14 @@ public class MasterHistoryService {
     public List<DiscoveryNode> getRemoteMasterHistory() throws Exception {
         // Grabbing a reference to the object in case it is replaced in another thread during this method:
         RemoteHistoryOrException remoteHistoryOrExceptionCopy = remoteHistoryOrException;
+        /*
+         * If the remote history we have is too old, we just return null with the assumption that it is stale and the new one has not
+         * come in yet.
+         */
+        long acceptableRemoteHistoryTime = currentTimeMillisSupplier.getAsLong() - acceptableRemoteHistoryAge.getMillis();
+        if (remoteHistoryOrExceptionCopy.creationTimeMillis < acceptableRemoteHistoryTime) {
+            return null;
+        }
         if (remoteHistoryOrExceptionCopy.exception != null) {
             throw remoteHistoryOrExceptionCopy.exception;
         }
@@ -108,13 +137,16 @@ public class MasterHistoryService {
                                 public void onResponse(MasterHistoryAction.Response response) {
                                     long endTime = System.nanoTime();
                                     logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                    remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
+                                    remoteHistoryOrException = new RemoteHistoryOrException(
+                                        response.getMasterHistory(),
+                                        currentTimeMillisSupplier.getAsLong()
+                                    );
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
                                     logger.warn("Exception in master history request to master node", e);
-                                    remoteHistoryOrException = new RemoteHistoryOrException(e);
+                                    remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                                 }
                             }, connection::close), MasterHistoryAction.Response::new)
                         );
@@ -132,13 +164,14 @@ public class MasterHistoryService {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("Exception connecting to master node", e);
-                    remoteHistoryOrException = new RemoteHistoryOrException(e);
+                    remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                 }
             }
         );
     }
 
-    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception) { // non-private for testing
+    // non-private for testing
+    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception, long creationTimeMillis) {
 
         public RemoteHistoryOrException {
             if (remoteHistory != null && exception != null) {
@@ -146,12 +179,12 @@ public class MasterHistoryService {
             }
         }
 
-        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory) {
-            this(remoteHistory, null);
+        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, long creationTimeMillis) {
+            this(remoteHistory, null, creationTimeMillis);
         }
 
-        RemoteHistoryOrException(Exception exception) {
-            this(null, exception);
+        RemoteHistoryOrException(Exception exception, long creationTimeMillis) {
+            this(null, exception, creationTimeMillis);
         }
     }
 }

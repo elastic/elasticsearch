@@ -1,6 +1,0 @@
-pr: 86574
-summary: Reroute after migrating to data tiers routing
-area: ILM+SLM
-type: bug
-issues:
- - 86572

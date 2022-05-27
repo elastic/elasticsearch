@@ -46,11 +46,9 @@ each checkpoint.
 of update and runs with those privileges. If you provide
 <<http-clients-secondary-authorization,secondary authorization headers>>, those
 credentials are used instead.
-* You must use {kib} or this API to update a {transform}. Do not update a
-{transform} directly via `.transform-internal*` indices using the {es} index API.
-If {es} {security-features} are enabled, do not give users any privileges on
-`.transform-internal*` indices. If you used {transforms} prior 7.5, also do not
-give users any privileges on `.data-frame-internal*` indices.
+* You must use {kib} or this API to update a {transform}. Directly updating any 
+{transform} internal, system, or hidden indices is not supported and may cause 
+permanent failure.
 
 ====
 

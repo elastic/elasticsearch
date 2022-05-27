@@ -342,92 +342,34 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info2.toString(), equalTo(info.toString()));
     }
 
+    PluginDescriptor newMockDescriptor(String name) {
+        return new PluginDescriptor(
+            name,
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyclass",
+            null,
+            List.of(),
+            randomBoolean(),
+            PluginType.ISOLATED,
+            "-Da",
+            randomBoolean()
+        );
+    }
+
     public void testPluginListSorted() {
-        List<PluginDescriptor> plugins = new ArrayList<>();
-        plugins.add(
-            new PluginDescriptor(
-                "c",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-Da",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "b",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.BOOTSTRAP,
-                "-Db",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "e",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-Dc",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "a",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.BOOTSTRAP,
-                "-Dd",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "d",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-De",
-                randomBoolean()
-            )
-        );
+        List<PluginRuntimeInfo> plugins = new ArrayList<>();
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("c")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("b")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("e")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("a")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("d")));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
-        final List<PluginDescriptor> infos = pluginsInfo.getPluginInfos();
-        List<String> names = infos.stream().map(PluginDescriptor::getName).toList();
+        final List<PluginRuntimeInfo> infos = pluginsInfo.getPluginInfos();
+        List<String> names = infos.stream().map(p -> p.descriptor().getName()).toList();
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 

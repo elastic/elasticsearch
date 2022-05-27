@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -53,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
 
@@ -289,7 +289,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                     transform.getId(),
                     "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
                 );
-                logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
+                logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
@@ -516,7 +516,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
                 String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
                 auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
-                logger.error(new ParameterizedMessage("[{}] {}", getTransformId(), msg), e);
+                logger.error(() -> format("[%s] %s", getTransformId(), msg), e);
                 listener.onFailure(e);
             }));
         }

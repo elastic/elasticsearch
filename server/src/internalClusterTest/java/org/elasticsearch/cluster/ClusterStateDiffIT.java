@@ -529,7 +529,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "index", new RandomPart<IndexMetadata>() {
 
             @Override
-            public ImmutableOpenMap<String, IndexMetadata> parts(Metadata metadata) {
+            public Map<String, IndexMetadata> parts(Metadata metadata) {
                 return metadata.indices();
             }
 
@@ -646,7 +646,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, Metadata.Custom> parts(Metadata metadata) {
                 return metadata.customs();
             }
 

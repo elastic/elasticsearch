@@ -32,13 +32,6 @@ public interface Logger {
     void log(Level level, java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
     /**
-     * Gets the Level associated with the Logger.
-     *
-     * @return the Level associate with the Logger.
-     */
-    Level getLevel();
-
-    /**
      * Gets the logger name.
      *
      * @return the logger name.

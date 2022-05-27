@@ -30,7 +30,6 @@ public class LoggerImplDelegationTests extends ESTestCase {
             // skip methods which do not simply pass arguments (perform argument mapping)
             // those are covered in LoggerImplMappingTests
             .filter(m -> m.getName().equals("log") == false)
-            .filter(m -> m.getName().equals("getLevel") == false)
             .filter(m -> Arrays.asList(m.getParameterTypes()).contains(Supplier.class) == false)
             .filter(m -> Arrays.asList(m.getParameterTypes()).contains(Level.class) == false)
             .collect(Collectors.toList());

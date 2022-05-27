@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.Comparator;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -105,12 +104,12 @@ public class LoggerImplMappingTests extends ESTestCase {
         ArgumentCaptor<org.apache.logging.log4j.Level> log4jLevelCaptor = ArgumentCaptor.forClass(org.apache.logging.log4j.Level.class);
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
 
-        for (Level value : Level.values().stream().sorted(Comparator.comparingInt(Level::getSeverity)).collect(Collectors.toList())) {
+        for (Level value : Level.values()) {
             esLogger.log(value, "msg");
         }
         esLogger.log(Level.DEBUG, () -> "msg1", thrown);
 
-        verify(log4jLogger, times(Level.values().size())).log(log4jLevelCaptor.capture(), msgCaptor.capture());
+        verify(log4jLogger, times(Level.values().length)).log(log4jLevelCaptor.capture(), msgCaptor.capture());
         verify(log4jLogger).log(log4jLevelCaptor.capture(), msgSupplierCaptor.capture(), exceptionCaptor.capture());
 
         assertThat(log4jLevelCaptor.getAllValues(), contains(log4jValues()));
@@ -132,12 +131,6 @@ public class LoggerImplMappingTests extends ESTestCase {
             org.apache.logging.log4j.Level.ALL,
             org.apache.logging.log4j.Level.DEBUG // a call with exception
         };
-    }
-
-    public void testLevel() {
-        when(log4jLogger.getLevel()).thenReturn(org.apache.logging.log4j.Level.INFO);
-        esLogger.getLevel();
-        verify(log4jLogger).getLevel();
     }
 
     public void testIsLevelEnabled() {

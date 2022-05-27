@@ -10,26 +10,22 @@ package org.elasticsearch.logging.internal.spi;
 
 import org.elasticsearch.logging.Logger;
 
-import java.util.ServiceLoader;
-
 /**
  * SPI for creating new loggers
  */
-public interface LogManagerFactory {
+public abstract class LogManagerFactory {
 
-    LogManagerFactory INSTANCE = loadProvider();
+    private static volatile LogManagerFactory INSTANCE;
 
-    static LogManagerFactory loadProvider() {
-        ServiceLoader<LogManagerFactory> sl = ServiceLoader.load(LogManagerFactory.class, ClassLoader.getSystemClassLoader());
-        return sl.findFirst().orElseThrow();
-    }
-
-    static LogManagerFactory provider() {
+    public static LogManagerFactory provider() {
         return INSTANCE;
     }
 
-    Logger getLogger(String name);
+    public abstract Logger getLogger(String name);
 
-    Logger getLogger(Class<?> clazz);
+    public abstract Logger getLogger(Class<?> clazz);
 
+    public static void setInstance(LogManagerFactory INSTANCE) {
+        LogManagerFactory.INSTANCE = INSTANCE;
+    }
 }

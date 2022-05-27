@@ -8,39 +8,20 @@
 
 package org.elasticsearch.common.logging.internal;
 
-import org.elasticsearch.logging.internal.spi.StandardLevels;
-
 public final class LevelUtil {
 
     private LevelUtil() {}
 
     public static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
-
-        return switch (level.getSeverity()) {
-            case StandardLevels.OFF -> org.apache.logging.log4j.Level.OFF;
-            case StandardLevels.FATAL -> org.apache.logging.log4j.Level.FATAL;
-            case StandardLevels.ERROR -> org.apache.logging.log4j.Level.ERROR;
-            case StandardLevels.WARN -> org.apache.logging.log4j.Level.WARN;
-            case StandardLevels.INFO -> org.apache.logging.log4j.Level.INFO;
-            case StandardLevels.DEBUG -> org.apache.logging.log4j.Level.DEBUG;
-            case StandardLevels.TRACE -> org.apache.logging.log4j.Level.TRACE;
-            case StandardLevels.ALL -> org.apache.logging.log4j.Level.ALL;
-            default -> org.apache.logging.log4j.Level.forName(level.name(), level.getSeverity());
+        return switch (level) {
+            case OFF -> org.apache.logging.log4j.Level.OFF;
+            case FATAL -> org.apache.logging.log4j.Level.FATAL;
+            case ERROR -> org.apache.logging.log4j.Level.ERROR;
+            case WARN -> org.apache.logging.log4j.Level.WARN;
+            case INFO -> org.apache.logging.log4j.Level.INFO;
+            case DEBUG -> org.apache.logging.log4j.Level.DEBUG;
+            case TRACE -> org.apache.logging.log4j.Level.TRACE;
+            case ALL -> org.apache.logging.log4j.Level.ALL;
         };
     }
-
-    static org.elasticsearch.logging.Level elasticsearchLevel(final org.apache.logging.log4j.Level level) {
-        return switch (level.getStandardLevel().intLevel()) {
-            case StandardLevels.OFF -> org.elasticsearch.logging.Level.OFF;
-            case StandardLevels.FATAL -> org.elasticsearch.logging.Level.FATAL;
-            case StandardLevels.ERROR -> org.elasticsearch.logging.Level.ERROR;
-            case StandardLevels.WARN -> org.elasticsearch.logging.Level.WARN;
-            case StandardLevels.INFO -> org.elasticsearch.logging.Level.INFO;
-            case StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
-            case StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
-            case StandardLevels.ALL -> org.elasticsearch.logging.Level.ALL;
-            default -> org.elasticsearch.logging.Level.forName(level.name(), level.getStandardLevel().intLevel());
-        };
-    }
-
 }

@@ -37,11 +37,6 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public Level getLevel() {
-        return LevelUtil.elasticsearchLevel(log4jLogger.getLevel());
-    }
-
-    @Override
     public String getName() {
         return log4jLogger.getName();
     }

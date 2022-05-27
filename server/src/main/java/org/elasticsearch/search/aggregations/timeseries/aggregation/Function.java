@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.timeseries.aggregation;
 
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgExactFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ClampFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ClampMaxFunction;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Qua
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.RateFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.SumFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TimestampFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountExactFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountFunction;
 
 import java.time.DayOfWeek;
@@ -33,6 +35,12 @@ public enum Function {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new ValueCountFunction();
+        }
+    },
+    count_exact_over_time {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
+            return new ValueCountExactFunction();
         }
     },
     sum_over_time {
@@ -59,6 +67,12 @@ public enum Function {
             return new AvgFunction();
         }
     },
+    avg_exact_over_time {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
+            return new AvgExactFunction();
+        }
+    },
     last {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
@@ -68,19 +82,19 @@ public enum Function {
     rate {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
-            return new RateFunction((long)params.get(RANGE_FIELD), (long)params.get(ROUNDING_FIELD), true, true);
+            return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), true, true);
         }
     },
     delta {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
-            return new RateFunction((long)params.get(RANGE_FIELD), (long)params.get(ROUNDING_FIELD), false, false);
+            return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), false, false);
         }
     },
     increase {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
-            return new RateFunction((long)params.get(RANGE_FIELD), (long)params.get(ROUNDING_FIELD), true, false);
+            return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), true, false);
         }
     },
     irate {

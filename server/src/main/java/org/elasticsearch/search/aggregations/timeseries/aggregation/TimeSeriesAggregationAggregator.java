@@ -132,7 +132,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
-        this.downsampleParams = downsample != null && downsample.getParameters() != null ? new HashMap<>(downsample.getParameters()) : new HashMap<>();
+        this.downsampleParams = downsample != null && downsample.getParameters() != null
+            ? new HashMap<>(downsample.getParameters())
+            : new HashMap<>();
         this.downsampleParams.put(Function.RANGE_FIELD, downsampleRange);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order == null ? BucketOrder.key(true) : order;
@@ -304,6 +306,38 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
     }
 
+    protected LeafBucketCollector getCollector(
+        LeafBucketCollector sub,
+        AggregationExecutionContext aggCtx,
+        SortedNumericDoubleValues values
+    ) {
+        return new Collector(sub, values, aggCtx, (doc) -> {
+            if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
+                return;
+            }
+
+            if (values.advanceExact(doc)) {
+                final int valuesCount = values.docValueCount();
+                for (int i = 0; i < valuesCount; i++) {
+                    double value = values.nextValue();
+                    if (false == timeBucketMetrics.containsKey(preRounding)) {
+                        downsampleParams.put(Function.ROUNDING_FIELD, preRounding);
+                        timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(downsampleParams));
+                    }
+                    for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                        Long timestamp = entry.getKey();
+                        AggregatorFunction function = entry.getValue();
+                        if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
+                            function.collect(new TimePoint(aggCtx.getTimestamp(), value));
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
         // TODO: remove this method in a follow up PR
@@ -331,31 +365,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             };
         }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
-        return new Collector(sub, values, aggCtx, (doc) -> {
-            if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
-                return;
-            }
-
-            if (values.advanceExact(doc)) {
-                final int valuesCount = values.docValueCount();
-                for (int i = 0; i < valuesCount; i++) {
-                    double value = values.nextValue();
-                    if (false == timeBucketMetrics.containsKey(preRounding)) {
-                        downsampleParams.put(Function.ROUNDING_FIELD, preRounding);
-                        timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(downsampleParams));
-                    }
-                    for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
-                        Long timestamp = entry.getKey();
-                        AggregatorFunction function = entry.getValue();
-                        if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
-                            function.collect(new TimePoint(aggCtx.getTimestamp(), value));
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
+        return getCollector(sub, aggCtx, values);
     }
 
     @Override

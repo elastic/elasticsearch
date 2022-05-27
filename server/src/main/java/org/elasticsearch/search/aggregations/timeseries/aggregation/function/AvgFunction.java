@@ -25,11 +25,6 @@ public class AvgFunction implements AggregatorFunction<TimePoint, Double> {
         count += 1;
     }
 
-    public void collectExact(double sum, long count) {
-        this.sum += sum;
-        this.count += count;
-    }
-
     @Override
     public Double get() {
         return sum / count;

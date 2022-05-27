@@ -8,28 +8,30 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 
 import java.util.Map;
 
-public class ValueCountFunction implements AggregatorFunction<TimePoint, Long> {
+public class AvgExactFunction implements AggregatorFunction<Tuple<Double, Long>, Double> {
+    private double sum = 0;
     private long count = 0;
 
     @Override
-    public void collect(TimePoint value) {
-        count += 1;
+    public void collect(Tuple<Double, Long> value) {
+        this.sum += value.v1();
+        this.count += value.v2();
     }
 
     @Override
-    public Long get() {
-        return count;
+    public Double get() {
+        return sum / count;
     }
 
     @Override
     public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
-        return new org.elasticsearch.search.aggregations.metrics.InternalValueCount(ValueCountAggregationBuilder.NAME, count, metadata);
+        return new org.elasticsearch.search.aggregations.metrics.InternalAvg(AvgAggregationBuilder.NAME, sum, count, formatter, metadata);
     }
 }

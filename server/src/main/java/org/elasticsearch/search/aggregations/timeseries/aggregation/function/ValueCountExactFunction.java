@@ -15,12 +15,12 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
 import java.util.Map;
 
-public class ValueCountFunction implements AggregatorFunction<TimePoint, Long> {
+public class ValueCountExactFunction implements AggregatorFunction<TimePoint, Long> {
     private long count = 0;
 
     @Override
     public void collect(TimePoint value) {
-        count += 1;
+        count += count;
     }
 
     @Override

@@ -48,18 +48,18 @@ logs. You must fix the master node's instability before addressing these other
 issues. It will not be possible to solve any other issues while the master node
 is unstable.
 
-If your cluster has a stable master which some nodes cannot discover or join
-then these nodes will report many kinds of error to clients and in their logs.
+If your cluster has a stable master but some nodes cannot discover or join it,
+these nodes will report many kinds of errors to clients and in their logs.
 You must address the obstacles preventing these nodes from joining the cluster
 before addressing other issues. It will not be possible to solve any other
-issues reported by these nodes while they are not able to join the cluster.
+issues reported by these nodes while they are unable to join the cluster.
 
-To properly troubleshoot discovery and election problems you will need to
-collect and analyse logs covering at least five minutes from all nodes. There
-are a few possibilities for discovery and election problems:
+To properly troubleshoot discovery and election problems, you need to
+collect and analyse logs covering at least five minutes from all nodes. The
+following sections cover a few possibilities around discovery and election problems.
 
-No master is elected::
---
+===== No master is elected
+
 
 When a node wins the master election, it logs a message containing
 `elected-as-master` and all nodes will log a message containing
@@ -95,10 +95,10 @@ the usual reason that the cluster cannot elect a master is that one of the
 other nodes cannot discover a quorum. Inspect the logs on the other
 master-eligible nodes and ensure that every node has discovered a quorum.
 
---
 
-Master is elected but unstable::
---
+
+===== Master is elected but unstable
+
 
 When a node wins the master election, it logs a message containing
 `elected-as-master`. If this happens repeatedly, the elected master node is
@@ -106,10 +106,10 @@ unstable. In this situation, focus on the logs from the master-eligible nodes
 to understand why the election winner stops being the master and triggers
 another election.
 
---
 
-Node cannot discover or join stable master::
---
+
+===== Node cannot discover or join stable master
+
 
 If there is a stable elected master but a node cannot discover or join its
 cluster, it will repeatedly log messages about the problem using the
@@ -126,16 +126,15 @@ must address the obstacles preventing the node from joining the cluster before
 trying to address any other failures. It will not be possible to solve other
 issues while a node is unable to join the cluster.
 
---
 
-Node joins cluster and leaves again::
---
+
+===== Node joins cluster and leaves again
+
 
 If a node joins the cluster but {es} determines it to be faulty then it will be
 removed from the cluster again. See <<cluster-fault-detection-troubleshooting>>
 for more information.
 
---
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

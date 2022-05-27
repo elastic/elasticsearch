@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -49,6 +48,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
@@ -981,9 +982,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
                 if (a == null) {
                     if (indexCreatedVersion.isLegacyIndexVersion()) {
-                        logger.warn(
-                            new ParameterizedMessage("Could not find analyzer [{}] of legacy index, falling back to default", analyzerName)
-                        );
+                        logger.warn(() -> format("Could not find analyzer [%s] of legacy index, falling back to default", analyzerName));
                         a = defaultAnalyzer.get();
                     } else {
                         throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");

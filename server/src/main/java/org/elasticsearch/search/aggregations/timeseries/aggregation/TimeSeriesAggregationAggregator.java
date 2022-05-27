@@ -128,7 +128,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         this.aggregatorParams = aggregatorParams;
         this.needAggregator = this.aggregator != null;
         this.downsampleRange = downsample != null && downsample.getRange() != null ? downsample.getRange().estimateMillis() : -1;
-        this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;
+        this.downsampleFunction = downsample != null
+            ? downsample.getFunction()
+            : (downsampleRange > 0 ? Function.origin_value : Function.last);
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
@@ -434,7 +436,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
             if (aggregatorBucketFunction == null) {
                 AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays(), aggregatorParams);
-                aggregatorBucketFunction = new TSIDBucketFunction(internal);
+                aggregatorBucketFunction = new TSIDBucketFunction(bigArrays(), internal);
                 aggregatorCollectors.put(bucketOrd, aggregatorBucketFunction);
             }
 

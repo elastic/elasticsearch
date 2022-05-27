@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.IRa
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MaxFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MinFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.OriginValuesFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.QuantileFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.RateFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.SumFunction;
@@ -77,6 +78,12 @@ public enum Function {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> value);
+        }
+    },
+    origin_value {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
+            return new OriginValuesFunction();
         }
     },
     rate {

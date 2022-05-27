@@ -9,6 +9,9 @@
 package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
@@ -16,18 +19,19 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Top
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Double>> {
 
-    private Map<Long, PriorityQueue<TSIDValue<Double>>> values;
+    private final BigArrays bigArrays;
+    private ObjectArray<PriorityQueue<TSIDValue<Double>>> values;
     private final int topkSize;
     private final boolean isTop;
 
-    public TopkBucketFunction(int size, boolean isTop) {
-        values = new HashMap<>();
+    public TopkBucketFunction(BigArrays bigArrays, int size, boolean isTop) {
+        this.bigArrays = bigArrays;
+        values = bigArrays.newObjectArray(1);
         this.topkSize = size;
         this.isTop = isTop;
     }
@@ -39,10 +43,11 @@ public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Do
 
     @Override
     public void collect(TSIDValue<Double> number, long bucket) {
+        values = bigArrays.grow(values, bucket + 1);
         PriorityQueue<TSIDValue<Double>> queue = values.get(bucket);
         if (queue == null) {
             queue = TopkFunction.getTopkQueue(topkSize, isTop);
-            values.put(bucket, queue);
+            values.set(bucket, queue);
         }
 
         queue.insertWithOverflow(number);
@@ -65,6 +70,6 @@ public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Do
 
     @Override
     public void close() {
-        values = null;
+        Releasables.close(values);
     }
 }

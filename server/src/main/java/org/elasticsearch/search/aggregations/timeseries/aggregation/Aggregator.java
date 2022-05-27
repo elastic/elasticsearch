@@ -102,7 +102,7 @@ public enum Aggregator {
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
                 size = ((Double) aggregatorParams.get("size")).intValue();
             }
-            return new TopkBucketFunction(size, true);
+            return new TopkBucketFunction(bigArrays, size, true);
         }
     },
     bottomk {
@@ -121,7 +121,7 @@ public enum Aggregator {
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
                 size = ((Double) aggregatorParams.get("size")).intValue();
             }
-            return new TopkBucketFunction(size, false);
+            return new TopkBucketFunction(bigArrays, size, false);
         }
     },
     count_values {

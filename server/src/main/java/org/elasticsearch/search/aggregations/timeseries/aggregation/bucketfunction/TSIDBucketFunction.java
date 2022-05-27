@@ -9,6 +9,9 @@
 package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
@@ -33,11 +36,14 @@ import java.util.Map;
  */
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
-    private Map<Long, Map<BytesRef, InternalAggregation>> values = new HashMap<>();
+    private final BigArrays bigArrays;
+    private ObjectArray<Map<BytesRef, InternalAggregation>> values;
     private final AggregatorBucketFunction aggregatorBucketFunction;
 
-    public TSIDBucketFunction(AggregatorBucketFunction aggregatorBucketFunction) {
+    public TSIDBucketFunction(BigArrays bigArrays, AggregatorBucketFunction aggregatorBucketFunction) {
         this.aggregatorBucketFunction = aggregatorBucketFunction;
+        this.bigArrays = bigArrays;
+        values = bigArrays.newObjectArray(1);
     }
 
     @Override
@@ -47,29 +53,40 @@ public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
 
     @Override
     public void collect(TSIDValue tsidValue, long bucket) {
+        values = bigArrays.grow(values, bucket + 1);
         if (tsidValue.value instanceof InternalAggregation) {
             Map<BytesRef, InternalAggregation> tsidValues = values.get(bucket);
             if (tsidValues == null) {
                 tsidValues = new HashMap<>();
-                values.put(bucket, tsidValues);
+                values.set(bucket, tsidValues);
             }
             tsidValues.put(tsidValue.tsid, (InternalAggregation) tsidValue.value);
         } else if (aggregatorBucketFunction instanceof TopkBucketFunction) {
             aggregatorBucketFunction.collect(tsidValue, bucket);
-        } else {
+        } else if (tsidValue.value instanceof Double) {
             aggregatorBucketFunction.collect(tsidValue.value, bucket);
+        } else {
+            throw new UnsupportedOperationException(
+                "aggregator [" + aggregatorBucketFunction.name() + "] unsupported collect non-double value"
+            );
         }
     }
 
     @Override
     public void close() {
-        aggregatorBucketFunction.close();
+        Releasables.close(values);
     }
 
     @Override
-    public InternalAggregation getAggregation(long bucket, Map<String, Object> aggregatorParams, DocValueFormat formatter, Map<String, Object> metadata) {
-        if (values.containsKey(bucket)) {
-            return new TSIDInternalAggregation(name(), values.get(bucket), aggregatorBucketFunction.name(), aggregatorParams, formatter, metadata);
+    public InternalAggregation getAggregation(
+        long bucket,
+        Map<String, Object> aggregatorParams,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
+        Map<BytesRef, InternalAggregation> value = values.get(bucket);
+        if (value != null) {
+            return new TSIDInternalAggregation(name(), value, aggregatorBucketFunction.name(), aggregatorParams, formatter, metadata);
         } else {
             return aggregatorBucketFunction.getAggregation(bucket, aggregatorParams, formatter, metadata);
         }

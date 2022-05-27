@@ -107,7 +107,7 @@ public class MapBackedMetadataTests extends ESTestCase {
     public void testOp() {
         MapBackedMetadata m = new MapBackedMetadata(1);
         MapBackedMetadata.RawOp raw = m.getOp();
-        assertNull(raw.op);
+        assertEquals(Op.UNKOWN, raw.op);
         assertNull(raw.str);
         assertNull(m.getMap().get("op"));
         for (Op op : Op.values()) {

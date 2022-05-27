@@ -107,7 +107,7 @@ public class UpdateHelper {
             IndexRequest upsert = request.upsertRequest();
             Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(
                 request.script,
-                new UpdateScript.Metadata(getResult.getIndex(), getResult.getId(), Op.CREATE, nowInMillis.getAsLong(), upsert.sourceAsMap())
+                UpdateScript.insert(getResult.getIndex(), getResult.getId(), Op.CREATE, nowInMillis.getAsLong(), upsert.sourceAsMap())
             );
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
@@ -224,7 +224,7 @@ public class UpdateHelper {
 
         UpdateScript.Metadata md = executeScript(
             request.script,
-            new UpdateScript.Metadata(
+            UpdateScript.update(
                 getResult.getIndex(),
                 getResult.getId(),
                 getResult.getVersion(),

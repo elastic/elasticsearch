@@ -53,6 +53,7 @@ public abstract class UpdateScript {
         return metadata != null ? metadata.store.getMap() : null;
     }
 
+    /** return the metadata for this script */
     public Metadata meta() {
         return metadata;
     }
@@ -61,6 +62,23 @@ public abstract class UpdateScript {
 
     public interface Factory {
         UpdateScript newInstance(Map<String, Object> params, Metadata metadata);
+    }
+
+    public static Metadata insert(String index, String id, Op op, long epochMilli, Map<String, Object> source) {
+        return new Metadata(index, id, op, epochMilli, source);
+    }
+
+    public static Metadata update(
+        String index,
+        String id,
+        Long version,
+        String routing,
+        Op op,
+        long epochMilli,
+        String type,
+        Map<String, Object> source
+    ) {
+        return new Metadata(index, id, version, routing, op, epochMilli, type, source);
     }
 
     /**
@@ -88,22 +106,10 @@ public abstract class UpdateScript {
         protected static final EnumSet<Op> INSERT_VALID_OPS = EnumSet.of(Op.NOOP, Op.CREATE);
         protected static final EnumSet<Op> UPDATE_VALID_OPS = EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE);
 
-        // this is for context integration for compatibility with existing tests
-        public Metadata(Map<String, Object> ctx) {
-            this.store = new MapBackedMetadata(ctx);
-            this.isInsert = store.getOp().op == Op.CREATE;
-            this.validOps = isInsert ? INSERT_VALID_OPS : UPDATE_VALID_OPS;
-            if (store.getMap().get(TIMESTAMP)instanceof Long epochMilli) {
-                this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneOffset.UTC);
-            } else {
-                this.timestamp = null;
-            }
-        }
-
         /**
          * Insert via Upsert
          */
-        public Metadata(String index, String id, Op op, long epochMilli, Map<String, Object> source) {
+        private Metadata(String index, String id, Op op, long epochMilli, Map<String, Object> source) {
             this.store = new MapBackedMetadata(5).setIndex(index).setId(id).setOp(op).set(TIMESTAMP, epochMilli).setSource(source);
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneOffset.UTC);
             this.isInsert = true;
@@ -113,7 +119,7 @@ public abstract class UpdateScript {
         /**
          * Scripted Update and Update via Upsert
          */
-        public Metadata(
+        private Metadata(
             String index,
             String id,
             Long version,
@@ -161,8 +167,8 @@ public abstract class UpdateScript {
         public List<String> validOps() {
             List<String> enumOps = validOps.stream().map(Op::getName).toList();
             List<String> ops = new ArrayList<>(enumOps.size() + 1);
-            ops.addAll(enumOps);
             ops.add("none");
+            ops.addAll(enumOps);
             return ops;
         }
 
@@ -175,16 +181,16 @@ public abstract class UpdateScript {
                 return Op.NOOP;
             }
             if (validOps.contains(raw.op) == false) {
-                throw new IllegalArgumentException("unknown op [" + raw.str + "], valid ops are " + Strings.join(validOps(), ","));
+                throw new IllegalArgumentException("unknown op [" + raw.str + "], valid ops are " + Strings.join(validOps(), ", "));
             }
             return raw.op;
         }
 
         public void setOp(Op op) {
             if (validOps.contains(op) == false) {
-                throw new IllegalArgumentException("unknown op [" + op + "], valid ops are " + Strings.join(validOps(), ","));
+                throw new IllegalArgumentException("unknown op [" + op + "], valid ops are " + Strings.join(validOps(), ", "));
             }
-            store.setOp(op);
+            store.set(MapBackedMetadata.OP, op == Op.NOOP ? LEGACY_NOOP_STRING : op.name);
         }
 
         public ZonedDateTime getTimestamp() {

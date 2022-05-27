@@ -28,7 +28,7 @@ public class OpTests extends ESTestCase {
             ops.remove(Op.fromString(ot.getLowercase()));
         }
         assertTrue(ops.remove(Op.NOOP));
-        assertTrue(ops.remove(Op.UNKOWN));
+        //assertTrue(ops.remove(Op.UNKOWN));
         assertEquals(0, ops.size());
     }
 }

@@ -13,13 +13,14 @@ import java.util.Locale;
 /**
  * Write operation for documents.
  *
- * This is similar to {@link org.elasticsearch.action.DocWriteRequest.OpType} with NOOP and UNKNOWN added.
+ * This is similar to {@link org.elasticsearch.action.DocWriteRequest.OpType} with NOOP and UNKNOWN added.  UPDATE
  */
 public enum Op {
     NOOP("noop"),
     INDEX("index"),
     DELETE("delete"),
     CREATE("create"),
+    // UPDATE("update"), // TODO(stu): is this used anywhere?  Add to other tests
     UNKOWN("unknown");
 
     public final String name;

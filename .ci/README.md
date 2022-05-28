@@ -12,5 +12,5 @@ Merging of the default configuration is customized so unlike in standard JJB,
 it recurses into YML objects. 
 Further (internal) documentation  on the setup 
 [is available](https://github.com/elastic/infra/blob/master/flavortown/jjbb/README.md) 
-.
+.commit changes
 

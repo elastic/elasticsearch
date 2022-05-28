@@ -200,23 +200,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getFromSearcher(Engine.Searcher searcher, String id, String[] gFields, FetchSourceContext fetchSourceContext)
+    public GetResult getFromSearcher(Engine.Searcher searcher, String id, DocIdAndVersion docIdAndVersion, long lookupTimes)
         throws IOException {
         currentMetric.inc();
         try {
-            fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-            final long now = System.nanoTime();
-            final DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.lookupId(
-                searcher.getDirectoryReader(),
-                new Term(IdFieldMapper.NAME, Uid.encodeId(id))
-            );
             if (docIdAndVersion == null) {
-                missingMetric.inc(System.nanoTime() - now);
+                missingMetric.inc(lookupTimes);
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
+            final long startTimes = System.nanoTime();
             final Engine.GetResult get = new Engine.GetResult(searcher, docIdAndVersion);
-            GetResult getResult = innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
-            existsMetric.inc(System.nanoTime() - now);
+            GetResult getResult = innerGetLoadFromStoredFields(id, null, FetchSourceContext.FETCH_SOURCE, get);
+            existsMetric.inc(System.nanoTime() - startTimes + lookupTimes);
             return getResult;
         } finally {
             currentMetric.dec();

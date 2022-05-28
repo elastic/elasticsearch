@@ -8,11 +8,11 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -20,10 +20,13 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -32,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
@@ -106,35 +110,54 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
+        MultiGetShardResponse response = new MultiGetShardResponse();
+        if (request.items.isEmpty()){
+            return response;
+        }
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
 
         if (request.refresh() && request.realtime() == false) {
             indexShard.refresh("refresh_flag_mget");
         }
-
-        MultiGetShardResponse response = new MultiGetShardResponse();
+        // TODO: NOCOMMIT
         ShardGetService getService = indexShard.getService();
         try (Engine.Searcher searcher = indexShard.acquireSearcher("mget")) {
+            final GetResultAndPosition[] getAndPositions = new GetResultAndPosition[request.locations.size()];
             for (int i = 0; i < request.locations.size(); i++) {
-                MultiGetRequest.Item item = request.items.get(i);
-                try {
-                    GetResult getResult = getService.getFromSearcher(searcher, item.id(), item.storedFields(), item.fetchSourceContext());
-                    response.add(request.locations.get(i), new GetResponse(getResult));
-                } catch (RuntimeException e) {
-                    if (TransportActions.isShardNotAvailableException(e)) {
-                        throw e;
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
-                        response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
-                    }
-                } catch (IOException e) {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
-                }
+                final MultiGetRequest.Item item = request.items.get(i);
+                final long startTime = System.nanoTime();
+                final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion =
+                    VersionsAndSeqNoResolver.lookupId(searcher.getDirectoryReader(), new Term(IdFieldMapper.NAME, Uid.encodeId(item.id())));
+                getAndPositions[i] = new GetResultAndPosition(docIdAndVersion, i, System.nanoTime() - startTime);
             }
+            long sortTimes = System.nanoTime();
+            ArrayUtil.introSort(getAndPositions);
+            sortTimes = (System.nanoTime() - sortTimes) / getAndPositions.length;
+            for (GetResultAndPosition get : getAndPositions) {
+                int i = get.location;
+                final MultiGetRequest.Item item = request.items.get(i);
+                GetResult getResult = getService.getFromSearcher(searcher, item.id(), get.get, get.lookupTimes + sortTimes);
+                response.add(request.locations.get(i), new GetResponse(getResult));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
         return response;
+    }
+
+    private record GetResultAndPosition( VersionsAndSeqNoResolver.DocIdAndVersion get, int location, long lookupTimes) implements Comparable<GetResultAndPosition> {
+        int docId() {
+            if (get == null) {
+                return Integer.MAX_VALUE;
+            } else {
+                return get.docBase + get.docId;
+            }
+        }
+        @Override
+        public int compareTo(GetResultAndPosition o) {
+            return Integer.compare(this.docId(), o.docId());
+        }
     }
 
     @Override

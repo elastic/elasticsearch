@@ -92,17 +92,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, parsingContext) -> {
-            boolean nullToken = p.currentToken() == XContentParser.Token.VALUE_NULL;
-            if (nullToken) {
-                return MembershipStatus.UNKNOWN;
-            }
-
             if (parsingContext == ParsingContext.API) {
-                throw new IllegalArgumentException("Unknown field " + MEMBERSHIP_STATUS_FIELD);
+                throw new IllegalArgumentException("Unknown field " + MEMBERSHIP_STATUS_FIELD.getPreferredName());
             }
 
             return MembershipStatus.fromOrdinal(p.shortValue());
-        }, MEMBERSHIP_STATUS_FIELD, ObjectParser.ValueType.INT_OR_NULL);
+        }, MEMBERSHIP_STATUS_FIELD, ObjectParser.ValueType.INT);
     }
 
     private static Version parseVersion(String version) {
@@ -206,7 +201,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         this.version = version;
         this.externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings)));
-        this.membershipStatus = membershipStatus;
+        this.membershipStatus = membershipStatus == null ? MembershipStatus.UNKNOWN : membershipStatus;
     }
 
     public static DesiredNode readFrom(StreamInput in) throws IOException {

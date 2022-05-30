@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.operator.service.OperatorClusterStateController;
 import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
+import org.elasticsearch.operator.service.OperatorClusterStateController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -98,34 +98,34 @@ public class OperatorILMControllerTests extends ESTestCase {
 
         String testJSON = """
             {
-                "cluster": {
-                    "persistent": {
-                        "indices.recovery.max_bytes_per_sec": "50mb"
-                    },
-                    "transient": {
-                        "cluster.routing.allocation.enable": "none"
-                    }
-                },
-                "ilm": {
-                    "my_timeseries_lifecycle": {
-                        "policy": {
-                            "phases": {
-                                "warm": {
-                                    "min_age": "10s",
-                                    "actions": {
-                                    }
-                                },
-                                "delete": {
-                                    "min_age": "30s",
-                                    "actions": {
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """;
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "ilm": {
+                         "my_timeseries_lifecycle": {
+                             "policy": {
+                                 "phases": {
+                                     "warm": {
+                                         "min_age": "10s",
+                                         "actions": {
+                                         }
+                                     },
+                                     "delete": {
+                                         "min_age": "30s",
+                                         "actions": {
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+            }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             assertEquals(

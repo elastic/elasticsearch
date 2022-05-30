@@ -8,14 +8,22 @@
 
 package org.elasticsearch.operator.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
+import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.TransformState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +32,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * TODO: Write docs
+ * Controller class for applying file based settings to ClusterState.
+ * This class contains the logic about validation, ordering and applying of
+ * the cluster state specified in a file.
  */
 public class OperatorClusterStateController {
+    private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
+
+    public static final String SETTINGS = "settings";
+    public static final String METADATA = "metadata";
+
     Map<String, OperatorHandler<?>> handlers = null;
     final ClusterService clusterService;
 
@@ -38,30 +53,82 @@ public class OperatorClusterStateController {
         handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::key, Function.identity()));
     }
 
-    public ClusterState process(String namespace, XContentParser parser) throws IOException {
-        Map<String, Object> source = parser.map();
+    static class SettingsFile {
+        public static final ParseField STATE_FIELD = new ParseField("state");
+        public static final ParseField METADATA_FIELD = new ParseField("metadata");
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<SettingsFile, Void> PARSER = new ConstructingObjectParser<>(
+            "operator_state",
+            a -> new SettingsFile((Map<String, Object>) a[0], (OperatorStateVersionMetadata) a[1])
+        );
+        static {
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), STATE_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), OperatorStateVersionMetadata::parse, METADATA_FIELD);
+        }
 
-        LinkedHashSet<String> orderedHandlers = orderedStateHandlers(source.keySet());
+        Map<String, Object> state;
+        OperatorStateVersionMetadata metadata;
+
+        SettingsFile(Map<String, Object> state, OperatorStateVersionMetadata metadata) {
+            this.state = state;
+            this.metadata = metadata;
+        }
+    }
+
+    public ClusterState process(String namespace, XContentParser parser) throws IOException {
+        SettingsFile operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
+
+        Map<String, Object> operatorState = operatorStateFileContent.state;
+        OperatorStateVersionMetadata stateVersionMetadata = operatorStateFileContent.metadata;
+
+        LinkedHashSet<String> orderedHandlers = orderedStateHandlers(operatorState.keySet());
 
         ClusterState state = clusterService.state();
 
-        // TODO: extract the namespace keys from the state, if any and pass them to each transform
+        OperatorMetadata existingMetadata = state.metadata().operatorState(namespace);
+
+        checkMetadataVersion(existingMetadata, stateVersionMetadata);
+
+        OperatorMetadata.Builder operatorMetadataBuilder = new OperatorMetadata.Builder(namespace).version(stateVersionMetadata.version());
 
         for (var handlerKey : orderedHandlers) {
             OperatorHandler<?> handler = handlers.get(handlerKey);
             try {
-                // TODO: fetch and pass previous keys for handler to be able to delete
-                state = handler.transform(source.get(handlerKey), new TransformState(state, new HashSet<>())).state();
+                Set<String> existingKeys = keysForHandler(existingMetadata, handlerKey);
+                TransformState transformState = handler.transform(operatorState.get(handlerKey), new TransformState(state, existingKeys));
+                state = transformState.state();
+                operatorMetadataBuilder.putHandler(new OperatorHandlerMetadata.Builder(handlerKey).keys(transformState.keys()).build());
             } catch (Exception e) {
                 throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
             }
         }
 
-        // TODO: extract the keys written for this namespace, and store them in the cluster state
+        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).putOperatorState(operatorMetadataBuilder.build());
+        state = stateBuilder.metadata(metadataBuilder).build();
+
         // TODO: call a clusterService state update task
         // TODO: call reroute service
 
         return state;
+    }
+
+    private Set<String> keysForHandler(OperatorMetadata operatorMetadata, String handlerKey) {
+        if (operatorMetadata == null || operatorMetadata.handlers().get(handlerKey) == null) {
+            return Collections.emptySet();
+        }
+
+        return operatorMetadata.handlers().get(handlerKey).keys();
+    }
+
+    void checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
+        if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
+            throw new IllegalStateException("Newer version operator cluster state");
+        }
+
+        if (existingMetadata != null && existingMetadata.version() >= stateVersionMetadata.version()) {
+            throw new IllegalStateException("Cluster state not updated because version is less or equal to before");
+        }
     }
 
     LinkedHashSet<String> orderedStateHandlers(Set<String> keys) {

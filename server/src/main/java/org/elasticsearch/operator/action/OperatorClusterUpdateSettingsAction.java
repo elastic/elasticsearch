@@ -22,14 +22,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction.PERSISTENT;
-
 /**
  * TODO: Add docs
  */
 public class OperatorClusterUpdateSettingsAction implements OperatorHandler<ClusterUpdateSettingsRequest> {
 
-    public static final String KEY = "cluster";
+    public static final String KEY = "cluster_settings";
 
     private final ClusterSettings clusterSettings;
 
@@ -50,12 +48,10 @@ public class OperatorClusterUpdateSettingsAction implements OperatorHandler<Clus
         Map<String, Object> persistentSettings = new HashMap<>();
         Set<String> toDelete = new HashSet<>(previouslySet);
 
-        if (source.containsKey(PERSISTENT)) {
-            ((Map<String, Object>) source.get(PERSISTENT)).forEach((k, v) -> {
-                persistentSettings.put(k, v);
-                toDelete.remove(k);
-            });
-        }
+        source.forEach((k, v) -> {
+            persistentSettings.put(k, v);
+            toDelete.remove(k);
+        });
 
         toDelete.forEach(k -> persistentSettings.put(k, null));
 

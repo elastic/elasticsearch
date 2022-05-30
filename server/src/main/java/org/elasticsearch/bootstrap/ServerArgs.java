@@ -24,7 +24,7 @@ import java.nio.file.Path;
  *
  * @param daemonize {@code true} if Elasticsearch should run as a daemon process, or {@code false} otherwise
  * @param quiet {@code false} if Elasticsearch should print log output to the console, {@code true} otherwise
- * @param pidFile a path to a file Elasticsearch should write its process id to, or {@code null} if no pid file should be written
+ * @param pidFile absolute path to a file Elasticsearch should write its process id to, or {@code null} if no pid file should be written
  * @param keystorePassword the password for the Elasticsearch keystore
  * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
  * @param configDir the directory where {@code elasticsearch.yml} and other config exists
@@ -37,6 +37,20 @@ public record ServerArgs(
     Settings nodeSettings,
     Path configDir
 ) implements Writeable {
+
+    /**
+     * Arguments for running Elasticsearch.
+     *
+     * @param daemonize {@code true} if Elasticsearch should run as a daemon process, or {@code false} otherwise
+     * @param quiet {@code false} if Elasticsearch should print log output to the console, {@code true} otherwise
+     * @param pidFile absolute path to a file Elasticsearch should write its process id to, or {@code null} if no pid file should be written
+     * @param keystorePassword the password for the Elasticsearch keystore
+     * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
+     * @param configDir the directory where {@code elasticsearch.yml} and other config exists
+     */
+    public ServerArgs {
+        assert pidFile == null || pidFile.isAbsolute();
+    }
 
     /**
      * Alternate constructor to read the args from a binary stream.

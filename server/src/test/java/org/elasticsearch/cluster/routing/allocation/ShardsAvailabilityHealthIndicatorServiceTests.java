@@ -156,7 +156,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             2,
-                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
@@ -274,7 +274,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorImpact(
                     2,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
+                    "Searches might be slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
                         + "yellow-index-1].",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -307,7 +307,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorImpact(
                     2,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
+                    "Searches might be slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
                         + "index-1, index-3].",
                     List.of(ImpactArea.SEARCH)
                 )
@@ -389,7 +389,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             2,
-                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index "
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index "
                                 + "[restarting-index].",
                             List.of(ImpactArea.SEARCH)
                         )

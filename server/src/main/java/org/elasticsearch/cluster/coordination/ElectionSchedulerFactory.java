@@ -25,6 +25,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
  * that approaches 1 over time) as long as elections occur sufficiently infrequently, compared to the time it takes to send a message to
@@ -180,7 +182,7 @@ public class ElectionSchedulerFactory {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);
+                    logger.debug(() -> format("unexpected exception in wakeup of %s", this), e);
                     assert false : e;
                 }
 

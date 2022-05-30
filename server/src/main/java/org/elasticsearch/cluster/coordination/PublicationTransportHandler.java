@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -405,7 +404,7 @@ public class PublicationTransportHandler {
                     }
                 }
 
-                logger.debug(new ParameterizedMessage("failed to send cluster state to {}", destination), e);
+                logger.debug(() -> format("failed to send cluster state to %s", destination), e);
                 delegate.onFailure(e);
             }), this::decRef));
         }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -105,6 +104,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
@@ -464,10 +464,7 @@ public class TrainedModelProvider {
                     .findFirst()
                     .orElse(new Exception("unknown failure"));
                 logger.error(
-                    new ParameterizedMessage(
-                        "[{}] failed to store trained model definition for inference",
-                        trainedModelConfig.getModelId()
-                    ),
+                    () -> format("[%s] failed to store trained model definition for inference", trainedModelConfig.getModelId()),
                     firstFailure
                 );
                 wrappedListener.onFailure(firstFailure);

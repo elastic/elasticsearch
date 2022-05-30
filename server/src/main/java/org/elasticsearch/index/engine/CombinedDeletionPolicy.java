@@ -79,12 +79,18 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or release";
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         final IndexCommit safeCommit = commits.get(keptPosition);
-        final SafeCommitInfo safeCommitInfo = new SafeCommitInfo(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-            getDocCountOfCommit(safeCommit)
-        );
+        int totalDocsOfSafeCommit;
+        try {
+            totalDocsOfSafeCommit = getDocCountOfCommit(safeCommit);
+        } catch (IOException ex) {
+            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
+            totalDocsOfSafeCommit = safeCommitInfo.docCount;
+        }
         synchronized (this) {
-            this.safeCommitInfo = safeCommitInfo;
+            this.safeCommitInfo = new SafeCommitInfo(
+                Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                totalDocsOfSafeCommit
+            );
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = safeCommit;
             updateRetentionPolicy();

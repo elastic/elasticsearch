@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexService;
@@ -32,24 +32,20 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 
 /**
- * A {@link TransportBroadcastAction} that rollups all the shards of a single index into a new one.
+ * A {@link TransportBroadcastAction} that rollups all the shards of a source index into a new rollup index.
  *
  * TODO: Enforce that we don't retry on another replica if we throw an error after sending some buckets.
  */
 public class TransportRollupIndexerAction extends TransportBroadcastAction<
     RollupIndexerAction.Request,
     RollupIndexerAction.Response,
-    RollupIndexerAction.ShardRequest,
-    RollupIndexerAction.ShardResponse> {
-
-    private static final int SORTER_RAM_SIZE_MB = 100;
+    RollupIndexerAction.ShardRollupRequest,
+    RollupIndexerAction.ShardRollupResponse> {
 
     private final Client client;
     private final ClusterService clusterService;
@@ -71,7 +67,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             actionFilters,
             indexNameExpressionResolver,
             RollupIndexerAction.Request::new,
-            RollupIndexerAction.ShardRequest::new,
+            RollupIndexerAction.ShardRollupRequest::new,
             TASK_THREAD_POOL_NAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -88,10 +84,16 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         if (concreteIndices.length > 1) {
             throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
         }
-        // Random routing to limit request to a single shard
-        String routing = Integer.toString(Randomness.get().nextInt(1000));
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, null);
+
+        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
+            .searchShards(clusterState, concreteIndices, null, null);
+        for (ShardIterator group : groups) {
+            // fails fast if any non-active groups
+            if (group.size() == 0) {
+                throw new NoShardAvailableActionException(group.shardId());
+            }
+        }
+        return groups;
     }
 
     @Override
@@ -110,29 +112,33 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected RollupIndexerAction.ShardRequest newShardRequest(int numShards, ShardRouting shard, RollupIndexerAction.Request request) {
-        return new RollupIndexerAction.ShardRequest(shard.shardId(), request);
+    protected RollupIndexerAction.ShardRollupRequest newShardRequest(
+        int numShards,
+        ShardRouting shard,
+        RollupIndexerAction.Request request
+    ) {
+        return new RollupIndexerAction.ShardRollupRequest(shard.shardId(), request);
     }
 
     @Override
-    protected RollupIndexerAction.ShardResponse shardOperation(RollupIndexerAction.ShardRequest request, Task task) throws IOException {
+    protected RollupIndexerAction.ShardRollupResponse shardOperation(RollupIndexerAction.ShardRollupRequest request, Task task)
+        throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
         RollupShardIndexer indexer = new RollupShardIndexer(
             client,
             indexService,
             request.shardId(),
+            request.getRollupIndex(),
             request.getRollupConfig(),
-            tmpIndexName,
-            SORTER_RAM_SIZE_MB
+            request.getDimensionFields(),
+            request.getMetricFields()
         );
-        indexer.execute();
-        return new RollupIndexerAction.ShardResponse(request.shardId());
+        return indexer.execute();
     }
 
     @Override
-    protected RollupIndexerAction.ShardResponse readShardResponse(StreamInput in) throws IOException {
-        return new RollupIndexerAction.ShardResponse(in);
+    protected RollupIndexerAction.ShardRollupResponse readShardResponse(StreamInput in) throws IOException {
+        return new RollupIndexerAction.ShardRollupResponse(in);
     }
 
     @Override
@@ -141,15 +147,23 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         AtomicReferenceArray<?> shardsResponses,
         ClusterState clusterState
     ) {
+        long numIndexed = 0;
+        int successfulShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
                 throw new ElasticsearchException("missing shard");
-            } else if (shardResponse instanceof Exception) {
-                throw new ElasticsearchException((Exception) shardResponse);
+            } else if (shardResponse instanceof RollupIndexerAction.ShardRollupResponse r) {
+                successfulShards++;
+                numIndexed += r.getNumIndexed();
+            } else if (shardResponse instanceof Exception e) {
+                throw new ElasticsearchException(e);
+            } else {
+                assert false : "unknown response [" + shardResponse + "]";
+                throw new IllegalStateException("unknown response [" + shardResponse + "]");
             }
         }
-        return new RollupIndexerAction.Response(true);
+        return new RollupIndexerAction.Response(true, shardsResponses.length(), successfulShards, 0, numIndexed);
     }
 
     private class Async extends AsyncBroadcastAction {

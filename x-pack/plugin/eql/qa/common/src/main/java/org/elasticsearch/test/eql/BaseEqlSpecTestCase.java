@@ -11,6 +11,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Function;
 
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -47,8 +49,25 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     @Before
     public void setup() throws Exception {
         RestClient provisioningClient = provisioningClient();
-        if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName())).getStatusLine().getStatusCode() == 404) {
+        boolean dataLoaded = Arrays.stream(index.split(","))
+            .anyMatch(
+                indexName -> doWithRequest(
+                    new Request("HEAD", "/" + unqualifiedIndexName(indexName)),
+                    provisioningClient,
+                    response -> response.getStatusLine().getStatusCode() == 200
+                )
+            );
+
+        if (dataLoaded == false) {
             DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
+        }
+    }
+
+    private boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+        try {
+            return consumer.apply(client.performRequest(request));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -109,7 +128,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         }
     }
 
-    private ObjectPath runQuery(String index, String query) throws Exception {
+    protected ObjectPath runQuery(String index, String query) throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("query", query);
@@ -182,7 +201,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
             Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(tiebreaker());
+            Object field = source.get(idField());
             ids[i] = ((Number) field).longValue();
         }
         return ids;
@@ -262,6 +281,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return "event.category";
     }
 
+    protected String idField() {
+        return tiebreaker();
+    }
+
     protected abstract String tiebreaker();
 
     protected int requestSize() {
@@ -278,8 +301,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     // strip any qualification from the received index string
-    private String unqualifiedIndexName() {
-        int offset = index.indexOf(':');
-        return offset >= 0 ? index.substring(offset + 1) : index;
+    private static String unqualifiedIndexName(String indexName) {
+        int offset = indexName.indexOf(':');
+        return offset >= 0 ? indexName.substring(offset + 1) : indexName;
     }
 }

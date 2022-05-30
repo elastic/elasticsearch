@@ -1,0 +1,95 @@
+[
+  {
+    "@timestamp": "1234567991",
+    "type_test": "abc",
+    "ip": "10.0.0.1",
+    "event_type": "alert",
+    "host": "doom",
+    "uptime": 0,
+    "port": 1234,
+    "op_sys": "win10",
+    "id": 21
+  },
+  {
+    "@timestamp": "1234567992",
+    "type_test": "abc",
+    "event_type": "alert",
+    "host": "CS",
+    "uptime": 5,
+    "port": 1,
+    "op_sys": "win10",
+    "id": 22
+  },
+  {
+    "@timestamp": "1234567993",
+    "type_test": "abc",
+    "@timestamp_pretty": "2022-12-17",
+    "event_type": "alert",
+    "host": "farcry",
+    "uptime": 1,
+    "port": 1234,
+    "bool": false,
+    "op_sys": "win10",
+    "id": 23
+  },
+  {
+    "@timestamp": "1234567994",
+    "event_type": "alert",
+    "host": "GTA",
+    "uptime": 3,
+    "port": 12,
+    "op_sys": "slack",
+    "id": 24
+  },
+  {
+    "@timestamp": "1234567995",
+    "event_type": "alert",
+    "host": "sniper 3d",
+    "uptime": 6,
+    "port": 1234,
+    "op_sys": "fedora",
+    "id": 25
+  },
+  {
+    "@timestamp": "1234568996",
+    "@timestamp_pretty": "2022-12-17",
+    "ip": "10.0.0.5",
+    "event_type": "alert",
+    "host": "doom",
+    "port": 65123,
+    "bool": true,
+    "op_sys": "redhat",
+    "id": 26
+  },
+  {
+    "@timestamp": "1234567997",
+    "@timestamp_pretty": "2022-12-17",
+    "event_type": "failure",
+    "host": "doom",
+    "uptime": 15,
+    "port": 1234,
+    "bool": true,
+    "op_sys": "redhat",
+    "id": 27
+  },
+  {
+    "@timestamp": "1234567998",
+    "ip": "10.0.0.1",
+    "event_type": "success",
+    "host": "doom",
+    "uptime": 16,
+    "port": 512,
+    "op_sys": "win10",
+    "id": 28
+  },
+  {
+    "@timestamp": "1234567999",
+    "ip": "10.0.0.1",
+    "event_type": "success",
+    "host": "GTA",
+    "port": 12,
+    "bool": false,
+    "op_sys": "win10",
+    "id": 29
+  }
+]

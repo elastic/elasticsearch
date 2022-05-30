@@ -3,4 +3,4 @@ summary: Fix status code when open point in time without `keep_alive`
 area: Search
 type: bug
 issues:
- - 87076
+ - 87003

@@ -83,7 +83,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         // resolve all concrete indices upfront and warn/error later
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
+        Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
         listener.onResponse(
             new GetAliasesResponse(
                 postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
@@ -98,7 +98,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(
         GetAliasesRequest request,
         String[] concreteIndices,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        Map<String, List<AliasMetadata>> aliases,
         ClusterState state,
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext,
@@ -159,11 +159,11 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext
     ) {
-        final Predicate<IndexMetadata> systemIndexAccessAllowPredicate;
+        final Predicate<String> systemIndexAccessAllowPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessAllowPredicate = indexMetadata -> false;
+            systemIndexAccessAllowPredicate = indexName -> false;
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
-            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexMetadataPredicate(threadContext);
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         } else {
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }
@@ -173,7 +173,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         aliasesMap.keySet().forEach(indexName -> {
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
-                if (systemIndexAccessAllowPredicate.test(index) == false) {
+                if (systemIndexAccessAllowPredicate.test(indexName) == false) {
                     if (systemIndices.isNetNewSystemIndex(indexName)) {
                         netNewSystemIndices.add(indexName);
                     } else {

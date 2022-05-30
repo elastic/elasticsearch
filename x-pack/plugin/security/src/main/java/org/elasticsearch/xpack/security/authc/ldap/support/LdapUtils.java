@@ -54,6 +54,8 @@ import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
 
+import static org.elasticsearch.core.Strings.format;
+
 public final class LdapUtils {
 
     public static final Filter OBJECT_CLASS_PRESENCE_FILTER = Filter.createPresenceFilter("objectClass");
@@ -744,10 +746,7 @@ public final class LdapUtils {
                 if (ignoreErrors) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
-                            new ParameterizedMessage(
-                                "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
-                                referralURL
-                            ),
+                            () -> format("Failed to retrieve results from referral URL [%s]." + " Treating as 'no results'", referralURL),
                             e
                         );
                     }

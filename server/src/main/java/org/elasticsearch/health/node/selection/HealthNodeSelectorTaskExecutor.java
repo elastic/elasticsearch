@@ -90,6 +90,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         ClusterState clusterState
     ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
+        logger.info("Assining health node selector to {}", discoveryNode);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
@@ -98,11 +99,12 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     }
 
     private void startTask() {
+        logger.info("Sending start request for health node selector");
         persistentTasksService.sendStartRequest(
             TASK_NAME,
             TASK_NAME,
             new HealthNodeSelectorTaskParams(),
-            ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
+            ActionListener.wrap(r -> logger.info("Created the health node selector task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create health node selector task", e);

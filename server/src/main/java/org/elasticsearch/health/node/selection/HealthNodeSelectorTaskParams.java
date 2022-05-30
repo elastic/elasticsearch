@@ -46,7 +46,7 @@ class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        return Version.V_8_4_0;
     }
 
     @Override

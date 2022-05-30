@@ -149,6 +149,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 if (subobjects.value() == false && mapper instanceof ObjectMapper) {
+                    //we already check this at parse time (parseProperties) but we need to check again
+                    // here as dynamic mapping updates don't go through parsing.
                     throw new IllegalArgumentException(
                         "Object ["
                             + context.buildFullName(name)

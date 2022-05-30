@@ -36,11 +36,3 @@ dependencies {
   testImplementation(project(":modules:analysis-common"))
   testImplementation(project(":modules:data-streams"))
 }
-
-tasks.named("testingConventions").configure {
-  naming {
-    IT {
-      baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
-    }
-  }
-}

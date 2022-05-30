@@ -76,15 +76,6 @@ tasks.named("jarHell").configure {
   enabled = false
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
-    }
-  }
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           //commons-logging optional dependencies

@@ -149,7 +149,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 if (subobjects.value() == false && mapper instanceof ObjectMapper) {
-                    throw new IllegalStateException(
+                    throw new IllegalArgumentException(
                         "Object ["
                             + context.buildFullName(name)
                             + "] has subobjects set to false hence it does not support inner object or nested ["

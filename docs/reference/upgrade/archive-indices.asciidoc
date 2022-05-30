@@ -28,16 +28,16 @@ provide regular query capabilities on a select subset of fields:
 - <<ip,`ip` type>>
 - <<geo-point,`geo_point` type>>
 - <<date,`date` types>>: the date `format` setting on date fields is supported
-  in so far as it behaves similarly across these versions. In case it is not,
+  as long as it behaves similarly across these versions. In case it is not,
   for example {ref-7x}/migrate-to-java-time.html[when using custom date formats],
   this field can be updated on legacy indices so that it can be changed by a
   user if need be.
 - <<keyword-field-type,`keyword` type>>: the `normalizer` setting on keyword
-  fields is supported in so far as it behaves similarly across these versions.
+  fields is supported as long as it behaves similarly across these versions.
   In case it is not, this field can be updated on legacy indices if need be.
 - <<text-field-type,`text` type>>: scoring capabilities are limited, and all
   queries return constant scores that are equal to 1.0. The `analyzer`
-  settings on text fields are supported in so far as they behave similarly
+  settings on text fields are supported as long as they behave similarly
   across these versions. In case they do not, they can be updated on legacy
   indices if need be.
 - <<multi-fields,Multi-fields>>
@@ -58,8 +58,8 @@ using the <<indices-get-mapping,GET mapping>> API and an updated mapping can
 be manually put in place using the <<indices-put-mapping,update mapping>> API,
 copying and adapting relevant sections of the legacy mapping to work with the
 current {es} version. While auto-import is expected to work in most cases,
-failures of doing so should be raised with the Elastic team for future
-improvements.
+failures of doing so should be https://github.com/elastic/elasticsearch/issues/new/choose[raised]
+with the Elastic team for future improvements.
 
 [discrete]
 === Supported APIs

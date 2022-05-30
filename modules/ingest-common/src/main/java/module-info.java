@@ -18,5 +18,9 @@ module org.elasticsearch.ingest.common {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.analysis.common;
 
+    exports org.elasticsearch.ingest.common; // for painless
+    
+    opens org.elasticsearch.ingest.common to org.elasticsearch.painless.spi; // whitelist resource access
+
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.ingest.common.ProcessorsWhitelistExtension;
 }

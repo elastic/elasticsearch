@@ -121,7 +121,8 @@ value can't exceed 32KB.
 [[time-series-metric]]
 ==== Metrics
 
-Metrics are fields that contain numeric measurements. While not required,
+Metrics are fields that contain numeric measurements, as well as aggregations
+and/or downsampling values based off of those measurements. While not required,
 documents in a TSDS typically contain one or more metric fields.
 
 Metrics differ from dimensions in that while dimensions generally remain
@@ -192,7 +193,7 @@ change the `index.mode` of an existing backing index.
 [[tsid]]
 ==== `_tsid` metadata field
 
-When you add a document to a TSDS, {es} automatically generates a hidden `_tsid`
+When you add a document to a TSDS, {es} automatically generates a `_tsid`
 metadata field for the document. The `_tsid` is an object containing the
 document's dimensions. Documents in the same TSDS with the same `_tsid` are part
 of the same time series.
@@ -235,13 +236,12 @@ process.
 [[tsds-look-ahead-time]]
 ==== Look-ahead time
 
-{es} uses the <<index-look-ahead-time,`index.look_ahead_time`>> index setting to
-configure the `@timestamp` ranges for a TSDS's write index. When you create a
-new write index for a TSDS, {es} calculates the index's
+Use the <<index-look-ahead-time,`index.look_ahead_time`>> index setting to
+configure how far into the future you can add documents to an index. When you
+create a new write index for a TSDS, {es} calculates the index's
 `index.time_series.end_time` value as:
 
 `now + index.look_ahead_time`
-
 
 At the <<indices-lifecycle-poll-interval,`indices.lifecycle.poll_interval`>>,
 {es} checks if the write index has met the rollover criteria in its index
@@ -269,10 +269,10 @@ more dimensions in the `index.routing_path` setting. Each document in a TSDS
 must contain one or more dimensions that match the `index.routing_path` setting.
 
 Dimensions in the `index.routing_path` setting must be plain `keyword` fields.
-The `index.routing_path` setting accepts wildcard (`*`) patterns and can
-dynamically match new fields. However, {es} will reject any mapping updates that
-add scripted, runtime, or non-`keyword` fields that match the
-`index.routing_path` value.
+The `index.routing_path` setting accepts wildcard patterns (for example `dim.*`)
+and can dynamically match new fields. However, {es} will reject any mapping
+updates that add scripted, runtime, or non-dimension, non-`keyword` fields that
+match the `index.routing_path` value.
 
 TSDS documents don't support a custom `_routing` value. Similarly, you can't
 require a `_routing` value in mappings for a TSDS.

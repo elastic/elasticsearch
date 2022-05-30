@@ -2282,6 +2282,50 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(parsedDocument.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("location");
+                {
+                    b.field("match", "location");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "geo_point");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("service.host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "location" : {
+                "lat": 41.12,
+                "lon": -71.34
+              }
+            }
+            """));
+
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.max"));
+        assertNull(parsedDocument.dynamicMappingsUpdate());
+    }
+
+    //TODO test index time:{max  then time:value then time:{max again  do we have this problem elsewhere? review existing tests
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");

@@ -259,24 +259,25 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         try {
             getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(listener.map(response -> {
-                Metadata remoteMetadata = response.getState().getMetadata();
-
-                Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-                Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
-                Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
-
-                Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
-                for (String indexName : remoteMetadata.getConcreteAllIndices()) {
+                final Metadata remoteMetadata = response.getState().getMetadata();
+                final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
+                final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
+                final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);
+                final Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(concreteAllIndices.length);
+                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+                for (String indexName : concreteAllIndices) {
                     // Both the Snapshot name and UUID are set to _latest_
-                    SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
+                    final SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                     copiedSnapshotIds.put(indexName, snapshotId);
                     final long nowMillis = threadPool.absoluteTimeInMillis();
                     snapshotsDetails.put(
                         indexName,
                         new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
                     );
-                    Index index = remoteIndices.get(indexName).getIndex();
-                    indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
+                    indexSnapshots.put(
+                        new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()),
+                        Collections.singletonList(snapshotId)
+                    );
                 }
                 return new RepositoryData(
                     MISSING_UUID,

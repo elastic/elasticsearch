@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -322,7 +321,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         assertThat(snapshotInfo.successfulShards(), equalTo(nbIndices));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
 
-        List<ShardIdSize> shardIds = shardIdSizes("index-*");
+        Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
 
         String otherDataNode = internalCluster().startNode(
@@ -331,8 +330,12 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         ensureStableCluster(3);
 
         String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
-        logger.info("--> reducing disk size of node [{}/{}] so that all shards can fit on the node", otherDataNode, otherDataNodeId);
-        long totalSpace = shardIds.stream().mapToLong(ShardIdSize::size).sum() + WATERMARK_BYTES + 1024L - 1L;
+        logger.info(
+            "--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node",
+            otherDataNode,
+            otherDataNodeId
+        );
+        long totalSpace = indicesStoresSizes.values().stream().mapToLong(size -> size).sum() + WATERMARK_BYTES + 1024L - 1L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
@@ -342,11 +345,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
-        Set<String> indices = shardIds.stream().map(e -> e.shardId().getIndexName()).collect(Collectors.toSet());
-        CountDownLatch mountLatch = new CountDownLatch(indices.size());
-
-        logger.info("--> mounting [{}] indices with [{}] prefix", indices.size(), "mounted-");
-        for (String index : indices) {
+        CountDownLatch mountLatch = new CountDownLatch(indicesStoresSizes.size());
+        logger.info("--> mounting [{}] indices with [{}] prefix", indicesStoresSizes.size(), "mounted-");
+        for (String index : indicesStoresSizes.keySet()) {
             logger.info("Mounting index {}", index);
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
@@ -373,8 +374,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
                 .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
                 .toList();
-            record ShardIdState(ShardId shardId, ShardRoutingState state) {}
-            logger.info("Mounted shards {}", searchableSnapshotShards.stream().map(s -> new ShardIdState(s.shardId(), s.state())).toList());
 
             assertThat(
                 (int) searchableSnapshotShards.stream().filter(s -> s.state() == ShardRoutingState.STARTED).count(),
@@ -389,13 +388,5 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             .collect(
                 Collectors.toUnmodifiableMap(s -> s.getShardRouting().getIndexName(), s -> s.getStats().getStore().sizeInBytes(), Long::sum)
             );
-    }
-
-    private record ShardIdSize(ShardId shardId, long size) {}
-
-    private static List<ShardIdSize> shardIdSizes(String indexPattern) {
-        return Arrays.stream(client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards())
-            .map(s -> new ShardIdSize(s.getShardRouting().shardId(), s.getStats().getStore().sizeInBytes()))
-            .toList();
     }
 }

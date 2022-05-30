@@ -1209,7 +1209,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 + "attempted to validate it with the following match_mapping_type: [object, string, long, double, boolean, date, binary]",
             exception.getMessage()
         );
-        assertThat(exception.getRootCause(), instanceOf(MapperException.class));
+        assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
         assertEquals(
             "Object [__dynamic__test] has subobjects set to false hence it does not support nested object [time]",
             exception.getRootCause().getMessage()

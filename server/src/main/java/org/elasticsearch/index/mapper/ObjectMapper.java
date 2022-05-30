@@ -280,7 +280,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
+                        throw new MapperParsingException(
                             "Object ["
                                 + objBuilder.name()
                                 + "] has subobjects set to false hence it does not support inner object ["
@@ -289,7 +289,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         );
                     }
                     if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
+                        throw new MapperParsingException(
                             "Object ["
                                 + objBuilder.name()
                                 + "] has subobjects set to false hence it does not support nested object ["

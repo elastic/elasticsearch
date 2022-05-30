@@ -32,205 +32,205 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 
 public enum Function {
-    count_over_time {
+    count_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new ValueCountFunction();
         }
     },
-    count_exact_over_time {
+    count_exact_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new ValueCountExactFunction();
         }
     },
-    sum_over_time {
+    sum_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new SumFunction();
         }
     },
-    min_over_time {
+    min_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new MinFunction();
         }
     },
-    max_over_time {
+    max_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new MaxFunction();
         }
     },
-    avg_over_time {
+    avg_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new AvgFunction();
         }
     },
-    avg_exact_over_time {
+    avg_exact_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new AvgExactFunction();
         }
     },
-    last {
+    last(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> value);
         }
     },
-    origin_value {
+    origin_value(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new OriginValuesFunction();
         }
     },
-    rate {
+    rate(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), true, true);
         }
     },
-    delta {
+    delta(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), false, false);
         }
     },
-    increase {
+    increase(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new RateFunction((long) params.get(RANGE_FIELD), (long) params.get(ROUNDING_FIELD), true, false);
         }
     },
-    irate {
+    irate(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new IRateFunction(true);
         }
     },
-    idelta {
+    idelta(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new IRateFunction(true);
         }
     },
-    abs {
+    abs(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::abs);
         }
     },
-    ceil {
+    ceil(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::ceil);
         }
     },
-    floor {
+    floor(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::floor);
         }
     },
-    exp {
+    exp(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::exp);
         }
     },
-    sqrt {
+    sqrt(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::sqrt);
         }
     },
-    ln {
+    ln(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::log);
         }
     },
-    log10 {
+    log10(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::log10);
         }
     },
-    sin {
+    sin(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::sin);
         }
     },
-    cos {
+    cos(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::cos);
         }
     },
-    tan {
+    tan(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::tan);
         }
     },
-    asin {
+    asin(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::asin);
         }
     },
-    acos {
+    acos(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::acos);
         }
     },
-    atan {
+    atan(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::atan);
         }
     },
-    sinh {
+    sinh(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::sinh);
         }
     },
-    cosh {
+    cosh(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::cosh);
         }
     },
-    tanh {
+    tanh(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(Math::tanh);
         }
     },
-    rad {
+    rad(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> value * Math.PI / 180);
         }
     },
-    deg {
+    deg(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> value * 180 / Math.PI);
         }
     },
-    pi {
+    pi(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> Math.PI);
         }
     },
-    sgn {
+    sgn(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(v -> {
@@ -243,19 +243,19 @@ public enum Function {
             });
         }
     },
-    timestamp {
+    timestamp(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new TimestampFunction();
         }
     },
-    day_of_month {
+    day_of_month(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(ZonedDateTime::getDayOfMonth);
         }
     },
-    day_of_week {
+    day_of_week(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(zonedDateTime -> {
@@ -264,31 +264,31 @@ public enum Function {
             });
         }
     },
-    hour {
+    hour(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(ZonedDateTime::getHour);
         }
     },
-    minute {
+    minute(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(ZonedDateTime::getMinute);
         }
     },
-    month {
+    month(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(ZonedDateTime::getMonthValue);
         }
     },
-    year {
+    year(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new DateFunction(ZonedDateTime::getMonthValue);
         }
     },
-    clamp {
+    clamp(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             double max = Double.MAX_VALUE;
@@ -302,7 +302,7 @@ public enum Function {
             return new ClampFunction(max, min);
         }
     },
-    clamp_max {
+    clamp_max(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             double max = Double.MAX_VALUE;
@@ -312,7 +312,7 @@ public enum Function {
             return new ClampMaxFunction(max);
         }
     },
-    clamp_min {
+    clamp_min(ValueType.vector) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             double min = Double.MIN_VALUE;
@@ -322,7 +322,7 @@ public enum Function {
             return new ClampMinFunction(min);
         }
     },
-    quantile_over_time {
+    quantile_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             double quantile = 1f;
@@ -332,7 +332,7 @@ public enum Function {
             return new QuantileFunction(quantile);
         }
     },
-    last_over_time {
+    last_over_time(ValueType.matrix) {
         @Override
         public AggregatorFunction<?, ?> getFunction(Map<String, Object> params) {
             return new LastFunction(value -> value);
@@ -344,6 +344,16 @@ public enum Function {
     public static final String MAX_FIELD = "max";
     public static final String MIN_FIELD = "min";
     public static final String QUANTILE_FIELD = "quantile";
+
+    private ValueType valueType;
+
+    Function(ValueType valueType) {
+        this.valueType = valueType;
+    }
+
+    public ValueType getValueType() {
+        return valueType;
+    }
 
     public static Function resolve(String name) {
         try {
@@ -357,4 +367,9 @@ public enum Function {
      * get the function
      */
     public abstract AggregatorFunction<?, ?> getFunction(Map<String, Object> params);
+
+    public enum ValueType {
+        vector,
+        matrix
+    }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAct
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -36,7 +38,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-// TODO javadoc
+/**
+ * Transport action that tests whether the users for the given profile ids have the specified
+ * {@link AuthorizationEngine.PrivilegesToCheck privileges}
+ */
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportProfileHasPrivilegesAction.class);
@@ -67,6 +72,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
+        assert task instanceof CancellableTask : "task must be cancellable";
         profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
             if (profileSubjectsAndFailures.profileUidToSubject().isEmpty()) {
                 listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.failureProfileUids()));
@@ -82,6 +88,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                 request,
                 ActionListener.wrap(applicationPrivilegeDescriptors -> threadPool.generic().execute(() -> {
                     for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
+                        ((CancellableTask) task).ensureNotCancelled();
                         final String profileUid = profileUidToSubject.getKey();
                         final Subject subject = profileUidToSubject.getValue();
                         authorizationService.checkPrivileges(

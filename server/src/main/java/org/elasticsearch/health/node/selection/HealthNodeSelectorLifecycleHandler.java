@@ -27,9 +27,7 @@ public class HealthNodeSelectorLifecycleHandler extends AbstractLifecycleCompone
     }
 
     @Override
-    protected void doStart() {
-        executor.startTask();
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {

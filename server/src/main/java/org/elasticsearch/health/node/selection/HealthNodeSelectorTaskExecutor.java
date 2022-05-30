@@ -12,7 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,7 +40,9 @@ import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NA
 /**
  * Persistent task executor that is managing the {@link HealthNodeSelector}.
  */
-public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecutor<HealthNodeSelectorTaskParams> {
+public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecutor<HealthNodeSelectorTaskParams>
+    implements
+        ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeSelector.class);
 
@@ -50,6 +54,9 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
+        if (HealthNodeSelector.isEnabled()) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
@@ -89,7 +96,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         }
     }
 
-    void startTask() {
+    private void startTask() {
         persistentTasksService.sendStartRequest(
             TASK_NAME,
             TASK_NAME,
@@ -101,6 +108,14 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
                 }
             })
         );
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().nodes().isLocalNodeElectedMaster()) {
+            clusterService.removeListener(this);
+            startTask();
+        }
     }
 
     void abortTaskIfApplicable() {

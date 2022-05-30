@@ -1272,10 +1272,6 @@ public class Node implements Closeable {
             }
         }
 
-        if (HealthNodeSelector.isEnabled()) {
-            injector.getInstance(HealthNodeSelectorLifecycleHandler.class).start();
-        }
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);

@@ -403,22 +403,25 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        {
-            builder.field("name", name);
-            builder.field("version", version);
-            builder.field("elasticsearch_version", elasticsearchVersion);
-            builder.field("java_version", javaVersion);
-            builder.field("description", description);
-            builder.field("classname", classname);
-            builder.field("extended_plugins", extendedPlugins);
-            builder.field("has_native_controller", hasNativeController);
-            builder.field("licensed", isLicensed);
-            builder.field("type", type);
-            if (type == PluginType.BOOTSTRAP) {
-                builder.field("java_opts", javaOpts);
-            }
-        }
+        toXContentFragment(builder, params);
         builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+        builder.field("name", name);
+        builder.field("version", version);
+        builder.field("elasticsearch_version", elasticsearchVersion);
+        builder.field("java_version", javaVersion);
+        builder.field("description", description);
+        builder.field("classname", classname);
+        builder.field("extended_plugins", extendedPlugins);
+        builder.field("has_native_controller", hasNativeController);
+        builder.field("licensed", isLicensed);
+        builder.field("type", type);
+        if (type == PluginType.BOOTSTRAP) {
+            builder.field("java_opts", javaOpts);
+        }
 
         return builder;
     }
@@ -430,9 +433,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         PluginDescriptor that = (PluginDescriptor) o;
 
-        if (name.equals(that.name) == false) return false;
-        // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?
-        return Objects.equals(version, that.version);
+        return Objects.equals(name, that.name);
     }
 
     @Override

@@ -40,6 +40,10 @@ class PluginBundle {
         this.allUrls = allUrls;
     }
 
+    public PluginDescriptor pluginDescriptor() {
+        return this.plugin;
+    }
+
     static Set<URL> gatherUrls(Path dir) throws IOException {
         Set<URL> urls = new LinkedHashSet<>();
         // gather urls for jar files

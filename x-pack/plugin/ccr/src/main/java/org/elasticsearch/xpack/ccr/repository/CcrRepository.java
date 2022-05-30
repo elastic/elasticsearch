@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,7 +36,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -109,6 +107,7 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
@@ -187,7 +186,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
                 .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
                     Metadata responseMetadata = response.getState().metadata();
-                    ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                    Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
                     List<String> indices = new ArrayList<>(indicesMap.keySet());
                     return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
@@ -266,7 +265,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
                 Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
-                ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+                Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
                 for (String indexName : remoteMetadata.getConcreteAllIndices()) {
                     // Both the Snapshot name and UUID are set to _latest_
                     SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
@@ -393,8 +392,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             assert cause instanceof ElasticsearchSecurityException == false : cause;
                             if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "{} background renewal of retention lease [{}] failed during restore",
+                                    () -> format(
+                                        "%s background renewal of retention lease [%s] failed during restore",
                                         shardId,
                                         retentionLeaseId
                                     ),
@@ -443,7 +442,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final ShardId leaderShardId,
         final Client remoteClient
     ) {
-        logger.trace(() -> new ParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
+        logger.trace(() -> format("%s requesting leader to add retention lease [%s]", shardId, retentionLeaseId));
         final TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready = syncAddRetentionLease(
             leaderShardId,
@@ -454,7 +453,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         );
         maybeAddAlready.ifPresent(addAlready -> {
             logger.trace(
-                () -> new ParameterizedMessage("{} retention lease [{}] already exists, requesting a renewal", shardId, retentionLeaseId),
+                () -> format("%s retention lease [%s] already exists, requesting a renewal", shardId, retentionLeaseId),
                 addAlready
             );
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound = syncRenewRetentionLease(
@@ -466,8 +465,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             );
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "{} retention lease [{}] not found while attempting to renew, requesting a final add",
+                    () -> format(
+                        "%s retention lease [%s] not found while attempting to renew, requesting a final add",
                         shardId,
                         retentionLeaseId
                     ),

@@ -162,7 +162,7 @@ final class Bootstrap {
         HotThreads.initializeRuntimeMonitoring();
     }
 
-    private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
+    private void setup(boolean addShutdownHook, Environment environment, Path pidFile) throws BootstrapException {
         Settings settings = environment.settings();
 
         try {
@@ -222,7 +222,7 @@ final class Bootstrap {
 
         // install SM after natives, shutdown hooks, etc.
         try {
-            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings), pidFile);
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new BootstrapException(e);
         }
@@ -282,8 +282,13 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(final boolean foreground, final boolean quiet, final Environment initialEnv, SecureString keystorePassword)
-        throws BootstrapException, NodeValidationException, UserException {
+    static void init(
+        final boolean foreground,
+        final boolean quiet,
+        final Environment initialEnv,
+        SecureString keystorePassword,
+        Path pidFile
+    ) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
@@ -325,7 +330,7 @@ final class Bootstrap {
                 }
             }
 
-            INSTANCE.setup(true, environment);
+            INSTANCE.setup(true, environment, pidFile);
 
             try {
                 // any secure settings must be read during node construction

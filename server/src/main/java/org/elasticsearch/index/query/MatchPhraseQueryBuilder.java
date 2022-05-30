@@ -145,9 +145,13 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(SLOP_FIELD.getPreferredName(), slop);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        printBoostAndQueryName(builder);
+        if (slop != MatchQueryParser.DEFAULT_PHRASE_SLOP) {
+            builder.field(SLOP_FIELD.getPreferredName(), slop);
+        }
+        if (zeroTermsQuery != MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

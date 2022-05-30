@@ -50,10 +50,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggProfileResults.size());
-        for (ProfileResult p : aggProfileResults) {
-            p.writeTo(out);
-        }
+        out.writeCollection(aggProfileResults);
     }
 
     public List<ProfileResult> getProfileResults() {

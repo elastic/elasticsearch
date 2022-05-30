@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.logging.internal.spi.LogManagerFactory;
-
 module org.elasticsearch.logging {
     exports org.elasticsearch.logging;
     exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
-
-    uses LogManagerFactory;
 }

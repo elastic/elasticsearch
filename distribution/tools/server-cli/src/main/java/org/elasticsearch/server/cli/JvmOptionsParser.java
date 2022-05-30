@@ -20,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,33 +59,6 @@ final class JvmOptionsParser {
             this.invalidLines = invalidLines;
         }
 
-    }
-
-    /**
-     * The main entry point. The exit code is 0 if the JVM options were successfully parsed, otherwise the exit code is 1. If an improperly
-     * formatted line is discovered, the line is output to standard error.
-     *
-     * @param args the args to the program which should consist of two options,
-     *             the path to ES_PATH_CONF, and the path to the plugins directory
-     */
-    public static void main(final String[] args) throws InterruptedException, IOException {
-        if (args.length != 2) {
-            throw new IllegalArgumentException(
-                "Expected two arguments specifying path to ES_PATH_CONF and plugins directory, but was " + Arrays.toString(args)
-            );
-        }
-        try {
-            Path configDir = Paths.get(args[0]);
-            Path pluginsDir = Paths.get(args[1]);
-            Path tmpDir = Paths.get(System.getenv("ES_TMPDIR"));
-            String envOptions = System.getenv("ES_JAVA_OPTS");
-            var jvmOptions = determineJvmOptions(configDir, pluginsDir, tmpDir, envOptions);
-
-            Launchers.outPrintln(String.join(" ", jvmOptions));
-        } catch (UserException e) {
-            Launchers.errPrintln(e.getMessage());
-            Launchers.exit(e.exitCode);
-        }
     }
 
     /**

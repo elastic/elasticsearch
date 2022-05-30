@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
-public class Authentication implements ToXContentObject {
+public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
 
@@ -242,12 +242,12 @@ public class Authentication implements ToXContentObject {
      * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
      */
     public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
-        Objects.requireNonNull(runAs);
+        assert supportsRunAs(null);
         assert false == runAs instanceof RunAsUser;
         assert false == runAs instanceof AnonymousUser;
-        assert false == getUser() instanceof RunAsUser;
         assert false == hasSyntheticRealmNameOrType(lookupRealmRef) : "should not use synthetic realm name/type for lookup realms";
-        assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
+
+        Objects.requireNonNull(runAs);
         return new Authentication(
             new RunAsUser(runAs, getUser()),
             getAuthenticatedBy(),
@@ -386,6 +386,55 @@ public class Authentication implements ToXContentObject {
      */
     public boolean isApiKey() {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
+    }
+
+    /**
+     * Whether the authentication can run-as another user
+     */
+    public boolean supportsRunAs(@Nullable AnonymousUser anonymousUser) {
+        // Chained run-as not allowed
+        if (isRunAs()) {
+            return false;
+        }
+        assert false == getUser() instanceof RunAsUser;
+
+        // We may allow service account to run-as in the future, but for now no service account requires it
+        if (isServiceAccount()) {
+            return false;
+        }
+
+        // There is no reason for internal users to run-as. This check prevents either internal user itself
+        // or a token created for it (though no such thing in current code) to run-as.
+        if (User.isInternal(getUser())) {
+            return false;
+        }
+
+        // Anonymous user or its token cannot run-as
+        // There is no perfect way to determine an anonymous user if we take custom realms into consideration
+        // 1. A custom realm can return a user object that can pass `equals(anonymousUser)` check
+        // (this is the existing check used elsewhere)
+        // 2. A custom realm can declare its type and name to be __anonymous
+        //
+        // This problem is at least partly due to we don't have special serialisation for the AnonymousUser class.
+        // As a result, it is serialised just as a normal user. At deserializing time, it is impossible to reliably
+        // tell the difference. This is what happens when AnonymousUser creates a token.
+        // Also, if anonymous access is disabled or anonymous username, roles are changed after the token is created.
+        // Should we still consider the token being created by an anonymous user which is now different from the new
+        // anonymous user?
+        if (getUser().equals(anonymousUser)) {
+            assert ANONYMOUS_REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType())
+                && ANONYMOUS_REALM_NAME.equals(getAuthenticatingSubject().getRealm().getName());
+            return false;
+        }
+
+        // Run-as is supported for authentication with realm, api_key or token.
+        if (AuthenticationType.REALM == getAuthenticationType()
+            || AuthenticationType.API_KEY == getAuthenticationType()
+            || AuthenticationType.TOKEN == getAuthenticationType()) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

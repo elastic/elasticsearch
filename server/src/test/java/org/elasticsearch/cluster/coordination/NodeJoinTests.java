@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -65,6 +64,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -283,14 +283,14 @@ public class NodeJoinTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+                    logger.error(() -> format("unexpected error for %s", future), e);
                     future.markAsFailed(e);
                 }
             };
 
             joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+            logger.error(() -> format("unexpected error for %s", future), e);
             future.markAsFailed(e);
         }
         return future;

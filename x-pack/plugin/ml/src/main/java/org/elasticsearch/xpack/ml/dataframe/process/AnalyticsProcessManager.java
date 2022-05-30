@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class AnalyticsProcessManager {
@@ -281,7 +282,7 @@ public class AnalyticsProcessManager {
         DataFrameAnalyticsTask task
     ) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
+        LOGGER.debug(() -> format("[%s] header row fields %s", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         // - the document hash
@@ -358,10 +359,7 @@ public class AnalyticsProcessManager {
         } catch (Exception e) {
             if (task.isStopping()) {
                 LOGGER.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] Process closing was interrupted by kill request due to the task being stopped",
-                        configId
-                    ),
+                    () -> format("[%s] Process closing was interrupted by kill request due to the task being stopped", configId),
                     e
                 );
                 LOGGER.info("[{}] Closed process", configId);

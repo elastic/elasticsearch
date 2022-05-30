@@ -97,7 +97,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             0L
         );
 
-        reconcile(routingAllocation, new DesiredBalance(Map.of(), Map.of()));
+        reconcile(routingAllocation, new DesiredBalance(1, Map.of(), Map.of()));
         assertFalse(routingAllocation.routingNodesChanged());
     }
 
@@ -170,6 +170,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         reconcile(
             routingAllocation,
             new DesiredBalance(
+                1,
                 randomBoolean()
                     ? Map.of()
                     : Map.of(
@@ -1016,6 +1017,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
     private static DesiredBalance desiredBalance(ClusterState clusterState, BiPredicate<ShardId, String> isDesiredPredicate) {
         return new DesiredBalance(
+            1,
             StreamSupport.stream(clusterState.routingTable().spliterator(), false)
                 .flatMap(indexRoutingTable -> IntStream.range(0, indexRoutingTable.size()).mapToObj(indexRoutingTable::shard))
                 .collect(

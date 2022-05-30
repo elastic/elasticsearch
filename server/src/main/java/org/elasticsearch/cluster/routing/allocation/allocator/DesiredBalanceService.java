@@ -38,7 +38,7 @@ public class DesiredBalanceService {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
+    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(-1, Map.of(), Map.of());
 
     public DesiredBalanceService(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -65,7 +65,7 @@ public class DesiredBalanceService {
         if (routingNodes.size() == 0) {
             final var clearDesiredBalance = currentDesiredBalance.desiredAssignments().size() != 0;
             if (clearDesiredBalance) {
-                currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
+                currentDesiredBalance = new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of());
             }
             return clearDesiredBalance;
             // TODO test for this case
@@ -253,9 +253,11 @@ public class DesiredBalanceService {
                 : "desired balance computation converged"
         );
 
-        final DesiredBalance newDesiredBalance = new DesiredBalance(desiredAssignments, unassigned);
+        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
+        final DesiredBalance newDesiredBalance = new DesiredBalance(lastConvergedIndex, desiredAssignments, unassigned);
         assert desiredBalance == currentDesiredBalance;
-        if (newDesiredBalance.equals(desiredBalance) == false) {
+        currentDesiredBalance = newDesiredBalance;
+        if (DesiredBalance.areSame(newDesiredBalance, desiredBalance) == false) {
             if (logger.isTraceEnabled()) {
                 for (Map.Entry<ShardId, Set<String>> desiredAssignment : newDesiredBalance.desiredAssignments().entrySet()) {
                     final var shardId = desiredAssignment.getKey();
@@ -269,7 +271,7 @@ public class DesiredBalanceService {
                 }
                 logger.trace("desired balance updated");
             }
-            currentDesiredBalance = newDesiredBalance;
+            logger.trace("desired balance changed : {}", newDesiredBalance);
             return true;
         } else {
             logger.trace("desired balance unchanged: {}", desiredBalance);

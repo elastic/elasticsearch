@@ -104,7 +104,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
     private void doTestGeotileGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
         doTestGrid(
-            0,
+            1,
             GeoTileUtils.MAX_ZOOM,
             fieldType,
             (precision, point) -> GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getLon(), point.getLat(), precision)),

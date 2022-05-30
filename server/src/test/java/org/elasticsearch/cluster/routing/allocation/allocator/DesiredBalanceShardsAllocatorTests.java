@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -354,23 +355,16 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
-    public void testFailListenersOnNoLongerMasterException() {
+    public void testFailListenersOnNoLongerMasterException() throws Exception {
 
-        var discoveryNode1 = createDiscoveryNode("node-1");
-        var discoveryNode2 = createDiscoveryNode("node-2");
-        var state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(discoveryNode1)
-                    .add(discoveryNode2)
-                    .localNodeId(discoveryNode1.getId())
-                    .masterNodeId(discoveryNode2.getId())
-            )
+        var node1 = createDiscoveryNode("node-1");
+        var node2 = createDiscoveryNode("node-2");
+        var noLongerMasterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node2.getId()))
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
         var rerouteServiceSupplier = new SetOnce<RerouteService>();
-        var clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
         var allocator = new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
@@ -393,72 +387,43 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         };
-        var desiredBalanceShardsAllocator = DesiredBalanceShardsAllocator.create(
-            allocator,
-            threadPool,
-            clusterService,
-            rerouteServiceSupplier::get
-        );
-        var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
-            @Override
-            public void beforeAllocation(RoutingAllocation allocation) {}
-
-            @Override
-            public void allocateUnassigned(
-                ShardRouting shardRouting,
-                RoutingAllocation allocation,
-                UnassignedAllocationHandler unassignedAllocationHandler
-            ) {
-                unassignedAllocationHandler.initialize(allocation.nodes().getLocalNodeId(), null, 0L, allocation.changes());
-            }
-
-            @Override
-            public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
-        }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
-
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, rerouteServiceSupplier::get);
+        var rerouteIsCalled = new CountDownLatch(1);
         rerouteServiceSupplier.set((r, p, l) -> {
-            clusterService.submitUnbatchedStateUpdateTask("test-desired-balance-reroute", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return allocationService.reroute(currentState, "test-desired-balance-reroute", l.map(ignore -> null));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("Should not happen in test");
-                }
-            });
+            rerouteIsCalled.countDown();
+            desiredBalanceShardsAllocator.clusterChanged(new ClusterChangedEvent("reroute", noLongerMasterState, noLongerMasterState));
         });
 
-        var listeners = new CountDownLatch(1);
+        var allocationListenerIsCalled = new CountDownLatch(1);
 
-        clusterService.submitUnbatchedStateUpdateTask("test-allocate", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return allocationService.reroute(
-                    currentState,
-                    "test-allocate",
-                    ActionListener.wrap(
-                        response -> { throw new AssertionError("Should not complete in this test"); },
-                        exception -> listeners.countDown()
-                    )
-                );
-            }
+        var indexMetadata = createIndex("index-1");
+        var createIndexState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).incrementVersion())
+            .build();
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not happen in test");
-            }
-        });
+        var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            createIndexState.mutableRoutingNodes(),
+            createIndexState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        desiredBalanceShardsAllocator.allocate(
+            allocation,
+            ActionListener.wrap(
+                response -> { throw new AssertionError("Should not complete in this test"); },
+                exception -> allocationListenerIsCalled.countDown()
+            )
+        );
 
         try {
-            try {
-                assertTrue("Should fail due to exception", listeners.await(10, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError("Should fail due to exception");
-            }
+            assertTrue("Should call reroute", rerouteIsCalled.await(10, TimeUnit.SECONDS));
+            assertTrue("Should fail listener in a following iteration", allocationListenerIsCalled.await(10, TimeUnit.SECONDS));
         } finally {
-            clusterService.close();
             terminate(threadPool);
         }
     }
@@ -529,7 +494,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         var indexNameGenerator = new AtomicInteger();
 
-        var iterations = between(1, 1_000);
+        var iterations = between(1, 50);
         var listenersCountdown = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
             boolean addNewIndex = i == 0 || randomInt(9) == 0;
@@ -574,7 +539,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
 
         try {
-            assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
+            assertTrue("Should call all listeners", listenersCountdown.await(30, TimeUnit.SECONDS));
         } finally {
             clusterService.close();
             terminate(threadPool);

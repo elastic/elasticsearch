@@ -293,8 +293,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .setNetNew()
             .build();
         SystemIndices systemIndices = new SystemIndices(
-            Collections.singletonMap(
-                this.getTestName(),
+            Collections.singletonList(
                 new SystemIndices.Feature(this.getTestName(), "test feature", Collections.singletonList(netNewDescriptor))
             )
         );

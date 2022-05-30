@@ -1588,9 +1588,9 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
 
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

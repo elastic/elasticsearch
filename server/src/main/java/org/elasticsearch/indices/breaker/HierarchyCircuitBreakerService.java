@@ -10,7 +10,6 @@ package org.elasticsearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -40,6 +39,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING;
 
@@ -211,7 +211,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.Type.PARENT,
             null
         );
-        logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
+        logger.trace(() -> format("parent circuit breaker with settings %s", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
 
@@ -436,7 +436,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage
                 ? CircuitBreaker.Durability.TRANSIENT
                 : CircuitBreaker.Durability.PERMANENT;
-            logger.debug(() -> new ParameterizedMessage("{}", message.toString()));
+            logger.debug(() -> format("%s", message.toString()));
             throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
         }
     }

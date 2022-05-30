@@ -137,7 +137,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             executeAndReroute(
                 desiredBalanceService,
                 ClusterState.builder(clusterState)
-                    .routingTable(new RoutingTable.Builder().updateNodes(clusterState.routingTable().version(), routingNodes))
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
                     .build()
             )
         );
@@ -185,7 +185,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             executeAndReroute(
                 desiredBalanceService,
                 ClusterState.builder(clusterState)
-                    .routingTable(new RoutingTable.Builder().updateNodes(clusterState.routingTable().version(), routingNodes))
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
                     .build()
             )
         );
@@ -241,7 +241,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             executeAndReroute(
                 desiredBalanceService,
                 ClusterState.builder(clusterState)
-                    .routingTable(new RoutingTable.Builder().updateNodes(clusterState.routingTable().version(), desiredRoutingNodes))
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), desiredRoutingNodes))
                     .build()
             )
         );
@@ -318,7 +318,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             executeAndReroute(
                 desiredBalanceService,
                 ClusterState.builder(clusterState)
-                    .routingTable(new RoutingTable.Builder().updateNodes(clusterState.routingTable().version(), randomRoutingNodes))
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), randomRoutingNodes))
                     .build()
             )
         );

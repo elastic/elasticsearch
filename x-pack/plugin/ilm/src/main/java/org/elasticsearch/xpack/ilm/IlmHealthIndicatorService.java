@@ -37,6 +37,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "ilm";
 
+    public static final String HELP_URL = "https://ela.st/fix-ilm";
+
     private final ClusterService clusterService;
 
     public IlmHealthIndicatorService(ClusterService clusterService) {
@@ -54,12 +56,17 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
     public HealthIndicatorResult calculate(boolean explain) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No ILM policies configured",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -68,7 +75,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of your system "
+                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )

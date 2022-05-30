@@ -343,7 +343,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testUnmappedLegacyFields() throws Exception {
         MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
-            b.field("type", "text");
+            b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);
             b.endObject();
         }));
@@ -417,6 +417,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
         assertNotNull(mapperService.fieldType("metrics.service.time"));
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
+    }
+
+    public void testExplicitDefaultSubobjects() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
     }
 
     public void testSubobjectsFalseRootWithInnerObject() {

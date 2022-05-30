@@ -58,8 +58,8 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public List<Parameter<?>> getParameters() {
-            return List.of(meta, stored, hasDocValues);
+        public Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta, stored, hasDocValues };
         }
 
         @Override

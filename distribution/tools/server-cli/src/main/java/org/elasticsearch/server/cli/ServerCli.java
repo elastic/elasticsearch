@@ -86,7 +86,7 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        ServerArgs args = createArgs(options, env, keystorePassword);
+        ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
@@ -181,12 +181,16 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+        throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
         if (options.has(pidfileOption)) {
             pidFile = options.valueOf(pidfileOption);
+            if (pidFile.isAbsolute() == false) {
+                pidFile = processInfo.workingDir().resolve(pidFile.toString()).toAbsolutePath();
+            }
             validatePidFile(pidFile);
         }
         return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());

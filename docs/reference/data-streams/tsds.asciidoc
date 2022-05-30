@@ -81,10 +81,17 @@ data streams.
 ==== Dimensions
 
 Dimensions are field names and values that, in combination, identify a
-document's time series. Dimensions don't change across documents in the same
-time series. In most cases, a dimension describes some aspect of the entity
-you're measuring. For example, documents related to the same weather sensor may
-always have the same `sensor_id` and `location` values.
+document's time series. In most cases, a dimension describes some aspect of the
+entity you're measuring. For example, documents related to the same weather
+sensor may always have the same `sensor_id` and `location` values.
+
+A TSDS document is uniquely identified by its time series and timestamp, both of
+which are used to generate the document `_id`. So, two documents with the same
+dimensions and the same timestamp are considered to be duplicates. When you use
+the `_bulk` endpoint to add documents to a TSDS, a second document with the same
+timestamp and dimensions overwrites the first. When you use the 
+`PUT /<target>/_create/<_id>` format to add an individual document and a document
+with the same `_id` already exists, an error is generated.
 
 You mark a field as a dimension using the boolean `time_series_dimension`
 mapping parameter. The following field types support the `time_series_dimension`
@@ -98,15 +105,16 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
-[[dimension-limits]]
-.Dimension limits
-****
-In a TSDS, {es} uses dimensions to generate the document `_id` and
-<<tsid,`_tsid`>> values. To prevent overly large values, {es} limits the number
-of dimensions for an index using the
+[[dimension-limits]] 
+.Dimension limits 
+**** 
+In a TSDS, {es} uses dimensions to
+generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
+always a short encoded hash. To prevent the `_tsid` value from being overly
+large, {es} limits the number of dimensions for an index using the
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
-index setting. While you can increase this limit, the resulting document `_id`
-and `_tsid` values can't exceed 32KB.
+index setting. While you can increase this limit, the resulting document `_tsid`
+value can't exceed 32KB. 
 ****
 
 [discrete]
@@ -116,8 +124,8 @@ and `_tsid` values can't exceed 32KB.
 Metrics are fields that contain numeric measurements. While not required,
 documents in a TSDS typically contain one or more metric fields.
 
-A field can't be both a dimension and a metric. Unlike dimensions, the metric
-values for a time series typically change over time, even if rarely or slowly. 
+Metrics differ from dimensions in that while dimensions generally remain
+constant, metrics are expected to change over time, even if rarely or slowly.
 
 To mark a field as a metric, you must specify a metric type using the
 `time_series_metric` mapping parameter. The following field types support the

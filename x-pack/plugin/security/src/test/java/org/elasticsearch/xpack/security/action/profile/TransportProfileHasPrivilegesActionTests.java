@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,7 +138,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), eq(List.of()), anyActionListener());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
-        transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+        transportProfileHasPrivilegesAction.doExecute(mock(CancellableTask.class), request, listener);
 
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.errorUids(), is(errorProfileUids));
@@ -180,7 +180,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         }).when(authorizationService).checkPrivileges(any(), any(), any(), any());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
-        transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+        transportProfileHasPrivilegesAction.doExecute(mock(CancellableTask.class), request, listener);
 
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.hasPrivilegeUids(), emptyIterable());

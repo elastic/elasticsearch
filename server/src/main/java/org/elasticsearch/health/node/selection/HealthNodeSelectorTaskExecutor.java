@@ -11,6 +11,7 @@ package org.elasticsearch.health.node.selection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -112,9 +113,12 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
-            clusterService.removeListener(this);
-            startTask();
+        // Wait until every node in the cluster is upgraded to 8.4.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+            if (event.state().nodes().isLocalNodeElectedMaster()) {
+                clusterService.removeListener(this);
+                startTask();
+            }
         }
     }
 

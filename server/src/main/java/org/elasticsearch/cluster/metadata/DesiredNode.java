@@ -40,7 +40,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
     public static final Version RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION = Version.V_8_3_0;
-    public static final Version MEMBERSHIP_TRACKING_SUPPORT_VERSION = Version.V_8_3_0;
+    public static final Version MEMBERSHIP_TRACKING_SUPPORT_VERSION = Version.V_8_4_0;
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");

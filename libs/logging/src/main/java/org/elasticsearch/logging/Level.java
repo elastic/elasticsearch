@@ -26,7 +26,7 @@ public enum Level {
      */
     ERROR,
     /**
-     * An event that might possible lead to an error.
+     * An event that might lead to an error.
      */
     WARN,
     /**

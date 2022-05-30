@@ -11,7 +11,7 @@ package org.elasticsearch.logging;
 import org.elasticsearch.logging.internal.spi.LogManagerFactory;
 
 /**
- * A class used for creating loggers.
+ * A Manager of {@code Loggers}. This class consists of factory methods for creating and retrieving Loggers.
  */
 public final class LogManager {
 

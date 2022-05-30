@@ -24,10 +24,12 @@ public interface Logger {
     void log(Level level, String message);
 
     /**
-     * Logs a String message which is only to be constructed if the logging level is the specified level.
-     *
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for the specified log message level, then a message is logged that is the result produced
+     * by the given supplier function.
      * @param level           the logging level
      * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void log(Level level, java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -100,17 +102,19 @@ public interface Logger {
     // -- fatal
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#FATAL FATAL} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#FATAL FATAL} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void fatal(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#FATAL FATAL} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#FATAL FATAL}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void fatal(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -125,7 +129,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#FATAL FATAL} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void fatal(String message, Throwable throwable);
 
@@ -203,17 +207,19 @@ public interface Logger {
     // -- error
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#ERROR ERROR} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#ERROR ERROR} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void error(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#ERROR ERROR} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#ERROR ERROR}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void error(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -228,7 +234,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#ERROR ERROR} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void error(String message, Throwable throwable);
 
@@ -306,17 +312,19 @@ public interface Logger {
     // -- warn
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#WARN WARN} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#WARN WARN} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void warn(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#WARN WARN} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#WARN WARN}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void warn(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -331,7 +339,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#WARN WARN} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void warn(String message, Throwable throwable);
 
@@ -409,17 +417,19 @@ public interface Logger {
     // -- info
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#INFO INFO} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#INFO INFO} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void info(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#INFO INFO} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#INFO INFO}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void info(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -434,7 +444,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#INFO INFO} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void info(String message, Throwable throwable);
 
@@ -512,17 +522,19 @@ public interface Logger {
     // -- debug
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void debug(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#DEBUG DEBUG}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void debug(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -537,7 +549,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void debug(String message, Throwable throwable);
 
@@ -615,17 +627,19 @@ public interface Logger {
     // -- trace
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#TRACE TRACE} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
+     * Logs a lazily supplied String message. If the logger is currently enabled for
+     * {@link org.elasticsearch.logging.Level#FATAL FATAL} level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
      */
     void trace(java.util.function.Supplier<String> messageSupplier);
 
     /**
-     * Logs a message which is only to be constructed if the logging level is the {@link org.elasticsearch.logging.Level#TRACE TRACE} level
-     *
-     * @param messageSupplier A function, which when called, produces the desired log string.
-     * @param throwable       A Throwable or null.
+     * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
+     * enabled for {@link org.elasticsearch.logging.Level#FATAL FATAL}  level, then a message is logged
+     * that is the result produced by the given supplier function.
+     * @param messageSupplier A function, which when called, produces the desired log String message;
+     * @param throwable       A Throwable associated with the log message.
      */
     void trace(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
 
@@ -640,7 +654,7 @@ public interface Logger {
      * Logs a message at the {@link org.elasticsearch.logging.Level#TRACE TRACE} level.
      *
      * @param message   the message string to be logged
-     * @param throwable A Throwable or null.
+     * @param throwable A Throwable associated with the log message.
      */
     void trace(String message, Throwable throwable);
 

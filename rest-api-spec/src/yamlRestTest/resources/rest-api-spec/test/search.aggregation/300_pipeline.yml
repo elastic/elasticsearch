@@ -102,6 +102,8 @@ setup:
 ---
 "Max pipeline on percentiles tdigest agg with single percent metric value":
   - skip:
+      version: " - 8.3.99"
+      reason: behaviour changed in 8.4.0
       features: close_to
 
   - do:
@@ -235,6 +237,8 @@ setup:
 ---
 "Max pipeline on percentiles hdr agg with single percent metric value":
   - skip:
+      version: " - 8.3.99"
+      reason: behaviour changed in 8.4.0
       features: close_to
 
   - do:

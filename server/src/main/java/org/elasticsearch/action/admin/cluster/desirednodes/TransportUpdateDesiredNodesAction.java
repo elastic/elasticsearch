@@ -121,7 +121,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         final DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
+            if (latestDesiredNodes.isEquivalent(proposedDesiredNodes)) {
                 return latestDesiredNodes;
             }
 
@@ -146,7 +146,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
-        return proposedDesiredNodes.withMembershipInfoFrom(latestDesiredNodes);
+        return proposedDesiredNodes.withMembershipInformationFrom(latestDesiredNodes);
     }
 
     private record UpdateDesiredNodesTask(UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener)
@@ -188,7 +188,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 pendingTaskListeners.add(new PendingTask(taskContext, replacedExistingHistoryId));
             }
 
-            final var updatedClusterState = DesiredNodes.withMembershipInformationUpgraded(currentState, desiredNodes);
+            final var updatedClusterState = DesiredNodes.updateDesiredNodesMembershipIfNeeded(currentState, desiredNodes);
             if (updatedClusterState == currentState) {
                 for (final var pendingTaskListener : pendingTaskListeners) {
                     pendingTaskListener.setClusterStateUpdateTaskListener(pendingTaskListener.getUpdateRequestListener());
@@ -196,36 +196,39 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 return currentState;
             } else {
                 final var pendingUpdateRequestListeners = pendingTaskListeners.stream().map(PendingTask::getUpdateRequestListener).toList();
-                GroupedActionListener<ClusterState> clusterStateGroupedActionListener = new GroupedActionListener<>(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Collection<ClusterState> clusterStates) {
-                        rerouteService.reroute("upgraded desired nodes", Priority.URGENT, new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                ActionListener.onResponse(pendingUpdateRequestListeners, clusterState);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (MasterService.isPublishFailureException(e)) {
-                                    // The request listener ignores the cluster state argument,
-                                    // therefore it's safe to pass the EMPTY_state here
-                                    ActionListener.onResponse(pendingUpdateRequestListeners, ClusterState.EMPTY_STATE);
-                                } else {
-                                    ActionListener.onFailure(
-                                        pendingUpdateRequestListeners,
-                                        new ElasticsearchException("reroute after update desired nodes failed", e)
-                                    );
+                final GroupedActionListener<ClusterState> clusterStateGroupedActionListener = new GroupedActionListener<>(
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Collection<ClusterState> clusterStates) {
+                            rerouteService.reroute("upgraded desired nodes", Priority.URGENT, new ActionListener<>() {
+                                @Override
+                                public void onResponse(ClusterState clusterState) {
+                                    ActionListener.onResponse(pendingUpdateRequestListeners, clusterState);
                                 }
-                            }
-                        });
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        ActionListener.onFailure(pendingUpdateRequestListeners, e);
-                    }
-                }, pendingTaskListeners.size());
+                                @Override
+                                public void onFailure(Exception e) {
+                                    if (MasterService.isPublishFailureException(e)) {
+                                        // The request listener ignores the cluster state argument,
+                                        // therefore it's safe to pass the EMPTY_state here
+                                        ActionListener.onResponse(pendingUpdateRequestListeners, ClusterState.EMPTY_STATE);
+                                    } else {
+                                        ActionListener.onFailure(
+                                            pendingUpdateRequestListeners,
+                                            new ElasticsearchException("reroute after update desired nodes failed", e)
+                                        );
+                                    }
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            ActionListener.onFailure(pendingUpdateRequestListeners, e);
+                        }
+                    },
+                    pendingTaskListeners.size()
+                );
 
                 for (final var pendingTaskListener : pendingTaskListeners) {
                     pendingTaskListener.setClusterStateUpdateTaskListener(clusterStateGroupedActionListener);

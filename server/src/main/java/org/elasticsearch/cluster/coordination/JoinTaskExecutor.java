@@ -181,7 +181,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.withDesiredNodesMembershipUpdated(
+            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesMembershipIfNeeded(
                 newState.nodes(nodesBuilder).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);

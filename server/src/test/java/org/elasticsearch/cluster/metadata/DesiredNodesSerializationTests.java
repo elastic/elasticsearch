@@ -35,7 +35,15 @@ public class DesiredNodesSerializationTests extends AbstractSerializingTestCase<
     @Override
     protected DesiredNodes mutateInstance(DesiredNodes instance) throws IOException {
         if (randomBoolean()) {
-            return new DesiredNodes(instance.historyID(), instance.version() + 1, instance.nodes());
+            if (randomBoolean()) {
+                return new DesiredNodes(instance.historyID(), instance.version() + 1, instance.nodes());
+            } else {
+                return new DesiredNodes(
+                    instance.historyID(),
+                    instance.version(),
+                    instance.nodes().stream().map(DesiredNode::asMember).toList()
+                );
+            }
         }
         return new DesiredNodes(randomAlphaOfLength(10), instance.version(), instance.nodes());
     }

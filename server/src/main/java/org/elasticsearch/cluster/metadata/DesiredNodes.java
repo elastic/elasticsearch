@@ -124,6 +124,26 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         return historyID.equals(other.historyID) && version == other.version;
     }
 
+    public boolean isEquivalent(DesiredNodes other) {
+        return hasSameVersion(other) && equivalentNodes(other);
+    }
+
+    private boolean equivalentNodes(DesiredNodes other) {
+        if (nodes.size() != other.nodes.size()) {
+            return false;
+        }
+
+        for (final var desiredNodeEntry : nodes.entrySet()) {
+            final var externalId = desiredNodeEntry.getKey();
+            final var desiredNode = desiredNodeEntry.getValue();
+            final var otherDesiredNode = other.nodes.get(externalId);
+            if (otherDesiredNode == null || desiredNode.hasSameSpecs(otherDesiredNode) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean hasSameHistoryId(DesiredNodes other) {
         return other != null && historyID.equals(other.historyID);
     }
@@ -211,16 +231,16 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         );
     }
 
-    public static ClusterState withDesiredNodesMembershipUpdated(ClusterState clusterState) {
+    public static ClusterState updateDesiredNodesMembershipIfNeeded(ClusterState clusterState) {
         final var desiredNodes = latestFromClusterState(clusterState);
         if (desiredNodes == null) {
             return clusterState;
         }
 
-        return withMembershipInformationUpgraded(clusterState, desiredNodes);
+        return updateDesiredNodesMembershipIfNeeded(clusterState, desiredNodes);
     }
 
-    public static ClusterState withMembershipInformationUpgraded(ClusterState clusterState, DesiredNodes desiredNodes) {
+    public static ClusterState updateDesiredNodesMembershipIfNeeded(ClusterState clusterState, DesiredNodes desiredNodes) {
         if (desiredNodes == null) {
             return clusterState;
         }
@@ -251,10 +271,11 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         }
     }
 
-    public DesiredNodes withMembershipInfoFrom(DesiredNodes previousDesiredNodes) {
+    public DesiredNodes withMembershipInformationFrom(DesiredNodes previousDesiredNodes) {
         if (previousDesiredNodes == this) {
             return this;
         }
+        assert hasSameHistoryId(previousDesiredNodes) == false || version > previousDesiredNodes.version();
         final Map<String, DesiredNode> updatedStateDesiredNodes = new HashMap<>(nodes);
 
         boolean modified = false;

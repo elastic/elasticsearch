@@ -29,4 +29,11 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
     protected DesiredNode createTestInstance() {
         return DesiredNodesTestCase.randomDesiredNodeWithRandomSettings();
     }
+
+    @Override
+    protected DesiredNode mutateInstance(DesiredNode instance) throws IOException {
+        return instance.withMembershipStatus(
+            randomValueOtherThan(instance.membershipStatus(), () -> randomFrom(DesiredNode.MembershipStatus.values()))
+        );
+    }
 }

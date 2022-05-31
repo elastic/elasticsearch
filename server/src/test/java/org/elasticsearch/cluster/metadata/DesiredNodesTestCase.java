@@ -9,17 +9,25 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 
 public abstract class DesiredNodesTestCase extends ESTestCase {
     public static DesiredNodes randomDesiredNodesWithRandomSettings() {
@@ -48,6 +56,20 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
 
     public static List<DesiredNode> randomDesiredNodeList(Version version, Consumer<Settings.Builder> settingsConsumer) {
         return randomList(2, 10, () -> randomDesiredNode(version, settingsConsumer));
+    }
+
+    public static DesiredNode randomDesiredNodeWithName(String nodeName) {
+        return randomDesiredNode(Version.CURRENT, settings -> {
+            settings.remove(NODE_EXTERNAL_ID_SETTING.getKey());
+            settings.put(NODE_NAME_SETTING.getKey(), nodeName);
+        });
+    }
+
+    public static DesiredNode randomDesiredNodeWithExternalId(String externalId) {
+        return randomDesiredNode(Version.CURRENT, settings -> {
+            settings.remove(NODE_NAME_SETTING.getKey());
+            settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+        });
     }
 
     public static DesiredNode randomDesiredNodeWithRandomSettings() {
@@ -122,6 +144,50 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             case 6 -> settings.put(key, ByteSizeValue.ofGb(randomIntBetween(1, 20)));
             case 7 -> settings.putList(key, randomList(1, 10, () -> randomAlphaOfLength(20)));
             default -> throw new IllegalArgumentException();
+        }
+    }
+
+    @SafeVarargs
+    public static DesiredNodes createDesiredNodes(List<DesiredNode>... nodeLists) {
+        return createDesiredNodes(UUIDs.randomBase64UUID(random()), 1, nodeLists);
+    }
+
+    @SafeVarargs
+    public static DesiredNodes createDesiredNodes(String historyId, long version, List<DesiredNode>... nodeLists) {
+        assertThat(nodeLists.length, is(greaterThan(0)));
+        final List<DesiredNode> desiredNodes = new ArrayList<>();
+        for (List<DesiredNode> nodeList : nodeLists) {
+            desiredNodes.addAll(nodeList);
+        }
+        return new DesiredNodes(historyId, version, desiredNodes);
+    }
+
+    public static void assertDesiredNodesMembershipIsCorrect(
+        ClusterState clusterState,
+        List<DesiredNode> expectedMembersList,
+        List<DesiredNode> expectedUnknownNodesList
+    ) {
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        assertDesiredNodesMembershipIsCorrect(desiredNodes, expectedMembersList, expectedUnknownNodesList);
+    }
+
+    public static void assertDesiredNodesMembershipIsCorrect(
+        DesiredNodes desiredNodes,
+        List<DesiredNode> expectedMembersList,
+        List<DesiredNode> expectedUnknownNodesList
+    ) {
+        final var expectedMembers = expectedMembersList.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
+        final var expectedUnknownNodes = expectedUnknownNodesList.stream()
+            .collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
+
+        for (DesiredNode desiredNode : desiredNodes.members()) {
+            assertThat(desiredNode.isMember(), is(equalTo(true)));
+            assertThat("member not found", expectedMembers, hasKey(desiredNode.externalId()));
+        }
+
+        for (DesiredNode desiredNode : desiredNodes.notMembers()) {
+            assertThat(desiredNode.isMember(), is(equalTo(false)));
+            assertThat("not member not found", expectedUnknownNodes, hasKey(desiredNode.externalId()));
         }
     }
 }

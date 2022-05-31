@@ -356,7 +356,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return processorsRange == null && processorHasDecimals() == false;
     }
 
-    public DesiredNode withMembershipStatus(MembershipStatus state) {
+    DesiredNode withMembershipStatus(MembershipStatus state) {
         return new DesiredNode(settings, processors, processorsRange, memory, storage, version, state);
     }
 
@@ -364,11 +364,11 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return withMembershipStatus(MembershipStatus.MEMBER);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DesiredNode that = (DesiredNode) o;
+    public DesiredNode withUnknownMembershipStatus() {
+        return withMembershipStatus(MembershipStatus.UNKNOWN);
+    }
+
+    public boolean hasSameSpecs(DesiredNode that) {
         return Objects.equals(settings, that.settings)
             && Objects.equals(processors, that.processors)
             && Objects.equals(processorsRange, that.processorsRange)
@@ -380,8 +380,16 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DesiredNode that = (DesiredNode) o;
+        return hasSameSpecs(that) && membershipStatus == that.membershipStatus;
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(settings, processors, processorsRange, memory, storage, version, externalId, roles);
+        return Objects.hash(settings, processors, processorsRange, memory, storage, version, externalId, roles, membershipStatus);
     }
 
     @Override

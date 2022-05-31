@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -37,7 +36,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesMembershipIsCorrect;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.createDesiredNodes;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodeWithExternalId;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -497,47 +498,55 @@ public class JoinTaskExecutorTests extends ESTestCase {
         );
     }
 
-    public void testDesiredNodesMembershipIsUpgraded() throws Exception {
+    public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
+        final var knownDesiredNodes = randomList(0, 5, this::createMemberDesiredNode);
+        final var unknownDesiredNodes = randomList(0, 5, this::createDesiredNode);
+        final var joiningDesiredNodes = randomList(1, 5, this::createDesiredNode);
+
         final var masterNode = newDiscoveryNode("master");
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
-            .build();
+        final var discoveryNodes = DiscoveryNodes.builder()
+            .add(masterNode)
+            .localNodeId(masterNode.getId())
+            .masterNodeId(masterNode.getId());
 
-        final var node = newDiscoveryNode("node-1");
-
-        final var desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(random()),
-            10,
-            List.of(desiredNode(node.getName()), knownDesiredNode(masterNode.getName()), knownDesiredNode("other"))
-        );
-
-        for (final var desiredNode : desiredNodes) {
-            if (desiredNode.externalId().equals(node.getName())) {
-                assertThat(desiredNode.isMember(), is(equalTo(false)));
-            } else {
-                assertThat(desiredNode.isMember(), is(equalTo(true)));
-            }
+        for (DesiredNode knownDesiredNode : knownDesiredNodes) {
+            discoveryNodes.add(newDiscoveryNode(knownDesiredNode.externalId()));
         }
 
-        clusterState = clusterState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes))
-        );
-        var tasks = List.of(JoinTask.singleNode(node, "join", NOT_COMPLETED_LISTENER, 0L));
+        final List<DiscoveryNode> joiningNodes = joiningDesiredNodes.stream()
+            .map(desiredNode -> newDiscoveryNode(desiredNode.externalId()))
+            .toList();
+
+        // Add some nodes in the cluster that are not part of the desired nodes
+        for (int i = 0; i < randomInt(5); i++) {
+            discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
+        }
+
+        final var desiredNodes = createDesiredNodes(knownDesiredNodes, unknownDesiredNodes, joiningDesiredNodes);
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)))
+            .build();
+
+        var tasks = joiningNodes.stream().map(node -> JoinTask.singleNode(node, "join", NOT_COMPLETED_LISTENER, 0L)).toList();
 
         clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, joinTaskExecutor, tasks);
 
         final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         assertThat(updatedDesiredNodes, is(notNullValue()));
 
-        assertThat(updatedDesiredNodes.nodes(), hasSize(3));
-        for (DesiredNode updatedDesiredNode : updatedDesiredNodes) {
-            assertThat(updatedDesiredNode.isMember(), is(equalTo(true)));
-        }
+        assertThat(updatedDesiredNodes.nodes(), hasSize(desiredNodes.nodes().size()));
+        assertDesiredNodesMembershipIsCorrect(
+            clusterState,
+            Stream.concat(knownDesiredNodes.stream(), joiningDesiredNodes.stream()).toList(),
+            unknownDesiredNodes
+        );
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
@@ -551,18 +560,12 @@ public class JoinTaskExecutorTests extends ESTestCase {
         );
     }
 
-    private DesiredNode desiredNode(String nodeName) {
-        return new DesiredNode(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-            1,
-            ByteSizeValue.ofGb(1),
-            ByteSizeValue.ofGb(1),
-            Version.CURRENT
-        );
+    private DesiredNode createMemberDesiredNode() {
+        return createDesiredNode().asMember();
     }
 
-    private DesiredNode knownDesiredNode(String nodeName) {
-        return desiredNode(nodeName).asMember();
+    private DesiredNode createDesiredNode() {
+        return randomDesiredNodeWithExternalId(UUIDs.randomBase64UUID(random()));
     }
 
     private static JoinTask createRandomTask(DiscoveryNode node, String reason, long term) {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodeWithRandomSettings;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -22,6 +23,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DesiredNodeTests extends ESTestCase {
@@ -223,6 +225,16 @@ public class DesiredNodeTests extends ESTestCase {
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(true)));
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
         }
+    }
+
+    public void testEqualityWithoutTakingIntoAccountMembership() {
+        final var desiredNode = randomDesiredNodeWithRandomSettings();
+        final var memberDesiredNode = desiredNode.asMember();
+        assertThat(desiredNode, is(not(equalTo(memberDesiredNode))));
+        assertThat(desiredNode.hasSameSpecs(memberDesiredNode), is(equalTo(true)));
+
+        final var otherMemberDesiredNode = randomDesiredNodeWithRandomSettings().asMember();
+        assertThat(desiredNode.hasSameSpecs(otherMemberDesiredNode), is(equalTo(false)));
     }
 
     private Float randomInvalidFloatProcessor() {

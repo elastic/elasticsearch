@@ -42,6 +42,6 @@ public record SimpleHealthIndicatorDetails(Map<String, Object> details) implemen
 
     @Override
     public HealthIndicatorDetails read(StreamInput in) throws IOException {
-        return new SimpleHealthIndicatorDetails(in.readMap(StreamInput::readString, StreamInput::readString));
+        return new SimpleHealthIndicatorDetails(in);
     }
 }

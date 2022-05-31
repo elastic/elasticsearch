@@ -1227,6 +1227,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
+                MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
                 client.initialize(
                     Map.of(
@@ -1259,7 +1260,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(
                     clusterService,
                     coordinator,

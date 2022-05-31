@@ -30,13 +30,13 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -243,44 +243,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * and "recent_masters"
      */
     private HealthIndicatorDetails getSimpleDetails(boolean explain, MasterHistory localMasterHistory) {
-        return explain ? new HealthIndicatorDetails() {
-            @Override
-            public HealthIndicatorDetails read(StreamInput in) throws IOException {
-                return null; // TODO
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                // TODO
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                DiscoveryNode masterNode = localMasterHistory.getMostRecentMaster();
-                builder.object(DETAILS_CURRENT_MASTER, xContentBuilder -> {
-                    if (masterNode != null) {
-                        builder.field("node_id", masterNode.getId());
-                        builder.field("name", masterNode.getName());
-                    } else {
-                        builder.nullField("node_id");
-                        builder.nullField("name");
-                    }
-                });
-                List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
-                builder.array(DETAILS_RECENT_MASTERS, arrayXContentBuilder -> {
-                    for (DiscoveryNode recentMaster : recentMasters) {
-                        if (recentMaster != null) {
-                            builder.startObject();
-                            builder.field("node_id", recentMaster.getId());
-                            builder.field("name", recentMaster.getName());
-                            builder.endObject();
-                        }
-                    }
-                });
-                return builder.endObject();
-            }
-        } : HealthIndicatorDetails.EMPTY;
+        if (explain == false) {
+            return HealthIndicatorDetails.EMPTY;
+        }
+        DiscoveryNode masterNode = localMasterHistory.getMostRecentMaster();
+        List<DiscoveryNode> recentNonNullMasters = localMasterHistory.getNodes().stream().filter(Objects::nonNull).toList();
+        return new StableMasterDetails(masterNode, recentNonNullMasters, null);
     }
 
     /**
@@ -392,42 +360,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         MasterHistory localMasterHistory,
         @Nullable Exception remoteHistoryException
     ) {
-        return explain ? new HealthIndicatorDetails() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                // TODO
-            }
-
-            @Override
-            public HealthIndicatorDetails read(StreamInput in) throws IOException {
-                return null; // TODO
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                DiscoveryNode masterNode = localMasterHistory.getMostRecentMaster();
-                builder.object(DETAILS_CURRENT_MASTER, xContentBuilder -> {
-                    if (masterNode != null) {
-                        builder.field("node_id", masterNode.getId());
-                        builder.field("name", masterNode.getName());
-                    } else {
-                        builder.nullField("node_id");
-                        builder.nullField("name");
-                    }
-                });
-                if (remoteHistoryException != null) {
-                    builder.object(DETAILS_EXCEPTION_FETCHING_HISTORY, xContentBuilder -> {
-                        builder.field("message", remoteHistoryException.getMessage());
-                        StringWriter stringWriter = new StringWriter();
-                        remoteHistoryException.printStackTrace(new PrintWriter(stringWriter));
-                        String remoteHistoryExceptionStackTrace = stringWriter.toString();
-                        builder.field("stack_trace", remoteHistoryExceptionStackTrace);
-                    });
-                }
-                return builder.endObject();
-            }
-        } : HealthIndicatorDetails.EMPTY;
+        return explain
+            ? new PossibleExceptionDetails(localMasterHistory.getMostRecentMaster(), remoteHistoryException)
+            : HealthIndicatorDetails.EMPTY;
     }
 
     /**
@@ -454,19 +389,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
         HealthStatus stableMasterStatus;
         String summary;
-        Map<String, Object> details = new HashMap<>();
+        HealthIndicatorDetails details = HealthIndicatorDetails.EMPTY;
         Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
         List<UserAction> userActions = getContactSupportUserActions(explain);
         if (masterEligibleNodes.isEmpty()) {
             stableMasterStatus = HealthStatus.RED;
             summary = "No master eligible nodes found in the cluster";
             if (explain) {
-                // TODO
-                // details.put(
-                // "recent_masters",
-                // localMasterHistory.getNodes().stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
-                // );
-                details.put("cluster_coordination", coordinator.getClusterFormationState().getDescription());
+                details = new StableMasterDetails(
+                    null,
+                    localMasterHistory.getNodes(),
+                    coordinator.getClusterFormationState().getDescription()
+                );
             }
         } else {
             PeerFinder peerFinder = coordinator.getPeerFinder();
@@ -481,14 +415,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 );
                 if (explain) {
                     List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
-                    // TODO
-                    // details.put("current_master", new DiscoveryNodeXContentObject(currentMaster.get()));
-                    // // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
-                    // details.put(
-                    // "recent_masters",
-                    // recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
-                    // );
-                    details.put("cluster_coordination", coordinator.getClusterFormationState().getDescription());
+                    details = new StableMasterDetails(
+                        currentMaster.get(),
+                        recentMasters,
+                        coordinator.getClusterFormationState().getDescription()
+                    );
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
                 // Use StableMasterHealthIndicatorServiceAction
@@ -500,7 +431,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         return createIndicator(
                             HealthStatus.RED,
                             String.format(Locale.ROOT, "Exception reaching out to %s: %s", entry.getKey(), entry.getValue().exception()),
-                            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                            details,
                             impacts,
                             userActions
                         );
@@ -520,8 +451,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 if (nodesNotDiscoveredMap.isEmpty() == false) {
                     return createIndicator(
                         HealthStatus.RED,
-                        String.format(Locale.ROOT, "Some master eligible nodes have not discovered other master eligible nodes"),
-                        explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                        "Some master eligible nodes have not discovered other master eligible nodes",
+                        details,
                         impacts,
                         userActions
                     );
@@ -534,13 +465,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     }
                 }
                 if (quorumProblems.isEmpty() == false) {
-                    return createIndicator(
-                        HealthStatus.RED,
-                        String.format(Locale.ROOT, "Master eligible nodes cannot form a quorum"),
-                        explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-                        impacts,
-                        userActions
-                    );
+                    return createIndicator(HealthStatus.RED, "Master eligible nodes cannot form a quorum", details, impacts, userActions);
                 }
                 stableMasterStatus = HealthStatus.RED;
                 summary = "Something is very wrong";
@@ -550,13 +475,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             // Else if none is elected master and we are master eligible
         }
 
-        return createIndicator(
-            stableMasterStatus,
-            summary,
-            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-            impacts,
-            userActions
-        );
+        return createIndicator(stableMasterStatus, summary, details, impacts, userActions);
     }
 
     /**
@@ -635,9 +554,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Transport.Connection connection) {
-                        Version minSupportedVersion = Version.V_8_3_0;
-                        if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
-                            logger.trace("Opened connection to {}, making master history request", node);
+                        Version minSupportedVersion = Version.V_8_4_0;
+                        if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+                            logger.trace("Opened connection to {}, making cluster coordination info request", node);
                             // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                             final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
                             transportService.sendRequest(
@@ -663,15 +582,21 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        logger.warn("Exception in master history request to master node", e);
+                                        logger.warn("Exception in cluster coordination info request to master node", e);
                                         nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                                     }
-                                }, connection::close), ClusterFormationInfoAction.Response::new)
+                                }, () -> {
+                                    if (transportService.getLocalNode().equals(node) == false) {
+                                        connection.close();
+                                    }
+                                }), ClusterFormationInfoAction.Response::new)
                             );
                         } else {
-                            connection.close();
+                            if (transportService.getLocalNode().equals(node) == false) {
+                                connection.close();
+                            }
                             logger.trace(
-                                "Cannot get master history for {} because it is at version {} and {} is required",
+                                "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
                                 node,
                                 connection.getVersion(),
                                 minSupportedVersion
@@ -707,6 +632,162 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
         ClusterFormationStateOrException(Exception exception) {
             this(null, exception);
+        }
+    }
+
+    private static final class StableMasterDetails implements HealthIndicatorDetails {
+        @Nullable
+        private final DiscoveryNode masterNode;
+        private final List<DiscoveryNode> recentMasterNodes;
+        @Nullable
+        private final String clusterCoordinationMessage;
+
+        public StableMasterDetails(
+            @Nullable DiscoveryNode masterNode,
+            List<DiscoveryNode> recentMasterNodes,
+            @Nullable String clusterCoordinationMessage
+        ) {
+            this.masterNode = masterNode;
+            this.recentMasterNodes = recentMasterNodes;
+            this.clusterCoordinationMessage = clusterCoordinationMessage;
+        }
+
+        @Override
+        public HealthIndicatorDetails read(StreamInput in) throws IOException {
+            boolean masterNotNull = in.readBoolean();
+            final DiscoveryNode master;
+            if (masterNotNull) {
+                master = new DiscoveryNode(in);
+            } else {
+                master = null;
+            }
+            List<DiscoveryNode> recentMasters = in.readList(DiscoveryNode::new);
+            String clusterCoordinationMessage = in.readOptionalString();
+            return new StableMasterDetails(master, recentMasters, clusterCoordinationMessage);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (masterNode != null) {
+                out.writeBoolean(true);
+                masterNode.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeList(recentMasterNodes);
+            out.writeOptionalString(clusterCoordinationMessage);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.object(DETAILS_CURRENT_MASTER, xContentBuilder -> {
+                if (masterNode != null) {
+                    builder.field("node_id", masterNode.getId());
+                    builder.field("name", masterNode.getName());
+                } else {
+                    builder.nullField("node_id");
+                    builder.nullField("name");
+                }
+            });
+            builder.array(DETAILS_RECENT_MASTERS, arrayXContentBuilder -> {
+                for (DiscoveryNode recentMaster : recentMasterNodes) {
+                    builder.startObject();
+                    builder.field("node_id", recentMaster.getId());
+                    builder.field("name", recentMaster.getName());
+                    builder.endObject();
+                }
+            });
+            if (clusterCoordinationMessage != null) {
+                builder.field("cluster_coordination", clusterCoordinationMessage);
+            }
+            return builder.endObject();
+        }
+    }
+
+    private static final class PossibleExceptionDetails implements HealthIndicatorDetails {
+        @Nullable
+        private final DiscoveryNode masterNode;
+        @Nullable
+        private final String remoteHistoryExceptionMessage;
+        @Nullable
+        private final String remoteHistoryExceptionStackTrace;
+
+        public PossibleExceptionDetails(@Nullable DiscoveryNode masterNode, @Nullable Exception remoteHistoryException) {
+            this(masterNode, getExceptionMessage(remoteHistoryException), getStackTraceString(remoteHistoryException));
+        }
+
+        public PossibleExceptionDetails(
+            @Nullable DiscoveryNode masterNode,
+            String remoteHistoryExceptionMessage,
+            String remoteHistoryExceptionStackTrace
+        ) {
+            this.masterNode = masterNode;
+            this.remoteHistoryExceptionMessage = remoteHistoryExceptionMessage;
+            this.remoteHistoryExceptionStackTrace = remoteHistoryExceptionStackTrace;
+        }
+
+        private static String getExceptionMessage(Exception exception) {
+            if (exception == null) {
+                return null;
+            }
+            return exception.getMessage();
+        }
+
+        private static String getStackTraceString(Exception exception) {
+            if (exception == null) {
+                return null;
+            }
+            StringWriter stringWriter = new StringWriter();
+            exception.printStackTrace(new PrintWriter(stringWriter));
+            return stringWriter.toString();
+        }
+
+        @Override
+        public HealthIndicatorDetails read(StreamInput in) throws IOException {
+            boolean masterNotNull = in.readBoolean();
+            final DiscoveryNode master;
+            if (masterNotNull) {
+                master = new DiscoveryNode(in);
+            } else {
+                master = null;
+            }
+            final String exceptionMessage = in.readOptionalString();
+            final String exceptionStackTrace = in.readOptionalString();
+            return new PossibleExceptionDetails(master, exceptionMessage, exceptionStackTrace);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (masterNode != null) {
+                out.writeBoolean(true);
+                masterNode.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeOptionalString(remoteHistoryExceptionMessage);
+            out.writeOptionalString(remoteHistoryExceptionStackTrace);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.object(DETAILS_CURRENT_MASTER, xContentBuilder -> {
+                if (masterNode != null) {
+                    builder.field("node_id", masterNode.getId());
+                    builder.field("name", masterNode.getName());
+                } else {
+                    builder.nullField("node_id");
+                    builder.nullField("name");
+                }
+            });
+            if (remoteHistoryExceptionMessage != null) {
+                builder.object(DETAILS_EXCEPTION_FETCHING_HISTORY, xContentBuilder -> {
+                    builder.field("message", remoteHistoryExceptionMessage);
+                    builder.field("stack_trace", remoteHistoryExceptionStackTrace);
+                });
+            }
+            return builder.endObject();
         }
     }
 }

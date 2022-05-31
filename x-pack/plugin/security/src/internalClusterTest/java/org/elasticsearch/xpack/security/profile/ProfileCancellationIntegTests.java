@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -26,13 +28,22 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,7 +72,17 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(SearchBlockPlugin.class);
+        {
+            // replace the security plugin with the security plugin with the dummy authorization engine extension
+            plugins.remove(LocalStateSecurity.class);
+            plugins.add(LocalStateWithDummyAuthorizationEngineExtension.class);
+        }
         return List.copyOf(plugins);
+    }
+
+    @Override
+    protected Class<?> xpackPluginClass() {
+        return LocalStateWithDummyAuthorizationEngineExtension.class;
     }
 
     public void testSuggestProfilesCancellation() throws Exception {
@@ -171,6 +192,20 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         }
     }
 
+    private void enableCheckPrivilegesBlock() {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            pluginsService.filterPlugins(LocalStateWithDummyAuthorizationEngineExtension.class)
+                .forEach(LocalStateWithDummyAuthorizationEngineExtension::enableCheckPrivilegesBlock);
+        }
+    }
+
+    private void disableCheckPrivilegesBlock() {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            pluginsService.filterPlugins(LocalStateWithDummyAuthorizationEngineExtension.class)
+                .forEach(LocalStateWithDummyAuthorizationEngineExtension::disableCheckPrivilegesBlock);
+        }
+    }
+
     private boolean isShardSearchBlocked() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
             if (pluginsService.filterPlugins(SearchBlockPlugin.class).stream().anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
@@ -178,6 +213,129 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
             }
         }
         return false;
+    }
+
+    public static class LocalStateWithDummyAuthorizationEngineExtension extends LocalStateSecurity {
+
+        protected static final Logger logger = LogManager.getLogger(LocalStateWithDummyAuthorizationEngineExtension.class);
+        private final AtomicBoolean shouldBlockOnCheckPrivileges = new AtomicBoolean(false);
+
+        public LocalStateWithDummyAuthorizationEngineExtension(Settings settings, Path configPath) throws Exception {
+            super(settings, configPath);
+        }
+
+        @Override
+        protected List<SecurityExtension> securityExtensions() {
+            return List.of(new DummyAuthorizationEngineExtension(shouldBlockOnCheckPrivileges, logger));
+        }
+
+        void enableCheckPrivilegesBlock() {
+            shouldBlockOnCheckPrivileges.set(true);
+        }
+
+        void disableCheckPrivilegesBlock() {
+            shouldBlockOnCheckPrivileges.set(false);
+        }
+    }
+
+    /**
+     * This Plugin authorizes everything
+     */
+    public static class DummyAuthorizationEngineExtension implements SecurityExtension {
+
+        private final AtomicBoolean shouldBlockOnCheckPrivileges;
+        private final Logger logger;
+
+        DummyAuthorizationEngineExtension(AtomicBoolean shouldBlockOnCheckPrivileges, Logger logger) {
+            this.shouldBlockOnCheckPrivileges = shouldBlockOnCheckPrivileges;
+            this.logger = logger;
+        }
+
+        @Override
+        public AuthorizationEngine getAuthorizationEngine(Settings settings) {
+            return new AuthorizationEngine() {
+                @Override
+                public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
+                    listener.onResponse(EmptyAuthorizationInfo.INSTANCE);
+                }
+
+                @Override
+                public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+                    listener.onResponse(EmptyAuthorizationInfo.INSTANCE);
+                }
+
+                @Override
+                public void authorizeRunAs(
+                    RequestInfo requestInfo,
+                    AuthorizationInfo authorizationInfo,
+                    ActionListener<AuthorizationResult> listener
+                ) {
+                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                }
+
+                @Override
+                public void authorizeClusterAction(
+                    RequestInfo requestInfo,
+                    AuthorizationInfo authorizationInfo,
+                    ActionListener<AuthorizationResult> listener
+                ) {
+                    listener.onResponse(AuthorizationResult.granted());
+                }
+
+                @Override
+                public void authorizeIndexAction(
+                    RequestInfo requestInfo,
+                    AuthorizationInfo authorizationInfo,
+                    AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+                    Map<String, IndexAbstraction> aliasOrIndexLookup,
+                    ActionListener<IndexAuthorizationResult> listener
+                ) {
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                }
+
+                @Override
+                public void loadAuthorizedIndices(
+                    RequestInfo requestInfo,
+                    AuthorizationInfo authorizationInfo,
+                    Map<String, IndexAbstraction> indicesLookup,
+                    ActionListener<Set<String>> listener
+                ) {
+                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                }
+
+                @Override
+                public void validateIndexPermissionsAreSubset(
+                    RequestInfo requestInfo,
+                    AuthorizationInfo authorizationInfo,
+                    Map<String, List<String>> indexNameToNewNames,
+                    ActionListener<AuthorizationResult> listener
+                ) {
+                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                }
+
+                @Override
+                public void checkPrivileges(
+                    AuthorizationInfo authorizationInfo,
+                    PrivilegesToCheck privilegesToCheck,
+                    Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                    ActionListener<PrivilegesCheckResult> listener
+                ) {
+                    try {
+                        logger.info("blocking check privileges");
+                        assertBusy(() -> assertFalse(shouldBlockOnCheckPrivileges.get()), 30, TimeUnit.SECONDS);
+                        logger.info("unblocking check privileges");
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
+                }
+
+                @Override
+                public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                }
+            };
+        }
     }
 
     public static class SearchBlockPlugin extends Plugin implements ActionPlugin {

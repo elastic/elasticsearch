@@ -1159,7 +1159,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
             // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
             // every failure.
-            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
+            logger.trace(() -> format("failed to open transport channel: %s", channel), e);
         }
     }
 

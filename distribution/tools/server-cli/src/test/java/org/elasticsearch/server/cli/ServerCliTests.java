@@ -109,7 +109,17 @@ public class ServerCliTests extends CommandTestCase {
         Path pidParentFile = createTempFile();
         assertUsage(containsString("exists but is not a directory"), "-p", pidParentFile.resolve("pid").toString());
         assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
+    }
 
+    public void testPidDirectories() throws Exception {
+        Path tmpDir = createTempDir();
+
+        Path pidFileArg = tmpDir.resolve("pid");
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
+        assertOk("-p", pidFileArg.toString());
+
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(esHomeDir.resolve("pid").toAbsolutePath().toString()));
+        assertOk("-p", "pid");
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
@@ -378,5 +388,4 @@ public class ServerCliTests extends CommandTestCase {
             }
         };
     }
-
 }

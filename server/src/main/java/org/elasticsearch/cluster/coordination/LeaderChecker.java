@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
@@ -286,8 +287,8 @@ public class LeaderChecker {
                         long failureCount = rejectedCountSinceLastSuccess + timeoutCountSinceLastSuccess;
                         if (failureCount >= leaderCheckRetryCount) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "leader [{}] failed {} consecutive checks (rejected [{}], timed out [{}], limit [{}] is {})",
+                                () -> format(
+                                    "leader [%s] failed %s consecutive checks (rejected [%s], timed out [%s], limit [%s] is %s)",
                                     leader,
                                     failureCount,
                                     rejectedCountSinceLastSuccess,
@@ -314,8 +315,8 @@ public class LeaderChecker {
                         }
 
                         logger.debug(
-                            new ParameterizedMessage(
-                                "{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                            () -> format(
+                                "%s consecutive failures (limit [%s] is %s) with leader [%s]",
                                 failureCount,
                                 LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
                                 leaderCheckRetryCount,

@@ -33,10 +33,61 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * A system index descriptor describes one or more system indices. It can match a number of indices using
- * a pattern. For system indices that are managed externally to Elasticsearch, this is enough. For system
- * indices that are managed internally to Elasticsearch, a descriptor can also include information for
- * creating the system index, upgrading its mappings, and creating an alias.
+ * Uses a pattern string to define a protected space for indices belonging to a system feature, and, if needed, provides metadata for
+ * managing indices that match the pattern.
+ *
+ * <p>Any index name that matches a descriptor’s index pattern belongs to the descriptor. For example, if a descriptor had a pattern of
+ * {@code ".example-index-*"}, then indices named {@code ".example-index-1"}, {@code ".example-index-reindex"}, and {@code
+ * ".example-index-old"} would all belong to the descriptor. If a node gains a new system index descriptor after an upgrade, then matching
+ * indices will automatically be marked as system indices (see
+ * {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}).
+ *
+ * <p>SystemIndexDescriptor index patterns must begin with a "{@code .}" character. Index patterns also have a "gotcha": the pattern
+ * definitions may look like the standard Elasticsearch multi-target syntax but the underlying implementation is different. Index
+ * patterns are actually defined in a mangled regex syntax where "{@code .}" is always interpreted as a literal character and "{@code *}"
+ * is expanded to "{@code .*}". We don’t support date math or the "-" operator from the
+ * {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} class. We intend for developers to use only the "{@code *}",
+ * "{@code +}", "{@code ~}" (complement), "{@code (}", "{@code )}", and character class operators, but because of the implementation,
+ * other regex operators probably work.
+ *
+ * <p>Sample index patterns that we want to handle:
+ * <ol>
+ *     <li>{@code .system-*} - covers all index names beginning with ".system-".
+ *     <li>{@code .system-[0-9]+} - covers all index names beginning with ".system-" and containing only one or more numerals after that
+ *     <li>{@code .system-~(other-*)} - covers all system indices beginning with ".system-", except for those beginning with
+ *     ".system-other-"
+ * </ol>
+ *
+ * <p>The descriptor defines which, if any, Elasticsearch products are expected to read or modify it with calls to the REST API.
+ * Requests that do not include the correct product header should, in most cases, generate deprecation warnings. The exception is for
+ * "net new" system index descriptors, described below.
+ *
+ * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
+ * indices.
+ *
+ * <p>A SystemIndexDescriptor may be one of several types (see {@link SystemIndexDescriptor.Type}). The four types come from two different
+ * distinctions. The first is between "internal" and "external" system indices. The second is between "managed and unmanaged" system
+ * indices. The "internal/external" distinction is simple. Access to internal system indices via standard index APIs is deprecated,
+ * and system features that use internal system indices should provide any necessary APIs for operating on their state. An "external"
+ * system index, on the other hand, does not deprecate the use of standard index APIs.
+ *
+ * <p>The distinction between managed and unmanaged is simple in theory but not observed very well in our code. A "managed" system index
+ * is one whose settings, mappings, and aliases are defined by the SystemIndexDescriptor and managed by Elasticsearch. Many of the
+ * fields in this class, when added, were meant to be used only by managed system indices, and use of them should always be
+ * conditional on whether the system index is managed or not. However, we have not consistently enforced this, so our code may have
+ * inconsistent expectations about what fields will be defined for an unmanaged index. (In the future, we should refactor so that it
+ * is clear which fields are ignored by unmanaged system indices.)
+ *
+ * <p>A managed system index defines a "primary index" which is intended to be the main write index for the descriptor. The current
+ * behavior when creating a non-primary index is a little strange. A request to create a non-primary index with the Create Index
+ * API will fail. (See <a href="https://github.com/elastic/elasticsearch/pull/86707">PR #86707</a>) However, auto-creating the index by
+ * writing a document to it will succeed. (See <a href="https://github.com/elastic/elasticsearch/pull/77045">PR #77045</a>)
+ *
+ * <p>We hope to remove the currently deprecated forms of access to system indices in a future release. A newly added system index with
+ * no backwards-compatibility requirements may opt into our desired behavior by setting isNetNew to true. A "net new system index"
+ * strictly enforces its allowed product origins, and cannot be accessed by any REST API request that lacks a correct product header.
+ * A system index that is fully internal to Elasticsearch will not allow any product origins; such an index is fully "locked down,"
+ * and in general can only be changed by restoring feature states from snapshots.
  */
 public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
 
@@ -104,6 +155,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
 
+    /**
+     * A system index that is <em>not</em> net-new allows deprecated access from API requests, but issues warnings. A net-new system
+     * index has the desired future behavior of only being accessible by requests with the correct product origin header.
+     */
     private final boolean isNetNew;
 
     /**
@@ -185,7 +240,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
     *                       Elasticsearch version when the index was created.
-     * @param origin the client origin to use when creating this index.
+     * @param origin the client origin to use when creating this index. Internal system indices must not provide an origin, while external
+     *               system indices must do so.
      * @param minimumNodeVersion the minimum cluster node version required for this descriptor
      * @param type The {@link Type} of system index
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
@@ -260,6 +316,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             }
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
         } else {
+            assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
+            assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
+            assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
+            assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
             this.mappingVersion = null;
         }
 
@@ -378,6 +438,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * for indices managed externally to Elasticsearch.
      */
     public String getPrimaryIndex() {
+        assert isAutomaticallyManaged() : "Unmanaged indices should not have a primary index";
         return primaryIndex;
     }
 
@@ -417,10 +478,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getMappings() {
+        assert isAutomaticallyManaged() : "Do not request mappings for unmanaged system indices";
         return mappings;
     }
 
     public Settings getSettings() {
+        assert isAutomaticallyManaged() : "Do not request settings for unmanaged system indices";
         return settings;
     }
 
@@ -429,14 +492,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public int getIndexFormat() {
+        assert isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         return this.indexFormat;
     }
 
     public String getVersionMetaKey() {
+        assert isAutomaticallyManaged() : "Do not request version meta keys for unmanaged system indices";
         return this.versionMetaKey;
     }
 
     public Version getMinimumNodeVersion() {
+        assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
         return minimumNodeVersion;
     }
 
@@ -444,11 +510,19 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return type.isManaged();
     }
 
+    /**
+     * Get an origin string suitable for use in an {@link org.elasticsearch.client.internal.OriginSettingClient}. See
+     * {@link Builder#setOrigin(String)} for more information.
+     *
+     * @return an origin string to use for sub-requests
+     */
     public String getOrigin() {
+        // TODO[wrb]: most unmanaged system indices do not set origins; could we assert on that here?
         return this.origin;
     }
 
     public boolean hasDynamicMappings() {
+        assert isAutomaticallyManaged() : "Do not check mapping properties for unmanaged system indices";
         return this.hasDynamicMappings;
     }
 
@@ -460,6 +534,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return type.isInternal();
     }
 
+    /**
+     * Requests from these products, if made with the proper security credentials, are allowed non-deprecated access to this descriptor's
+     * indices. (Product names may be specified in requests with the
+     * {@link org.elasticsearch.tasks.Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER}).
+     * @return A list of product names.
+     */
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
     }
@@ -469,7 +549,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public Version getMappingVersion() {
-        if (type.isManaged() == false) {
+        if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingVersion;
@@ -641,6 +721,14 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        /**
+         * Sometimes a system operation will need to dispatch sub-actions. A product origin string will tell the system which component
+         * generated the sub-action. Internal system indices must not provide an origin, since they are supposed to reject access from
+         * outside the system. External system indices, on the other hand, must provide an origin. See
+         * {@link org.elasticsearch.client.internal.OriginSettingClient} for more information.
+         * @param origin the client origin to use when creating this index.
+         * @return a {@link Builder} object
+         */
         public Builder setOrigin(String origin) {
             this.origin = origin;
             return this;

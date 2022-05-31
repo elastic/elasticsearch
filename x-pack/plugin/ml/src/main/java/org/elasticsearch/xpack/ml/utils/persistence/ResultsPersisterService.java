@@ -323,8 +323,8 @@ public class ResultsPersisterService {
                         if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
                             Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
                             LOGGER.warn(
-                                new ParameterizedMessage(
-                                    "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                                () -> format(
+                                    "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
                                     jobId,
                                     bulkResponse.buildFailureMessage()
                                 ),

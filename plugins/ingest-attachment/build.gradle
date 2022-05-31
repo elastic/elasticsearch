@@ -84,6 +84,7 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
+  mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
 }
 
 tasks.named("forbiddenPatterns").configure {

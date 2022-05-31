@@ -1,0 +1,6 @@
+pr: 86935
+summary: Minor `RangeAgg` optimization
+area: Aggregations
+type: enhancement
+issues:
+ - 84262

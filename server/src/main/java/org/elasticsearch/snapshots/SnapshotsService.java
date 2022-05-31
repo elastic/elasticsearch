@@ -863,23 +863,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
-        ShardGenerations.Builder builder = ShardGenerations.builder();
-        if (snapshot.isClone()) {
-            snapshot.shardsByRepoShardId().entrySet().forEach(c -> builder.put(c.getKey().index(), c.getKey().shardId(), c.getValue()));
-        } else {
-            snapshot.shardsByRepoShardId().entrySet().forEach(c -> {
-                final Index index = snapshot.indexByName(c.getKey().indexName());
-                if (metadata.index(index) == null) {
-                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
-                    return;
-                }
-                builder.put(c.getKey().index(), c.getKey().shardId(), c.getValue());
-            });
-        }
-        return builder.build();
-    }
-
     private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
         final Metadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
@@ -1482,94 +1465,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
-            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
-            final Set<String> indexNames = new HashSet<>(finalIndices);
-            ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
-            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId().entrySet()) {
-                RepositoryShardId shardId = shardStatus.getKey();
-                if (indexNames.contains(shardId.indexName()) == false) {
-                    assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
-                    continue;
-                }
-                ShardSnapshotStatus status = shardStatus.getValue();
-                final ShardState state = status.state();
-                if (state.failed()) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
-                } else if (state.completed() == false) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
-                } else {
-                    assert state == ShardState.SUCCESS;
-                }
-            }
-            final String repository = snapshot.getRepository();
+            ShardGenerations.Builder builder = ShardGenerations.builder();
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
-                    final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
-                    final Metadata.Builder metaBuilder = Metadata.builder(existing);
-                    final Set<Index> existingIndices = new HashSet<>();
-                    for (IndexId index : entry.indices().values()) {
-                        final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
-                        existingIndices.add(indexMetadata.getIndex());
-                        metaBuilder.put(indexMetadata, false);
-                    }
-                    // remove those data streams from metadata for which we are missing indices
-                    Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
-                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
-                        if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
-                            dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
-                        }
-                    }
-                    Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
-                        dataStreamsToCopy,
-                        existing.dataStreamAliases()
-                    );
-                    metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
-                    return metaBuilder.build();
-                }));
+                entry.shardsByRepoShardId().forEach(builder::put);
+                loadMetadataForClone(repositoryData, entry, metadataListener, repo);
             } else {
+                entry.shardsByRepoShardId().forEach((shardId, shardSnapshotStatus) -> {
+                    final Index index = entry.indexByName(shardId.indexName());
+                    if (metadata.index(index) == null) {
+                        assert entry.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                        return;
+                    }
+                    builder.put(shardId, shardSnapshotStatus);
+                });
                 metadataListener.onResponse(metadata);
             }
+            final ShardGenerations shardGenerations = builder.build();
             metadataListener.whenComplete(meta -> {
                 final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
-
-                final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
-                    finalIndices.size()
-                );
-                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId().entrySet()) {
-                    indexSnapshotDetails.compute(shardEntry.getKey().indexName(), (indexName, current) -> {
-                        if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
-                            // already found an unsuccessful shard in this index, skip this shard
-                            return current;
-                        }
-
-                        final ShardSnapshotStatus shardSnapshotStatus = shardEntry.getValue();
-                        if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
-                            // first unsuccessful shard in this index found, record that this index should be skipped
-                            return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
-                        }
-
-                        final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
-                        if (result == null) {
-                            // detailed result not recorded, skip this index
-                            return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
-                        }
-
-                        if (current == null) {
-                            return new SnapshotInfo.IndexSnapshotDetails(1, result.getSize(), result.getSegmentCount());
-                        } else {
-                            return new SnapshotInfo.IndexSnapshotDetails(
-                                current.getShardCount() + 1,
-                                new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
-                                Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
-                            );
-                        }
-                    });
-                }
-                indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
-
+                final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
@@ -1578,11 +1494,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failure,
                     threadPool.absoluteTimeInMillis(),
                     entry.partial() ? shardGenerations.totalShards() : entry.shardsByRepoShardId().size(),
-                    shardFailures,
+                    shardFailures(entry, new HashSet<>(finalIndices)),
                     entry.includeGlobalState(),
                     entry.userMetadata(),
                     entry.startTime(),
-                    indexSnapshotDetails
+                    indexSnapshotDetails(entry, finalIndices)
                 );
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
@@ -1595,7 +1511,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             final SnapshotInfo writtenSnapshotInfo = result.v2();
                             completeListenersIgnoringException(endAndGetListenersToResolve(writtenSnapshotInfo.snapshot()), result);
                             logger.info("snapshot [{}] completed with state [{}]", snapshot, writtenSnapshotInfo.state());
-                            runNextQueuedOperation(result.v1(), repository, true);
+                            runNextQueuedOperation(result.v1(), snapshot.getRepository(), true);
                         }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
                     )
                 );
@@ -1604,6 +1520,94 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, snapshot, repositoryData);
         }
+    }
+
+    private void loadMetadataForClone(
+        RepositoryData repositoryData,
+        SnapshotsInProgress.Entry entry,
+        ActionListener<Metadata> metadataListener,
+        Repository repo
+    ) {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+            final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
+            final Metadata.Builder metaBuilder = Metadata.builder(existing);
+            final Set<Index> existingIndices = new HashSet<>();
+            for (IndexId index : entry.indices().values()) {
+                final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
+                existingIndices.add(indexMetadata.getIndex());
+                metaBuilder.put(indexMetadata, false);
+            }
+            // remove those data streams from metadata for which we are missing indices
+            Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
+            for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
+                if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
+                    dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
+                }
+            }
+            Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(dataStreamsToCopy, existing.dataStreamAliases());
+            metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
+            return metaBuilder.build();
+        }));
+    }
+
+    private static List<SnapshotShardFailure> shardFailures(SnapshotsInProgress.Entry entry, Set<String> indexNames) {
+        ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId().entrySet()) {
+            RepositoryShardId shardId = shardStatus.getKey();
+            if (indexNames.contains(shardId.indexName()) == false) {
+                assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
+                continue;
+            }
+            ShardSnapshotStatus status = shardStatus.getValue();
+            final ShardState state = status.state();
+            if (state.failed()) {
+                shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
+            } else if (state.completed() == false) {
+                shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
+            } else {
+                assert state == ShardState.SUCCESS;
+            }
+        }
+        return List.copyOf(shardFailures);
+    }
+
+    private static Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails(
+        SnapshotsInProgress.Entry entry,
+        List<String> indexNames
+    ) {
+        final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(indexNames.size());
+        for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId().entrySet()) {
+            indexSnapshotDetails.compute(shardEntry.getKey().indexName(), (indexName, current) -> {
+                if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
+                    // already found an unsuccessful shard in this index, skip this shard
+                    return current;
+                }
+
+                final ShardSnapshotStatus shardSnapshotStatus = shardEntry.getValue();
+                if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
+                    // first unsuccessful shard in this index found, record that this index should be skipped
+                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                }
+
+                final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
+                if (result == null) {
+                    // detailed result not recorded, skip this index
+                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                }
+
+                if (current == null) {
+                    return new SnapshotInfo.IndexSnapshotDetails(1, result.getSize(), result.getSegmentCount());
+                } else {
+                    return new SnapshotInfo.IndexSnapshotDetails(
+                        current.getShardCount() + 1,
+                        new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
+                        Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
+                    );
+                }
+            });
+        }
+        indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
+        return indexSnapshotDetails;
     }
 
     /**

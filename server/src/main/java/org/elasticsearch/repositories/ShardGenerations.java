@@ -213,9 +213,9 @@ public final class ShardGenerations {
             return this;
         }
 
-        public Builder put(IndexId indexId, int shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+        public Builder put(RepositoryShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
             // only track generations for successful shard status values
-            return put(indexId, shardId, status.state().failed() ? null : status.generation());
+            return put(shardId.index(), shardId.shardId(), status.state().failed() ? null : status.generation());
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {

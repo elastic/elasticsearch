@@ -28,7 +28,7 @@ For {es}, adherence to FIPS 140-2 is ensured by
 === Upgrade considerations
 
 [IMPORTANT] 
-====
+==== 
 include::fips-java17.asciidoc[]
 ====
 

@@ -122,68 +122,21 @@ public class ClusterFormationFailureHelper {
         }
     }
 
-    public static final class ClusterFormationState implements Writeable {
-        public List<String> getInitialMasterNodesSetting() {
-            return initialMasterNodesSetting;
-        }
-
-        public DiscoveryNode getLocalNode() {
-            return localNode;
-        }
-
-        public ImmutableOpenMap<String, DiscoveryNode> getMasterEligibleNodes() {
-            return masterEligibleNodes;
-        }
-
-        public long getClusterStateVersion() {
-            return clusterStateVersion;
-        }
-
-        public long getAcceptedTerm() {
-            return acceptedTerm;
-        }
-
-        public VotingConfiguration getLastAcceptedConfiguration() {
-            return lastAcceptedConfiguration;
-        }
-
-        public VotingConfiguration getLastCommittedConfiguration() {
-            return lastCommittedConfiguration;
-        }
-
-        public List<TransportAddress> getResolvedAddresses() {
-            return resolvedAddresses;
-        }
-
-        public List<DiscoveryNode> getFoundPeers() {
-            return foundPeers;
-        }
-
-        public long getCurrentTerm() {
-            return currentTerm;
-        }
-
-        public StatusInfo getStatusInfo() {
-            return statusInfo;
-        }
-
-        public List<JoinStatus> getInFlightJoinStatuses() {
-            return inFlightJoinStatuses;
-        }
-
-        private final List<String> initialMasterNodesSetting;
-        private final DiscoveryNode localNode;
-        private final ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes;
-        private final long clusterStateVersion;
-        private final long acceptedTerm;
-        private final VotingConfiguration lastAcceptedConfiguration;
-        private final VotingConfiguration lastCommittedConfiguration;
-        private final List<TransportAddress> resolvedAddresses;
-        private final List<DiscoveryNode> foundPeers;
-        private final long currentTerm;
-        private final boolean hasDiscoveredQuorum;
-        private final StatusInfo statusInfo;
-        private final List<JoinStatus> inFlightJoinStatuses;
+    record ClusterFormationState(
+        List<String> initialMasterNodesSetting,
+        DiscoveryNode localNode,
+        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes,
+        long clusterStateVersion,
+        long acceptedTerm,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration,
+        List<TransportAddress> resolvedAddresses,
+        List<DiscoveryNode> foundPeers,
+        long currentTerm,
+        boolean hasDiscoveredQuorum,
+        StatusInfo statusInfo,
+        List<JoinStatus> inFlightJoinStatuses
+    ) implements Writeable {
 
         public ClusterFormationState(
             Settings settings,
@@ -195,19 +148,45 @@ public class ClusterFormationFailureHelper {
             StatusInfo statusInfo,
             List<JoinStatus> inFlightJoinStatuses
         ) {
-            this.initialMasterNodesSetting = INITIAL_MASTER_NODES_SETTING.get(settings);
-            this.localNode = clusterState.nodes().getLocalNode();
-            this.masterEligibleNodes = clusterState.nodes().getMasterNodes();
-            this.clusterStateVersion = clusterState.version();
-            this.acceptedTerm = clusterState.term();
-            this.lastAcceptedConfiguration = clusterState.getLastAcceptedConfiguration();
-            this.lastCommittedConfiguration = clusterState.getLastCommittedConfiguration();
-            this.resolvedAddresses = resolvedAddresses;
-            this.foundPeers = foundPeers;
-            this.currentTerm = currentTerm;
+            this(
+                INITIAL_MASTER_NODES_SETTING.get(settings),
+                clusterState.nodes().getLocalNode(),
+                clusterState.nodes().getMasterNodes(),
+                clusterState.version(),
+                clusterState.term(),
+                clusterState.getLastAcceptedConfiguration(),
+                clusterState.getLastCommittedConfiguration(),
+                resolvedAddresses,
+                foundPeers,
+                currentTerm,
+                calculateHasDiscoveredQuorum(
+                    foundPeers,
+                    electionStrategy,
+                    clusterState.nodes().getLocalNode(),
+                    currentTerm,
+                    clusterState.term(),
+                    clusterState.version(),
+                    clusterState.getLastCommittedConfiguration(),
+                    clusterState.getLastAcceptedConfiguration()
+                ),
+                statusInfo,
+                inFlightJoinStatuses
+            );
+        }
+
+        private static boolean calculateHasDiscoveredQuorum(
+            List<DiscoveryNode> foundPeers,
+            ElectionStrategy electionStrategy,
+            DiscoveryNode localNode,
+            long currentTerm,
+            long acceptedTerm,
+            long clusterStateVersion,
+            VotingConfiguration lastCommittedConfiguration,
+            VotingConfiguration lastAcceptedConfiguration
+        ) {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
-            this.hasDiscoveredQuorum = electionStrategy.isElectionQuorum(
+            return electionStrategy.isElectionQuorum(
                 localNode,
                 currentTerm,
                 acceptedTerm,
@@ -216,38 +195,46 @@ public class ClusterFormationFailureHelper {
                 lastAcceptedConfiguration,
                 voteCollection
             );
-            this.statusInfo = statusInfo;
-            this.inFlightJoinStatuses = inFlightJoinStatuses;
         }
 
         public ClusterFormationState(StreamInput in) throws IOException {
-            this.localNode = new DiscoveryNode(in);
+            this(
+                in.readStringList(),
+                new DiscoveryNode(in),
+                getMasterEligibleNodes(in),
+                in.readLong(),
+                in.readLong(),
+                new VotingConfiguration(in),
+                new VotingConfiguration(in),
+                in.readImmutableList(TransportAddress::new),
+                in.readImmutableList(DiscoveryNode::new),
+                in.readLong(),
+                in.readBoolean(),
+                getStatusInfo(in),
+                in.readList(
+                    in1 -> new JoinStatus(
+                        new DiscoveryNode(in1),
+                        in1.readLong(),
+                        in1.readString(),
+                        new TimeValue(in1.readLong(), TimeUnit.valueOf(in1.readString()))
+                    )
+                )
+            );
+        }
+
+        private static ImmutableOpenMap<String, DiscoveryNode> getMasterEligibleNodes(StreamInput in) throws IOException {
             Set<Tuple<String, DiscoveryNode>> masterEligibleNodesSet = in.readSet(
                 streamInput -> new Tuple<>(streamInput.readString(), new DiscoveryNode(streamInput))
             );
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
             masterEligibleNodesSet.forEach(tuple -> masterEligibleNodesBuilder.put(tuple.v1(), tuple.v2()));
-            this.masterEligibleNodes = masterEligibleNodesBuilder.build();
-            this.clusterStateVersion = in.readLong();
-            this.acceptedTerm = in.readLong();
-            this.lastAcceptedConfiguration = new VotingConfiguration(in);
-            this.lastCommittedConfiguration = new VotingConfiguration(in);
-            this.initialMasterNodesSetting = in.readStringList();
-            this.resolvedAddresses = in.readImmutableList(TransportAddress::new);
-            this.foundPeers = in.readImmutableList(DiscoveryNode::new);
-            this.currentTerm = in.readLong();
-            this.hasDiscoveredQuorum = in.readBoolean();
+            return masterEligibleNodesBuilder.build();
+        }
+
+        private static StatusInfo getStatusInfo(StreamInput in) throws IOException {
             String statusName = in.readString();
             String statusInfoString = in.readString();
-            this.statusInfo = new StatusInfo(StatusInfo.Status.valueOf(statusName), statusInfoString);
-            this.inFlightJoinStatuses = in.readList(
-                in1 -> new JoinStatus(
-                    new DiscoveryNode(in1),
-                    in1.readLong(),
-                    in1.readString(),
-                    new TimeValue(in1.readLong(), TimeUnit.valueOf(in1.readString()))
-                )
-            );
+            return new StatusInfo(StatusInfo.Status.valueOf(statusName), statusInfoString);
         }
 
         String getDescription() {
@@ -402,6 +389,7 @@ public class ClusterFormationFailureHelper {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
             out.writeCollection(masterEligibleNodes.entrySet(), (streamOut, entry) -> {
                 streamOut.writeString(entry.getKey());
@@ -411,7 +399,6 @@ public class ClusterFormationFailureHelper {
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
             lastCommittedConfiguration.writeTo(out);
-            out.writeStringCollection(initialMasterNodesSetting);
             out.writeList(resolvedAddresses);
             out.writeList(foundPeers);
             out.writeLong(currentTerm);

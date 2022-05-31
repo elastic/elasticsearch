@@ -137,10 +137,11 @@ When FIPS-140 mode is enabled, the default value for
 `xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
 See <<hashing-settings>>.
 
-For cache hashing, salted `sha256` is recommended instead of PBKDF2. Though compliant with FIPS-140-2,
-PBKDF2 is, by design, slow and thus not suitable as a cache hashing algorithm. Since the cache
-does not store hashed credentials on disk, salted `sha256` provides an adequate security level without
-imposing prohibitive performance overhead.
+For cache hashing, salted `sha256` is recommended instead of `PBKDF2`. Though compliant
+with FIPS-140-2, `PBKDF2` is -- by design -- slow, and thus not suitable as a cache hashing
+algorithm. Cached credentials are never stored on disk, and salted `sha256` provides
+an adequate level of security for in-memory credential hashing, without imposing prohibitive
+performance overhead.
 
 You should set the `cache.hash_algo` realm settings to `ssha256`. `ssha256` is the default value
 for all `cache.hash_algo` realm settings.

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -375,8 +376,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // A short-lived key
         createApiKey("test-exists-2", "1ms", null, Map.of("label", "prod"), authHeader);
         createApiKey("test-exists-3", "1d", null, Map.of("value", 42, "label", "prod"), authHeader);
-        // Ensure the short-lived key is expired
-        Thread.sleep(10);
+
+        final long startTime = Instant.now().toEpochMilli();
 
         assertQuery(
             authHeader,
@@ -414,7 +415,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             }
         );
 
+        // Create an invalidated API key
         createAndInvalidateApiKey("test-exists-4", authHeader);
+
+        // Ensure the short-lived key is expired
+        final long elapsed = Instant.now().toEpochMilli() - startTime;
+        if (elapsed < 10) {
+            Thread.sleep(10 - elapsed);
+        }
+
         // Find valid API keys (not invalidated nor expired)
         assertQuery(
             authHeader,

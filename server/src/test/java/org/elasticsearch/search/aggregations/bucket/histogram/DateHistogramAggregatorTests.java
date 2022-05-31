@@ -54,6 +54,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -997,7 +998,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                 "delegate_debug",
                                 matchesMap().entry("ranges", 2)
                                     .entry("average_docs_per_range", 5005.0)
-                                    .entry("singletons", greaterThan(1))
+                                    .entry("singletons", greaterThanOrEqualTo(1))
                                     .entry("non-singletons", 0)
                             )
                     )

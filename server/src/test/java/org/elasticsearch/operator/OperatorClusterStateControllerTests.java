@@ -41,14 +41,15 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
 
         String testJSON = """
             {
-                "cluster": {
-                    "persistent": {
-                        "indices.recovery.max_bytes_per_sec": "50mb"
-                    },
-                    "transient": {
-                        "cluster.routing.allocation.enable": "none"
-                    }
-                }
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     }
+                 }
             }
             """;
 

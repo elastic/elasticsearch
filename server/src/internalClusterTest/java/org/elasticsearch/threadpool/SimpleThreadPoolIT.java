@@ -82,6 +82,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             if (threadName.contains("[node_s_0]") // TODO: this can't possibly be right! single node and integ test are unrelated!
                 || threadName.contains("Keep-Alive-Timer")
                 || threadName.contains("readiness-service")
+                || threadName.contains("JVMCI-native") // GraalVM Compiler Thread
                 || threadName.contains("file-settings-watcher")
                 || threadName.contains("FileSystemWatchService")) {
                 continue;

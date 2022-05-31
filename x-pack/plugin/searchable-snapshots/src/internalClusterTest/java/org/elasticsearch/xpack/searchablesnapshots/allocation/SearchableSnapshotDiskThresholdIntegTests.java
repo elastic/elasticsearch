@@ -149,8 +149,13 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         assertThat(snapshotInfo.failedShards(), equalTo(0));
     }
 
-    private void mountIndices(Map<String, Long> indicesStoresSizes, String prefix, String repositoryName, String snapshotName)
-        throws InterruptedException {
+    private void mountIndices(
+        Map<String, Long> indicesStoresSizes,
+        String prefix,
+        String repositoryName,
+        String snapshotName,
+        Storage storage
+    ) throws InterruptedException {
         CountDownLatch mountLatch = new CountDownLatch(indicesStoresSizes.size());
         logger.info("--> mounting [{}] indices with [{}] prefix", indicesStoresSizes.size(), prefix);
         for (String index : indicesStoresSizes.keySet()) {
@@ -165,7 +170,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     Settings.EMPTY,
                     Strings.EMPTY_ARRAY,
                     false,
-                    FULL_COPY
+                    storage
                 ),
                 ActionListener.wrap(response -> mountLatch.countDown(), e -> mountLatch.countDown())
             );
@@ -231,7 +236,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
-        mountIndices(indicesStoresSizes, "mounted-", repository, snapshot);
+        mountIndices(indicesStoresSizes, "mounted-", repository, snapshot, storage);
 
         // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
@@ -249,7 +254,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             );
         });
 
-        mountIndices(indicesStoresSizes, "extra-", repository, snapshot);
+        mountIndices(indicesStoresSizes, "extra-", repository, snapshot, storage);
 
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
@@ -328,7 +333,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
-        mountIndices(indicesStoresSizes, "mounted-", "repository", "snapshot");
+        mountIndices(indicesStoresSizes, "mounted-", "repository", "snapshot", FULL_COPY);
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,

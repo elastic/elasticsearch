@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A {@link NamedWriteable} that has a minimum version associated with it.
@@ -49,7 +50,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @param customs map of customs
      * @param <T>     type of customs in map
      */
-    static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, ImmutableOpenMap<String, T> customs)
+    static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, Map<String, T> customs)
         throws IOException {
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;

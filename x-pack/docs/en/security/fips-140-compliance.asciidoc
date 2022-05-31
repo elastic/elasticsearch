@@ -28,7 +28,7 @@ For {es}, adherence to FIPS 140-2 is ensured by
 === Upgrade considerations
 
 [IMPORTANT]
-====
+==== 
 include::fips-java17.asciidoc[]
 ====
 
@@ -149,7 +149,7 @@ See <<hashing-settings>>.
 
 You _may_ set the `cache.hash_algo` realm settings to any of the `pbkdf2` options, however you
 should carefully assess performance impact first. Depending on your deployment, the overhead
-of PBKDF2 could undo all performance gain of using a cache.
+of `PBKDF2` could undo all performance gain of using a cache.
 
 Password hashing configuration changes are not retroactive so the stored hashed
 credentials of existing users of the reserved, native, and file realms are not

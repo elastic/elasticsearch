@@ -1,6 +1,6 @@
 pr: 87269
-summary: "TSDB: Implement Downsampling ILM Action for time-series indices"
-area: "TSDB, ILM+SLM, Rollup"
+summary: "TSDB: Implement downsampling ILM Action for time-series indices"
+area: TSDB
 type: feature
 issues:
  - 68609

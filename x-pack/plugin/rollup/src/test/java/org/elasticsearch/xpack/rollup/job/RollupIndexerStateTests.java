@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -53,22 +55,24 @@ import static org.mockito.Mockito.spy;
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
         EmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition,
             RollupIndexerJobStats stats
         ) {
-            super(threadPool, job, initialState, initialPosition, stats);
+            super(client, threadPool, job, initialState, initialPosition, stats);
         }
 
         EmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition
         ) {
-            super(threadPool, job, initialState, initialPosition);
+            super(client, threadPool, job, initialState, initialPosition);
         }
 
         @Override
@@ -149,22 +153,24 @@ public class RollupIndexerStateTests extends ESTestCase {
         protected CountDownLatch latch;
 
         DelayedEmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition
         ) {
-            super(threadPool, job, initialState, initialPosition);
+            super(client, threadPool, job, initialState, initialPosition);
         }
 
         DelayedEmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition,
             RollupIndexerJobStats stats
         ) {
-            super(threadPool, job, initialState, initialPosition, stats);
+            super(client, threadPool, job, initialState, initialPosition, stats);
         }
 
         private CountDownLatch newLatch() {
@@ -191,6 +197,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         private CountDownLatch latch;
 
         NonEmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
@@ -199,10 +206,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             Function<BulkRequest, BulkResponse> bulkFunction,
             Consumer<Exception> failureConsumer
         ) {
-            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
+            this(client, threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
         }
 
         NonEmptyRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             AtomicReference<IndexerState> initialState,
@@ -212,7 +220,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             Consumer<Exception> failureConsumer,
             BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
         ) {
-            super(threadPool, job, initialState, initialPosition);
+            super(client, threadPool, job, initialState, initialPosition);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -278,8 +286,9 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
-            RollupIndexer indexer = new EmptyRollupIndexer(threadPool, job, state, null);
+            RollupIndexer indexer = new EmptyRollupIndexer(client, threadPool, job, state, null);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -300,9 +309,10 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> { listener.onResponse(r); }, listener::onFailure));
@@ -356,9 +366,10 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(config, Collections.emptyMap());
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null, spyStats) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null, spyStats) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
@@ -388,8 +399,9 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         final CountDownLatch latch = new CountDownLatch(1);
+        final Client client = Mockito.mock(Client.class);
         try {
-            EmptyRollupIndexer indexer = new EmptyRollupIndexer(threadPool, job, state, null) {
+            EmptyRollupIndexer indexer = new EmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     fail("Should not have called onFinish");
@@ -435,9 +447,10 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
+        final Client client = Mockito.mock(Client.class);
 
         try {
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     aborted.set(true);
@@ -523,8 +536,9 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null);
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null);
             final CountDownLatch latch = indexer.newLatch();
             assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
@@ -545,9 +559,10 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -572,9 +587,10 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -598,9 +614,10 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -717,10 +734,12 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
+        final Client client = Mockito.mock(Client.class);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                client,
                 threadPool,
                 job,
                 state,
@@ -839,9 +858,11 @@ public class RollupIndexerStateTests extends ESTestCase {
         BiConsumer<IndexerState, Map<String, Object>> doSaveStateCheck = (indexerState, position) -> { isFinished.set(true); };
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                client,
                 threadPool,
                 job,
                 state,
@@ -895,10 +916,12 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
+        final Client client = Mockito.mock(Client.class);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                client,
                 threadPool,
                 job,
                 state,
@@ -1019,10 +1042,12 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
+        final Client client = Mockito.mock(Client.class);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                client,
                 threadPool,
                 job,
                 state,

@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -705,10 +707,12 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final Client client = Mockito.mock(Client.class);
 
         try {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
+                client,
                 threadPool,
                 job,
                 searcher,
@@ -819,13 +823,14 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         private Exception exc;
 
         SyncRollupIndexer(
+            Client client,
             ThreadPool threadPool,
             RollupJob job,
             IndexSearcher searcher,
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
-            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
+            super(client, threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;

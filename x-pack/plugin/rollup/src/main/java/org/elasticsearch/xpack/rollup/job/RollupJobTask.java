@@ -117,7 +117,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final RollupJob job;
 
         ClientRollupPageManager(RollupJob job, IndexerState initialState, Map<String, Object> initialPosition, Client client) {
-            super(threadPool, job, new AtomicReference<>(initialState), initialPosition);
+            super(client, threadPool, job, new AtomicReference<>(initialState), initialPosition);
             this.client = client;
             this.job = job;
         }

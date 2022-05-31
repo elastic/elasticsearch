@@ -39,13 +39,21 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this(context.sourcePath(fieldName), nullValue);
+        if (context.isSourceEnabled() == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve the requested [fields] since _source is disabled "
+                    + "in the mappings for index ["
+                    + context.index().getName()
+                    + "]"
+            );
+        }
     }
 
     /**
      * @param sourcePaths   The paths to pull source values from
      * @param nullValue     An optional substitute value if the _source value is `null`
      */
-    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    private SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }

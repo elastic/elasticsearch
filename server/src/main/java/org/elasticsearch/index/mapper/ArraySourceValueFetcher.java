@@ -40,6 +40,14 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this.sourcePaths = context.sourcePath(fieldName);
         this.nullValue = nullValue;
+        if (context.isSourceEnabled() == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve the requested [fields] since _source is disabled "
+                    + "in the mappings for index ["
+                    + context.index().getName()
+                    + "]"
+            );
+        }
     }
 
     @Override

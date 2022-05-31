@@ -107,6 +107,8 @@ setup:
             properties:
               keyword:
                 type: keyword
+              location:
+                type: geo_point
 
   - do:
       index:
@@ -114,10 +116,19 @@ setup:
         id:     "1"
         body:
           keyword: [ "a" ]
+          location: [12, 12]
 
   - do:
       indices.refresh:
         index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [_id]
+
+  - match: { hits.hits.0.fields._id.0: "1" }
 
   - do:
       catch: bad_request
@@ -126,8 +137,18 @@ setup:
         body:
           fields: [keyword]
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
-        in the mappings for index [test]" }
+  - match: { error.root_cause.0.reason: "error fetching [keyword]: Unable to retrieve the requested [fields] since
+        _source is disabled in the mappings for index [test]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [location]
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "error fetching [location]: Unable to retrieve the requested [fields] since
+        _source is disabled in the mappings for index [test]" }
 
 ---
 "Test ignore malformed":

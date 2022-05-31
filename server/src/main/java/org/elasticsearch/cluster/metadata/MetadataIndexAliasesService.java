@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -107,7 +108,7 @@ public class MetadataIndexAliasesService {
             }
             // Remove the indexes if there are any to remove
             if (changed) {
-                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
+                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete, DesiredBalanceShardsAllocator.REMOVE_ME);
             }
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions

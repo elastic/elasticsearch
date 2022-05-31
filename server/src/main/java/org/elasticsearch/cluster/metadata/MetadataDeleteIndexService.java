@@ -25,6 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
@@ -62,12 +63,17 @@ public class MetadataDeleteIndexService {
             throw new IllegalArgumentException("Index name is required");
         }
 
+        var future = new ListenableFuture<Void>();
         submitUnbatchedTask(
             "delete-index " + Arrays.toString(request.indices()),
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(
+                Priority.URGENT,
+                request,
+                listener.delegateFailure((delegate, response) -> future.addListener(listener.map(ignored -> response)))
+            ) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    return deleteIndices(currentState, Sets.newHashSet(request.indices()));
+                    return deleteIndices(currentState, Sets.newHashSet(request.indices()), future);
                 }
             }
         );
@@ -81,7 +87,7 @@ public class MetadataDeleteIndexService {
     /**
      * Delete some indices from the cluster state.
      */
-    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
+    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, ActionListener<Void> listener) {
         final Metadata meta = currentState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
         final Map<Index, DataStream> backingIndices = new HashMap<>();
@@ -161,7 +167,8 @@ public class MetadataDeleteIndexService {
                 .blocks(blocks)
                 .customs(customs)
                 .build(),
-            "deleted indices [" + indices + "]"
+            "deleted indices [" + indices + "]",
+            listener
         );
     }
 }

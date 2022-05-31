@@ -583,7 +583,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     currentState = ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
 
                     // 8. Delete the source index
-                    return metadataDeleteIndexService.deleteIndices(currentState, Collections.singleton(sourceIndex));
+                    return metadataDeleteIndexService.deleteIndices(
+                        currentState,
+                        Collections.singleton(sourceIndex),
+                        DesiredBalanceShardsAllocator.REMOVE_ME
+                    );
                 }
             },
             ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),

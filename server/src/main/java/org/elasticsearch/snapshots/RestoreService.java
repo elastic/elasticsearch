@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -1256,7 +1257,8 @@ public class RestoreService implements ClusterStateApplier {
             // Clear out all existing indices which fall within a system index pattern being restored
             currentState = metadataDeleteIndexService.deleteIndices(
                 currentState,
-                resolveSystemIndicesToDelete(currentState, featureStatesToRestore)
+                resolveSystemIndicesToDelete(currentState, featureStatesToRestore),
+                DesiredBalanceShardsAllocator.REMOVE_ME
             );
 
             // List of searchable snapshots indices to restore

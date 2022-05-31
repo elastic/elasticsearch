@@ -8,6 +8,7 @@
 package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -167,7 +168,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static MetadataDeleteIndexService getMetadataDeleteIndexService() {
         MetadataDeleteIndexService s = mock(MetadataDeleteIndexService.class);
-        when(s.deleteIndices(any(ClusterState.class), any(Set.class))).thenAnswer(mockInvocation -> {
+        when(s.deleteIndices(any(ClusterState.class), any(Set.class), any(ActionListener.class))).thenAnswer(mockInvocation -> {
             ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
             Set<Index> indices = (Set<Index>) mockInvocation.getArguments()[1];
 

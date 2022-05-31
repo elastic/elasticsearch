@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +50,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
-        when(deleteIndexService.deleteIndices(any(ClusterState.class), anySet())).then(i -> {
+        when(deleteIndexService.deleteIndices(any(ClusterState.class), anySet(), any(ActionListener.class))).then(i -> {
             ClusterState state = (ClusterState) i.getArguments()[0];
             @SuppressWarnings("unchecked")
             Collection<Index> indices = (Collection<Index>) i.getArguments()[1];

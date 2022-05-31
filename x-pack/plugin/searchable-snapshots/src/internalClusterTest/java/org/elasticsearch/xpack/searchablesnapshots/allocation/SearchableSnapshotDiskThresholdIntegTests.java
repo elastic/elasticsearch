@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheServi
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
@@ -283,7 +282,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         });
     }
 
-    public void testOvercommitSearchableSnapshots() throws Exception {
+    public void testOvercommitInitializingSearchableSnapshotShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(
             Settings.builder()
@@ -307,6 +306,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         var mockRepository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository("repository");
+        // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
         mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
 
         var snapshotInfo = client().admin()
@@ -335,7 +335,12 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             otherDataNode,
             otherDataNodeId
         );
-        long totalSpace = indicesStoresSizes.values().stream().mapToLong(size -> size).sum() + WATERMARK_BYTES + 1024L - 1L;
+        String indexToSkip = randomFrom(indicesStoresSizes.keySet());
+        long totalSpace = indicesStoresSizes.entrySet()
+            .stream()
+            .filter(e -> e.getKey().equals(indexToSkip) == false)
+            .mapToLong(e -> e.getValue())
+            .sum() + WATERMARK_BYTES + 1024L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
@@ -366,21 +371,12 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         }
         mountLatch.await();
 
-        assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
-            List<ShardRouting> searchableSnapshotShards = state.routingTable()
-                .allShards()
-                .stream()
-                .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
-                .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
-                .toList();
-
-            assertThat(
-                (int) searchableSnapshotShards.stream().filter(s -> s.state() == ShardRoutingState.STARTED).count(),
-                equalTo(searchableSnapshotShards.size() - 1)
-            );
-            assertThat((int) searchableSnapshotShards.stream().filter(s -> s.state() != ShardRoutingState.STARTED).count(), equalTo(1));
-        });
+        assertBusy(
+            () -> assertEquals(
+                ClusterHealthStatus.RED,
+                client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus()
+            )
+        );
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {

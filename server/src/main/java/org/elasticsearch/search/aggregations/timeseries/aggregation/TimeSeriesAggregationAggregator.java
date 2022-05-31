@@ -217,6 +217,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                     }
                 } else {
                     values = groupBucketValues.get(ord);
+                    if (values == null) {
+                        values = new LinkedHashMap<>();
+                    }
                 }
                 bucket.metricAggregation = new TimeSeriesLineAggreagation(TimeSeriesLineAggreagation.NAME, values, format, metadata());
                 allBucketsPerOrd[ordIdx][b] = bucket;

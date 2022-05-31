@@ -411,6 +411,7 @@ public class SystemIndices {
         Optional<Automaton> automaton = featureDescriptors.values()
             .stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);

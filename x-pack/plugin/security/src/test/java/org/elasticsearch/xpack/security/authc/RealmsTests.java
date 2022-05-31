@@ -247,7 +247,7 @@ public class RealmsTests extends ESTestCase {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
-        List<String> domains = randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3));
+        List<String> domains = randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3)).stream().distinct().collect(Collectors.toList());
         domains.add(null); // not all realms ought to have a domain
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         Map<Integer, String> indexToDomain = new HashMap<>();

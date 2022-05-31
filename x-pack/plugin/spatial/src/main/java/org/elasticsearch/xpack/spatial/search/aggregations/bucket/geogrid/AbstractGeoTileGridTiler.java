@@ -57,14 +57,18 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
             return 0;
         }
 
+        if (precision == 0) {
+            return setValuesByBruteForceScan(values, geoValue, 0, 0, 0, 0);
+        }
+
         final int minXTile = GeoTileUtils.getXTile(bounds.minX(), tiles);
         final int minYTile = GeoTileUtils.getYTile(bounds.maxY(), tiles);
         final int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), tiles);
         final int maxYTile = GeoTileUtils.getYTile(bounds.minY(), tiles);
         final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
-        if (precision != 0 && count == 1) {
+        if (count == 1) {
             return setValue(values, minXTile, minYTile);
-        } else if (precision == 0 || count <= precision) {
+        } else if (count <= precision) {
             return setValuesByBruteForceScan(values, geoValue, minXTile, minYTile, maxXTile, maxYTile);
         } else {
             return setValuesByRasterization(0, 0, 0, values, 0, geoValue);

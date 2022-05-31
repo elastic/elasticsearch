@@ -350,6 +350,8 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         } catch (IOException e) {
             assertEquals(stoppedFirstHost ? 2 : 1, failureCount.intValue());
         }
+
+        client.close();
     }
 
     private static class TestResponse {

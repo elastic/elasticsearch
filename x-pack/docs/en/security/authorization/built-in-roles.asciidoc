@@ -14,11 +14,6 @@ roles have a fixed set of privileges and cannot be updated.
 Grants access necessary for the APM system user to send system-level data
 (such as monitoring) to {es}.
 
-[[built-in-roles-apm-user]] `apm_user` ::
-Grants the privileges required for APM users (such as `read` and
-`view_index_metadata` privileges on the `apm-*` and `.ml-anomalies*` indices).
-deprecated:[7.13.0,"See {kibana-ref}/apm-app-users.html[APM app users and privileges\] for alternatives."].
-
 [[built-in-roles-beats-admin]] `beats_admin` ::
 Grants access to the `.management-beats` index, which contains configuration
 information for the Beats.

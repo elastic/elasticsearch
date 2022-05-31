@@ -2080,58 +2080,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(APMSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
     }
 
-    public void testAPMUserRole() {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-
-        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
-
-        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
-        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
-
-        assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, "foo-apm");
-        assertNoAccessAllowed(role, "foo-logs-apm.bar");
-        assertNoAccessAllowed(role, "foo-logs-apm-bar");
-        assertNoAccessAllowed(role, "foo-traces-apm.bar");
-        assertNoAccessAllowed(role, "foo-traces-apm-bar");
-        assertNoAccessAllowed(role, "foo-metrics-apm.bar");
-        assertNoAccessAllowed(role, "foo-metrics-apm-bar");
-
-        assertOnlyReadAllowed(role, "logs-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "logs-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "traces-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "traces-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "metrics-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "metrics-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
-
-        assertOnlyReadAllowed(role, "observability-annotations");
-
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
-        assertThat(
-            role.application()
-                .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", "reserved_ml_apm_user"),
-                    "*"
-                ),
-            is(true)
-        );
-
-        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", "reserved_ml_apm_user"), "*"),
-            is(false)
-        );
-    }
-
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();

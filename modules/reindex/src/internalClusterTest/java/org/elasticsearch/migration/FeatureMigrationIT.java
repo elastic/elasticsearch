@@ -310,4 +310,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
     }
+
+    // TODO[wrb]: Test that migrations quit when a destination index would match a legacy template
+    // TODO[wrb]: Test that migrations quit when a destination index would match a composable template
 }

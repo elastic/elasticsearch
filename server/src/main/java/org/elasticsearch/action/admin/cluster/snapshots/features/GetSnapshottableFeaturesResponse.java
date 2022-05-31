@@ -73,16 +73,25 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
         private final String featureName;
         private final String description;
+//        private final Collection<SystemIndexDescriptor> indexDescriptors;
+        private final Integer descriptorSize;
 
-        public SnapshottableFeature(String featureName, String description) {
+//        public SnapshottableFeature(String featureName, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
+        public SnapshottableFeature(String featureName, String description, Integer size) {
             this.featureName = featureName;
             this.description = description;
+//            this.indexDescriptors = indexDescriptors;
+            this.descriptorSize = size;
+
         }
 
+//        public SnapshottableFeature(StreamInput in, Collection<SystemIndexDescriptor> indexDescriptors) throws IOException {
         public SnapshottableFeature(StreamInput in) throws IOException {
             featureName = in.readString();
             description = in.readString();
+            descriptorSize = in.readInt();
         }
+
 
         public String getFeatureName() {
             return featureName;
@@ -92,10 +101,15 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
             return description;
         }
 
+        public Integer getDescriptorSize() {
+            return descriptorSize;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(featureName);
             out.writeString(description);
+            out.writeInt(descriptorSize);
         }
 
         @Override
@@ -103,6 +117,7 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
             builder.startObject();
             builder.field("name", featureName);
             builder.field("description", description);
+            builder.field("descriptor_size", descriptorSize);
             builder.endObject();
             return builder;
         }

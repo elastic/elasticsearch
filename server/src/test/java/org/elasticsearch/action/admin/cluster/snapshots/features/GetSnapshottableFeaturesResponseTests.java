@@ -26,11 +26,14 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
     protected GetSnapshottableFeaturesResponse createTestInstance() {
         return new GetSnapshottableFeaturesResponse(
             randomList(
-                10,
-                () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                    randomAlphaOfLengthBetween(4, 10),
-                    randomAlphaOfLengthBetween(5, 10)
-                )
+                3,
+                () -> {
+                    return new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                        randomAlphaOfLengthBetween(4, 10),
+                        randomAlphaOfLengthBetween(5, 10),
+                        1
+                    );
+                }
             )
         );
     }
@@ -45,15 +48,30 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
             .stream()
             .map(feature -> feature.getFeatureName())
             .collect(Collectors.toSet());
-        return new GetSnapshottableFeaturesResponse(
+
+        GetSnapshottableFeaturesResponse response = new GetSnapshottableFeaturesResponse(
             randomList(
                 minSize,
-                10,
+                3,
                 () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
                     randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
-                    randomAlphaOfLengthBetween(5, 10)
+                    randomAlphaOfLengthBetween(5, 10),
+                    1
                 )
             )
         );
+        System.out.println(response.getSnapshottableFeatures());
+        return response;
+//        return new GetSnapshottableFeaturesResponse(
+//            randomList(
+//                minSize,
+//                1,
+//                () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+//                    randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
+//                    randomAlphaOfLengthBetween(5, 10),
+//                    1
+//                )
+//            )
+//        );
     }
 }

@@ -66,7 +66,8 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
                     .map(
                         featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
                             featureEntry.getKey(),
-                            featureEntry.getValue().getDescription()
+                            featureEntry.getValue().getDescription(),
+                            featureEntry.getValue().getIndexDescriptors().size()
                         )
                     )
                     .toList()

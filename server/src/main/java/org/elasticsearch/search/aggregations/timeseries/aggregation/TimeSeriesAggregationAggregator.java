@@ -14,11 +14,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -84,11 +82,13 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected Comparator<InternalTimeSeriesAggregation.InternalBucket> partiallyBuiltBucketComparator;
     protected DocValueFormat format;
     private TimestampBounds timestampBounds;
+    private long startTime;
+    private long endTime;
 
     private BytesRef preTsid;
     private long preBucketOrdinal;
     protected long preRounding = -1;
-    private Rounding.Prepared rounding;
+    private RoundingInterval rounding;
     private boolean needAggregator;
     protected Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
     private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
@@ -108,6 +108,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
+        long startTime,
+        long endTime,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         org.elasticsearch.search.aggregations.Aggregator parent,
@@ -122,13 +124,15 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (this.interval <= 0) {
             throw new IllegalArgumentException("time_series_aggregation invalid interval [" + interval + "]");
         }
-        this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.rounding = new RoundingInterval(this.startTime, this.interval);
         this.offset = offset != null ? offset.estimateMillis() : 0;
         this.aggregator = aggregator;
         this.aggregatorParams = aggregatorParams;
         this.needAggregator = this.aggregator != null;
         this.downsampleRange = downsample != null && downsample.getRange() != null ? downsample.getRange().estimateMillis() : -1;
-        this.downsampleFunction = downsample != null
+        this.downsampleFunction = downsample != null && downsample.getFunction() != null
             ? downsample.getFunction()
             : (downsampleRange > 0 ? Function.origin_value : Function.last);
         if (this.downsampleRange <= 0) {

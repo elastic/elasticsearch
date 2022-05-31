@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +50,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
     public static final ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD = new ParseField("shard_min_doc_count");
+    public static final ParseField START_TIME_FIELD = new ParseField("start_time");
+    public static final ParseField END_TIME_FIELD = new ParseField("end_time");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
         1,
@@ -81,6 +82,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private BucketOrder order = BucketOrder.key(true);
+    private long startTime;
+    private long endTime;
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, true, false);
@@ -103,7 +106,11 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::group, GROUP_FIELD);
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::without, WITHOUT_FIELD);
         PARSER.declareString(TimeSeriesAggregationAggregationBuilder::aggregator, AGGREGATOR_FIELD);
-        PARSER.declareObject(TimeSeriesAggregationAggregationBuilder::aggregatorParams, (parser, c) -> parser.map(), AGGREGATOR_PARAMS_FIELD);
+        PARSER.declareObject(
+            TimeSeriesAggregationAggregationBuilder::aggregatorParams,
+            (parser, c) -> parser.map(),
+            AGGREGATOR_PARAMS_FIELD
+        );
         PARSER.declareObject(TimeSeriesAggregationAggregationBuilder::downsample, (p, c) -> Downsample.fromXContent(p), DOWNSAMPLE_FIELD);
         PARSER.declareObjectArray(
             TimeSeriesAggregationAggregationBuilder::order,
@@ -114,6 +121,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         PARSER.declareInt(TimeSeriesAggregationAggregationBuilder::shardSize, SHARD_SIZE_FIELD);
         PARSER.declareInt(TimeSeriesAggregationAggregationBuilder::minDocCount, MIN_DOC_COUNT_FIELD);
         PARSER.declareInt(TimeSeriesAggregationAggregationBuilder::shardMinDocCount, SHARD_MIN_DOC_COUNT_FIELD);
+        PARSER.declareLong(TimeSeriesAggregationAggregationBuilder::startTime, START_TIME_FIELD);
+        PARSER.declareLong(TimeSeriesAggregationAggregationBuilder::endTime, END_TIME_FIELD);
     }
 
     public TimeSeriesAggregationAggregationBuilder(String name) {
@@ -136,6 +145,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         this.downsample = clone.downsample;
         this.order = clone.order;
         this.bucketCountThresholds = clone.bucketCountThresholds;
+        this.startTime = clone.startTime;
+        this.endTime = clone.endTime;
     }
 
     public TimeSeriesAggregationAggregationBuilder(StreamInput in) throws IOException {
@@ -150,6 +161,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         downsample = in.readOptionalWriteable(Downsample::new);
         order = InternalOrder.Streams.readOrder(in);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
+        startTime = in.readOptionalLong();
+        endTime = in.readOptionalLong();
     }
 
     @Override
@@ -164,6 +177,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         out.writeOptionalWriteable(downsample);
         order.writeTo(out);
         bucketCountThresholds.writeTo(out);
+        out.writeOptionalLong(startTime);
+        out.writeOptionalLong(endTime);
     }
 
     @Override
@@ -200,6 +215,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             downsample,
             bucketCountThresholds,
             order,
+            startTime,
+            endTime,
             config,
             context,
             parent,
@@ -498,6 +515,24 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return this;
     }
 
+    public long startTime() {
+        return startTime;
+    }
+
+    public TimeSeriesAggregationAggregationBuilder startTime(long startTime) {
+        this.startTime = startTime;
+        return this;
+    }
+
+    public long endTime() {
+        return endTime;
+    }
+
+    public TimeSeriesAggregationAggregationBuilder endTime(long endTime) {
+        this.endTime = endTime;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -518,7 +553,9 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             && Objects.equals(aggregator, that.aggregator)
             && Objects.equals(downsample, that.downsample)
             && Objects.equals(bucketCountThresholds, that.bucketCountThresholds)
-            && Objects.equals(order, that.order);
+            && Objects.equals(order, that.order)
+            && Objects.equals(startTime, that.startTime)
+            && Objects.equals(endTime, that.endTime);
     }
 
     @Override
@@ -533,7 +570,9 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             aggregator,
             downsample,
             bucketCountThresholds,
-            order
+            order,
+            startTime,
+            endTime
         );
     }
 

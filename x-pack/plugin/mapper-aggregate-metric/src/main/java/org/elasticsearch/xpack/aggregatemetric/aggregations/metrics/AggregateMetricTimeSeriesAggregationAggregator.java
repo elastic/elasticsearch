@@ -51,6 +51,8 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
         ValuesSourceConfig valuesSourceConfig,
+        long startTime,
+        long endTime,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
@@ -69,6 +71,8 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             downsample,
             bucketCountThresholds,
             order,
+            startTime,
+            endTime,
             null,
             context,
             parent,
@@ -114,6 +118,10 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(context, Metric.sum);
             final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(context, Metric.value_count);
             return new Collector(sub, aggregateSums, aggCtx, (doc) -> {
+                if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
+                    return;
+                }
+
                 double sum = 0;
                 long valueCount = 0;
                 if (aggregateSums.advanceExact(doc)) {

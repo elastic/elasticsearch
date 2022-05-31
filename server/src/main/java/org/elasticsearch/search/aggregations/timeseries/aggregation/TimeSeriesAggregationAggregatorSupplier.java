@@ -36,6 +36,8 @@ public interface TimeSeriesAggregationAggregatorSupplier {
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
+        long startTime,
+        long endTime,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         Aggregator parent,

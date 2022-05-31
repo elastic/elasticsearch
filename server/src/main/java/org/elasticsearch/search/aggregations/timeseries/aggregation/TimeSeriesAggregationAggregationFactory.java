@@ -38,6 +38,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
     private final Map<String, Object> aggregatorParams;
     private final Downsample downsample;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private final long startTime;
+    private final long endTime;
     private final BucketOrder order;
     private final ValuesSourceConfig config;
     private final TimeSeriesAggregationAggregatorSupplier aggregatorSupplier;
@@ -54,6 +56,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
+        long startTime,
+        long endTime,
         ValuesSourceConfig config,
         AggregationContext context,
         AggregatorFactory parent,
@@ -71,6 +75,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         this.aggregatorParams = aggregatorParams;
         this.downsample = downsample;
         this.bucketCountThresholds = bucketCountThresholds;
+        this.startTime = startTime;
+        this.endTime = endTime;
         this.order = order;
         this.config = config;
         this.aggregatorSupplier = aggregatorSupplier;
@@ -109,6 +115,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             downsample,
             thresholds,
             order,
+            startTime,
+            endTime,
             config,
             context,
             parent,
@@ -142,6 +150,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             downsample,
             thresholds,
             order,
+            startTime,
+            endTime,
             config,
             context,
             parent,

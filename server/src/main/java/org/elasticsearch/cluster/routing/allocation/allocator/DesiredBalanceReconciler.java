@@ -228,8 +228,9 @@ public class DesiredBalanceReconciler {
                 }
 
                 final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(
-                    isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO
+                    isThrottled || desiredNodeIds.isEmpty() ? Decision.Type.THROTTLE : Decision.Type.NO
                 );
+
                 unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
                 if (shard.primary() == false) {
                     // we could not allocate it and we are a replica - check if we can ignore the other replicas

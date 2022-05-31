@@ -258,18 +258,14 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
     public void testHealthOnIndexCreation() throws Exception {
         final AtomicBoolean finished = new AtomicBoolean(false);
-        Thread clusterHealthThread = new Thread() {
-            @Override
-            public void run() {
-                while (finished.get() == false) {
-                    ClusterHealthResponse health = client().admin().cluster().prepareHealth().get();
-                    assertThat(health.getStatus(), not(equalTo(ClusterHealthStatus.RED)));
-                }
+        Thread clusterHealthThread = new Thread(() -> {
+            while (finished.get() == false) {
+                assertThat(client().admin().cluster().prepareHealth().get().getStatus(), not(equalTo(ClusterHealthStatus.RED)));
             }
-        };
+        });
         clusterHealthThread.start();
         for (int i = 0; i < 10; i++) {
-            createIndex("test" + i);
+            createIndex("test-" + i);
         }
         finished.set(true);
         clusterHealthThread.join();

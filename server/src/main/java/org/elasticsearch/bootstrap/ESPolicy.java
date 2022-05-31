@@ -124,11 +124,12 @@ final class ESPolicy extends Policy {
             if ("<<ALL FILES>>".equals(permission.getName())) {
                 hadoopHack();
             }
-        } else if (permission instanceof RuntimePermission
-            && "getClassLoader".equals(permission.getName())
-            && isLoaderUtilGetClassLoaders()) {
-                return true;
-            }
+        }
+        // else if (permission instanceof RuntimePermission
+        // && "getClassLoader".equals(permission.getName())
+        // && isLoaderUtilGetClassLoaders()) {
+        // return true;
+        // }
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);

@@ -23,7 +23,7 @@ dependencies {
   api "com.google.http-client:google-http-client-gson:${versions.google}"
   api 'com.google.code.findbugs:jsr305:3.0.2'
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j1dot2api}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   runtimeOnly 'com.google.guava:guava:31.0.1-jre'

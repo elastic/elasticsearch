@@ -51,7 +51,7 @@ dependencies {
     runtimeOnly 'com.google.guava:guava:27.1-jre'
     api 'com.google.protobuf:protobuf-java:2.5.0'
     api 'commons-logging:commons-logging:1.1.3'
-    api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+    api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j1dot2api}"
     api 'commons-cli:commons-cli:1.2'
     api "commons-codec:commons-codec:${versions.commonscodec}"
     api 'commons-collections:commons-collections:3.2.2'
@@ -60,7 +60,7 @@ dependencies {
     api 'commons-lang:commons-lang:2.6'
     api 'javax.servlet:servlet-api:2.5'
     api "org.slf4j:slf4j-api:${versions.slf4j}"
-    api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+    api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4jslf4jimpl}"
     // Set the keytab files in the classpath so that we can access them from test code without the security manager
     // freaking out.
     if (isEclipse == false) {

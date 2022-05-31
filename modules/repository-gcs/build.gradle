@@ -32,7 +32,7 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j1dot2api}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'com.google.api:api-common:1.10.4'
   api 'com.google.api:gax:1.66.0'

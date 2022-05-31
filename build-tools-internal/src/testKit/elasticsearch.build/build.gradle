@@ -31,6 +31,7 @@ repositories {
     }
   }
   mavenCentral()
+  maven { url 'https://repository.apache.org/snapshots' }
 }
 
 repositories {
@@ -45,6 +46,7 @@ repositories {
     }
   }
   mavenCentral()
+  maven { url 'https://repository.apache.org/snapshots' }
 }
 
 // todo remove offending rules

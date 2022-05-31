@@ -20,6 +20,10 @@ publishing {
   }
 }
 
+repositories {
+  maven { url 'https://repository.apache.org/snapshots' }
+}
+
 archivesBaseName = 'elasticsearch'
 
 dependencies {
@@ -57,8 +61,8 @@ dependencies {
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-api:${versions.log4japi}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4jcore}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 
@@ -229,6 +233,9 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
+            'com.lmax.disruptor.SequenceBarrier',
+            'com.lmax.disruptor.TimeoutException',
+            'org.osgi.framework.ServiceReference',
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }

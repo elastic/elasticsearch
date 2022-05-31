@@ -35,14 +35,14 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j1dot2api}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4jslf4jimpl}"
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')

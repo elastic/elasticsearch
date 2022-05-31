@@ -19,7 +19,7 @@ public class RoundingIntervalTests extends ESTestCase {
         RoundingInterval rounding = new RoundingInterval(startTime, interval);
         assertThat(rounding.nextRoundingValue(113), equalTo(121L));
         assertThat(rounding.nextRoundingValue(120), equalTo(121L));
-        assertThat(rounding.nextRoundingValue(121), equalTo(121L));
+        assertThat(rounding.nextRoundingValue(121), equalTo(131L));
         assertThat(rounding.nextRoundingValue(122), equalTo(131L));
     }
 
@@ -29,7 +29,7 @@ public class RoundingIntervalTests extends ESTestCase {
         RoundingInterval rounding = new RoundingInterval(startTime, interval);
         assertThat(rounding.nextRoundingValue(113), equalTo(120L));
         assertThat(rounding.nextRoundingValue(119), equalTo(120L));
-        assertThat(rounding.nextRoundingValue(120), equalTo(120L));
+        assertThat(rounding.nextRoundingValue(120), equalTo(130L));
         assertThat(rounding.nextRoundingValue(121), equalTo(130L));
     }
 }

@@ -288,7 +288,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 reset(newTsid, bucket);
             }
 
-            if (preRounding < 0 || aggCtx.getTimestamp() <= preRounding - interval) {
+            if (preRounding < 0 || aggCtx.getTimestamp() < preRounding - interval) {
                 preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
             }
 

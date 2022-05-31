@@ -28,9 +28,9 @@ public class RoundingInterval {
 
     public long nextRoundingValue(long utcMillis) {
         if (rounding != null) {
-            return rounding.nextRoundingValue(utcMillis-1);
+            return rounding.nextRoundingValue(utcMillis);
         } else {
-            long step = (utcMillis - 1 - startTime) / interval + 1;
+            long step = (utcMillis - startTime) / interval + 1;
             return startTime + interval * step;
         }
     }

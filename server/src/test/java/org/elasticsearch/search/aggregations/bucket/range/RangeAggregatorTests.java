@@ -51,6 +51,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
@@ -623,6 +624,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
      * But the union operation overhead that comes with combining the range with
      * the top level query tends to slow us down more than the standard aggregator.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87205")
     public void testRuntimeFieldTopLevelQueryNotOptimized() throws IOException {
         long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
@@ -649,7 +651,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 equalTo(List.of(totalDocs, 0L, 0L))
             );
             assertThat(impl, equalTo(RangeAggregator.NoOverlap.class));
-            assertMap(debug, matchesMap().entry("r", matchesMap().entry("ranges", 3).entry("average_docs_per_range", closeTo(6667, 1))));
+            assertMap(
+                debug,
+                matchesMap().entry(
+                    "r",
+                    matchesMap().entry("ranges", 3)
+                        .entry("average_docs_per_range", closeTo(6667, 1))
+                        .entry("singletons", greaterThan(1))
+                        .entry("non-singletons", 0)
+                )
+            );
         }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));
     }
 
@@ -690,7 +701,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertThat(impl, equalTo(RangeAggregator.NoOverlap.class));
                 assertMap(
                     debug,
-                    matchesMap().entry("r", matchesMap().entry("ranges", 3).entry("average_docs_per_range", closeTo(6667, 1)))
+                    matchesMap().entry(
+                        "r",
+                        matchesMap().entry("ranges", 3)
+                            .entry("average_docs_per_range", closeTo(6667, 1))
+                            .entry("singletons", 0)
+                            .entry("non-singletons", greaterThan(1))
+                    )
                 );
             },
             dummyFt,

@@ -27,8 +27,8 @@ For {es}, adherence to FIPS 140-2 is ensured by
 [discrete]
 === Upgrade considerations
 
-[IMPORTANT] 
-==== 
+[IMPORTANT]
+====
 include::fips-java17.asciidoc[]
 ====
 
@@ -117,7 +117,7 @@ keys must have corresponding length according to the following table:
 
 While {es} offers a number of algorithms for securely hashing credentials in memory and
 on disk, only the `PBKDF2` based family of algorithms is compliant with FIPS
-140-2 for password hashing. However, since `PBKDF2` is essentially a key derivation
+140-2 for stored password hashing. However, since `PBKDF2` is essentially a key derivation
 function, your JVM security provider may enforce a
 <<keystore-fips-password,112-bit key strength requirement>>. Although FIPS 140-2
 does not mandate user password standards, this requirement may affect password
@@ -131,12 +131,24 @@ NOTE: You can still use one of the plain `pbkdf2` options instead of `pbkdf2_str
 you have external policies and tools that can ensure all user passwords for the reserved,
 native, and file realms are longer than 14 bytes.
 
-You must set the `cache.hash_algo` realm settings
-and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
+You must set the `xpack.security.authc.password_hashing.algorithm` setting to one of the
 available `pbkdf_stretch_*` values.
 When FIPS-140 mode is enabled, the default value for
 `xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
 See <<hashing-settings>>.
+
+For cache hashing, salted `sha256` is recommended instead of PBKDF2. Though compliant with FIPS-140-2,
+PBKDF2 is, by design, slow and thus not suitable as a cache hashing algorithm. Since the cache
+does not store hashed credentials on disk, salted `sha256` provides an adequate security level without
+imposing prohibitive performance overhead.
+
+You should set the `cache.hash_algo` realm settings to `ssha256`. `ssha256` is the default value
+for all `cache.hash_algo` realm settings.
+See <<hashing-settings>>.
+
+You _may_ set the `cache.hash_algo` realm settings to any of the `pbkdf2` options, however you
+should carefully assess performance impact first. Depending on your deployment, the overhead
+of PBKDF2 could undo all performance gain of using a cache.
 
 Password hashing configuration changes are not retroactive so the stored hashed
 credentials of existing users of the reserved, native, and file realms are not

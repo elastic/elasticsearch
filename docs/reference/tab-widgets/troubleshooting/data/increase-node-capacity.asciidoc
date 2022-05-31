@@ -57,7 +57,7 @@ setting:
 ----
 GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference?flat_settings
 ----
-// TEST[continued]
+// TESTRESPONSE[skip:the result is for illustrating purposes only as don't want to change a cluster-wide setting]
 
 
 The response will look like this:

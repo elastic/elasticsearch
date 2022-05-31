@@ -104,10 +104,12 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
         GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(
             generateRollupIndexNameKey,
@@ -115,9 +117,10 @@ public class RollupILMAction implements LifecycleAction {
             ROLLUP_INDEX_PREFIX,
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
+
         if (rollupPolicy == null) {
             Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
+            return List.of(checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
         } else {
             StepKey updateRollupIndexPolicyStepKey = new StepKey(phase, NAME, UpdateRollupIndexPolicyStep.NAME);
             Step rollupStep = new RollupStep(rollupKey, updateRollupIndexPolicyStepKey, client, config);
@@ -127,7 +130,14 @@ public class RollupILMAction implements LifecycleAction {
                 client,
                 rollupPolicy
             );
-            return List.of(checkNotWriteIndexStep, readOnlyStep, generateRollupIndexNameStep, rollupStep, updateRollupIndexPolicyStep);
+            return List.of(
+                checkNotWriteIndexStep,
+                waitForNoFollowersStep,
+                readOnlyStep,
+                generateRollupIndexNameStep,
+                rollupStep,
+                updateRollupIndexPolicyStep
+            );
         }
     }
 

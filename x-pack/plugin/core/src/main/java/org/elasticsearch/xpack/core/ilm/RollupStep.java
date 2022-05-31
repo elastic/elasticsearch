@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import java.util.Objects;
 
 /**
- * Rolls up index using a {@link RollupActionConfig}
+ * ILM step that invokes the rollup action for an index using a {@link RollupActionConfig}. The rollup
+ * action produces a rollup index using a prefix prepended to the original index name for the name of the rollup
+ * index. Also, the rollup action deletes the source index at the end, so no DeleteStep is required after this
+ * step.
  */
 public class RollupStep extends AsyncActionStep {
     public static final String NAME = "rollup";
-    public static final String ROLLUP_INDEX_NAME_PREFIX = "rollup-";
 
     private final RollupActionConfig config;
 
@@ -36,6 +38,11 @@ public class RollupStep extends AsyncActionStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    @Override
+    public boolean indexSurvives() {
+        return false;
     }
 
     @Override

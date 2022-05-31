@@ -1,0 +1,6 @@
+pr: 87262
+summary: Don't migrate system indices that match user templates
+area: Infra/Core
+type: bug
+issues:
+ - 86801

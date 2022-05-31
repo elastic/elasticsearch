@@ -18,6 +18,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -33,6 +36,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     private final ClusterService clusterService;
+    private final OperatorClusterStateController controller;
     private final Environment environment;
 
     private WatchService watchService; // null;
@@ -42,22 +46,28 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private volatile boolean active = false;
 
-    public static final Setting<String> OPERATOR_SETTINGS = Setting.simpleString(
-        "readiness.port",
-        "operatorSettings.json",
+    public static final Setting<String> OPERATOR_DIR_NAME = Setting.simpleString(
+        "path.config.operator_dir_name",
+        "operator",
         Setting.Property.NodeScope
     );
 
-    public FileSettingsService(ClusterService clusterService, Environment environment) {
+    public FileSettingsService(ClusterService clusterService, OperatorClusterStateController controller, Environment environment) {
         this.clusterService = clusterService;
+        this.controller = controller;
         this.environment = environment;
         clusterService.addListener(this);
     }
 
     // package private for testing
+    Path operatorSettingsDir() {
+        String dirPath = OPERATOR_DIR_NAME.get(environment.settings());
+        return environment.configFile().toAbsolutePath().resolve(dirPath);
+    }
+
+    // package private for testing
     Path operatorSettingsFile() {
-        String fileName = OPERATOR_SETTINGS.get(environment.settings());
-        return environment.configFile().resolve(fileName);
+        return operatorSettingsDir().resolve("settings.json");
     }
 
     // package private for testing
@@ -88,10 +98,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     @Override
     protected void doClose() {}
 
+    private boolean currentNodeMaster(ClusterState clusterState) {
+        return clusterState.nodes().getMasterNodeId().equals(clusterState.nodes().getLocalNodeId());
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
-        setWatching(clusterState.nodes().getMasterNodeId().equals(clusterState.nodes().getLocalNodeId()));
+        setWatching(currentNodeMaster(clusterState));
     }
 
     private void setWatching(boolean watching) {
@@ -115,31 +129,26 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         logger.info("starting file settings watcher ...");
 
-        Path path = operatorSettingsFile();
-        Path configDir = path.getParent();
-
-        if (Files.exists(configDir) == false) {
-            logger.warn("file based settings service disabled because config dir [{}] doesn't exist", configDir);
-            return;
-        }
-
-        try {
-            this.lastUpdatedTime = watchedFileTimestamp(path);
-            if (lastUpdatedTime > 0L) {
-                processFileSettings(path);
-            }
-        } catch (IOException e) {
-            logger.warn("encountered I/O exception trying to read file attributes for the file based settings", e);
-        }
+        Path settingsDir = operatorSettingsDir();
 
         try {
             this.watchService = PathUtils.getDefaultFileSystem().newWatchService();
-            configDir.register(
-                watchService,
-                StandardWatchEventKinds.ENTRY_MODIFY,
-                StandardWatchEventKinds.ENTRY_CREATE,
-                StandardWatchEventKinds.ENTRY_DELETE
-            );
+            if (Files.exists(settingsDir)) {
+                Path settingsFilePath = operatorSettingsFile();
+                try {
+                    this.lastUpdatedTime = watchedFileTimestamp(settingsFilePath);
+                    if (lastUpdatedTime > 0L) {
+                        logger.info("found initial operator settings file [{}], applying...", settingsFilePath);
+                        processFileSettings(settingsFilePath);
+                    }
+                } catch (IOException e) {
+                    logger.warn("encountered I/O exception trying to read file attributes for the file based settings", e);
+                }
+                enableSettingsWatcher(settingsDir);
+            } else {
+                logger.info("operator settings directory [{}] not found, will watch for its creation...", settingsDir);
+                enableSettingsWatcher(environment.configFile());
+            }
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -162,19 +171,28 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 while ((key = watchService.take()) != null) {
                     // Reading and interpreting watch service events can vary from platform to platform.
                     // After we get an indication that something has changed, we check the timestamp of our desired file.
-                    try {
-                        long updatedTime = watchedFileTimestamp(path);
-                        if (updatedTime > lastUpdatedTime) {
-                            this.lastUpdatedTime = updatedTime;
-                            processFileSettings(path);
+                    if (Files.exists(settingsDir)) {
+                        try {
+                            key.cancel();
+                            enableSettingsWatcher(settingsDir);
+
+                            Path path = operatorSettingsFile();
+
+                            long updatedTime = watchedFileTimestamp(path);
+                            if (updatedTime > lastUpdatedTime) {
+                                this.lastUpdatedTime = updatedTime;
+                                processFileSettings(path);
+                            }
+                        } catch (IOException e) {
+                            logger.warn("unable to watch or read operator settings file", e);
                         }
-                    } catch (IOException e) {
-                        logger.warn("unable to read file attributes of " + path, e);
+                    } else {
+                        key.cancel();
+                        enableSettingsWatcher(environment.configFile());
                     }
-                    key.reset();
                 }
-            } catch (InterruptedException | ClosedWatchServiceException e) {
-                logger.debug("encountered exception watching. Shutting down watcher thread.", e);
+            } catch (InterruptedException | ClosedWatchServiceException | IOException e) {
+                logger.debug("encountered exception watching, shutting down watcher thread.", e);
             } finally {
                 watcherThreadLatch.countDown();
             }
@@ -188,7 +206,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 watchService.close();
                 watcherThreadLatch.await();
             } catch (IOException | InterruptedException e) {
-                logger.info("Encountered exception while closing watch service", e);
+                logger.info("encountered exception while closing watch service", e);
             } finally {
                 watchService = null;
                 logger.info("watcher service stopped");
@@ -198,8 +216,23 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    private void enableSettingsWatcher(Path settingsDir) throws IOException {
+        settingsDir.register(
+            watchService,
+            StandardWatchEventKinds.ENTRY_MODIFY,
+            StandardWatchEventKinds.ENTRY_CREATE,
+            StandardWatchEventKinds.ENTRY_DELETE
+        );
+    }
+
     void processFileSettings(Path path) {
-        // TODO: implement me
-        logger.info("settings file changed event");
+        logger.info("Processing path [{}]", path);
+        try (
+            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
+        ) {
+            controller.process("operator", parser);
+        } catch (Exception e) {
+            logger.error("Error parsing operator settings json file", e);
+        }
     }
 }

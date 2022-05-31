@@ -934,4 +934,8 @@ public class ActionModule extends AbstractModule {
     public RestController getRestController() {
         return restController;
     }
+
+    public OperatorClusterStateController getOperatorController() {
+        return operatorController;
+    }
 }

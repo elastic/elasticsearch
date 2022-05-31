@@ -11,11 +11,15 @@ package org.elasticsearch.operator.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
 import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -99,6 +103,7 @@ public class OperatorClusterStateController {
                 state = transformState.state();
                 operatorMetadataBuilder.putHandler(new OperatorHandlerMetadata.Builder(handlerKey).keys(transformState.keys()).build());
             } catch (Exception e) {
+                // TODO: Collect all errors, store them in the cluster state metadata, throw at the end with all of them
                 throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
             }
         }
@@ -107,8 +112,21 @@ public class OperatorClusterStateController {
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).putOperatorState(operatorMetadataBuilder.build());
         state = stateBuilder.metadata(metadataBuilder).build();
 
-        // TODO: call a clusterService state update task
-        // TODO: call reroute service
+        // TODO: Retry, maybe use RetryableAction?
+        clusterService.submitStateUpdateTask("operator state [ " + namespace + "]", new OperatorUpdateStateTask(new ActionListener<>() {
+            @Override
+            public void onResponse(ActionResponse.Empty empty) {
+                logger.info("Successfully applied new cluster state for namespace [{}]", namespace);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to apply operator cluster state", e);
+            }
+        }),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            new OperatorUpdateStateTask.OperatorUpdateStateTaskExecutor(namespace, state, clusterService.getRerouteService())
+        );
 
         return state;
     }

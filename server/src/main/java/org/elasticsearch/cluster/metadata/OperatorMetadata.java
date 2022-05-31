@@ -117,6 +117,7 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
                 OperatorHandlerMetadata.Builder.toXContent(handlerMetadata, builder, params);
             }
             builder.endObject();
+            builder.endObject();
         }
 
         /**

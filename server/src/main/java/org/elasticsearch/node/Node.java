@@ -977,7 +977,10 @@ public class Node implements Closeable {
                 modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
             }
 
-            modules.add(b -> b.bind(FileSettingsService.class).toInstance(new FileSettingsService(clusterService, environment)));
+            modules.add(
+                b -> b.bind(FileSettingsService.class)
+                    .toInstance(new FileSettingsService(clusterService, actionModule.getOperatorController(), environment))
+            );
 
             injector = modules.createInjector();
 

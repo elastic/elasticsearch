@@ -86,6 +86,9 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
+        // install/remove plugins from elasticsearch-plugins.yml
+        maybeSyncPlugins(terminal, env, processInfo);
+
         ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
@@ -171,6 +174,19 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
+    private void maybeSyncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+        if (getBuildType() != Build.Type.DOCKER) {
+            return; // only supported in cloud
+        }
+
+        String pluginCliLibs = "lib/tools/plugin-cli";
+        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        assert cmd instanceof EnvironmentAwareCommand;
+        @SuppressWarnings("raw")
+        var syncPlugins = (EnvironmentAwareCommand) cmd;
+        syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
+    }
+
     private void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
@@ -201,6 +217,11 @@ class ServerCli extends EnvironmentAwareCommand {
         if (server != null) {
             server.stop();
         }
+    }
+
+    // protected to allow tests to override
+    protected Build.Type getBuildType() {
+        return Build.CURRENT.type();
     }
 
     // protected to allow tests to override

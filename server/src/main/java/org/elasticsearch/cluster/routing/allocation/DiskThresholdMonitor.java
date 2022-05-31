@@ -423,7 +423,7 @@ public class DiskThresholdMonitor {
 
     // exposed for tests to override
     long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
-        return DiskThresholdDecider.sizeOfRelocatingShards(
+        return DiskThresholdDecider.sizeOfUnaccountedShards(
             routingNode,
             true,
             diskUsage.getPath(),

@@ -439,10 +439,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             test_1.getTargetRelocatingShard(),
             test_2
         );
-        assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
-        assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
-        assertEquals(0L, sizeOfRelocatingShards(allocation, node, true, "/dev/some/other/dev"));
-        assertEquals(0L, sizeOfRelocatingShards(allocation, node, true, "/dev/some/other/dev"));
+        assertEquals(100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
+        assertEquals(90L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
+        assertEquals(0L, sizeOfUnaccountedShards(allocation, node, true, "/dev/some/other/dev"));
+        assertEquals(0L, sizeOfUnaccountedShards(allocation, node, true, "/dev/some/other/dev"));
 
         ShardRouting test_3 = ShardRouting.newUnassigned(
             new ShardId(index, 3),
@@ -473,11 +473,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             other_0.getTargetRelocatingShard()
         );
         if (other_0.primary()) {
-            assertEquals(10100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
-            assertEquals(10090L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
+            assertEquals(10100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
+            assertEquals(10090L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
         } else {
-            assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
-            assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
+            assertEquals(100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
+            assertEquals(90L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
         }
     }
 
@@ -536,7 +536,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             metadata
         );
 
-        long sizeOfRelocatingShards = sizeOfRelocatingShards(
+        long sizeOfRelocatingShards = sizeOfUnaccountedShards(
             new RoutingAllocation(
                 null,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
@@ -560,8 +560,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(60L, sizeOfRelocatingShards);
     }
 
-    public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {
-        return DiskThresholdDecider.sizeOfRelocatingShards(
+    public long sizeOfUnaccountedShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {
+        return DiskThresholdDecider.sizeOfUnaccountedShards(
             node,
             subtractShardsMovingAway,
             dataPath,

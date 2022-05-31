@@ -105,12 +105,13 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     /**
-     * Returns the size of all shards that are currently being relocated to
-     * the node, but may not be finished transferring yet.
+     * Returns the size of all unaccounted shards that are currently being relocated to
+     * the node, but may not be finished transferring yet. Also accounts for started searchable
+     * snapshot shards that have been allocated, but not present in the stale cluster info.
      *
      * If subtractShardsMovingAway is true then the size of shards moving away is subtracted from the total size of all shards
      */
-    public static long sizeOfRelocatingShards(
+    public static long sizeOfUnaccountedShards(
         RoutingNode node,
         boolean subtractShardsMovingAway,
         String dataPath,
@@ -154,7 +155,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
         }
 
-        // Count the STARTED shards which are unaccounted in the cluster info for searchable snapshots
+        // Count the STARTED searchable snapshot shards which are unaccounted in the cluster
         for (ShardRouting shard : node.shardsWithState(ShardRoutingState.STARTED)) {
             IndexMetadata indexMetadata = metadata.index(shard.index());
             if (indexMetadata == null) {
@@ -224,7 +225,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         double usedDiskPercentage = usage.getUsedDiskAsPercentage();
         long freeBytes = usage.getFreeBytes();
         if (freeBytes < 0L) {
-            final long sizeOfRelocatingShards = sizeOfRelocatingShards(
+            final long sizeOfRelocatingShards = sizeOfUnaccountedShards(
                 node,
                 false,
                 usage.getPath(),
@@ -519,7 +520,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return YES_NOT_MOST_UTILIZED_DISK;
         }
         if (freeBytes < 0L) {
-            final long sizeOfRelocatingShards = sizeOfRelocatingShards(
+            final long sizeOfRelocatingShards = sizeOfUnaccountedShards(
                 node,
                 true,
                 usage.getPath(),
@@ -614,7 +615,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         final DiskUsageWithRelocations diskUsageWithRelocations = new DiskUsageWithRelocations(
             usage,
-            sizeOfRelocatingShards(
+            sizeOfUnaccountedShards(
                 node,
                 subtractLeavingShards,
                 usage.getPath(),

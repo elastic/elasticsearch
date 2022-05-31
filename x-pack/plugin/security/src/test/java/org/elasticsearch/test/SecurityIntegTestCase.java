@@ -190,7 +190,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
-                .map(p -> p.getClassname())
+                .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
                 "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",

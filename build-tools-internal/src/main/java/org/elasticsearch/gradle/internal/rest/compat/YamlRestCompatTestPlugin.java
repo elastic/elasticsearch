@@ -198,6 +198,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         // setup the test task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
         project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {
+            testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())

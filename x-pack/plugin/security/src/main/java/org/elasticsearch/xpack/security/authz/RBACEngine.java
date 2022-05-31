@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -95,6 +95,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -113,6 +114,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
 
+    private final Settings settings;
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
@@ -122,6 +124,7 @@ public class RBACEngine implements AuthorizationEngine {
         CompositeRolesStore rolesStore,
         LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
     ) {
+        this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
@@ -513,42 +516,83 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        ActionListener<PrivilegesCheckResult> listener
+        ActionListener<PrivilegesCheckResult> originalListener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            listener.onFailure(
+            originalListener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
             return;
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
-            () -> new ParameterizedMessage(
-                "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
+            () -> format(
+                "Check whether role [{}] has privileges [{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
-                Arrays.toString(privilegesToCheck.cluster()),
-                Arrays.toString(privilegesToCheck.index()),
-                Arrays.toString(privilegesToCheck.application())
+                privilegesToCheck
             )
         );
 
-        Map<String, Boolean> cluster = new HashMap<>();
-        for (String checkAction : privilegesToCheck.cluster()) {
-            cluster.put(checkAction, userRole.grants(ClusterPrivilegeResolver.resolve(checkAction)));
+        final ActionListener<PrivilegesCheckResult> listener;
+        if (userRole instanceof SimpleRole simpleRole) {
+            final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
+            if (result != null) {
+                logger.debug(
+                    () -> format(
+                        "role [%s] has privileges check result in cache for check: [%s]",
+                        arrayToCommaDelimitedString(userRole.names()),
+                        privilegesToCheck
+                    )
+                );
+                originalListener.onResponse(result);
+                return;
+            }
+            listener = originalListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
+                try {
+                    simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
+                } catch (Exception e) {
+                    logger.error("Failed to cache check result for [{}]", privilegesToCheck);
+                    delegateListener.onFailure(e);
+                    return;
+                }
+                delegateListener.onResponse(privilegesCheckResult);
+            });
+        } else {
+            // caching of check result unsupported
+            listener = originalListener;
         }
-        boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
-        ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
+
+        boolean allMatch = true;
+
+        final Map<String, Boolean> clusterPrivilegesCheckResults = new HashMap<>();
+        for (String checkAction : privilegesToCheck.cluster()) {
+            boolean privilegeGranted = userRole.grants(ClusterPrivilegeResolver.resolve(checkAction));
+            allMatch = allMatch && privilegeGranted;
+            if (privilegesToCheck.runDetailedCheck()) {
+                clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
+            } else if (false == allMatch) {
+                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                return;
+            }
+        }
+
+        final ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = privilegesToCheck.runDetailedCheck()
+            ? ResourcePrivilegesMap.builder()
+            : null;
         for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
-            ResourcePrivilegesMap resourcePrivileges = userRole.checkIndicesPrivileges(
+            boolean privilegesGranted = userRole.checkIndicesPrivileges(
                 Sets.newHashSet(check.getIndices()),
                 check.allowRestrictedIndices(),
-                Sets.newHashSet(check.getPrivileges())
+                Sets.newHashSet(check.getPrivileges()),
+                combineIndicesResourcePrivileges
             );
-            allMatch = allMatch && resourcePrivileges.allAllowed();
-            combineIndicesResourcePrivileges.addResourcePrivilegesMap(resourcePrivileges);
+            allMatch = allMatch && privilegesGranted;
+            if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
+                assert combineIndicesResourcePrivileges == null;
+                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                return;
+            }
         }
-        ResourcePrivilegesMap allIndices = combineIndicesResourcePrivileges.build();
-        allMatch = allMatch && allIndices.allAllowed();
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
 
@@ -556,27 +600,50 @@ public class RBACEngine implements AuthorizationEngine {
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         for (String applicationName : applicationNames) {
-            logger.debug("Checking privileges for application {}", applicationName);
-            ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
+            logger.debug(() -> format("Checking privileges for application [{}]", applicationName));
+            final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = privilegesToCheck.runDetailedCheck()
+                ? ResourcePrivilegesMap.builder()
+                : null;
             for (RoleDescriptor.ApplicationResourcePrivileges p : privilegesToCheck.application()) {
                 if (applicationName.equals(p.getApplication())) {
-                    ResourcePrivilegesMap appPrivsByResourceMap = userRole.checkApplicationResourcePrivileges(
+                    boolean privilegesGranted = userRole.checkApplicationResourcePrivileges(
                         applicationName,
                         Sets.newHashSet(p.getResources()),
                         Sets.newHashSet(p.getPrivileges()),
-                        applicationPrivileges
+                        applicationPrivileges,
+                        resourcePrivilegesMapBuilder
                     );
-                    builder.addResourcePrivilegesMap(appPrivsByResourceMap);
+                    allMatch = allMatch && privilegesGranted;
+                    if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
+                        listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                        return;
+                    }
                 }
             }
-            ResourcePrivilegesMap resourcePrivsForApplication = builder.build();
-            allMatch = allMatch && resourcePrivsForApplication.allAllowed();
-            privilegesByApplication.put(applicationName, resourcePrivsForApplication.getResourceToResourcePrivileges().values());
+            if (resourcePrivilegesMapBuilder != null) {
+                privilegesByApplication.put(
+                    applicationName,
+                    resourcePrivilegesMapBuilder.build().getResourceToResourcePrivileges().values()
+                );
+            }
         }
 
-        listener.onResponse(
-            new PrivilegesCheckResult(allMatch, cluster, allIndices.getResourceToResourcePrivileges(), privilegesByApplication)
-        );
+        if (privilegesToCheck.runDetailedCheck()) {
+            assert combineIndicesResourcePrivileges != null;
+            listener.onResponse(
+                new PrivilegesCheckResult(
+                    allMatch,
+                    new PrivilegesCheckResult.Details(
+                        clusterPrivilegesCheckResults,
+                        combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
+                        privilegesByApplication
+                    )
+                )
+            );
+        } else {
+            assert allMatch;
+            listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
+        }
     }
 
     @Override
@@ -853,7 +920,7 @@ public class RBACEngine implements AuthorizationEngine {
     /**
      * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
      * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
-     *
+     * <p>
      * NOTE that the lazy loading is NOT thread-safe and must NOT be used by multi-threads.
      * The current usage has it wrapped inside a CachingAsyncSupplier which guarantees it to be accessed
      * from a single thread. Extra caution is needed if moving or using this class in other places.

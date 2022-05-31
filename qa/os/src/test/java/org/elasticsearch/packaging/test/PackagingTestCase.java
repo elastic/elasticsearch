@@ -225,10 +225,6 @@ public abstract class PackagingTestCase extends Assert {
                     FileUtils.mv(rotatedLogFile, newRotatedLogFile);
                 }
             }
-            if (Files.exists(Archives.getPowershellErrorPath(installation))) {
-                FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
-            }
-
         }
 
     }
@@ -433,19 +429,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout(), anyOf(stringMatchers));
-
-        } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
-
-            // In Windows, we have written our stdout and stderr to files in order to run
-            // in the background
-            String wrapperPid = result.stdout().trim();
-            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
-            sh.runIgnoreExitCode(
-                "Get-EventSubscriber | "
-                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
-                    + "Unregister-Event -Force"
-            );
-            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
         } else {
 

@@ -112,10 +112,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
-            CompositeValuesSourceParserHelper.writeTo(builder, out);
-        }
+        out.writeCollection(sources, (o, v) -> CompositeValuesSourceParserHelper.writeTo(v, o));
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {

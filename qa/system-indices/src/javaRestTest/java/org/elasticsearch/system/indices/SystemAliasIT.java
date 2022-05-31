@@ -49,32 +49,6 @@ public class SystemAliasIT extends ESRestTestCase {
         assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
     }
 
-    public void testCreatingSystemIndexWithLegacyAlias() throws Exception {
-        {
-            Request request = new Request("PUT", "/_template/system_template");
-            request.setJsonEntity(
-                "{"
-                    + "  \"index_patterns\": [\".internal-unmanaged-*\"],"
-                    + "  \"aliases\": {"
-                    + "    \".internal-unmanaged-alias\": {}"
-                    + "  }"
-                    + "}"
-            );
-            request.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
-            Response response = client().performRequest(request);
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
-
-        {
-            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
-            Response response = client().performRequest(request);
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
-
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-    }
-
     public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");

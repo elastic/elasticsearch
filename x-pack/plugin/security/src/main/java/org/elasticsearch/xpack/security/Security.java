@@ -1430,10 +1430,10 @@ public class Security extends Plugin
             final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
             if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
                 logger.warn(
-                    "Only SSHA256 or PBKDF2 is recommended for in-memory credential hashing in a FIPS 140 JVM. "
-                        + "Please change the [{}] setting from [{}] to an appropriate value.",
-                    key,
-                    setting
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
                 );
             }
         });

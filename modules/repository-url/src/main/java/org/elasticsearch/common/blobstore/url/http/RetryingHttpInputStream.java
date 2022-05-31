@@ -149,7 +149,7 @@ class RetryingHttpInputStream extends InputStream {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
             logger.debug(
                 () -> format(
-                    "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
+                    "failed reading [%s] at offset [%s], retry [%s] of [%s], giving up",
                     blobURI,
                     start + totalBytesRead,
                     retryCount,
@@ -162,7 +162,7 @@ class RetryingHttpInputStream extends InputStream {
 
         logger.debug(
             () -> format(
-                "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
+                "failed reading [%s] at offset [%s], retry [%s] of [%s], retrying",
                 blobURI,
                 start + totalBytesRead,
                 retryCount,

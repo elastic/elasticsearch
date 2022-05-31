@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -482,7 +481,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         ensureTermAtLeast(getLocalNode(), maxTermSeen);
                         startElection();
                     } catch (Exception e) {
-                        logger.warn(new ParameterizedMessage("failed to bump term to {}", maxTermSeen), e);
+                        logger.warn(() -> format("failed to bump term to %s", maxTermSeen), e);
                         becomeCandidate("updateMaxTermSeen");
                     }
                 }
@@ -598,8 +597,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             @Override
             public void onFailure(Exception e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "received join request from [{}] but could not connect back to the joining node",
+                    () -> format(
+                        "received join request from [%s] but could not connect back to the joining node",
                         joinRequest.getSourceNode()
                     ),
                     e

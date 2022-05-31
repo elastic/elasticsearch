@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -304,8 +303,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     ) {
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
+                () -> format(
+                    "[%s] Failed to delete model allocation that had failed with the reason [%s]",
                     modelId,
                     exception.getMessage()
                 ),

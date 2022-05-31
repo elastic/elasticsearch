@@ -481,7 +481,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         }
     }
 
-    public void testTakesIntoAccountExpectedSizeForInitializingRelocatingSearchableSnapshots() {
+    public void testTakesIntoAccountExpectedSizeForInitializingSearchableSnapshots() {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
@@ -489,51 +489,75 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                         settings(Version.CURRENT).put("index.uuid", "1234")
                             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     )
-                    .numberOfShards(1)
+                    .numberOfShards(3)
                     .numberOfReplicas(1)
             )
             .build();
 
-        ShardRouting shard = ShardRoutingHelper.relocate(
-            ShardRoutingHelper.moveToStarted(
-                ShardRoutingHelper.initialize(
-                    ShardRouting.newUnassigned(
-                        new ShardId(new Index("test", "1234"), 0),
-                        false,
-                        PeerRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-                    ),
-                    "node1",
-                    20
+        Index index = new Index("test", "1234");
+        String nodeId = "node1";
+        ShardRouting shard1 = ShardRoutingHelper.moveToStarted(
+            ShardRoutingHelper.initialize(
+                ShardRouting.newUnassigned(
+                    new ShardId(index, 1),
+                    false,
+                    PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
                 ),
-                metadata
+                nodeId,
+                10
             ),
-            "node2",
-            20
+            metadata
+        );
+        ShardRouting shard2 = ShardRoutingHelper.moveToStarted(
+            ShardRoutingHelper.initialize(
+                ShardRouting.newUnassigned(
+                    new ShardId(index, 2),
+                    false,
+                    PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+                ),
+                nodeId,
+                20
+            ),
+            metadata
+        );
+        ShardRouting shard3 = ShardRoutingHelper.moveToStarted(
+            ShardRoutingHelper.initialize(
+                ShardRouting.newUnassigned(
+                    new ShardId(index, 3),
+                    false,
+                    PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+                ),
+                nodeId,
+                30
+            ),
+            metadata
         );
 
-        assertEquals(
-            20L,
-            sizeOfRelocatingShards(
-                new RoutingAllocation(
-                    null,
-                    ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                        .metadata(metadata)
-                        .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
-                        .build(),
-                    new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
-                    null,
-                    0
-                ),
-                new RoutingNode(
-                    "node1",
-                    new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                    shard.getTargetRelocatingShard()
-                ),
-                false,
-                "/dev/null"
-            )
+        long sizeOfRelocatingShards = sizeOfRelocatingShards(
+            new RoutingAllocation(
+                null,
+                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                    .metadata(metadata)
+                    .routingTable(RoutingTable.builder().addAsNew(metadata.index(index.getName())).build())
+                    .build(),
+                new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
+                null,
+                0
+            ),
+            new RoutingNode(
+                nodeId,
+                new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                shard1,
+                shard2,
+                shard3
+            ),
+            false,
+            "/dev/null"
         );
+        assertEquals(60L, sizeOfRelocatingShards);
     }
 
     public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {

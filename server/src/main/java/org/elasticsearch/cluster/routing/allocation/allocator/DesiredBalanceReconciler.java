@@ -228,7 +228,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(
-                    isThrottled || desiredNodeIds.isEmpty() ? Decision.Type.THROTTLE : Decision.Type.NO
+                    isThrottled || desiredBalance.isBalanceComputed(shard.shardId()) == false ? Decision.Type.THROTTLE : Decision.Type.NO
                 );
 
                 unassigned.ignoreShard(shard, allocationStatus, allocation.changes());

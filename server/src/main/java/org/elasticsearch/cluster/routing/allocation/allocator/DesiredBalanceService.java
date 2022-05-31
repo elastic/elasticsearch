@@ -239,7 +239,7 @@ public class DesiredBalanceService {
         }
 
         final var unassigned = new HashMap<ShardId, Integer>();
-        for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
+        for (var ignored : routingNodes.unassigned().ignored()) {
             assert ignored.unassignedInfo() != null;
             assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT

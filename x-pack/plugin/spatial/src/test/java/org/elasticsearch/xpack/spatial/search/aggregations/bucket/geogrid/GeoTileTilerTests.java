@@ -287,7 +287,8 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         }
     }
 
-    public void testMultiPoint() throws Exception {
+    public void testMultiPointOutOfBounds() throws Exception {
+        // points are on the poles, should not generate any bucket
         MultiPoint points = new MultiPoint(List.of(new Point(0, 90), new Point(0, -90)));
         final GeoShapeValues.GeoShapeValue value = geoShapeValue(points);
         final GeoGridTiler tiler = getUnboundedGridTiler(0);

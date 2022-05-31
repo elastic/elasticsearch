@@ -121,7 +121,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
      * TODO remove before merging after 7.5 final has been released and tested successfully
      * */
     private void configureHeapSize(Checkstyle checkstyle, Project project) {
-        if (GradleVersion.current().compareTo(GradleVersion.version("7.4.1")) > 0) {
+        if (GradleVersion.current().compareTo(GradleVersion.version("7.4.2")) > 0) {
             try {
                 Method getMaxHeapSize = checkstyle.getClass().getMethod("getMaxHeapSize");
                 Property<String> heapSizeProp = (Property<String>) getMaxHeapSize.invoke(checkstyle);

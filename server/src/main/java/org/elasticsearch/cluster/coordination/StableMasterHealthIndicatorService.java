@@ -82,7 +82,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     /**
      * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
      */
-    private final TimeValue veryRecentPast;
+    private final TimeValue nodeHasMasterLookupTimeframe;
     /**
      * If the master transitions from a non-null master to a null master at least this many times it starts impacting the health status.
      */
@@ -96,16 +96,16 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
     // This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
-    private static final TimeValue DEFAULT_VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
-    private static final TimeValue SMALLEST_ALLOWED_VERY_RECENT_PAST = new TimeValue(1, TimeUnit.SECONDS);
+    private static final TimeValue NODE_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(30, TimeUnit.SECONDS);
+    private static final TimeValue SMALLEST_ALLOWED_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(1, TimeUnit.SECONDS);
 
-    // This is the default number of times that it is OK to have a master go null. Any more than this will be reported as a problem
-    private static final int DEFAULT_ACCEPTABLE_NULL_TRANSITIONS = 3;
-    private static final int SMALLEST_ALLOWED_ACCEPTABLE_NULL_TRANSITIONS = 0;
+    // This is the default number of times that it is not OK to have a master go null. This many transitions or more will be reported as a
+    // problem.
+    private static final int DEFAULT_NULL_TRANSITIONS_THRESHOLD = 4;
 
-    // This is the default number of times that it is OK to have a master change identity. Any more than this will be reported as a problem
-    private static final int DEFAULT_ACCEPTABLE_IDENTITY_CHANGES = 3;
-    private static final int SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES = 0;
+    // This is the default number of times that it is not OK to have a master change identity. This many changes or more will be reported
+    // as a problem
+    private static final int DEFAULT_IDENTITY_CHANGES_THRESHOLD = 4;
 
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
@@ -119,24 +119,24 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         + "work. The _cat APIs will not work.";
     private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
 
-    public static final Setting<TimeValue> VERY_RECENT_PAST_SETTING = Setting.timeSetting(
-        "health.master_history.very_recent_past",
-        DEFAULT_VERY_RECENT_PAST,
-        SMALLEST_ALLOWED_VERY_RECENT_PAST,
+    public static final Setting<TimeValue> NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING = Setting.timeSetting(
+        "health.master_history.has_master_lookup_timeframe",
+        NODE_HAS_MASTER_LOOKUP_TIMEFRAME,
+        SMALLEST_ALLOWED_HAS_MASTER_LOOKUP_TIMEFRAME,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> ACCEPTABLE_NULL_TRANSITIONS_SETTING = Setting.intSetting(
-        "health.master_history.acceptable_null_transitions",
-        DEFAULT_ACCEPTABLE_NULL_TRANSITIONS,
-        SMALLEST_ALLOWED_ACCEPTABLE_NULL_TRANSITIONS,
+    public static final Setting<Integer> NULL_TRANSITIONS_THRESHOLD_SETTING = Setting.intSetting(
+        "health.master_history.null_transitions_threshold",
+        DEFAULT_NULL_TRANSITIONS_THRESHOLD,
+        0,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> ACCEPTABLE_IDENTITY_CHANGES_SETTING = Setting.intSetting(
-        "health.master_history.acceptable_identity_changes",
-        DEFAULT_ACCEPTABLE_IDENTITY_CHANGES,
-        SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES,
+    public static final Setting<Integer> IDENTITY_CHANGES_THRESHOLD_SETTING = Setting.intSetting(
+        "health.master_history.identity_changes_threshold",
+        DEFAULT_IDENTITY_CHANGES_THRESHOLD,
+        0,
         Setting.Property.NodeScope
     );
 
@@ -153,9 +153,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.transportService = transportService;
-        this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
-        this.unacceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings()) + 1;
-        this.unacceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings()) + 1;
+        this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
+        this.unacceptableNullTransitions = NULL_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
+        this.unacceptableIdentityChanges = IDENTITY_CHANGES_THRESHOLD_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
     }
 
@@ -192,7 +192,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private HealthIndicatorResult calculateOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
-        logger.trace("Have seen a master in the last {}): {}", veryRecentPast, localMasterHistory.getMostRecentNonNullMaster());
+        logger.trace(
+            "Have seen a master in the last {}): {}",
+            nodeHasMasterLookupTimeframe,
+            localMasterHistory.getMostRecentNonNullMaster()
+        );
         final HealthIndicatorResult result;
         if (masterChanges >= unacceptableIdentityChanges) {
             result = calculateOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
@@ -225,7 +229,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             masterChanges,
             localMasterHistory.getMaxHistoryAge()
         );
-        HealthIndicatorDetails details = getSimpleDetails(explain, localMasterHistory);
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
         Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
         List<UserAction> userActions = getContactSupportUserActions(explain);
         return createIndicator(stableMasterStatus, summary, explain ? details : HealthIndicatorDetails.EMPTY, impacts, userActions);
@@ -242,7 +246,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return An empty HealthIndicatorDetails if explain is false, otherwise a HealthIndicatorDetails containing only "current_master"
      * and "recent_masters"
      */
-    private HealthIndicatorDetails getSimpleDetails(boolean explain, MasterHistory localMasterHistory) {
+    private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -375,7 +379,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = List.of();
         logger.trace("The cluster has a stable master node");
-        HealthIndicatorDetails details = getSimpleDetails(explain, localMasterHistory);
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
         return createIndicator(stableMasterStatus, summary, details, impacts, userActions);
     }
 
@@ -487,7 +491,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;
         }
-        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) veryRecentPast.seconds());
+        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) nodeHasMasterLookupTimeframe.seconds());
     }
 
     private Collection<DiscoveryNode> getMasterEligibleNodes() {

@@ -234,6 +234,7 @@ Use a `bool` query to issue complex logical conditions and use
 
 [source,js]
 ----
+GET /_security/_query/api_key
 {
   "query": {
     "bool": {
@@ -335,3 +336,43 @@ The response contains a list of matched API keys along with their sort values:
 
 <1> The first sort value is creation time, which is displayed in `date_time` <<mapping-date-format,format>> as defined in the request
 <2> The second sort value is the API key name
+
+You can use the following request to retrieve all valid API keys, i.e. not invalidated and not expired:
+[source,js]
+----
+GET /_security/_query/api_key
+{
+  "query": {
+    "bool": {
+      "must": {
+        "term": {
+          "invalidated": false  <1>
+        }
+      },
+      "should": [  <2>
+        {
+          "range": {
+            "expiration": {
+              "gte": "now"
+            }
+          }
+        },
+        {
+          "bool": {
+            "must_not": {
+              "exists": {
+                "field": "expiration"
+              }
+            }
+          }
+        }
+      ],
+      "minimum_should_match": 1
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+<1> Matching API keys must not be invalidated
+<2> Matching API keys must be either not expired or does not have an expiration data

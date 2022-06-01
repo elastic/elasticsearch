@@ -186,7 +186,7 @@ indices with identical mappings. Mapping metadata will be deduplicated across
 indices which are created from the same index template and
 <<explicit-mapping,do not use dynamic mapping updates>>.
 
-If your indices are are mostly created from a small number of templates and do
+If your indices are mostly created from a small number of templates and do
 not use dynamic mapping updates then aim for 3000 indices or fewer per GB of
 heap on master nodes. For example, if your cluster contains 12000 indices then
 each dedicated master node should have at least 4GB of heap. For non-dedicated
@@ -215,9 +215,9 @@ GET _cat/shards?v=true
 [[field-count-recommendation]]
 ==== Allow 1kB of heap per field per index on data nodes, plus overheads
 
-The exact resource usage of each mapped field depends on its type, but in many
-cases you should allow approximately 1kB of heap overhead per mapped field per
-index held by each data node. You must also allow enough heap for {es}'s
+The exact resource usage of each mapped field depends on its type, but a rule
+of thumb is to allow for approximately 1kB of heap overhead per mapped field
+per index held by each data node. You must also allow enough heap for {es}'s
 baseline usage as well as your workload such as indexing, searches and
 aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
 and you may need even less if your workload is very light.

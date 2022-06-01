@@ -46,9 +46,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage.FULL_COPY;
@@ -182,7 +184,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         internalCluster().startMasterOnlyNode();
         final String dataHotNode = internalCluster().startNode(
             Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DATA_HOT_NODE_ROLE.roleName())
                 .build()
         );
 
@@ -277,11 +279,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     public void testOvercommitInitializingSearchableSnapshotShards() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
-                .build()
-        );
+        internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 
         InternalClusterInfoService masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
             ClusterInfoService.class
@@ -327,7 +325,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
-        ClusterInfoServiceUtils.refresh(masterInfoService);
+        // ClusterInfoServiceUtils.refresh(masterInfoService);
         assertThat(
             masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
             equalTo(totalSpace)

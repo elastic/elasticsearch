@@ -312,7 +312,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         ensureStableCluster(3);
 
-        String otherDataNodeId = internalCluster().getInstance(NodeEnvironment.class, otherDataNode).nodeId();
+        String otherDataNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(otherDataNode).getId();
         logger.info(
             "--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node",
             otherDataNode,

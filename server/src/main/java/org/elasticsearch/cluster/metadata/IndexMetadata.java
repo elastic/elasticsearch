@@ -863,14 +863,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isPartialSearchableSnapshot;
     }
 
+    @Nullable
     public IndexMode getIndexMode() {
         return indexMode;
     }
 
+    @Nullable
     public Instant getTimeSeriesStart() {
         return timeSeriesStart;
     }
 
+    @Nullable
     public Instant getTimeSeriesEnd() {
         return timeSeriesEnd;
     }
@@ -1721,7 +1724,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
-            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled() && settings.hasValue(IndexSettings.MODE.getKey());
+            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
+                && IndexMode.TIME_SERIES.getName().equals(settings.get(IndexSettings.MODE.getKey()));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

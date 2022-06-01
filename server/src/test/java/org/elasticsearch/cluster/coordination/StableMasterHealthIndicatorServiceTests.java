@@ -411,8 +411,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         int clusterSize = 5;
         int masterChanges = 3;
         Settings settings = Settings.builder()
-            .put(StableMasterHealthIndicatorService.ACCEPTABLE_IDENTITY_CHANGES_SETTING.getKey(), acceptableIdentityChanges)
-            .put(StableMasterHealthIndicatorService.ACCEPTABLE_NULL_TRANSITIONS_SETTING.getKey(), acceptableNullTransitions)
+            .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), acceptableIdentityChanges)
+            .put(StableMasterHealthIndicatorService.NULL_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
             .build();
         try (Cluster cluster = new Cluster(clusterSize, true, settings)) {
             cluster.runRandomly();

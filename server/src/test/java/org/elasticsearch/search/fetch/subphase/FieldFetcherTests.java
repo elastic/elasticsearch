@@ -1093,31 +1093,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         mapping.endObject();
 
         MapperService mapperService = createMapperService(mapping);
-        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
-            mapperService,
-            (ft, index, sl) -> fieldDataLookup().apply(ft, sl)
-        );
         {
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> FieldFetcher.create(searchExecutionContext, fieldAndFormatList("field", null, false))
-            );
-            assertEquals(
-                "error fetching [field]: Unable to retrieve the requested [fields] since _source is disabled "
-                    + "in the mappings for index [test]",
-                iae.getMessage()
-            );
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "field");
+            assertEquals(0, fields.size());
         }
         {
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> FieldFetcher.create(searchExecutionContext, fieldAndFormatList("location", null, false))
-            );
-            assertEquals(
-                "error fetching [location]: Unable to retrieve the requested [fields] since _source is disabled "
-                    + "in the mappings for index [test]",
-                iae.getMessage()
-            );
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "location");
+            assertEquals(0, fields.size());
         }
     }
 
@@ -1200,10 +1182,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
+        SourceLookup sourceLookup = null;
+        if (source != null) {
+            sourceLookup = new SourceLookup();
+            sourceLookup.setSource(BytesReference.bytes(source));
+        }
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
         return fieldFetcher.fetch(sourceLookup);
     }

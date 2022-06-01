@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -38,16 +39,8 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+        this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
-        if (context.isSourceEnabled() == false) {
-            throw new IllegalArgumentException(
-                "Unable to retrieve the requested [fields] since _source is disabled "
-                    + "in the mappings for index ["
-                    + context.index().getName()
-                    + "]"
-            );
-        }
     }
 
     @Override

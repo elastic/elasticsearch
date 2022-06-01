@@ -24,7 +24,7 @@ DELETE my-index-000001
 
 // tag::cloud[]
 One way to get the replica shards assigned is to add an availability zone. This will increase the number
-of data nodes in the {es} cluster so that the replica shards can be placed. This can be done by
+of data nodes in the {es} cluster so that the replica shards can be assigned. This can be done by
 editing your deployment. But first you need to discover which tier an index is targeting for assignment.
 Do this using {kib}.
 
@@ -132,7 +132,7 @@ The response will look like this:
 <1> Represents the currently configured value for the number of replica shards
 required for the index
 
-. If the number is greater than 0, you can <<indices-update-settings, decrease>> the
+. <<indices-update-settings, Decrease>> the
 value for the total number of replica shards required for this index:
 +
 [source,console]

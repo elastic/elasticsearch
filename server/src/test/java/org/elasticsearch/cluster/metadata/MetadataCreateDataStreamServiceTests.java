@@ -344,12 +344,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     private static SystemIndices getSystemIndices() {
-        Map<String, Feature> map = Map.of(
-            "system",
+        List<Feature> features = List.of(
             new Feature("systemFeature", "system feature description", List.of(), List.of(systemDataStreamDescriptor()))
         );
 
-        return new SystemIndices(map);
+        return new SystemIndices(features);
     }
 
     private static SystemDataStreamDescriptor systemDataStreamDescriptor() {

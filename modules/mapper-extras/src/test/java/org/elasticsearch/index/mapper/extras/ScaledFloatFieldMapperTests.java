@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -381,12 +381,22 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 return Tuple.tuple(d, round(d));
             }
 
-            private double randomValue() {
-                return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
-            }
-
             private double round(double d) {
                 long encoded = Math.round(d * scalingFactor);
+                if (encoded == Long.MAX_VALUE) {
+                    double max = Long.MAX_VALUE / scalingFactor;
+                    if (max * scalingFactor != Long.MAX_VALUE) {
+                        return max + Math.ulp(max);
+                    }
+                    return max;
+                }
+                if (encoded == Long.MIN_VALUE) {
+                    double min = Long.MIN_VALUE / scalingFactor;
+                    if (min * scalingFactor != Long.MIN_VALUE) {
+                        return min - Math.ulp(min);
+                    }
+                    return min;
+                }
                 return encoded / scalingFactor;
             }
 
@@ -427,9 +437,76 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    @Override
-    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
-        throws IOException {
-        // Intentionally disabled because it doesn't work yet
+    public void testEncodeDecodeExactScalingFactor() {
+        double v = randomValue();
+        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+    }
+
+    /**
+     * Tests numbers that can be encoded and decoded without saturating a {@code long}.
+     */
+    public void testEncodeDecodeNoSaturation() {
+        double scalingFactor = randomValue();
+        double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
+        assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
+    }
+
+    /**
+     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * tripped through synthetic source.
+     */
+    public void testEncodeDecodeSaturatedLow() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MIN_VALUE / d), ESTestCase::randomDouble);
+        double min = Long.MIN_VALUE / scalingFactor;
+        if (min * scalingFactor != Long.MIN_VALUE) {
+            min -= Math.ulp(min);
+        }
+        assertThat(ScaledFloatFieldMapper.encode(min, scalingFactor), equalTo(Long.MIN_VALUE));
+        assertThat(encodeDecode(min, scalingFactor), equalTo(min));
+
+        double saturated = randomDoubleBetween(-Double.MAX_VALUE, min, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MIN_VALUE));
+        assertThat(encodeDecode(saturated, scalingFactor), equalTo(min));
+    }
+
+    /**
+     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * tripped through synthetic source.
+     */
+    public void testEncodeDecodeSaturatedHigh() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
+        double max = Long.MAX_VALUE / scalingFactor;
+        if (max * scalingFactor != Long.MAX_VALUE) {
+            max += Math.ulp(max);
+        }
+        assertThat(ScaledFloatFieldMapper.encode(max, scalingFactor), equalTo(Long.MAX_VALUE));
+        assertThat(encodeDecode(max, scalingFactor), equalTo(max));
+
+        double saturated = randomDoubleBetween(max, Double.MAX_VALUE, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
+        assertThat(encodeDecode(saturated, scalingFactor), equalTo(max));
+    }
+
+    /**
+     * Tests that any encoded value with that can that fits in the mantissa of
+     * a double precision floating point can be round tripped through synthetic
+     * source. Values that do not fit in the mantissa will get floating point
+     * rounding errors.
+     */
+    public void testDecodeEncode() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
+        long encoded = randomLongBetween(-2 << 53, 2 << 53);
+        assertThat(
+            ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor),
+            equalTo(encoded)
+        );
+    }
+
+    private double encodeDecode(double value, double scalingFactor) {
+        return ScaledFloatFieldMapper.decodeForSyntheticSource(ScaledFloatFieldMapper.encode(value, scalingFactor), scalingFactor);
+    }
+
+    private double randomValue() {
+        return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -47,7 +49,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class FieldMapper extends Mapper implements Cloneable {
+    private static final Logger logger = LogManager.getLogger(FieldMapper.class);
+
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
@@ -56,6 +62,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+    @SuppressWarnings("rawtypes")
+    static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
     protected final MappedFieldType mappedFieldType;
     protected final MultiFields multiFields;
@@ -316,7 +324,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract Builder getMergeBuilder();
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public final FieldMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
         if (mergeWith == this) {
             return this;
         }
@@ -338,9 +346,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return (FieldMapper) mergeWith;
         }
         Conflicts conflicts = new Conflicts(name());
-        builder.merge((FieldMapper) mergeWith, conflicts);
+        builder.merge((FieldMapper) mergeWith, conflicts, mapperBuilderContext);
         conflicts.check();
-        return builder.build(MapperBuilderContext.forPath(Builder.parentPath(name())));
+        return builder.build(mapperBuilderContext);
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -403,7 +411,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     add(toMerge);
                 } else {
                     FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context);
-                    add(existing.merge(toMerge));
+                    add(existing.merge(toMerge, context));
                 }
                 return this;
             }
@@ -611,7 +619,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * Returns the current value of the parameter
          */
         public T getValue() {
-            return isSet ? value : defaultValue.get();
+            return isSet ? value : getDefaultValue();
         }
 
         @Override
@@ -635,7 +643,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public boolean isConfigured() {
-            return isSet && Objects.equals(value, defaultValue.get()) == false;
+            return isSet && Objects.equals(value, getDefaultValue()) == false;
         }
 
         /**
@@ -768,8 +776,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
-                serializer.serialize(builder, name, getValue());
+            T value = getValue();
+            if (serializerCheck.check(includeDefaults, isConfigured(), value)) {
+                serializer.serialize(builder, name, value);
             }
         }
 
@@ -959,6 +968,36 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param updateable        whether the parameter can be changed by a mapping update
          * @param initializer       a function that reads the parameter value from an existing mapper
          * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
+         * @param indexCreatedVersion the version on which this index was created
+         */
+        public static Parameter<NamedAnalyzer> analyzerParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, NamedAnalyzer> initializer,
+            Supplier<NamedAnalyzer> defaultAnalyzer,
+            Version indexCreatedVersion
+        ) {
+            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
+                String analyzerName = o.toString();
+                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
+                if (a == null) {
+                    if (indexCreatedVersion.isLegacyIndexVersion()) {
+                        logger.warn(() -> format("Could not find analyzer [%s] of legacy index, falling back to default", analyzerName));
+                        a = defaultAnalyzer.get();
+                    } else {
+                        throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
+                    }
+                }
+                return a;
+            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
+        /**
+         * Defines a parameter that takes an analyzer name
+         * @param name              the parameter name
+         * @param updateable        whether the parameter can be changed by a mapping update
+         * @param initializer       a function that reads the parameter value from an existing mapper
+         * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
          */
         public static Parameter<NamedAnalyzer> analyzerParam(
             String name,
@@ -966,14 +1005,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
-                String analyzerName = o.toString();
-                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
-                if (a == null) {
-                    throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
-                }
-                return a;
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, Version.CURRENT);
         }
 
         /**
@@ -1108,12 +1140,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
+            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
+                multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo.reset(in.copyTo);
             validate();
@@ -1128,7 +1161,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * @return the list of parameters defined for this mapper
          */
-        protected abstract List<Parameter<?>> getParameters();
+        protected abstract Parameter<?>[] getParameters();
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

@@ -19,6 +19,7 @@ public record HealthIndicatorResult(
     String component,
     HealthStatus status,
     String summary,
+    String helpURL,
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<UserAction> userActions
@@ -29,6 +30,9 @@ public record HealthIndicatorResult(
         builder.startObject();
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
+        if (helpURL != null) {
+            builder.field("help_url", helpURL);
+        }
         if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
             builder.field("details", details, params);
         }

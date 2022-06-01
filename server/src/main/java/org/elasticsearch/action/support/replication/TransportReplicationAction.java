@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -72,6 +71,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
@@ -478,8 +479,8 @@ public abstract class TransportReplicationAction<
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                        new ParameterizedMessage(
-                                            "{} failed to execute post-operation global checkpoint sync",
+                                        () -> format(
+                                            "%s failed to execute post-operation global checkpoint sync",
                                             primaryShardReference.indexShard.shardId()
                                         ),
                                         e
@@ -700,8 +701,8 @@ public abstract class TransportReplicationAction<
         public void onFailure(Exception e) {
             if (e instanceof RetryOnReplicaException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "Retrying operation on replica, action [{}], request [{}]",
+                    () -> format(
+                        "Retrying operation on replica, action [%s], request [%s]",
                         transportReplicaAction,
                         replicaRequest.getRequest()
                     ),
@@ -986,8 +987,8 @@ public abstract class TransportReplicationAction<
                             || cause instanceof NodeClosedException
                             || (isPrimaryAction && retryPrimaryException(cause))) {
                             logger.trace(
-                                () -> new ParameterizedMessage(
-                                    "received an error from node [{}] for request [{}], scheduling a retry",
+                                () -> format(
+                                    "received an error from node [%s] for request [%s], scheduling a retry",
                                     node.getId(),
                                     requestToPerform
                                 ),
@@ -1036,7 +1037,7 @@ public abstract class TransportReplicationAction<
         void finishAsFailed(Exception failure) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
-                logger.trace(() -> new ParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
+                logger.trace(() -> format("operation failed. action [%s], request [%s]", actionName, request), failure);
                 listener.onFailure(failure);
             } else {
                 assert false : new AssertionError("finishAsFailed called but operation is already finished", failure);
@@ -1045,11 +1046,7 @@ public abstract class TransportReplicationAction<
 
         void finishWithUnexpectedFailure(Exception failure) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "unexpected error during the primary phase for action [{}], request [{}]",
-                    actionName,
-                    request
-                ),
+                () -> format("unexpected error during the primary phase for action [%s], request [%s]", actionName, request),
                 failure
             );
             if (finished.compareAndSet(false, true)) {

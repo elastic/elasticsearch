@@ -53,7 +53,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+                    new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
                     instance.assigned(),
                     instance.assignedShardIds()
                 );
@@ -63,15 +63,15 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassigned(),
                     instance.unassignedShardIds(),
                     instance.assigned(),
-                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
+                    new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             case 5:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+                    new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
                     instance.assigned(),
-                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
+                    new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             default:
                 fail("unexpected");
@@ -84,9 +84,9 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
         return new ReactiveStorageDeciderService.ReactiveReason(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
-            new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+            new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
             randomNonNegativeLong(),
-            new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
+            new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8))
         );
     }
 }

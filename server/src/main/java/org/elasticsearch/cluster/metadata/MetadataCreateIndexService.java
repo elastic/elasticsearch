@@ -286,7 +286,7 @@ public class MetadataCreateIndexService {
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
 
-        var delegate = new AllocationActionListener(listener);
+        var delegate = new AllocationActionListener<>(listener);
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {

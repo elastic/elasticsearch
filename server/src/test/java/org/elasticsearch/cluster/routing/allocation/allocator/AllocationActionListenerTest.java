@@ -20,7 +20,7 @@ public class AllocationActionListenerTest extends ESTestCase {
 
     public void testShouldDelegateWhenBothComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener(
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
             ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); })
         );
 
@@ -32,7 +32,7 @@ public class AllocationActionListenerTest extends ESTestCase {
 
     public void testShouldNotDelegateWhenOnlyOneComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener(
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
             ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); })
         );
 
@@ -47,7 +47,7 @@ public class AllocationActionListenerTest extends ESTestCase {
 
     public void testShouldDelegateFailureImmediately() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener(
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
             ActionListener.wrap(ignore -> { throw new AssertionError("Should not complete in test"); }, exception -> completed.set(true))
         );
 

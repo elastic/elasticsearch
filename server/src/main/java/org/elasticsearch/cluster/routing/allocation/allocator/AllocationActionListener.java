@@ -10,28 +10,31 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class AllocationActionListener {
+public class AllocationActionListener<T> {
 
-    private final ActionListener<AcknowledgedResponse> delegate;
-    private final SetOnce<AcknowledgedResponse> response = new SetOnce<>();
+    private final ActionListener<T> delegate;
+    private final SetOnce<T> response = new SetOnce<>();
     private final AtomicInteger listenersExecuted = new AtomicInteger(2);
 
-    public AllocationActionListener(ActionListener<AcknowledgedResponse> delegate) {
+    public AllocationActionListener(ActionListener<T> delegate) {
         this.delegate = delegate;
     }
 
-    public ActionListener<AcknowledgedResponse> clusterStateUpdate() {
+    private void notifyListenerExecuted() {
+        if (listenersExecuted.decrementAndGet() == 0) {
+            delegate.onResponse(AllocationActionListener.this.response.get());
+        }
+    }
+
+    public ActionListener<T> clusterStateUpdate() {
         return new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                response.set(acknowledgedResponse);
-                if (listenersExecuted.decrementAndGet() == 0) {
-                    delegate.onResponse(response.get());
-                }
+            public void onResponse(T response) {
+                AllocationActionListener.this.response.set(response);
+                notifyListenerExecuted();
             }
 
             @Override
@@ -45,9 +48,7 @@ public class AllocationActionListener {
         return new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                if (listenersExecuted.decrementAndGet() == 0) {
-                    delegate.onResponse(response.get());
-                }
+                notifyListenerExecuted();
             }
 
             @Override

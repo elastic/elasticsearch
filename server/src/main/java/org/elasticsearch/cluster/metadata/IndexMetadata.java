@@ -1764,7 +1764,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
                 isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
-                isTsdb ? IndexSettings.MODE.get(settings) : null,
+                isTsdb ? IndexMode.TIME_SERIES : null,
                 isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
                 isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null
             );

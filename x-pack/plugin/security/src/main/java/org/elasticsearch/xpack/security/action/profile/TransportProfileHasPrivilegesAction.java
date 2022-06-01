@@ -88,7 +88,11 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                 request,
                 ActionListener.wrap(applicationPrivilegeDescriptors -> threadPool.generic().execute(() -> {
                     for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
-                        ((CancellableTask) task).ensureNotCancelled();
+                        // return the partial response if the "has privilege" task got cancelled in the meantime
+                        if (((CancellableTask) task).isCancelled()) {
+                            listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
+                            return;
+                        }
                         final String profileUid = profileUidToSubject.getKey();
                         final Subject subject = profileUidToSubject.getValue();
                         authorizationService.checkPrivileges(

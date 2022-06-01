@@ -87,8 +87,8 @@ the {es} cluster.
 [increase-azs]
 Now that you know the tier, increase the number of availability zones.
 
-. Go back to the deployment's landing page and click the
-**Manage** button, and choose **Edit deployment**.
+. Go back to the deployment's landing page by clicking on the three horizontal bars on the top left of the screen
+and choosing **Manage this deployment**. On that page click the **Manage** button, and choose **Edit deployment**.
 
 . In the {es} section, find the tier where the replica shards could not be assigned. Select a higher number
 of availability zones for that tier.
@@ -195,8 +195,8 @@ the {es} cluster.
 
 
 Alternatively, if adding more nodes to the {es} cluster is not desired,
-inspect the `cluster.routing.allocation.total_shards_per_node`
-<<cluster-get-settings, cluster setting>> and increasing the configured value:
+inspect the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting and
+decrease the configured value:
 
 
 . Inspect the <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting for the

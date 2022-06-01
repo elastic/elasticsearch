@@ -7,8 +7,7 @@ Elasticsearch will only try to place the copies of the data for that index on no
 
 Users might want to influence this behavior by adding more nodes to the cluster (or tier if tiers are
 in use), or by reducing the
-<<dynamic-index-number-of-replicas,`index.number_of_replicas`>>
-index setting to reduce the number of replcas that need to be stored.
+<<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting.
 
 In order to fix this follow the next steps:
 

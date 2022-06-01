@@ -227,9 +227,15 @@ public class DesiredBalanceReconciler {
                     logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, desiredNodeIds);
                 }
 
-                final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(
-                    isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO
-                );
+                final UnassignedInfo.AllocationStatus allocationStatus;
+                if (desiredBalance.isBalanceComputed(shard.shardId()) == false) {
+                    allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
+                } else if (isThrottled) {
+                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
+                } else {
+                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;
+                }
+
                 unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
                 if (shard.primary() == false) {
                     // we could not allocate it and we are a replica - check if we can ignore the other replicas

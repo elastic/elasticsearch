@@ -25,6 +25,10 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, Set<String>> 
         return desiredAssignments.getOrDefault(shardId, Set.of());
     }
 
+    public boolean isBalanceComputed(ShardId shardId) {
+        return desiredAssignments.containsKey(shardId) || unassigned.containsKey(shardId);
+    }
+
     public static boolean areSame(DesiredBalance a, DesiredBalance b) {
         return Objects.equals(a.desiredAssignments, b.desiredAssignments) && Objects.equals(a.unassigned, b.unassigned);
     }

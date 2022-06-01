@@ -190,7 +190,7 @@ public class DesiredBalanceService {
         do {
 
             if (hasChanges) {
-                final var unassigned = routingAllocation.routingNodes().unassigned();
+                final var unassigned = routingNodes.unassigned();
 
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
@@ -209,7 +209,7 @@ public class DesiredBalanceService {
 
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingAllocation.routingNodes().unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {
@@ -239,7 +239,7 @@ public class DesiredBalanceService {
         }
 
         final var unassigned = new HashMap<ShardId, Integer>();
-        for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
+        for (var ignored : routingNodes.unassigned().ignored()) {
             assert ignored.unassignedInfo() != null;
             assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT

@@ -18,18 +18,13 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
 
@@ -68,8 +63,10 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext,
-                Collections.singletonList(new FieldAndFormat("field", null)));
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                Collections.singletonList(new FieldAndFormat("field", null))
+            );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);

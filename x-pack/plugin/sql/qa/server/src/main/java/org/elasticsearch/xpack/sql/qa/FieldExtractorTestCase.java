@@ -415,8 +415,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-        expected.put("rows", singletonList(singletonList(
-            getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-77.03653 38.897676)"))));
+        expected.put(
+            "rows",
+            singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")))
+        );
         assertResponse(expected, runSql(query));
     }
 
@@ -584,8 +586,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             )
         );
 
-        expected.put("rows", singletonList(asList(
-            getExpectedValueFromSource(text), getExpectedValueFromSource(ignoreAbove ? null : text))));
+        expected.put(
+            "rows",
+            singletonList(asList(getExpectedValueFromSource(text), getExpectedValueFromSource(ignoreAbove ? null : text)))
+        );
         assertResponse(expected, runSql(query));
     }
 
@@ -651,7 +655,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "integer");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        //(explicitSourceSetting && enableSource == false)
+        // (explicitSourceSetting && enableSource == false)
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
@@ -663,8 +667,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         if (ignoreMalformed) {
             expected.put("rows", singletonList(asList(getExpectedValueFromSource("foo"), null)));
         } else {
-            expected.put("rows", singletonList(asList(getExpectedValueFromSource(String.valueOf(number)),
-                getExpectedValueFromSource(number))));
+            expected.put(
+                "rows",
+                singletonList(asList(getExpectedValueFromSource(String.valueOf(number)), getExpectedValueFromSource(number)))
+            );
         }
         assertResponse(expected, runSql(query));
     }
@@ -748,13 +754,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields(
-            "integer",
-            fieldProps,
-            getIndexProps(),
-            null,
-            isKeyword ? "keyword" : "text"
-        );
+        createIndexWithFieldTypeAndSubFields("integer", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
         Map<String, Object> expected = new HashMap<>();
@@ -768,8 +768,10 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         if (ignoreMalformed) {
             expected.put("rows", singletonList(asList(null, getExpectedValueFromSource("foo"))));
         } else {
-            expected.put("rows", singletonList(asList(getExpectedValueFromSource(number),
-                getExpectedValueFromSource(String.valueOf(number)))));
+            expected.put(
+                "rows",
+                singletonList(asList(getExpectedValueFromSource(number), getExpectedValueFromSource(String.valueOf(number))))
+            );
         }
         assertResponse(expected, runSql(query));
     }
@@ -804,13 +806,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields(
-            "ip",
-            fieldProps,
-            getIndexProps(),
-            null,
-            isKeyword ? "keyword" : "text"
-        );
+        createIndexWithFieldTypeAndSubFields("ip", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
         Map<String, Object> expected = new HashMap<>();

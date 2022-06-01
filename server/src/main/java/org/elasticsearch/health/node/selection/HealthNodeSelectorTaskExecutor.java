@@ -90,7 +90,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         ClusterState clusterState
     ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
-        logger.info("Assining health node selector to {}", discoveryNode);
+        logger.info("Assigning health node selector to {}", discoveryNode);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
@@ -128,7 +128,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         HealthNodeSelector task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
             String nodeId = clusterService.localNode().getId();
-            logger.debug("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
+            logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
             task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
         }
     }

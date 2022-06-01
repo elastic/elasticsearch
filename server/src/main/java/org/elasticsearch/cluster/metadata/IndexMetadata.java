@@ -37,6 +37,8 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -557,6 +559,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean isPartialSearchableSnapshot;
 
+    @Nullable
+    private final IndexMode indexMode;
+    @Nullable
+    private final Instant timeSeriesStart;
+    @Nullable
+    private final Instant timeSeriesEnd;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -594,7 +603,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
-        final boolean isPartialSearchableSnapshot
+        final boolean isPartialSearchableSnapshot,
+        @Nullable final IndexMode indexMode,
+        @Nullable final Instant timeSeriesStart,
+        @Nullable final Instant timeSeriesEnd
     ) {
         this.index = index;
         this.version = version;
@@ -641,6 +653,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
         this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        this.indexMode = indexMode;
+        this.timeSeriesStart = timeSeriesStart;
+        this.timeSeriesEnd = timeSeriesEnd;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -685,7 +700,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
-            this.isPartialSearchableSnapshot
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd
         );
     }
 
@@ -843,6 +861,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isPartialSearchableSnapshot() {
         return isPartialSearchableSnapshot;
+    }
+
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
+    public Instant getTimeSeriesStart() {
+        return timeSeriesStart;
+    }
+
+    public Instant getTimeSeriesEnd() {
+        return timeSeriesEnd;
     }
 
     /**
@@ -1691,6 +1721,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled() && settings.hasValue(IndexSettings.MODE.getKey());
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1728,7 +1759,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
-                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
+                isTsdb ? IndexSettings.MODE.get(settings) : null,
+                isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
+                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null
             );
         }
 

@@ -14,7 +14,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 
 import java.util.Map;
 
@@ -30,7 +30,7 @@ public class ValueCountBucketFunction implements AggregatorBucketFunction<Double
 
     @Override
     public String name() {
-        return ValueCountAggregationBuilder.NAME;
+        return Aggregator.count.name();
     }
 
     @Override

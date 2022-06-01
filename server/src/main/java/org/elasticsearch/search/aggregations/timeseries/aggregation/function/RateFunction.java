@@ -102,10 +102,10 @@ public class RateFunction implements AggregatorFunction<TimePoint, Double> {
             resultValue += totalRevertValue;
         }
 
-        double durationToStart = (firstSample.getTimestamp() - rangeStart) / 1000;
-        double durationToEnd = (rangeEnd - lastSample.getTimestamp()) / 1000;
+        double durationToStart = (double) (firstSample.getTimestamp() - rangeStart) / 1000;
+        double durationToEnd = (double) (rangeEnd - lastSample.getTimestamp()) / 1000;
 
-        double sampledInterval = (lastSample.getTimestamp() - firstSample.getTimestamp()) / 1000;
+        double sampledInterval = (double) (lastSample.getTimestamp() - firstSample.getTimestamp()) / 1000;
         double averageDurationBetweenSamples = sampledInterval / (count - 1);
 
         if (isCounter && resultValue > 0 && firstSample.getValue() >= 0) {

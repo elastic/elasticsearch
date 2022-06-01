@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 
 import java.util.Map;
 
@@ -33,7 +33,7 @@ public class AvgBucketFunction implements AggregatorBucketFunction<Double> {
 
     @Override
     public String name() {
-        return AvgAggregationBuilder.NAME;
+        return Aggregator.avg.name();
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesCountValues;
 
 import java.util.HashMap;
@@ -31,7 +32,7 @@ public class CountValuesBucketFunction implements AggregatorBucketFunction<Doubl
 
     @Override
     public String name() {
-        return "count_values";
+        return Aggregator.count_values.name();
     }
 
     @Override
@@ -59,7 +60,7 @@ public class CountValuesBucketFunction implements AggregatorBucketFunction<Doubl
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        return new TimeSeriesCountValues(TimeSeriesCountValues.NAME, values.get(bucket), formatter, metadata);
+        return new TimeSeriesCountValues(name(), values.get(bucket), formatter, metadata);
     }
 
     @Override

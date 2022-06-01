@@ -15,6 +15,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 
 import java.util.Map;
 
@@ -33,7 +34,7 @@ public class QuantileBucketFunction implements AggregatorBucketFunction<Double> 
 
     @Override
     public String name() {
-        return "quantile";
+        return Aggregator.quantile.name();
     }
 
     @Override

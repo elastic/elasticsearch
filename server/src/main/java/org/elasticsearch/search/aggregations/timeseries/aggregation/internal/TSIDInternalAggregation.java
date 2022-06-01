@@ -84,7 +84,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
         if (aggregations.size() == 1) {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregations.get(0);
             if (reduceContext.isFinalReduce()) {
-                Aggregator function = Aggregator.valueOf(aggregator);
+                Aggregator function = Aggregator.resolve(aggregator);
                 final AggregatorFunction aggregatorFunction = function.getAggregatorFunction(aggregatorParams);
                 tsidAgg.values.forEach(
                     (tsid, agg) -> {

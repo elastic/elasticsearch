@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TopkFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
@@ -38,7 +39,7 @@ public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Do
 
     @Override
     public String name() {
-        return "topk";
+        return Aggregator.topk.name();
     }
 
     @Override

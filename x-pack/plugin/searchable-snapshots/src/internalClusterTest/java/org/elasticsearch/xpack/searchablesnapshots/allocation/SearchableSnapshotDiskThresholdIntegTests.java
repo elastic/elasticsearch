@@ -183,9 +183,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
     public void testHighWatermarkCanNotBeExceededOnColdNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataHotNode = internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DATA_HOT_NODE_ROLE.roleName())
-                .build()
+            Settings.builder().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DATA_HOT_NODE_ROLE.roleName()).build()
         );
 
         final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);

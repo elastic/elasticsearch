@@ -175,7 +175,7 @@ index                                 prirep shard store
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for 3000 indices or fewer per GB of heap memory on master nodes
+==== Aim for 3000 indices or fewer per GB of heap memory on each master node
 
 The number of indices a master node can manage is proportional to its heap
 size. The exact amount of heap memory needed for each index depends on various

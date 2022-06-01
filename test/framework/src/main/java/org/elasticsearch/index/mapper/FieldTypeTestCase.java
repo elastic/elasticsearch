@@ -64,6 +64,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();

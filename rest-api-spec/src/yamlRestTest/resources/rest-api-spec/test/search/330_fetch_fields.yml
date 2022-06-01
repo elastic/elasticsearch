@@ -129,6 +129,7 @@
 
   - length: { hits.hits.0.fields: 1 }
   - match: { hits.hits.0.fields._id.0: "1" }
+
 ---
 "Test ignore malformed":
   - do:

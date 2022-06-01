@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,9 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
                 10,
                 () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
                     randomAlphaOfLengthBetween(4, 10),
+                    randomAlphaOfLengthBetween(5, 10),
+                    1,
+                    randomAlphaOfLengthBetween(5, 10),
                     randomAlphaOfLengthBetween(5, 10)
                 )
             )
@@ -51,6 +55,9 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
                 10,
                 () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
                     randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
+                    randomAlphaOfLengthBetween(5, 10),
+                    1,
+                    randomAlphaOfLengthBetween(5, 10),
                     randomAlphaOfLengthBetween(5, 10)
                 )
             )

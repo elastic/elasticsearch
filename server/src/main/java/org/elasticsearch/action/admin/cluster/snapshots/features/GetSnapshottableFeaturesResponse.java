@@ -12,10 +12,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -73,15 +77,24 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
         private final String featureName;
         private final String description;
+        private final Integer descriptorSize;
+        private final String associatedIndexDescriptors;
+        private final String SystemDatastreamDescriptors;
 
-        public SnapshottableFeature(String featureName, String description) {
+        public SnapshottableFeature(String featureName, String description, Integer size, String associatedIndexDescriptors, String systemDataStreamDescriptors) {
             this.featureName = featureName;
             this.description = description;
+            this.descriptorSize = size;
+            this.associatedIndexDescriptors = associatedIndexDescriptors;
+            this.SystemDatastreamDescriptors = systemDataStreamDescriptors;
         }
 
         public SnapshottableFeature(StreamInput in) throws IOException {
             featureName = in.readString();
             description = in.readString();
+            descriptorSize = in.readInt();
+            associatedIndexDescriptors = in.readString();
+            SystemDatastreamDescriptors = in.readString();
         }
 
         public String getFeatureName() {
@@ -96,6 +109,9 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(featureName);
             out.writeString(description);
+            out.writeInt(descriptorSize);
+            out.writeString(associatedIndexDescriptors);
+            out.writeString(SystemDatastreamDescriptors);
         }
 
         @Override
@@ -103,6 +119,9 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
             builder.startObject();
             builder.field("name", featureName);
             builder.field("description", description);
+            builder.field("descriptor_size", descriptorSize);
+            builder.field("associated_index_descriptors", associatedIndexDescriptors);
+            builder.field("system_datastream_descriptors", SystemDatastreamDescriptors);
             builder.endObject();
             return builder;
         }

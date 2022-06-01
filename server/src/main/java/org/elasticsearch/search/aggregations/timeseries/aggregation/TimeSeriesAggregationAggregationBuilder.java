@@ -82,8 +82,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private BucketOrder order = BucketOrder.key(true);
-    private Long startTime;
-    private Long endTime;
+    private long startTime;
+    private long endTime;
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, true, false);
@@ -253,12 +253,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         bucketCountThresholds.toXContent(builder, params);
         builder.field(ORDER_FIELD.getPreferredName());
         order.toXContent(builder, params);
-        if (startTime != null) {
-            builder.field(START_TIME_FIELD.getPreferredName(), startTime);
-        }
-        if (endTime != null) {
-            builder.field(END_TIME_FIELD.getPreferredName(), endTime);
-        }
+        builder.field(START_TIME_FIELD.getPreferredName(), startTime);
+        builder.field(END_TIME_FIELD.getPreferredName(), endTime);
         return builder;
     }
 
@@ -521,7 +517,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return this;
     }
 
-    public Long startTime() {
+    public long startTime() {
         return startTime;
     }
 
@@ -530,7 +526,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return this;
     }
 
-    public Long endTime() {
+    public long endTime() {
         return endTime;
     }
 

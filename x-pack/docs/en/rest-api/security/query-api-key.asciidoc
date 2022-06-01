@@ -375,4 +375,4 @@ GET /_security/_query/api_key
 // NOTCONSOLE
 
 <1> Matching API keys must not be invalidated
-<2> Matching API keys must be either not expired or does not have an expiration data
+<2> Matching API keys must be either not expired or does not have an expiration date

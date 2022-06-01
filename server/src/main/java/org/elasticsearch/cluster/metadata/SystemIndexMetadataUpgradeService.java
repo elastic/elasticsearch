@@ -26,6 +26,8 @@ import java.util.Map;
 
 /**
  * A service responsible for updating the metadata used by system indices.
+ *
+ * Mapping updates are handled by {@link org.elasticsearch.indices.SystemIndexManager}.
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
@@ -56,9 +58,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             if (lastIndexMetadataMap != indexMetadataMap) {
                 for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
                     if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
-                        final boolean isSystem = systemIndices.isSystemIndex(cursor.getValue().getIndex())
-                            || systemIndices.isSystemIndexBackingDataStream(cursor.getValue().getIndex().getName());
-                        if (isSystem != cursor.getValue().isSystem()) {
+                        IndexMetadata indexMetadata = cursor.getValue();
+                        boolean requiresUpdate = requiresUpdate(indexMetadata);
+                        if (requiresUpdate) {
                             updateTaskPending = true;
                             submitUnbatchedTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
@@ -70,6 +72,38 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    // package-private for testing
+    boolean requiresUpdate(IndexMetadata indexMetadata) {
+        final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
+
+        // should toggle system index status
+        if (shouldBeSystem != indexMetadata.isSystem()) {
+            return true;
+        }
+
+        if (shouldBeSystem) {
+            return isVisible(indexMetadata) || hasVisibleAlias(indexMetadata);
+        }
+
+        return false;
+    }
+
+    // package-private for testing
+    boolean isVisible(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false;
+    }
+
+    // package-private for testing
+    boolean shouldBeSystem(IndexMetadata indexMetadata) {
+        return systemIndices.isSystemIndex(indexMetadata.getIndex())
+            || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
+    }
+
+    // package-private for testing
+    boolean hasVisibleAlias(IndexMetadata indexMetadata) {
+        return indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()));
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -91,21 +125,19 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             for (Map.Entry<String, IndexMetadata> entry : indexMetadataMap.entrySet()) {
                 final IndexMetadata indexMetadata = entry.getValue();
                 if (indexMetadata != lastIndexMetadataMap.get(entry.getKey())) {
-                    final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex())
-                        || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
+                    final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
                     IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                     boolean updated = false;
-                    if (isSystem != indexMetadata.isSystem()) {
+                    if (shouldBeSystem != indexMetadata.isSystem()) {
                         builder.system(indexMetadata.isSystem() == false);
                         updated = true;
                     }
-                    boolean isHidden = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
-                    if (isSystem && isHidden == false) {
+                    if (shouldBeSystem && isVisible(indexMetadata)) {
                         builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         builder.settingsVersion(builder.settingsVersion() + 1);
                         updated = true;
                     }
-                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()))) {
+                    if (shouldBeSystem && hasVisibleAlias(indexMetadata)) {
                         for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
                             if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
                                 builder.removeAlias(aliasMetadata.alias());

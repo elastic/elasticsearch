@@ -168,8 +168,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
         if (event.state().nodes().isLocalNodeElectedMaster()) {
+            logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
             executeListeners(lastConvergedIndex, true);
         } else {
             lastConvergedIndex = -1;

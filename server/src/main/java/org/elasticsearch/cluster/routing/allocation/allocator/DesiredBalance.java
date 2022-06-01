@@ -12,20 +12,19 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * The desired balance of the cluster, indicating which nodes should hold a copy of each shard.
  *
- * @param desiredAssignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
- * @param unassigned a map of {@link  ShardId} that could not be assigned at the moment
+ * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  */
-public record DesiredBalance(long lastConvergedIndex, Map<ShardId, Set<String>> desiredAssignments, Map<ShardId, Integer> unassigned) {
-    public Set<String> getDesiredNodeIds(ShardId shardId) {
-        return desiredAssignments.getOrDefault(shardId, Set.of());
+public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
+
+    public ShardAssignment getAssignment(ShardId shardId) {
+        return assignments.get(shardId);
     }
 
     public static boolean areSame(DesiredBalance a, DesiredBalance b) {
-        return Objects.equals(a.desiredAssignments, b.desiredAssignments) && Objects.equals(a.unassigned, b.unassigned);
+        return Objects.equals(a.assignments, b.assignments);
     }
 }

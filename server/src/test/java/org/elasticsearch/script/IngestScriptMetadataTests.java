@@ -24,7 +24,6 @@ public class IngestScriptMetadataTests extends ESTestCase {
             assertEquals(VersionType.toString(vt), ctx.get("_version_type"));
         }
 
-
         for (VersionType vt : VersionType.values()) {
             ctx.put("_version_type", VersionType.toString(vt));
             assertEquals(vt, m.getVersionType());

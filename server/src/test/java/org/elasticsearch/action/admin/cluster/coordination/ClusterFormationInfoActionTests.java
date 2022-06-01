@@ -106,7 +106,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.currentTerm(),
-                        !clusterFormationState.hasDiscoveredQuorum(),
+                        clusterFormationState.hasDiscoveredQuorum() == false,
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
                     );

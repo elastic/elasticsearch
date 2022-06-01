@@ -14,8 +14,8 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -23,11 +23,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -62,15 +64,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
-     * @param info Metadata about the plugin, usually loaded from plugin properties
+     * @param descriptor Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
      * @param loader   The classloader for the plugin
      * @param layer   The module layer for the plugin
      */
-    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader, ModuleLayer layer) {
+    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance, ClassLoader loader, ModuleLayer layer) {
 
         LoadedPlugin {
-            Objects.requireNonNull(info);
+            Objects.requireNonNull(descriptor);
             Objects.requireNonNull(instance);
             Objects.requireNonNull(loader);
             Objects.requireNonNull(layer);
@@ -80,8 +82,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
          * Creates a loaded <i>classpath plugin</i>. A <i>classpath plugin</i> is a plugin loaded
          * by the system classloader and defined to the unnamed module of the boot layer.
          */
-        LoadedPlugin(PluginInfo info, Plugin instance) {
-            this(info, instance, PluginsService.class.getClassLoader(), ModuleLayer.boot());
+        LoadedPlugin(PluginDescriptor descriptor, Plugin instance) {
+            this(descriptor, instance, PluginsService.class.getClassLoader(), ModuleLayer.boot());
         }
     }
 
@@ -105,77 +107,38 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Constructs a new PluginService
-     * @param settings The settings of the system
+     *
+     * @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(
-        Settings settings,
-        Path configPath,
-        Path modulesDirectory,
-        Path pluginsDirectory,
-        Collection<Class<? extends Plugin>> classpathPlugins
-    ) {
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
 
-        List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
-        List<PluginInfo> pluginsList = new ArrayList<>();
-        // we need to build a List of plugins for checking mandatory plugins
-        final List<String> pluginsNames = new ArrayList<>();
-
-        // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
-                pluginClass.getName(),
-                "classpath plugin",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                pluginClass.getName(),
-                null,
-                Collections.emptyList(),
-                false,
-                PluginType.ISOLATED,
-                "",
-                false
-            );
-            if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
-            }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
-        }
-
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-        List<PluginInfo> modulesList = new ArrayList<>();
+
         // load modules
+        List<PluginDescriptor> modulesList = new ArrayList<>();
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                for (PluginBundle bundle : modules) {
-                    modulesList.add(bundle.plugin);
-                }
+                modules.stream().map(PluginBundle::pluginDescriptor).forEach(modulesList::add);
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         }
 
-        // now, find all the ones that are in plugins/
+        // load plugins
+        List<PluginDescriptor> pluginsList = new ArrayList<>();
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    for (final PluginBundle bundle : plugins) {
-                        pluginsList.add(bundle.plugin);
-                        pluginsNames.add(bundle.plugin.getName());
-                    }
+                    plugins.stream().map(PluginBundle::pluginDescriptor).forEach(pluginsList::add);
                     seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
@@ -183,27 +146,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        Collection<LoadedPlugin> loaded = loadBundles(seenBundles);
-        pluginsLoaded.addAll(loaded);
+        Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
+        this.info = new PluginsAndModules(getRuntimeInfos(pluginsList, loadedPlugins), modulesList);
+        this.plugins = List.copyOf(loadedPlugins.values());
 
-        this.info = new PluginsAndModules(pluginsList, modulesList);
-        this.plugins = Collections.unmodifiableList(pluginsLoaded);
-
-        checkMandatoryPlugins(pluginsNames, MANDATORY_SETTING.get(settings));
+        checkMandatoryPlugins(
+            pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
+            new HashSet<>(MANDATORY_SETTING.get(settings))
+        );
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(info.getPluginInfos(), "plugin", logger);
+        logPluginInfo(pluginsList, "plugin", logger);
     }
 
     // package-private for testing
-    static void checkMandatoryPlugins(List<String> existingPlugins, List<String> mandatoryPlugins) {
+    static void checkMandatoryPlugins(Set<String> existingPlugins, Set<String> mandatoryPlugins) {
         if (mandatoryPlugins.isEmpty()) {
             return;
         }
 
-        Set<String> missingPlugins = Sets.difference(new HashSet<>(mandatoryPlugins), new HashSet<>(existingPlugins));
+        Set<String> missingPlugins = Sets.difference(mandatoryPlugins, existingPlugins);
         if (missingPlugins.isEmpty() == false) {
             final String message = "missing mandatory plugins ["
                 + String.join(", ", missingPlugins)
@@ -214,14 +178,40 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {
-        assert pluginInfos != null;
-        if (pluginInfos.isEmpty()) {
+    private static void logPluginInfo(final List<PluginDescriptor> pluginDescriptors, final String type, final Logger logger) {
+        assert pluginDescriptors != null;
+        if (pluginDescriptors.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
+            for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
+        }
+    }
+
+    private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
+        var plugInspector = PluginIntrospector.getInstance();
+        var officialPlugins = getOfficialPlugins();
+        List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
+        for (PluginDescriptor descriptor : pluginDescriptors) {
+            LoadedPlugin plugin = plugins.get(descriptor.getName());
+            assert plugin != null;
+            Class<?> pluginClazz = plugin.instance.getClass();
+            boolean isOfficial = officialPlugins.contains(descriptor.getName());
+            PluginApiInfo apiInfo = null;
+            if (isOfficial == false) {
+                apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
+            }
+            runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
+        }
+        return runtimeInfos;
+    }
+
+    private static Set<String> getOfficialPlugins() {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            return Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -231,8 +221,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A stream of results
      * @param <T> The generic type of the result
      */
-    public <T> Stream<T> map(Function<Plugin, T> function) {
-        return plugins.stream().map(LoadedPlugin::instance).map(function);
+    public final <T> Stream<T> map(Function<Plugin, T> function) {
+        return plugins().stream().map(LoadedPlugin::instance).map(function);
     }
 
     /**
@@ -241,24 +231,24 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A stream of results
      * @param <T> The generic type of the collection
      */
-    public <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
-        return plugins.stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
+    public final <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
+        return plugins().stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
     }
 
     /**
      * Apply a consumer action to each plugin
      * @param consumer An action that consumes a plugin
      */
-    public void forEach(Consumer<Plugin> consumer) {
-        plugins.stream().map(LoadedPlugin::instance).forEach(consumer);
+    public final void forEach(Consumer<Plugin> consumer) {
+        plugins().stream().map(LoadedPlugin::instance).forEach(consumer);
     }
 
     /**
      * Sometimes we want the plugin name for error handling.
      * @return A map of plugin names to plugin instances.
      */
-    public Map<String, Plugin> pluginMap() {
-        return plugins.stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
+    public final Map<String, Plugin> pluginMap() {
+        return plugins().stream().collect(Collectors.toMap(p -> p.descriptor().getName(), LoadedPlugin::instance));
     }
 
     /**
@@ -269,7 +259,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return info;
     }
 
-    private Collection<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+    protected List<LoadedPlugin> plugins() {
+        return this.plugins;
+    }
+
+    private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
@@ -282,20 +276,20 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         loadExtensions(loaded.values());
-        return loaded.values();
+        return loaded;
     }
 
     // package-private for test visibility
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
 
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
-            .flatMap(t -> t.info().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
+            .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (LoadedPlugin pluginTuple : plugins) {
             if (pluginTuple.instance() instanceof ExtensiblePlugin) {
                 loadExtensionsForPlugin(
                     (ExtensiblePlugin) pluginTuple.instance(),
-                    extendingPluginsByName.getOrDefault(pluginTuple.info().getName(), List.of())
+                    extendingPluginsByName.getOrDefault(pluginTuple.descriptor().getName(), List.of())
                 );
             }
         }
@@ -395,7 +389,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
             extendedPlugins.add(extendedPlugin);
             logger.debug(
-                () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.info().getName()).toList()
+                () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.descriptor().getName()).toList()
             );
         }
 
@@ -448,7 +442,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     static LayerAndLoader createSPI(PluginBundle bundle, ClassLoader parentLoader, List<LoadedPlugin> extendedPlugins) {
-        final PluginInfo plugin = bundle.plugin;
+        final PluginDescriptor plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", creating spi, modular");
             return createSpiModuleLayer(bundle.spiUrls, parentLoader, extendedPlugins.stream().map(LoadedPlugin::layer).toList());
@@ -464,7 +458,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<LoadedPlugin> extendedPlugins,
         LayerAndLoader spiLayerAndLoader
     ) {
-        final PluginInfo plugin = bundle.plugin;
+        final PluginDescriptor plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", modular");
             var parentLayers = Stream.concat(
@@ -500,7 +494,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    // package-private for testing
+    static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -543,8 +538,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    public final <T> List<T> filterPlugins(Class<T> type) {
+        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    }
+
+    /**
+     * Get a function that will take a {@link Settings} object and return a {@link PluginsService}.
+     * This function passes in an empty list of classpath plugins.
+     * @param environment The environment for the plugins service.
+     * @return A function for creating a plugins service.
+     */
+    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
+        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
     }
 
     static final LayerAndLoader createPluginModuleLayer(PluginBundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {

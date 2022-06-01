@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.internal.Client;
@@ -512,7 +511,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE,
         ReadinessService.PORT
     );
 

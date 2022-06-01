@@ -246,7 +246,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                     is(
                         equalTo(
                             "Cannot create transform [some-id] because user bob lacks the required permissions "
-                                + "[some-other-source-index:[read], some-other_dest-index:[read, delete]]"
+                                + "[some-other-source-index:[read], some-other_dest-index:[delete, read]]"
                         )
                     )
                 )

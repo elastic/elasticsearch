@@ -151,6 +151,7 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -640,6 +641,7 @@ public class Security extends Plugin
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
+                settings,
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
@@ -776,6 +778,7 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);
@@ -1055,6 +1058,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1419,6 +1423,20 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            final var setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
+                logger.warn(
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
+                );
+            }
+        });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();

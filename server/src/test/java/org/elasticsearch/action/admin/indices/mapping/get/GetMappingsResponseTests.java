@@ -33,10 +33,10 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) {
-        ImmutableOpenMap.Builder<String, MappingMetadata> builder = ImmutableOpenMap.builder(original.mappings());
+        Map<String, MappingMetadata> builder = new HashMap<>(original.mappings());
         String indexKey = original.mappings().keySet().iterator().next();
         builder.put(indexKey + "1", createMappingsForIndex());
-        return new GetMappingsResponse(builder.build());
+        return new GetMappingsResponse(builder);
     }
 
     @Override

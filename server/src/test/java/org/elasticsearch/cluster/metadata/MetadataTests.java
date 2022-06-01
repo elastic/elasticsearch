@@ -93,7 +93,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             GetAliasesRequest request = new GetAliasesRequest();
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -105,7 +105,7 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -114,7 +114,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias*");
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -123,14 +123,14 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias1");
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(1));
             assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -138,7 +138,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
     }
@@ -169,7 +169,7 @@ public class MetadataTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).toList().toArray(new String[] {});
-        ImmutableOpenMap<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        Map<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
@@ -656,7 +656,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 Strings.EMPTY_ARRAY,
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -666,7 +666,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -677,7 +677,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -709,7 +709,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -718,7 +718,7 @@ public class MetadataTests extends ESTestCase {
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 index -> field -> randomBoolean(),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -774,22 +774,18 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1", "index2", "index3" },
-                index -> {
-                    if (index.equals("index1")) {
-                        return field -> field.startsWith("name.") == false
-                            && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false
-                            && field.equals("address.location") == false;
-                    }
-                    if (index.equals("index2")) {
-                        return field -> false;
-                    }
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
-                },
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
+                if (index.equals("index1")) {
+                    return field -> field.startsWith("name.") == false
+                        && field.startsWith("properties.key.") == false
+                        && field.equals("age") == false
+                        && field.equals("address.location") == false;
+                }
+                if (index.equals("index2")) {
+                    return field -> false;
+                }
+                return MapperPlugin.NOOP_FIELD_PREDICATE;
+            }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -836,7 +832,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -872,7 +868,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index2")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -930,7 +926,7 @@ public class MetadataTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNoFields(Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -942,7 +938,7 @@ public class MetadataTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNotFiltered(Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
 

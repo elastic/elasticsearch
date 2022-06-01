@@ -20,7 +20,7 @@ public enum Op {
     INDEX("index"),
     DELETE("delete"),
     CREATE("create"),
-    // UPDATE("update"), // TODO(stu): is this used anywhere?  Add to other tests
+    UPDATE("update"),
     UNKOWN("unknown");
 
     public final String name;
@@ -46,6 +46,7 @@ public enum Op {
             case "index" -> INDEX;
             case "delete" -> DELETE;
             case "create" -> CREATE;
+            case "update" -> UPDATE;
             default -> UNKOWN;
         };
     }

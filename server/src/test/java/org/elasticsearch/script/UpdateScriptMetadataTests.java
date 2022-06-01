@@ -18,6 +18,7 @@ import java.util.Map;
 public class UpdateScriptMetadataTests extends ESTestCase {
     UpdateScript.Metadata meta = null;
     Map<String, Object> ctx = null;
+
     protected void insert() {
         meta = UpdateScript.insert("myIndex", "myId", Op.CREATE, 0L, Collections.emptyMap());
         ctx = meta.getCtx();

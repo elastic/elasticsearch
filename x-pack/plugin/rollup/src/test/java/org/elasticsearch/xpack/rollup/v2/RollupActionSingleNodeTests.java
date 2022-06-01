@@ -131,8 +131,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .prepareCreate(sourceIndex)
             .setSettings(
                 Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
@@ -251,8 +251,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .prepareCreate(sourceIndex)
             .setSettings(
                 Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
@@ -360,7 +360,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .prepareResizeIndex(sourceIndex, sourceIndexClone)
             .setResizeType(ResizeType.CLONE)
             .setSettings(
-                Settings.builder().put("index.number_of_shards", numOfShards).put("index.number_of_replicas", numOfReplicas).build()
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+                    .build()
             )
             .get();
         assertTrue(r.isAcknowledged());
@@ -556,8 +559,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
             Settings.builder()
-                .put("index.number_of_shards", numOfShards)
-                .put("index.number_of_replicas", numOfReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
                 .put("index.mode", "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),

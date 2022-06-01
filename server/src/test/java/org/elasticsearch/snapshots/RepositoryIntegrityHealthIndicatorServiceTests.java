@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,8 +51,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No corrupted repositories.",
+                    RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -72,9 +76,17 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     RED,
-                    "Detected [1] corrupted repositories: [corrupted-repo].",
+                    "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
+                    RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
+                    ),
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
+                            List.of(ImpactArea.BACKUP)
+                        )
                     ),
                     Collections.emptyList()
                 )
@@ -93,8 +105,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No repositories configured.",
+                    RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
+                    null,
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

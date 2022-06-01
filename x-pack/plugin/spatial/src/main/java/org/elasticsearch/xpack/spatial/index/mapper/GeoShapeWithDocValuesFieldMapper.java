@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShape
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -121,8 +122,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 
         @Override
@@ -399,6 +400,15 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoBoundingBox getInternalBoundingBox() {
             return boundingBox;
+        }
+
+        @Override
+        public GeoPoint getInternalLabelPosition() {
+            try {
+                return value.labelPosition();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
+            }
         }
 
         @Override

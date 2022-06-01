@@ -23,6 +23,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
@@ -154,9 +155,9 @@ class CertificateTool extends MultiCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         try {
-            super.execute(terminal, options);
+            super.execute(terminal, options, processInfo);
         } catch (OptionException e) {
             if (e.options().size() == 1 && e.options().contains("keep-ca-key")) {
                 throw new UserException(ExitCodes.USAGE, """
@@ -580,7 +581,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'csr' mode generates certificate signing requests that can be sent to");
@@ -670,7 +671,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'cert' mode generates X.509 certificate and private keys.");
@@ -903,7 +904,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'ca' mode generates a new 'certificate authority'");

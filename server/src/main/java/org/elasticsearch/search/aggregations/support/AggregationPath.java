@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -68,6 +68,33 @@ public class AggregationPath {
 
     private static final String AGG_DELIM = ">";
 
+    /**
+     * Indicates if the current path element contains a bucket key.
+     *
+     * InternalMultiBucketAggregation#resolvePropertyFromPath supports resolving specific buckets and a bucket is indicated by
+     * wrapping a key element in quotations. Example `agg['foo']` would get the bucket `foo` in the agg.
+     *
+     * @param pathElement The path element to check
+     * @return Does the path element contain a bucket_key or not
+     */
+    public static boolean pathElementContainsBucketKey(AggregationPath.PathElement pathElement) {
+        return pathElement != null && pathElement.key() != null && pathElement.key().startsWith("'") && pathElement.key().endsWith("'");
+    }
+
+    public static List<String> pathElementsAsStringList(List<PathElement> pathElements) {
+        List<String> stringPathElements = new ArrayList<>();
+        for (PathElement pathElement : pathElements) {
+            stringPathElements.add(pathElement.name);
+            if (pathElement.key != null) {
+                stringPathElements.add(pathElement.key);
+            }
+            if (pathElement.metric != null) {
+                stringPathElements.add(pathElement.metric);
+            }
+        }
+        return stringPathElements;
+    }
+
     public static AggregationPath parse(String path) {
         String[] elements = Strings.tokenizeToStringArray(path, AGG_DELIM);
         List<PathElement> tokens = new ArrayList<>(elements.length);
@@ -79,14 +106,14 @@ public class AggregationPath {
                 int metricIndex = element.lastIndexOf('.');
                 if (keyIndex >= 0) {
                     if (keyIndex == 0 || keyIndex > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     int endKeyIndex = element.lastIndexOf(']');
                     if (endKeyIndex < keyIndex) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     if (metricIndex < 0 && endKeyIndex != element.length() - 1) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     tokens.add(
                         new PathElement(
@@ -104,7 +131,7 @@ public class AggregationPath {
                     continue;
                 }
                 if (metricIndex == 0 || metricIndex > element.length() - 2) {
-                    throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                    throw AggregationErrors.invalidPathElement(element, path);
                 }
                 tuple = split(element, metricIndex, tuple);
                 tokens.add(new PathElement(element, tuple[0], null, tuple[1]));
@@ -112,10 +139,10 @@ public class AggregationPath {
                 int keyIndex = element.lastIndexOf('[');
                 if (keyIndex >= 0) {
                     if (keyIndex == 0 || keyIndex > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     tokens.add(
                         new PathElement(
@@ -181,17 +208,7 @@ public class AggregationPath {
     }
 
     public List<String> getPathElementsAsStringList() {
-        List<String> stringPathElements = new ArrayList<>();
-        for (PathElement pathElement : this.pathElements) {
-            stringPathElements.add(pathElement.name);
-            if (pathElement.key != null) {
-                stringPathElements.add(pathElement.key);
-            }
-            if (pathElement.metric != null) {
-                stringPathElements.add(pathElement.metric);
-            }
-        }
-        return stringPathElements;
+        return pathElementsAsStringList(this.pathElements);
     }
 
     /**

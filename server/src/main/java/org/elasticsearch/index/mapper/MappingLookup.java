@@ -51,10 +51,10 @@ public final class MappingLookup {
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
-    private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
-    private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+    private final Map<String, NamedAnalyzer> indexAnalyzersMap;
+    private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
-    private final Set<String> completionFields = new HashSet<>();
+    private final Set<String> completionFields;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -142,6 +142,9 @@ public final class MappingLookup {
         }
         this.nestedLookup = NestedLookup.build(nestedMappers);
 
+        final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
+        final Set<String> completionFields = new HashSet<>();
+        final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.name())) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined both as an object and a field");
@@ -167,17 +170,22 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
-        this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
-        this.objectMappers = Collections.unmodifiableMap(objects);
+        final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+        if (runtimeFields.isEmpty()) {
+            // without runtime fields this is the same as the field type lookup
+            this.indexTimeLookup = fieldTypeLookup;
+        } else {
+            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        }
+        // make all fields into compact+fast immutable maps
+        this.fieldMappers = Map.copyOf(fieldMappers);
+        this.objectMappers = Map.copyOf(objects);
+        this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
+        this.completionFields = Set.copyOf(completionFields);
+        this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
 
-        mapping.getRoot()
-            .runtimeFields()
-            .stream()
-            .flatMap(RuntimeField::asMappedFieldTypes)
-            .map(MappedFieldType::name)
-            .forEach(this::validateDoesNotShadow);
+        runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
     }
 
     /**
@@ -203,8 +211,9 @@ public final class MappingLookup {
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
-        if (this.indexAnalyzersMap.containsKey(field)) {
-            return this.indexAnalyzersMap.get(field);
+        final NamedAnalyzer analyzer = indexAnalyzersMap.get(field);
+        if (analyzer != null) {
+            return analyzer;
         }
         return unmappedFieldAnalyzer.apply(field);
     }
@@ -393,6 +402,11 @@ public final class MappingLookup {
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
+    }
+
+    public SourceLoader newSourceLoader() {
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping.getRoot());
     }
 
     /**

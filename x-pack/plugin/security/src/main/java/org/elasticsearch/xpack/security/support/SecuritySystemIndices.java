@@ -46,6 +46,7 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
+    public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
 
     private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
@@ -737,8 +738,25 @@ public class SecuritySystemIndices {
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
-            .setOrigin(SECURITY_PROFILE_ORIGIN)
+            .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
+            .setPriorSystemIndexDescriptors(
+                List.of(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(".security-profile-[0-9]+*")
+                        .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
+                        .setDescription("Contains user profile documents")
+                        .setMappings(getProfileIndexMappings())
+                        .setSettings(getProfileIndexSettings())
+                        .setAliasName(SECURITY_PROFILE_ALIAS)
+                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
+                        .setVersionMetaKey(SECURITY_VERSION_STRING)
+                        .setOrigin(SECURITY_ORIGIN)
+                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                        .build()
+                )
+            )
             .build();
     }
 

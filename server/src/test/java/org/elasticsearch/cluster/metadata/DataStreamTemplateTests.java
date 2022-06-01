@@ -34,7 +34,7 @@ public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStr
 
     public static DataStreamTemplate randomInstance() {
         IndexMode indexMode = randomBoolean() ? randomFrom(IndexMode.values()) : null;
-        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean(), indexMode);
+        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean());
     }
 
 }

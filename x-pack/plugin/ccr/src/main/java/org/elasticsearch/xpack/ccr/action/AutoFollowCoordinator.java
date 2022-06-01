@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -64,6 +63,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 /**
@@ -207,8 +207,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 );
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(
-                    new ParameterizedMessage(
-                        "failure occurred while fetching cluster state for auto follow pattern [{}]",
+                    () -> format(
+                        "failure occurred while fetching cluster state for auto follow pattern [%s]",
                         result.autoFollowPatternName
                     ),
                     result.clusterStateFetchException
@@ -224,8 +224,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
                         );
                         LOGGER.warn(
-                            new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
+                            () -> format(
+                                "failure occurred while auto following index [%s] for auto follow pattern [%s]",
                                 entry.getKey(),
                                 result.autoFollowPatternName
                             ),

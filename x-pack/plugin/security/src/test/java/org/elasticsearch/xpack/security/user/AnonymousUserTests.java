@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.user;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -51,9 +52,9 @@ public class AnonymousUserTests extends ESTestCase {
         assertThat(AnonymousUser.isAnonymousUsername(user.principal(), settings), is(true));
         // make sure check works with serialization
         BytesStreamOutput output = new BytesStreamOutput();
-        User.writeTo(user, output);
+        AuthenticationSerializationHelper.writeUserTo(user, output);
 
-        User anonymousSerialized = User.readFrom(output.bytes().streamInput());
+        User anonymousSerialized = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
         assertEquals(user, anonymousSerialized);
 
         // test with anonymous disabled

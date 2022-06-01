@@ -132,7 +132,7 @@ public class FillMaskProcessor extends NlpTask.Processor {
         String predictedValue = tokenization.decode(tokenization.getFromVocab(scoreAndIndices[0].index));
         return new FillMaskResults(
             predictedValue,
-            tokenization.getTokenization(0).input().replace(tokenizer.getMaskToken(), predictedValue),
+            tokenization.getTokenization(0).input().get(0).replace(tokenizer.getMaskToken(), predictedValue),
             results,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             scoreAndIndices[0].score,

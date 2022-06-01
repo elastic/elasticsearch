@@ -19,8 +19,10 @@ public record HealthIndicatorResult(
     String component,
     HealthStatus status,
     String summary,
+    String helpURL,
     HealthIndicatorDetails details,
-    List<HealthIndicatorImpact> impacts
+    List<HealthIndicatorImpact> impacts,
+    List<UserAction> userActions
 ) implements ToXContentObject {
 
     @Override
@@ -28,6 +30,9 @@ public record HealthIndicatorResult(
         builder.startObject();
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
+        if (helpURL != null) {
+            builder.field("help_url", helpURL);
+        }
         if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
             builder.field("details", details, params);
         }
@@ -35,6 +40,9 @@ public record HealthIndicatorResult(
             builder.field("impacts", impacts);
         }
         // TODO 83303: Add detail / documentation
+        if (userActions != null && userActions.isEmpty() == false) {
+            builder.field("user_actions", userActions);
+        }
         return builder.endObject();
     }
 }

@@ -14,6 +14,7 @@ import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -104,7 +106,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected CreateFileTokenCommand newCreateFileTokenCommand() {
                 return new CreateFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -114,7 +116,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected DeleteFileTokenCommand newDeleteFileTokenCommand() {
                 return new DeleteFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -124,7 +126,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected ListFileTokenCommand newListFileTokenCommand() {
                 return new ListFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -261,20 +263,20 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testListTokens() throws Exception {
         execute("list", pathHomeParameter);
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("""
-            elastic/fleet-server/server_1
-            elastic/fleet-server/server_2
-            elastic/fleet-server/server_3"""));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensByPrincipal() throws Exception {
         execute("list", pathHomeParameter, "elastic/fleet-server");
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("""
-            elastic/fleet-server/server_1
-            elastic/fleet-server/server_2
-            elastic/fleet-server/server_3"""));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensNonExist() throws Exception {

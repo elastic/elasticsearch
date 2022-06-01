@@ -12,13 +12,16 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
@@ -39,6 +42,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     public static final String NAME = "repository_integrity";
 
+    public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+
+    public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
+    public static final String NO_CORRUPT_REPOS = "No corrupted snapshot repositories.";
+
     private final ClusterService clusterService;
 
     public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
@@ -56,11 +64,22 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
+    public HealthIndicatorResult calculate(boolean explain) {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
-            return createIndicator(GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                NO_REPOS_CONFIGURED,
+                HealthIndicatorDetails.EMPTY,
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         }
 
         var corrupted = snapshotMetadata.repositories()
@@ -75,18 +94,28 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (corrupted.isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No corrupted repositories.",
-                includeDetails
-                    ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories))
-                    : HealthIndicatorDetails.EMPTY,
+                "No corrupted snapshot repositories.",
+                explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
+                Collections.emptyList(),
                 Collections.emptyList()
             );
         }
-
+        List<HealthIndicatorImpact> impacts = Collections.singletonList(
+            new HealthIndicatorImpact(
+                1,
+                String.format(
+                    Locale.ROOT,
+                    "Data in corrupted snapshot repositor%s %s may be lost and cannot be restored.",
+                    corrupted.size() > 1 ? "ies" : "y",
+                    limitSize(corrupted, 10)
+                ),
+                List.of(ImpactArea.BACKUP)
+            )
+        );
         return createIndicator(
             RED,
             createCorruptedRepositorySummary(corrupted),
-            includeDetails
+            explain
                 ? new SimpleHealthIndicatorDetails(
                     Map.of(
                         "total_repositories",
@@ -98,12 +127,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     )
                 )
                 : HealthIndicatorDetails.EMPTY,
+            impacts,
             Collections.emptyList()
         );
     }
 
     private static String createCorruptedRepositorySummary(List<String> corrupted) {
-        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted repositories: ");
+        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted snapshot repositories: ");
         collectionToDelimitedStringWithLimit(corrupted, ",", "[", "].", 1024, message);
         return message.toString();
     }

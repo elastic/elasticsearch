@@ -30,7 +30,7 @@ public class JwtValidateUtilTests extends JwtTestCase {
         LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
         // randomSecretOrSecretKeyOrKeyPair() randomizes which JwtUtil methods to call, so it indirectly covers most JwtUtil code
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
-        final SecureString serializedJWTOriginal = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
+        final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());
         return JwtValidateUtil.verifyJwt(jwk, parsedSignedJWT);
     }

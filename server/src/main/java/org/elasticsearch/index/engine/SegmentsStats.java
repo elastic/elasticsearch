@@ -10,7 +10,6 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +19,11 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
@@ -29,7 +32,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
-    private ImmutableOpenMap<String, FileStats> files = ImmutableOpenMap.of();
+    private Map<String, FileStats> files = new HashMap<>();
 
     public SegmentsStats() {}
 
@@ -48,14 +51,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
-
-        final int size = in.readVInt();
-        final ImmutableOpenMap.Builder<String, FileStats> files = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            FileStats file = new FileStats(in);
-            files.put(file.getExt(), file);
-        }
-        this.files = files.build();
+        files = in.readList(FileStats::new).stream().collect(Collectors.toMap(FileStats::getExt, Function.identity()));
     }
 
     public void add(long count) {
@@ -78,18 +74,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
-    public void addFiles(ImmutableOpenMap<String, FileStats> files) {
-        final ImmutableOpenMap.Builder<String, FileStats> map = ImmutableOpenMap.builder(this.files);
-        for (Map.Entry<String, FileStats> entry : files.entrySet()) {
-            final String extension = entry.getKey();
-            if (map.containsKey(extension)) {
-                FileStats previous = map.get(extension);
-                map.put(extension, FileStats.merge(previous, entry.getValue()));
-            } else {
-                map.put(extension, entry.getValue());
-            }
+    public void addFiles(Map<String, FileStats> newFiles) {
+        for (var newEntry : newFiles.entrySet()) {
+            files.merge(newEntry.getKey(), newEntry.getValue(), FileStats::merge);
         }
-        this.files = map.build();
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -144,8 +132,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
-    public ImmutableOpenMap<String, FileStats> getFiles() {
-        return files;
+    public Map<String, FileStats> getFiles() {
+        return Collections.unmodifiableMap(files);
     }
 
     /**
@@ -228,7 +216,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public void clearFiles() {
-        files = ImmutableOpenMap.of();
+        files.clear();
     }
 
     public static class FileStats implements Writeable, ToXContentFragment {

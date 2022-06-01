@@ -351,7 +351,7 @@ public class FieldAttributeTests extends ESTestCase {
         }
     }
 
-    public void testVersionFieldVersionCompatibility() {
+    public void testVersionTypeVersionCompatibility() {
         String query = "SELECT version_number FROM test";
         String queryWithCastLiteral = "SELECT '1.2.3'::version AS version_number";
         String queryWithAlias = "SELECT version_number AS version_number FROM test";

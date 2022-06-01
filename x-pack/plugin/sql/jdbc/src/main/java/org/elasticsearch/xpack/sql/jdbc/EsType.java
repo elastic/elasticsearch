@@ -32,7 +32,6 @@ public enum EsType implements SQLType {
     TIME(Types.TIME),
     DATETIME(Types.TIMESTAMP),
     IP(Types.VARCHAR),
-    VERSION(Types.VARCHAR),
     INTERVAL_YEAR(ExtraTypes.INTERVAL_YEAR),
     INTERVAL_MONTH(ExtraTypes.INTERVAL_MONTH),
     INTERVAL_YEAR_TO_MONTH(ExtraTypes.INTERVAL_YEAR_MONTH),
@@ -49,7 +48,8 @@ public enum EsType implements SQLType {
     GEO_POINT(ExtraTypes.GEOMETRY),
     GEO_SHAPE(ExtraTypes.GEOMETRY),
     SHAPE(ExtraTypes.GEOMETRY),
-    UNSIGNED_LONG(Types.NUMERIC);
+    UNSIGNED_LONG(Types.NUMERIC),
+    VERSION(Types.VARCHAR);
 
     private final Integer type;
 

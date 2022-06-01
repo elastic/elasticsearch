@@ -2249,24 +2249,19 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support VERSION fields", isVersionFieldTypeSupported());
 
         createTestDataForVersionType();
-        String query = "SELECT name, version from test where version = '1.3.0'";
+        String query = "SELECT name, version FROM test WHERE version = '1.3.0' OR version = 'foo' ORDER BY version ASC";
         doWithQuery(query, results -> {
-            results.next();
+            assertTrue(results.next());
             assertEquals("version 1.3.0", results.getString("name"));
             assertEquals("1.3.0", results.getString("version"));
             SQLException sqle = expectThrows(SQLException.class, () -> results.getByte("version"));
             assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VERSION] to [Byte]", "1.3.0"), sqle.getMessage());
-            assertFalse(results.next());
-        });
-
-        // bad version value
-        query = "SELECT name, version from test where version = 'foo'";
-        doWithQuery(query, results -> {
-            results.next();
+            assertTrue(results.next());
             assertEquals("version foo", results.getString("name"));
             assertEquals("foo", results.getString("version"));
             assertFalse(results.next());
         });
+
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {

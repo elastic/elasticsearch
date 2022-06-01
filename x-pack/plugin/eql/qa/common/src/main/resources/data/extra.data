@@ -112,6 +112,7 @@
   "transID": 2,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.5.0",
   "sequence": 18
  },
  {
@@ -120,6 +121,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.5.0",
   "sequence": 19
  },
  {

@@ -28,7 +28,7 @@ public final class VersionCompatibilityChecks {
             return supportsUnsignedLong(version);
         }
         if (dataType == VERSION) {
-            return supportsVersionFieldType(version);
+            return supportsVersionType(version);
         }
         return true;
     }
@@ -43,7 +43,7 @@ public final class VersionCompatibilityChecks {
     /**
      * Does the provided {@code version} support the version type (PR#85502)?
      */
-    public static boolean supportsVersionFieldType(Version version) {
+    public static boolean supportsVersionType(Version version) {
         return INTRODUCING_VERSION_FIELD_TYPE.compareTo(version) <= 0;
     }
 

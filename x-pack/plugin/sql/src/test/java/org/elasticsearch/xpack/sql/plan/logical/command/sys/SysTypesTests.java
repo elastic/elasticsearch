@@ -163,7 +163,7 @@ public class SysTypesTests extends ESTestCase {
         }
     }
 
-    public void testVersionFieldFiltering() {
+    public void testVersionTypeFiltering() {
         Set<SqlVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
         versions.add(null);
         for (SqlVersion version : versions) {

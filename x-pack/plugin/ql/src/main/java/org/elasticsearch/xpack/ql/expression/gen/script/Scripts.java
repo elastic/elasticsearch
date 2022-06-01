@@ -80,12 +80,7 @@ public final class Scripts {
     }
 
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
-        String methodName;
-        if (script.outputType().isNumeric()) {
-            methodName = "nullSafeSortNumeric";
-        } else {
-            methodName = "nullSafeSortString";
-        }
+        String methodName = script.outputType().isNumeric() ? "nullSafeSortNumeric" : "nullSafeSortString";
         return new ScriptTemplate(
             formatTemplate(format(Locale.ROOT, "{ql}.%s(%s)", methodName, script.template())),
             script.params(),

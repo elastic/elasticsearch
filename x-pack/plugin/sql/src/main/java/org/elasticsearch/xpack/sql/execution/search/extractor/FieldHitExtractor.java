@@ -134,7 +134,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
             // since its later processing will be type dependent. (ex.: negation of UL is only "safe" for 0 values)
             return convert(values, UNSIGNED_LONG);
         }
-        if (dataType == VERSION && values instanceof String) {
+        if (dataType == VERSION) {
             return convert(values, VERSION);
         }
 

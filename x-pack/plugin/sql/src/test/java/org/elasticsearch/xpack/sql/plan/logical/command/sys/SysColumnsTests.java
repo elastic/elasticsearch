@@ -179,7 +179,7 @@ public class SysColumnsTests extends ESTestCase {
         }
     }
 
-    public void testVersionFieldFiltering() {
+    public void testVersionTypeFiltering() {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
             for (SqlVersion version : VERSION_FIELD_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();

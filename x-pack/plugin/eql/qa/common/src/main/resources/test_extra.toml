@@ -260,3 +260,14 @@ query = '''
 '''
 expected_event_ids  = [20, 22]
 join_keys = ["0"]
+
+
+[[queries]]
+name = "sequenceWithVersionJoinKey"
+query = '''
+  sequence by version
+    [ process where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [18, 19]
+join_keys = ["1.5.0"]

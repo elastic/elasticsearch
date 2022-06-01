@@ -1575,7 +1575,7 @@ SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YE
 
 // datetime ranges
 
-dateRange0
+dateRange_TwoDateStrings
 SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND hire_date < '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1586,7 +1586,31 @@ SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND 
 
 ;
 
-dateRange1
+dateRange_TwoDateRanges
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND hire_date < '1997-05-20' OR hire_date >= '1990-01-12T00:00:00.000Z' AND hire_date < '1990-01-15T00:00:00.000Z' ORDER BY hire_date DESC;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+1990-01-14T00:00:00.000Z
+
+;
+
+
+dateRange_TwoDateStringsWithNot
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND NOT hire_date >= '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+dateRange_DateMathAndDate
 SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1598,7 +1622,7 @@ SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < '199
 ;
 
 
-dateRange2
+dateRange_DateAndDateMath
 SELECT hire_date FROM test_emp WHERE hire_date >= '1997-05-19T00:00:00.000Z' AND hire_date < 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1608,8 +1632,18 @@ SELECT hire_date FROM test_emp WHERE hire_date >= '1997-05-19T00:00:00.000Z' AND
 
 ;
 
+dateRange_DateAndDateMathWithNot
+SELECT hire_date FROM test_emp WHERE hire_date >= '1997-05-19T00:00:00.000Z' AND NOT hire_date >= 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
-dateRange3
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+
+;
+
+
+dateRange_TwoDateMaths
 SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date <= 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1621,7 +1655,7 @@ SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date <= 'no
 ;
 
 
-dateRange4
+dateRange_invalid_TwoDateMaths
 SELECT hire_date FROM test_emp WHERE hire_date > 'now-10y' AND hire_date < 'now-12y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date:ts
@@ -1630,7 +1664,7 @@ SELECT hire_date FROM test_emp WHERE hire_date > 'now-10y' AND hire_date < 'now-
 ;
 
 
-dateRange5
+dateRange_TwoDateMaths_leq
 SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1642,7 +1676,7 @@ SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < 'now
 ;
 
 
-dateRangeBetween0
+dateRangeBetween_TwoStringDates
 SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1995-12-14T00:00:00.000Z' AND '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1654,7 +1688,7 @@ SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1995-12-14T00:00:00.000Z
 ;
 
 
-dateRangeBetween1
+dateRangeBetween_DateMathAndDate
 SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1666,7 +1700,7 @@ SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND '1999-03-0
 ;
 
 
-dateRangeBetween2
+dateRangeBetween_DateAndDateMath
 SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1997-05-18T00:00:00.000Z' AND 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1677,7 +1711,7 @@ SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1997-05-18T00:00:00.000Z
 ;
 
 
-dateRangeBetween3
+dateRangeBetween_valid_TwoDateMaths
 SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND 'now-10y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1689,23 +1723,11 @@ SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND 'now-10y' 
 ;
 
 
-dateRangeBetween4
+dateRangeBetween_invalid_TwoDateMaths
 SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-10y' AND 'now-12y' ORDER BY hire_date DESC LIMIT 3;
 
        hire_date:ts
 ------------------------
-
-;
-
-
-dateRangeBetween5
-SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND 'now-10y' ORDER BY hire_date DESC LIMIT 3;
-
-       hire_date
-------------------------
-1999-04-30T00:00:00.000Z
-1997-05-19T00:00:00.000Z
-1996-11-05T00:00:00.000Z
 
 ;
 
@@ -1721,7 +1743,7 @@ SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z'::dat
 
 ;
 
-dateRangeConstant0
+dateRangeConstantInRange
 SELECT hire_date FROM test_emp WHERE '1996-12-14T00:00:00.000Z'::datetime BETWEEN '1995-12-14T00:00:00.000Z'::datetime AND '1999-03-01'::date ORDER BY hire_date DESC LIMIT 3;
 
        hire_date
@@ -1733,7 +1755,7 @@ SELECT hire_date FROM test_emp WHERE '1996-12-14T00:00:00.000Z'::datetime BETWEE
 ;
 
 
-dateRangeConstant1
+dateRangeConstantOutOfRange
 SELECT hire_date FROM test_emp WHERE '2005-12-14T00:00:00.000Z'::datetime BETWEEN '1995-12-14T00:00:00.000Z'::datetime AND '1999-03-01'::date ORDER BY hire_date DESC LIMIT 3;
 
        hire_date:ts

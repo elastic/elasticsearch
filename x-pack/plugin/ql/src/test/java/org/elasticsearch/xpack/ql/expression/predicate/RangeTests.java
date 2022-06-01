@@ -8,82 +8,195 @@
 package org.elasticsearch.xpack.ql.expression.predicate;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 
-public class RangeTests extends ESTestCase {
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
-    private static final DataType K = DataTypes.KEYWORD;
-    private static final DataType T = DataTypes.TEXT;
-    private static final DataType DT = DataTypes.DATETIME;
+public class RangeTests extends ESTestCase {
 
     public void testAreBoundariesInvalid() {
         // value, value type, lower, lower type, lower included, higher, higher type, higher included, boundaries invalid
         Object[][] tests = {
             // dates
-            { d("2021-01-01"), DT, "2021-01-01", K, randomBoolean(), "2022-01-01", K, randomBoolean(), false },
-            { d("2021-01-01"), DT, "2022-01-01", K, randomBoolean(), "2021-01-01", K, randomBoolean(), true },
-            { d("2021-01-01"), DT, "now-10y", K, randomBoolean(), "2022-01-01", K, randomBoolean(), false },
-            { d("2021-01-01"), DT, "2021-01-01", K, randomBoolean(), "now+10y", K, randomBoolean(), false },
-            { d("2021-01-01"), DT, "2021-01-01", K, randomBoolean(), "now-100y", K, randomBoolean(), false },
-            { d("2021-01-01"), DT, "2021-01-01", K, true, "2021-01-01", K, true, false },
-            { d("2021-01-01"), DT, "2021-01-01", K, false, "2021-01-01", K, true, true },
-            { d("2021-01-01"), DT, "2021-01-01", K, true, "2021-01-01", K, false, true },
-            { d("2021-01-01"), DT, "2021-01-01", K, false, "2021-01-01", K, false, true },
-            { d("2021-01-01"), DT, d("2022-01-01"), DT, randomBoolean(), "2021-01-01", K, randomBoolean(), true },
-            { d("2021-01-01"), DT, d("2021-01-01"), DT, false, "2021-01-01", K, false, true },
-            { d("2021-01-01"), DT, d("2021-01-01"), DT, false, d("2021-01-01"), DT, false, true },
-            { d("2021-01-01"), DT, d("2021-01-01"), DT, true, "2021-01-01", K, true, false },
-            { d("2021-01-01"), DT, d("2021-01-01"), DT, true, d("2021-01-01"), DT, true, false },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2021-01-01"), DT, randomBoolean(), "2022-01-01", K, randomBoolean(), false },
-            { randomAlphaOfLength(10), randomFrom(K, T), "2021-01-01", K, randomBoolean(), d("2022-01-01"), DT, randomBoolean(), false },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2022-01-01"), DT, randomBoolean(), "2021-01-01", K, randomBoolean(), true },
-            { randomAlphaOfLength(10), randomFrom(K, T), "2022-01-01", K, randomBoolean(), d("2021-01-01"), DT, randomBoolean(), true },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2022-01-01"), DT, randomBoolean(), d("2021-01-01"), DT, randomBoolean(), true },
-            { randomAlphaOfLength(10), randomFrom(K, T), "now-10y", K, randomBoolean(), d("2022-01-01"), DT, randomBoolean(), false },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2021-01-01"), DT, true, "2021-01-01", K, true, false },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2021-01-01"), DT, false, "2021-01-01", K, true, true },
-            { randomAlphaOfLength(10), randomFrom(K, T), "2021-01-01", K, true, d("2021-01-01"), DT, false, true },
-            { randomAlphaOfLength(10), randomFrom(K, T), d("2021-01-01"), DT, false, d("2021-01-01"), DT, false, true },
-
-            // strings
+            {
+                d("2021-01-01"),
+                DATETIME,
+                "2021-01-01",
+                randomTextType(),
+                randomBoolean(),
+                "2022-01-01",
+                randomTextType(),
+                randomBoolean(),
+                false },
+            {
+                d("2021-01-01"),
+                DATETIME,
+                "2022-01-01",
+                randomTextType(),
+                randomBoolean(),
+                "2021-01-01",
+                randomTextType(),
+                randomBoolean(),
+                true },
+            {
+                d("2021-01-01"),
+                DATETIME,
+                "now-10y",
+                randomTextType(),
+                randomBoolean(),
+                "2022-01-01",
+                randomTextType(),
+                randomBoolean(),
+                false },
+            {
+                d("2021-01-01"),
+                DATETIME,
+                "2021-01-01",
+                randomTextType(),
+                randomBoolean(),
+                "now+10y",
+                randomTextType(),
+                randomBoolean(),
+                false },
+            {
+                d("2021-01-01"),
+                DATETIME,
+                "2021-01-01",
+                randomTextType(),
+                randomBoolean(),
+                "now-100y",
+                randomTextType(),
+                randomBoolean(),
+                false },
+            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), true, false },
+            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), false, "2021-01-01", randomTextType(), true, true },
+            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), false, true },
+            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), false, "2021-01-01", randomTextType(), false, true },
+            {
+                d("2021-01-01"),
+                DATETIME,
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                "2021-01-01",
+                randomTextType(),
+                randomBoolean(),
+                true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, "2021-01-01", randomTextType(), false, true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, false, true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, "2021-01-01", randomTextType(), true, false },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, true, false },
             {
                 randomAlphaOfLength(10),
-                randomFrom(K, T),
-                "a",
-                randomFrom(K, T),
+                randomTextType(),
+                d("2021-01-01"),
+                DATETIME,
                 randomBoolean(),
-                "b",
-                randomFrom(K, T),
+                "2022-01-01",
+                randomTextType(),
                 randomBoolean(),
                 false },
             {
                 randomAlphaOfLength(10),
-                randomFrom(K, T),
-                "b",
-                randomFrom(K, T),
+                randomTextType(),
+                "2021-01-01",
+                randomTextType(),
                 randomBoolean(),
-                "a",
-                randomFrom(K, T),
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                false },
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                "2021-01-01",
+                randomTextType(),
                 randomBoolean(),
                 true },
-            { randomAlphaOfLength(10), randomFrom(K, T), "a", randomFrom(K, T), false, "a", randomFrom(K, T), false, true },
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                "2022-01-01",
+                randomTextType(),
+                randomBoolean(),
+                d("2021-01-01"),
+                DATETIME,
+                randomBoolean(),
+                true },
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                d("2021-01-01"),
+                DATETIME,
+                randomBoolean(),
+                true },
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                "now-10y",
+                randomTextType(),
+                randomBoolean(),
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                false },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, true, "2021-01-01", randomTextType(), true, false },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, false, "2021-01-01", randomTextType(), true, true },
+            { randomAlphaOfLength(10), randomTextType(), "2021-01-01", randomTextType(), true, d("2021-01-01"), DATETIME, false, true },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, false, true },
+
+            // strings
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                "a",
+                randomTextType(),
+                randomBoolean(),
+                "b",
+                randomTextType(),
+                randomBoolean(),
+                false },
+            {
+                randomAlphaOfLength(10),
+                randomTextType(),
+                "b",
+                randomTextType(),
+                randomBoolean(),
+                "a",
+                randomTextType(),
+                randomBoolean(),
+                true },
+            { randomAlphaOfLength(10), randomTextType(), "a", randomTextType(), false, "a", randomTextType(), false, true },
 
             // numbers
-            { 10, randNType(), 1, randNType(), randomBoolean(), 10, randNType(), randomBoolean(), false },
-            { 10, randNType(), 10, randNType(), randomBoolean(), 1, randNType(), randomBoolean(), true },
-            { 10, randNType(), 1, randNType(), false, 1, randNType(), randomBoolean(), true },
-            { 10, randNType(), 1, randNType(), randomBoolean(), 1, randNType(), false, true },
-            { 10, randNType(), 1.0, randNType(), randomBoolean(), 10, randNType(), randomBoolean(), false },
-            { 10, randNType(), 1, randNType(), randomBoolean(), 10.D, randNType(), randomBoolean(), false },
-            { 10, randNType(), 10.0, randNType(), randomBoolean(), 1, randNType(), randomBoolean(), true },
+            { 10, randomNumericType(), 1, randomNumericType(), randomBoolean(), 10, randomNumericType(), randomBoolean(), false },
+            { 10, randomNumericType(), 10, randomNumericType(), randomBoolean(), 1, randomNumericType(), randomBoolean(), true },
+            { 10, randomNumericType(), 1, randomNumericType(), false, 1, randomNumericType(), randomBoolean(), true },
+            { 10, randomNumericType(), 1, randomNumericType(), randomBoolean(), 1, randomNumericType(), false, true },
+            { 10, randomNumericType(), 1.0, randomNumericType(), randomBoolean(), 10, randomNumericType(), randomBoolean(), false },
+            { 10, randomNumericType(), 1, randomNumericType(), randomBoolean(), 10.D, randomNumericType(), randomBoolean(), false },
+            { 10, randomNumericType(), 10.0, randomNumericType(), randomBoolean(), 1, randomNumericType(), randomBoolean(), true },
 
         };
 
@@ -98,19 +211,20 @@ public class RangeTests extends ESTestCase {
                 (Boolean) test[7],
                 ZoneId.systemDefault()
             );
-            assertEquals("failed on test n " + i + ": " + Arrays.toString(test), test[8], range.areBoundariesInvalid());
+            assertEquals("failed on test " + i + ": " + Arrays.toString(test), test[8], range.areBoundariesInvalid());
         }
-    }
-
-    private static Literal l(Object value, DataType type) {
-        return new Literal(Source.EMPTY, value, type);
     }
 
     private static ZonedDateTime d(String date) {
         return DateUtils.asDateTime(date);
     }
 
-    private static DataType randNType() {
-        return randomFrom(DataTypes.INTEGER, DataTypes.SHORT, DataTypes.LONG, DataTypes.UNSIGNED_LONG, DataTypes.FLOAT, DataTypes.DOUBLE);
+    private static DataType randomNumericType() {
+        return randomFrom(INTEGER, SHORT, LONG, UNSIGNED_LONG, FLOAT, DOUBLE);
     }
+
+    private static DataType randomTextType() {
+        return randomFrom(KEYWORD, TEXT);
+    }
+
 }

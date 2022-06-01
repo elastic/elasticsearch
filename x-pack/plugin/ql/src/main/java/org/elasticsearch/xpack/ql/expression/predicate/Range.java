@@ -110,11 +110,11 @@ public class Range extends ScalarFunction {
 
     /**
      * Check whether the boundaries are invalid ( upper &lt; lower) or not.
-     * If they do, the value does not have to be evaluated.
+     * If they are, the value does not have to be evaluated.
      */
     protected boolean areBoundariesInvalid() {
-        Object lowerValue = lower.foldable() ? lower.fold() : null;
-        Object upperValue = upper.foldable() ? upper.fold() : null;
+        Object lowerValue = lower.fold();
+        Object upperValue = upper.fold();
         if (DataTypes.isDateTime(value.dataType()) || DataTypes.isDateTime(lower.dataType()) || DataTypes.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {

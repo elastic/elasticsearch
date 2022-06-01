@@ -741,6 +741,20 @@ public final class IngestDocument {
         return this.sourceAndMetadata;
     }
 
+    /**
+     * Fetch the timestamp from the ingestMetadata, if it exists
+     * @return the timestamp for the document or null
+     */
+    public ZonedDateTime getTimestamp() {
+        if (ingestMetadata == null) {
+            return null;
+        }
+        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime timestamp) {
+            return timestamp;
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
         return (Map<K, V>) deepCopy(source);

@@ -34,8 +34,9 @@ public class ReactiveReasonTests extends ESTestCase {
         long unassigned = randomNonNegativeLong();
         long assigned = randomNonNegativeLong();
         String indexUUID = UUIDs.randomBase64UUID();
-        SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 600));
-        SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 600));
+        String indexName = randomAlphaOfLength(10);
+        SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
+        SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
             unassigned,

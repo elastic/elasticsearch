@@ -323,7 +323,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
-        // ClusterInfoServiceUtils.refresh(masterInfoService);
+        ClusterInfoServiceUtils.refresh(masterInfoService);
         assertThat(
             masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
             equalTo(totalSpace)

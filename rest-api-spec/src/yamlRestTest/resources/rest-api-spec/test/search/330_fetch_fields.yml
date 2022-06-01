@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: " - 7.9.99"
-      reason: "the 'fields' parameter was added in 7.10"
-
 ---
 "Test basic field retrieval":
   - do:
@@ -95,6 +90,10 @@ setup:
 
 ---
 "Test disable source":
+  - skip:
+      version: " - 8.3.99"
+      reason: "behaviour of fields when source is disabled changed in 8.4.0"
+
   - do:
       indices.create:
         index:  test

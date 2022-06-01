@@ -271,20 +271,17 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(e -> unmovableSize(e.getKey(), e.getValue()))
                 .sum();
 
-            long unallocatableBytes = candidates.stream()
+            List<ShardRouting> unallocatedShards = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
                 .filter(s1 -> cannotAllocateDueToStorage(s1, allocation))
-                .mapToLong(this::sizeOf)
-                .sum();
+                .toList();
+            long unallocatableBytes = unallocatedShards.stream().mapToLong(this::sizeOf).sum();
 
             return new ShardsSize(
                 unallocatableBytes + unmovableBytes,
-                Stream.concat(
-                    unmovableShards.stream(),
-                    candidates.stream()
-                        .filter(Predicate.not(unmovableShards::contains))
-                        .filter(s -> cannotAllocateDueToStorage(s, allocation))
-                ).map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
+                Stream.concat(unmovableShards.stream(), unallocatedShards.stream())
+                    .map(ShardRouting::shardId)
+                    .collect(Collectors.toCollection(TreeSet::new))
             );
         }
 

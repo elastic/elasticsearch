@@ -143,12 +143,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         int maxRounds = state.getRoutingNodes().unassigned().size() + 3; // (allocated + start + detect-same)
         int round = 0;
         while (lastState != state && round < maxRounds) {
-            long numPrevents = numAllocatableSubjectShards();
+            var allocatableShards = allocatableShards();
+            long numPrevents = allocatableShards.numOfShards();
             assert round != 0 || numPrevents > 0 : "must have shards that can be allocated on first round";
 
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ShardsSize(numPrevents, allocatableShards()),
+                new ShardsSize(numPrevents, allocatableShards.shardIds()),
                 mockCanAllocateDiskDecider
             );
             verify(
@@ -437,28 +438,19 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }
     }
 
-    private long numAllocatableSubjectShards() {
-        AllocationDeciders deciders = createAllocationDeciders();
-        RoutingAllocation allocation = createRoutingAllocation(state, deciders);
-        return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
-            .filter(shard -> subjectShards.contains(shard.shardId()))
-            .filter(
-                shard -> StreamSupport.stream(allocation.routingNodes().spliterator(), false)
-                    .anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)
-            )
-            .count();
-    }
+    record AllocatableShards(long numOfShards, SortedSet<ShardId> shardIds) {}
 
-    private SortedSet<ShardId> allocatableShards() {
+    private AllocatableShards allocatableShards() {
         AllocationDeciders deciders = createAllocationDeciders();
         RoutingAllocation allocation = createRoutingAllocation(state, deciders);
-        return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+        List<ShardId> allocatableShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(
                 shard -> allocation.routingNodes().stream().anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)
             )
             .map(ShardRouting::shardId)
-            .collect(Collectors.toCollection(TreeSet::new));
+            .toList();
+        return new AllocatableShards(allocatableShards.size(), new TreeSet<>(allocatableShards));
     }
 
     private boolean hasStartedSubjectShard() {

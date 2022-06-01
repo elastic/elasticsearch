@@ -334,6 +334,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
 
         mountIndices(indicesStoresSizes, "mounted-", "repository", "snapshot", FULL_COPY);
+        mockRepository.unblock();
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,

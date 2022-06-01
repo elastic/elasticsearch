@@ -9,7 +9,6 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +21,8 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 
 import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A composite {@link IndexEventListener} that forwards all callbacks to an immutable list of IndexEventListener
@@ -47,10 +48,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.shardRoutingChanged(indexShard, oldRouting, newRouting);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to invoke shard touring changed callback", indexShard.shardId().getId()),
-                    e
-                );
+                logger.warn(() -> "[" + indexShard.shardId().getId() + "] failed to invoke shard touring changed callback", e);
             }
         }
     }
@@ -61,10 +59,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.afterIndexShardCreated(indexShard);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to invoke after shard created callback", indexShard.shardId().getId()),
-                    e
-                );
+                logger.warn(() -> "[" + indexShard.shardId().getId() + "] failed to invoke after shard created callback", e);
                 throw e;
             }
         }
@@ -76,10 +71,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.afterIndexShardStarted(indexShard);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to invoke after shard started callback", indexShard.shardId().getId()),
-                    e
-                );
+                logger.warn(() -> "[" + indexShard.shardId().getId() + "] failed to invoke after shard started callback", e);
                 throw e;
             }
         }
@@ -91,7 +83,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.beforeIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke before shard closed callback", shardId.getId()), e);
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke before shard closed callback", e);
                 throw e;
             }
         }
@@ -103,7 +95,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.afterIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke after shard closed callback", shardId.getId()), e);
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard closed callback", e);
                 throw e;
             }
         }
@@ -120,13 +112,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.indexShardStateChanged(indexShard, previousState, indexShard.state(), reason);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to invoke index shard state changed callback",
-                        indexShard.shardId().getId()
-                    ),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed to invoke index shard state changed callback", indexShard.shardId().getId()), e);
                 throw e;
             }
         }
@@ -162,7 +148,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.beforeIndexShardCreated(shardRouting, indexSettings);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke before shard created callback", shardRouting), e);
+                logger.warn(() -> "[" + shardRouting + "] failed to invoke before shard created callback", e);
                 throw e;
             }
         }
@@ -198,7 +184,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.beforeIndexShardDeleted(shardId, indexSettings);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke before shard deleted callback", shardId.getId()), e);
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke before shard deleted callback", e);
                 throw e;
             }
         }
@@ -210,7 +196,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.afterIndexShardDeleted(shardId, indexSettings);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke after shard deleted callback", shardId.getId()), e);
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard deleted callback", e);
                 throw e;
             }
         }
@@ -258,13 +244,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.beforeIndexShardRecovery(indexShard, indexSettings);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "failed to invoke the listener before the shard recovery starts for {}",
-                        indexShard.shardId()
-                    ),
-                    e
-                );
+                logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
                 throw e;
             }
         }
@@ -276,10 +256,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             try {
                 listener.afterFilesRestoredFromRepository(indexShard);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to invoke after files restored from repository", indexShard.shardId()),
-                    e
-                );
+                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke after files restored from repository", e);
                 throw e;
             }
         }

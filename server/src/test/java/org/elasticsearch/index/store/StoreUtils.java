@@ -9,7 +9,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -26,7 +25,7 @@ public final class StoreUtils {
         try {
             Store.tryOpenIndex(indexLocation, shardId, shardLocker, logger);
         } catch (Exception ex) {
-            logger.trace(() -> new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
+            logger.trace(() -> "Can't open index for path [" + indexLocation + "]", ex);
             return false;
         }
         return true;

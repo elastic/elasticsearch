@@ -52,6 +52,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ) {
         super(
             ClearVotingConfigExclusionsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

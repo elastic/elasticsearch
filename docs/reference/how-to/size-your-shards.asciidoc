@@ -193,12 +193,12 @@ each dedicated master node should have at least 4GB of heap. For non-dedicated
 master nodes, the same rule holds and should be added to the heap requirements
 of the other roles of each node.
 
-To check the current size of each node's heap, use the <<cat-nodes,cat nodes
+To check the configured size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
 
 [source,console]
 ----
-GET _cat/nodes?v=true&h=heap.current
+GET _cat/nodes?v=true&h=heap.max
 ----
 // TEST[setup:my_index]
 

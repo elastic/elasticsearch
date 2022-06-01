@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.tasks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -294,7 +293,7 @@ public abstract class TransportTasksAction<
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+            logger.debug(() -> "failed to execute on node [" + nodeId + "]", t);
 
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
 
@@ -394,22 +393,10 @@ public abstract class TransportTasksAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            out.writeVInt(results.size());
-            for (TaskResponse result : results) {
-                if (result != null) {
-                    out.writeBoolean(true);
-                    result.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                int taskFailures = exceptions.size();
-                out.writeVInt(taskFailures);
-                for (TaskOperationFailure exception : exceptions) {
-                    exception.writeTo(out);
-                }
+                out.writeCollection(exceptions);
             }
         }
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -64,14 +65,21 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             new OctetSequenceKey.Builder(hmacKeyOidcString.getBytes(StandardCharsets.UTF_8)).build()
         );
 
+        final String principalClaimName = "sub";
+        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
+            .put(this.globalSettings)
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+        final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
+
         // Create issuer
         final JwtIssuer jwtIssuer = new JwtIssuer(
             "iss8", // iss
             List.of("aud8"), // aud
+            principalClaimName, // sub
+            Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role")), // users
             Collections.emptyList(), // algJwkPairsPkc
             Collections.emptyList(), // algJwkPairsHmac
             algJwkPairHmac, // algJwkPairHmac
-            Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role")), // users
             false // createHttpsServer
         );
 
@@ -79,13 +87,16 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String realmName = "jwt8";
         final Settings.Builder configBuilder = Settings.builder()
             .put(this.globalSettings)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
+                String.join(",", jwtIssuer.audiencesClaimValue)
+            )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.algorithmsAll)
             )
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
                 JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
@@ -104,11 +115,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm
         final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 8);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.users);
-        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final JwtRealm jwtRealm = new JwtRealm(config, jwtRealmsService, sslService, userRoleMapper);
         jwtRealm.initialize(Collections.singletonList(jwtRealm), super.licenseState);
-        final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = new JwtRealmNameAndSettingsBuilder(realmName, configBuilder);
-        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
+        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
         super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
 
         // Create JWT
@@ -119,7 +130,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
-            user.principal(), // sub
+            user.principal(), // sub claim value
             jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
             user.principal(), // principal claim value
             jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
@@ -135,7 +146,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
@@ -148,14 +159,21 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final JWK jwk = new RSAKey.Builder((RSAKey) JwtTestCase.randomJwk("RS256")).keyID("test-rsa-key").build();
         final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", jwk);
 
+        final String principalClaimName = "sub";
+        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
+            .put(this.globalSettings)
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+        final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
+
         // Create issuer
         final JwtIssuer jwtIssuer = new JwtIssuer(
-            "https://issuer.example.com/", // iss
-            List.of("https://audience.example.com/"), // aud
+            "https://issuer.example.com/", // iss claim value
+            List.of("https://audience.example.com/"), // aud claim value
+            principalClaimName, // principal claim name
+            Collections.singletonMap("user1", new User("user1", "role1")), // users
             List.of(algJwkPairPkc), // algJwkPairsPkc
             Collections.emptyList(), // algJwkPairsHmac
             null, // algJwkPairHmac
-            Collections.singletonMap("user1", new User("user1", "role1")), // users
             false // createHttpsServer
         );
 
@@ -163,13 +181,16 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String realmName = "jwt1";
         final Settings.Builder configBuilder = Settings.builder()
             .put(this.globalSettings)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
+                String.join(",", jwtIssuer.audiencesClaimValue)
+            )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.algorithmsAll)
             )
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), "roles")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_DN.getClaim()), "dn")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_NAME.getClaim()), "name")
@@ -186,11 +207,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm
         final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 2);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.users);
-        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final JwtRealm jwtRealm = new JwtRealm(config, jwtRealmsService, sslService, userRoleMapper);
         jwtRealm.initialize(Collections.singletonList(jwtRealm), super.licenseState);
-        final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = new JwtRealmNameAndSettingsBuilder(realmName, configBuilder);
-        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
+        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
         super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
 
         // Create JWT
@@ -217,7 +238,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairPkc.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_RANGE_1);
         this.printArtifacts(jwtIssuer, config, null, jwt);
     }
 
@@ -233,14 +254,21 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             new OctetSequenceKey.Builder(hmacKeyOidcString.getBytes(StandardCharsets.UTF_8)).build()
         );
 
+        final String principalClaimName = "email";
+        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
+            .put(this.globalSettings)
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+        final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
+
         // Create issuer
         final JwtIssuer jwtIssuer = new JwtIssuer(
-            "my-issuer", // iss
-            List.of("es01", "es02", "es03"), // aud
+            "my-issuer", // iss claim value
+            List.of("es01", "es02", "es03"), // aud claim value
+            principalClaimName, // principal claim name
+            Collections.singletonMap("user2", new User("user2", "role2")), // users
             Collections.emptyList(), // algJwkPairsPkc
             Collections.emptyList(), // algJwkPairsHmac
             algJwkPairHmac, // algJwkPairHmac
-            Collections.singletonMap("user2", new User("user2", "role2")), // users
             false // createHttpsServer
         );
 
@@ -249,8 +277,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String authzRealmName = "lookup_native";
         final Settings.Builder configBuilder = Settings.builder()
             .put(this.globalSettings)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
+                String.join(",", jwtIssuer.audiencesClaimValue)
+            )
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), "HS256,HS384")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "email")
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)@[^.]*[.]example[.]com$")
@@ -277,16 +308,16 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create authz realm
         final RealmConfig authzConfig = this.buildRealmConfig("native", authzRealmName, Settings.EMPTY, 0);
         final MockLookupRealm authzRealm = new MockLookupRealm(authzConfig);
-        jwtIssuer.users.values().forEach(authzRealm::registerUser); // authz realm will do roles lookup
+        jwtIssuer.principals.values().forEach(authzRealm::registerUser); // authz realm will do roles lookup
 
         // Create realm
         final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 3);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
         final UserRoleMapper userRoleMapper = super.buildRoleMapper(Map.of()); // authc realm will not do role mapping
-        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(config, jwtRealmsService, sslService, userRoleMapper);
         jwtRealm.initialize(List.of(authzRealm, jwtRealm), super.licenseState);
-        final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = new JwtRealmNameAndSettingsBuilder(realmName, configBuilder);
-        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
+        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
         super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
 
         // Create JWT
@@ -297,7 +328,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
-            user.principal(), // sub
+            user.principal(), // sub claim value
             jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
             "user2@something.example.com", // principal claim value
             jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
@@ -313,7 +344,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
@@ -329,14 +360,21 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         );
         var selectedHmac = randomFrom(hmacKeys);
 
+        final String principalClaimName = "sub";
+        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
+            .put(this.globalSettings)
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+        final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
+
         // Create issuer
         final JwtIssuer jwtIssuer = new JwtIssuer(
-            "jwt3-issuer", // iss
-            List.of("jwt3-audience"), // aud
+            "jwt3-issuer", // iss claim value
+            List.of("jwt3-audience"), // aud claim value
+            principalClaimName, // principal claim name
+            Collections.singletonMap("user3", new User("user3", "role3")), // users
             Collections.emptyList(), // algJwkPairsPkc
             hmacKeys, // algJwkPairsHmac
             null, // algJwkPairHmac
-            Collections.singletonMap("user3", new User("user3", "role3")), // users
             false // createHttpsServer
         );
 
@@ -344,9 +382,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String realmName = "jwt3";
         final Settings.Builder configBuilder = Settings.builder()
             .put(this.globalSettings)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
-            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
+                String.join(",", jwtIssuer.audiencesClaimValue)
+            )
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.algorithmsAll)
@@ -369,11 +410,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm
         final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 4);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.users);
-        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final JwtRealm jwtRealm = new JwtRealm(config, jwtRealmsService, sslService, userRoleMapper);
         jwtRealm.initialize(List.of(jwtRealm), super.licenseState);
-        final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = new JwtRealmNameAndSettingsBuilder(realmName, configBuilder);
-        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
+        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
         super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
 
         // Create JWT
@@ -384,9 +425,9 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
-            user.principal(), // sub
+            user.principal(), // sub claim value
             jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
-            randomFrom(jwtIssuer.users.keySet()), // principal claim value
+            randomFrom(jwtIssuer.principals.keySet()), // principal claim value
             jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
             null, // group claim value
             null, // auth_time
@@ -400,7 +441,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
@@ -438,8 +479,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
     private static String printIssuerSettings(final JwtIssuer jwtIssuer) {
         final StringBuilder sb = new StringBuilder("\n===\nIssuer settings\n===\n");
-        sb.append("Issuer: ").append(jwtIssuer.issuer).append('\n');
-        sb.append("Audiences: ").append(String.join(",", jwtIssuer.audiences)).append('\n');
+        sb.append("Issuer: ").append(jwtIssuer.issuerClaimValue).append('\n');
+        sb.append("Audiences: ").append(String.join(",", jwtIssuer.audiencesClaimValue)).append('\n');
         sb.append("Algorithms: ").append(String.join(",", jwtIssuer.algorithmsAll)).append("\n");
         if (jwtIssuer.algAndJwksPkc.isEmpty() == false) {
             sb.append("PKC JWKSet (Private): ").append(jwtIssuer.encodedJwkSetPkcPrivate).append("\n");

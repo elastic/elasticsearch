@@ -1,6 +1,8 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
+coming::[{minor-version}]
+
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::[\{release-state}\"!=\"unreleased\"]
 For detailed information about this release, see the <<es-release-notes>> and
@@ -14,18 +16,49 @@ Other versions:
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
-
 
 [discrete]
-[[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
-=== Integrate filtering support for approximate nearest neighbor search
-The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option that allows to return only the nearest documents that satisfy the provided filter
+[[add_support_for_dots_in_field_names_for_metrics_usecases]]
+=== Add support for dots in field names for metrics usecases
+Metrics data can often be made of several fields with dots in their names,
+sharing common prefixes, like in the following example:
+
+```
+{
+  "metrics.time" : 10,
+  "metrics.time.min" : 1,
+  "metrics.time.max" : 500
+}
+```
+
+Such format causes a mapping conflict as the `metrics.time` holds a value,
+but it also needs to be mapped as an object in order to hold the `min` and
+`max` leaf fields.
+
+A new object mapping parameter called `subobjects`, which defaults to `true`,
+has been introduced to preserve dots in field names. An object with `subobjects`
+set to `false` can only ever hold leaf sub-fields and no further objects. The
+following example shows how it can be configured in the mappings for the
+`metrics` object:
+
+```
+{
+  "mappings": {
+    "properties" : {
+      "metrics" : {
+        "type" : "object",
+        "subobjects" : false
+      }
+    }
+  }
+}
+```
+
+With this configuration any child of `metrics` will be mapped unchanged,
+without expanding dots in field names to the corresponding object structure.
+That makes it possible to store the metrics document above.
+
+// end::notable-highlights[]
+
 

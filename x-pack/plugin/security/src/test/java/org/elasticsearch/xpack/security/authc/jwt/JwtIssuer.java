@@ -34,12 +34,13 @@ public class JwtIssuer implements Closeable {
     record AlgJwkPair(String alg, JWK jwk) {}
 
     // input parameters
-    final String issuer;
-    final List<String> audiences;
+    final String issuerClaimValue; // claim name is hard-coded to `iss` for OIDC ID Token compatibility
+    final List<String> audiencesClaimValue; // claim name is hard-coded to `aud` for OIDC ID Token compatibility
+    final String principalClaimName; // claim name is configurable, EX: Users (sub, oid, email, dn, uid), Clients (azp, appid, client_id)
+    final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
     final List<AlgJwkPair> algAndJwksPkc;
     final List<AlgJwkPair> algAndJwksHmac;
     final AlgJwkPair algAndJwkHmacOidc;
-    final Map<String, User> users; // and their roles
 
     // Computed values
     final List<AlgJwkPair> algAndJwksAll;
@@ -51,20 +52,22 @@ public class JwtIssuer implements Closeable {
     final JwtIssuerHttpsServer httpsServer;
 
     JwtIssuer(
-        final String issuer,
-        final List<String> audiences,
+        final String issuerClaimValue,
+        final List<String> audiencesClaimValue,
+        final String principalClaimName,
+        final Map<String, User> principals,
         final List<AlgJwkPair> algAndJwksPkc,
         final List<AlgJwkPair> algAndJwksHmac,
         final AlgJwkPair algAndJwkHmacOidc,
-        final Map<String, User> users,
         final boolean createHttpsServer
     ) throws Exception {
-        this.issuer = issuer;
-        this.audiences = audiences;
+        this.issuerClaimValue = issuerClaimValue;
+        this.audiencesClaimValue = audiencesClaimValue;
+        this.principalClaimName = principalClaimName;
+        this.principals = principals;
         this.algAndJwksPkc = algAndJwksPkc;
         this.algAndJwksHmac = algAndJwksHmac;
         this.algAndJwkHmacOidc = algAndJwkHmacOidc;
-        this.users = users;
 
         this.algAndJwksAll = new ArrayList<>(this.algAndJwksPkc.size() + this.algAndJwksHmac.size() + 1);
         this.algAndJwksAll.addAll(this.algAndJwksPkc);
@@ -97,7 +100,7 @@ public class JwtIssuer implements Closeable {
             try {
                 this.httpsServer.close();
             } catch (IOException e) {
-                LOGGER.warn("Exception closing HTTPS server for issuer [" + issuer + "]", e);
+                LOGGER.warn("Exception closing HTTPS server for issuer [" + issuerClaimValue + "]", e);
             }
         }
     }

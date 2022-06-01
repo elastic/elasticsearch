@@ -1,5 +1,0 @@
-pr: 86460
-summary: Fix bounded hexagonal grids when they contain the bin on one of the poles
-area: Geo
-type: bug
-issues: []

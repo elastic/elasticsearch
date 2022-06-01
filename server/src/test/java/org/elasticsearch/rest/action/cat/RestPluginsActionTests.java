@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -140,7 +141,7 @@ public class RestPluginsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new PluginsAndModules(pluginDescriptor, List.of()),
+                    new PluginsAndModules(pluginDescriptor.stream().map(PluginRuntimeInfo::new).toList(), List.of()),
                     null,
                     null,
                     null

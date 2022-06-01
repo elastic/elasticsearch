@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -77,6 +76,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
@@ -303,8 +303,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     ) {
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
+                () -> format(
+                    "[%s] Failed to delete model allocation that had failed with the reason [%s]",
                     modelId,
                     exception.getMessage()
                 ),
@@ -509,8 +509,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] tested with state [{}] and nodes {} still initializing",
+                () -> format(
+                    "[%s] tested with state [%s] and nodes %s still initializing",
                     modelId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing

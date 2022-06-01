@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -21,10 +22,14 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredic
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncodeTiles;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLat;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
@@ -117,7 +122,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             for (int x = minXTileNeg; x <= maxXTileNeg; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
@@ -133,8 +138,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
             for (int x = minXTilePos; x <= maxXTilePos; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
-                    Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
@@ -151,13 +155,23 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             for (int x = minXTile; x <= maxXTile; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
             }
             return count;
         }
+    }
+
+    private boolean intersects(int x, int y, int precision, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+        Rectangle r = GeoGridQueryBuilder.getQueryTile(stringEncode(longEncodeTiles(precision, x, y)));
+        return geoValue.relate(
+            GeoEncodingUtils.encodeLongitude(r.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(r.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(r.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(r.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
     }
 
     private boolean tileIntersectsBounds(int x, int y, int precision, GeoBoundingBox bbox) {

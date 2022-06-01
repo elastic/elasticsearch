@@ -704,7 +704,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_3_0;
+        private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
 
         private final String reason;
         private final long unassigned;

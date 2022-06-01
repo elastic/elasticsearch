@@ -43,7 +43,8 @@ You can specify the following parameters in the request body:
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>, <<query-dsl-ids-query,`ids`>>,
-<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, and <<query-dsl-range-query,`range`>>.
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, <<query-dsl-exists-query,`exists`>>,
+and <<query-dsl-range-query,`range`>>.
 +
 You can query all public information associated with an API key, including the
 following values.

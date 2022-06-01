@@ -180,7 +180,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountLatch.await();
     }
 
-    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
+    public void testHighWatermarkCanNotBeExceededOnColdNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataHotNode = internalCluster().startNode(
             Settings.builder()

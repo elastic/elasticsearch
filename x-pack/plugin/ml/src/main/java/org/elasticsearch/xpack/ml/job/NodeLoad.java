@@ -25,7 +25,9 @@ public class NodeLoad {
     private final String nodeId;
     private final boolean useMemory;
     private final String error;
-    private final int numAssignedJobs;
+    private final int numAssignedAnomalyDetectorJobs;
+    private final int numAssignedDataFrameAnalyticsJobs;
+    private final int numAssignedNativeInferenceJobs;
     private final long assignedNativeCodeOverheadMemory;
     private final long assignedAnomalyDetectorMemory;
     private final long assignedDataFrameAnalyticsMemory;
@@ -38,7 +40,9 @@ public class NodeLoad {
         String nodeId,
         boolean useMemory,
         String error,
-        int numAssignedJobs,
+        int numAssignedAnomalyDetectorJobs,
+        int numAssignedDataFrameAnalyticsJobs,
+        int numAssignedNativeInferenceJobs,
         long assignedNativeCodeOverheadMemory,
         long assignedAnomalyDetectorMemory,
         long assignedDataFrameAnalyticsMemory,
@@ -50,7 +54,9 @@ public class NodeLoad {
         this.nodeId = nodeId;
         this.useMemory = useMemory;
         this.error = error;
-        this.numAssignedJobs = numAssignedJobs;
+        this.numAssignedAnomalyDetectorJobs = numAssignedAnomalyDetectorJobs;
+        this.numAssignedDataFrameAnalyticsJobs = numAssignedDataFrameAnalyticsJobs;
+        this.numAssignedNativeInferenceJobs = numAssignedNativeInferenceJobs;
         this.assignedNativeCodeOverheadMemory = assignedNativeCodeOverheadMemory;
         this.assignedAnomalyDetectorMemory = assignedAnomalyDetectorMemory;
         this.assignedDataFrameAnalyticsMemory = assignedDataFrameAnalyticsMemory;
@@ -62,7 +68,7 @@ public class NodeLoad {
      * @return The total number of assigned jobs
      */
     public int getNumAssignedJobs() {
-        return numAssignedJobs;
+        return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceJobs;
     }
 
     /**
@@ -160,7 +166,7 @@ public class NodeLoad {
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - numAssignedJobs, 0);
+        return Math.max(maxJobs - getNumAssignedJobs(), 0);
     }
 
     /**
@@ -186,7 +192,9 @@ public class NodeLoad {
         return maxMemory == nodeLoad.maxMemory
             && maxJobs == nodeLoad.maxJobs
             && useMemory == nodeLoad.useMemory
-            && numAssignedJobs == nodeLoad.numAssignedJobs
+            && numAssignedAnomalyDetectorJobs == nodeLoad.numAssignedAnomalyDetectorJobs
+            && numAssignedDataFrameAnalyticsJobs == nodeLoad.numAssignedDataFrameAnalyticsJobs
+            && numAssignedNativeInferenceJobs == nodeLoad.numAssignedNativeInferenceJobs
             && assignedNativeCodeOverheadMemory == nodeLoad.assignedNativeCodeOverheadMemory
             && assignedAnomalyDetectorMemory == nodeLoad.assignedAnomalyDetectorMemory
             && assignedDataFrameAnalyticsMemory == nodeLoad.assignedDataFrameAnalyticsMemory
@@ -204,7 +212,9 @@ public class NodeLoad {
             nodeId,
             useMemory,
             error,
-            numAssignedJobs,
+            numAssignedAnomalyDetectorJobs,
+            numAssignedDataFrameAnalyticsJobs,
+            numAssignedNativeInferenceJobs,
             assignedNativeCodeOverheadMemory,
             assignedAnomalyDetectorMemory,
             assignedDataFrameAnalyticsMemory,
@@ -227,7 +237,9 @@ public class NodeLoad {
         private final String nodeId;
         private boolean useMemory;
         private String error;
-        private int numAssignedJobs;
+        private int numAssignedAnomalyDetectorJobs;
+        private int numAssignedDataFrameAnalyticsJobs;
+        private int numAssignedNativeInferenceJobs;
         private long assignedNativeCodeOverheadMemory;
         private long assignedAnomalyDetectorMemory;
         private long assignedDataFrameAnalyticsMemory;
@@ -240,7 +252,9 @@ public class NodeLoad {
             this.nodeId = nodeLoad.nodeId;
             this.useMemory = nodeLoad.useMemory;
             this.error = nodeLoad.error;
-            this.numAssignedJobs = nodeLoad.numAssignedJobs;
+            this.numAssignedAnomalyDetectorJobs = nodeLoad.numAssignedAnomalyDetectorJobs;
+            this.numAssignedDataFrameAnalyticsJobs = nodeLoad.numAssignedDataFrameAnalyticsJobs;
+            this.numAssignedNativeInferenceJobs = nodeLoad.numAssignedNativeInferenceJobs;
             this.assignedNativeCodeOverheadMemory = nodeLoad.assignedNativeCodeOverheadMemory;
             this.assignedAnomalyDetectorMemory = nodeLoad.assignedAnomalyDetectorMemory;
             this.assignedDataFrameAnalyticsMemory = nodeLoad.assignedDataFrameAnalyticsMemory;
@@ -261,7 +275,7 @@ public class NodeLoad {
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - numAssignedJobs, 0);
+            return Math.max(maxJobs - getNumAssignedJobs(), 0);
         }
 
         public String getNodeId() {
@@ -269,7 +283,7 @@ public class NodeLoad {
         }
 
         public int getNumAssignedJobs() {
-            return numAssignedJobs;
+            return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceJobs;
         }
 
         public Builder setMaxMemory(long maxMemory) {
@@ -296,8 +310,18 @@ public class NodeLoad {
             return this;
         }
 
-        public Builder incNumAssignedJobs() {
-            ++this.numAssignedJobs;
+        public Builder incNumAssignedAnomalyDetectorJobs() {
+            ++this.numAssignedAnomalyDetectorJobs;
+            return this;
+        }
+
+        public Builder incNumAssignedDataFrameAnalyticsJobs() {
+            ++this.numAssignedDataFrameAnalyticsJobs;
+            return this;
+        }
+
+        public Builder incNumAssignedNativeInferenceJobs() {
+            ++this.numAssignedNativeInferenceJobs;
             return this;
         }
 
@@ -327,7 +351,14 @@ public class NodeLoad {
         }
 
         void addTask(String taskName, String taskId, boolean isAllocating, MlMemoryTracker memoryTracker) {
-            ++numAssignedJobs;
+            switch (taskName) {
+                case MlTasks.JOB_TASK_NAME, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME -> incNumAssignedAnomalyDetectorJobs();
+                case MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME -> incNumAssignedDataFrameAnalyticsJobs();
+                default -> {
+                    assert false : "Unexpected task could not be accounted for: " + taskName;
+                }
+            }
+
             if (isAllocating) {
                 ++numAllocatingJobs;
             }
@@ -357,7 +388,9 @@ public class NodeLoad {
                 nodeId,
                 useMemory,
                 error,
-                numAssignedJobs,
+                numAssignedAnomalyDetectorJobs,
+                numAssignedDataFrameAnalyticsJobs,
+                numAssignedNativeInferenceJobs,
                 assignedNativeCodeOverheadMemory,
                 assignedAnomalyDetectorMemory,
                 assignedDataFrameAnalyticsMemory,

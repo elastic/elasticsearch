@@ -25,7 +25,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DynamicTemplateTests extends ESTestCase {
+public class DynamicTemplateParseTests extends ESTestCase {
 
     public void testMappingTypeTypeNotSet() {
         Map<String, Object> templateDef = new HashMap<>();

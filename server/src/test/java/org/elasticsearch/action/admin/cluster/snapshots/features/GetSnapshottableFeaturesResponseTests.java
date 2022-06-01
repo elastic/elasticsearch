@@ -32,8 +32,8 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
                     randomAlphaOfLengthBetween(4, 10),
                     randomAlphaOfLengthBetween(5, 10),
                     1,
-                    new ArrayList<>(),
-                    new ArrayList<>()
+                    randomAlphaOfLengthBetween(5, 10),
+                    randomAlphaOfLengthBetween(5, 10)
                 )
             )
         );
@@ -57,8 +57,8 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
                     randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
                     randomAlphaOfLengthBetween(5, 10),
                     1,
-                    new ArrayList<>(),
-                    new ArrayList<>()
+                    randomAlphaOfLengthBetween(5, 10),
+                    randomAlphaOfLengthBetween(5, 10)
                 )
             )
         );

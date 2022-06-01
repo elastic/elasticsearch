@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -76,11 +77,11 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
         private final String featureName;
         private final String description;
-        private Integer descriptorSize;
-        private List associatedIndexDescriptors;
-        private List SystemDatastreamDescriptors;
+        private final Integer descriptorSize;
+        private final String associatedIndexDescriptors;
+        private final String SystemDatastreamDescriptors;
 
-        public SnapshottableFeature(String featureName, String description, Integer size, List<AssociatedIndexDescriptor> associatedIndexDescriptors, List<SystemDataStreamDescriptor> systemDataStreamDescriptors) {
+        public SnapshottableFeature(String featureName, String description, Integer size, String associatedIndexDescriptors, String systemDataStreamDescriptors) {
             this.featureName = featureName;
             this.description = description;
             this.descriptorSize = size;
@@ -91,6 +92,9 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
         public SnapshottableFeature(StreamInput in) throws IOException {
             featureName = in.readString();
             description = in.readString();
+            descriptorSize = in.readInt();
+            associatedIndexDescriptors = in.readString();
+            SystemDatastreamDescriptors = in.readString();
         }
 
         public String getFeatureName() {
@@ -106,8 +110,8 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
             out.writeString(featureName);
             out.writeString(description);
             out.writeInt(descriptorSize);
-            out.writeList(associatedIndexDescriptors);
-            out.writeList(SystemDatastreamDescriptors);
+            out.writeString(associatedIndexDescriptors);
+            out.writeString(SystemDatastreamDescriptors);
         }
 
         @Override

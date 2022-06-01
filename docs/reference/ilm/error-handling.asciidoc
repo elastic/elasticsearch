@@ -216,7 +216,7 @@ This can happen when you don't have {ilm} set up to roll over from hot to warm n
 Consider adding nodes, upgrading your hardware, or deleting unneeded indices.
 
 [discrete]
-==== security_exception: action [indices:admin/rollover] is unauthorized for user [<user-name>] with roles [<role-name>], this action is granted by the index privileges [manage_follow_index,manage,all]
+==== security_exception: action [<action-name>] is unauthorized for user [<user-name>] with roles [<role-name>], this action is granted by the index privileges [manage_follow_index,manage,all]
 
-This indicates the ILM rollover action cannot be executed because the user used by ILM to perform the action doesn't have the proper privileges. This can happen when user's privileges has been dropped after he has updated the ILM policy.
-ILM actions are run as though they were performed by the last user who modify the policy. So whatever account you create/modify the policy from should have permissions to perform all operations that are part of the policy.
+This indicates the ILM action cannot be executed because the user used by ILM to perform the action doesn't have the proper privileges. This can happen when user's privileges has been dropped after updating the ILM policy.
+ILM actions are run as though they were performed by the last user who modify the policy. The account used to create or modify the policy from should have permissions to perform all operations that are part of that policy.

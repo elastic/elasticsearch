@@ -122,7 +122,7 @@ public class ClusterFormationFailureHelper {
         }
     }
 
-    record ClusterFormationState(
+    public record ClusterFormationState(
         List<String> initialMasterNodesSetting,
         DiscoveryNode localNode,
         ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes,

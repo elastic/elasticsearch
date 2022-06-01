@@ -1018,18 +1018,18 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
     private ClusterFormationState mutateClusterFormationState(ClusterFormationState originalClusterFormationState) {
         Settings settings = Settings.builder()
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), originalClusterFormationState.getInitialMasterNodesSetting())
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), originalClusterFormationState.initialMasterNodesSetting())
             .build();
-        final DiscoveryNode localNode = originalClusterFormationState.getLocalNode();
-        List<TransportAddress> resolvedAddresses = originalClusterFormationState.getResolvedAddresses();
-        List<DiscoveryNode> foundPeers = originalClusterFormationState.getFoundPeers();
-        long currentTerm = originalClusterFormationState.getCurrentTerm();
-        StatusInfo statusInfo = originalClusterFormationState.getStatusInfo();
-        List<JoinStatus> joinStatuses = originalClusterFormationState.getInFlightJoinStatuses();
+        final DiscoveryNode localNode = originalClusterFormationState.localNode();
+        List<TransportAddress> resolvedAddresses = originalClusterFormationState.resolvedAddresses();
+        List<DiscoveryNode> foundPeers = originalClusterFormationState.foundPeers();
+        long currentTerm = originalClusterFormationState.currentTerm();
+        StatusInfo statusInfo = originalClusterFormationState.statusInfo();
+        List<JoinStatus> joinStatuses = originalClusterFormationState.inFlightJoinStatuses();
         ClusterState clusterState = state(
             localNode,
-            originalClusterFormationState.getLastAcceptedConfiguration(),
-            originalClusterFormationState.getLastCommittedConfiguration()
+            originalClusterFormationState.lastAcceptedConfiguration(),
+            originalClusterFormationState.lastCommittedConfiguration()
         );
         switch (randomIntBetween(1, 5)) {
             case 1 -> {

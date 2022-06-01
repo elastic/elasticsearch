@@ -440,7 +440,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 Map<DiscoveryNode, List<DiscoveryNode>> nodesNotDiscoveredMap = new HashMap<>();
                 for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
                     ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue().clusterFormationState();
-                    List<DiscoveryNode> foundPeersOnNode = clusterFormationState.getFoundPeers();
+                    List<DiscoveryNode> foundPeersOnNode = clusterFormationState.foundPeers();
                     if (foundPeersOnNode.containsAll(masterEligibleNodes) == false) {
                         List<DiscoveryNode> nodesNotDiscovered = masterEligibleNodes.stream()
                             .filter(node -> foundPeersOnNode.contains(node) == false)

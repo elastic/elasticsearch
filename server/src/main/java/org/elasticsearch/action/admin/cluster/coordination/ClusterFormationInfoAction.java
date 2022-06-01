@@ -17,8 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,17 +70,14 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
 
     public static class Response extends ActionResponse {
 
-        private final String nodeId;
         private final ClusterFormationFailureHelper.ClusterFormationState clusterFormationState;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            nodeId = in.readString();
             clusterFormationState = new ClusterFormationFailureHelper.ClusterFormationState(in);
         }
 
-        public Response(DiscoveryNode node, ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {
-            this.nodeId = node.getId();
+        public Response(ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {
             this.clusterFormationState = clusterFormationState;
         }
 
@@ -92,7 +87,6 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(nodeId);
             clusterFormationState.writeTo(out);
         }
 
@@ -101,12 +95,12 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ClusterFormationInfoAction.Response response = (ClusterFormationInfoAction.Response) o;
-            return nodeId.equals(response.nodeId) && clusterFormationState.equals(response.clusterFormationState);
+            return clusterFormationState.equals(response.clusterFormationState);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, clusterFormationState);
+            return Objects.hash(clusterFormationState);
         }
     }
 
@@ -116,18 +110,11 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
     public static class TransportAction extends HandledTransportAction<
         ClusterFormationInfoAction.Request,
         ClusterFormationInfoAction.Response> {
-        private final ClusterService clusterService;
         private final Coordinator coordinator;
 
         @Inject
-        public TransportAction(
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            Coordinator coordinator
-        ) {
+        public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
             super(ClusterFormationInfoAction.NAME, transportService, actionFilters, ClusterFormationInfoAction.Request::new);
-            this.clusterService = clusterService;
             this.coordinator = coordinator;
         }
 
@@ -137,9 +124,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
             ClusterFormationInfoAction.Request request,
             ActionListener<ClusterFormationInfoAction.Response> listener
         ) {
-            listener.onResponse(
-                new ClusterFormationInfoAction.Response(clusterService.localNode(), coordinator.getClusterFormationState())
-            );
+            listener.onResponse(new ClusterFormationInfoAction.Response(coordinator.getClusterFormationState()));
         }
     }
 

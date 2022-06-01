@@ -64,7 +64,8 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
 
         // Define a role with all privileges (by wildcard) for this application
         var roleName = randomAlphaOfLengthBetween(6, 10);
-        createRole(roleName, "*", new String[] { "*" }, new String[] { "*" });
+        var singleAppOnly = randomBoolean();
+        createRole(roleName, singleAppOnly ? appName : "*", new String[] { "*" }, new String[] { "*" });
 
         final Set<String> allRoles = new HashSet<>();
         allRoles.add(roleName);
@@ -111,7 +112,7 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
             assertThat(shouldHavePrivileges.get(0).getPrivileges(), aMapWithSize(1));
         }
 
-        if (false)        {
+        if (singleAppOnly) {
             final List<ResourcePrivileges> shouldNotHavePrivileges = hasPrivilege(
                 reqOptions,
                 randomValueOtherThanMany(allApplications::contains, this::randomApplicationName),

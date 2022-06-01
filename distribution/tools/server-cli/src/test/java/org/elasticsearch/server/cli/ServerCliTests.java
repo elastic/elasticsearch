@@ -237,7 +237,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testSyncPlugins() throws Exception {
-        buildType = Build.Type.DOCKER;
         AtomicBoolean syncPluginsCalled = new AtomicBoolean(false);
         syncPluginsCallback = (t, options, env, processInfo) -> syncPluginsCalled.set(true);
         assertOk();
@@ -245,7 +244,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testSyncPluginsError() throws Exception {
-        buildType = Build.Type.DOCKER;
         syncPluginsCallback = (t, options, env, processInfo) -> { throw new UserException(ExitCodes.CONFIG, "sync plugins failed"); };
         int gotMainExitCode = executeMain();
         assertThat(gotMainExitCode, equalTo(ExitCodes.CONFIG));
@@ -318,7 +316,6 @@ public class ServerCliTests extends CommandTestCase {
         void syncPlugins(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
-    Build.Type buildType;
     SyncPluginsMethod syncPluginsCallback;
     private final MockSyncPluginsCli SYNC_PLUGINS_CLI = new MockSyncPluginsCli();
 
@@ -328,7 +325,6 @@ public class ServerCliTests extends CommandTestCase {
         autoConfigCallback = null;
         syncPluginsCallback = null;
         mockServerExitCode = 0;
-        buildType = Build.Type.TAR;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -414,12 +410,6 @@ public class ServerCliTests extends CommandTestCase {
     @Override
     protected Command newCommand() {
         return new ServerCli() {
-
-            @Override
-            protected Build.Type getBuildType() {
-                return buildType;
-            }
-
             @Override
             protected Command loadTool(String toolname, String libs) {
                 if (toolname.equals("auto-configure-node")) {

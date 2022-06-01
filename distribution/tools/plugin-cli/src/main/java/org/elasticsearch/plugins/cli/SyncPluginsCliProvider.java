@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
@@ -37,6 +38,12 @@ public class SyncPluginsCliProvider implements CliToolProvider {
                 var action = new SyncPluginsAction(terminal, env);
                 if (Files.exists(env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
                     return;
+                }
+                if (Build.CURRENT.type() == Build.Type.DOCKER) {
+                    throw new UserException(
+                        ExitCodes.CONFIG,
+                        "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]"
+                    );
                 }
                 try {
                     action.execute();

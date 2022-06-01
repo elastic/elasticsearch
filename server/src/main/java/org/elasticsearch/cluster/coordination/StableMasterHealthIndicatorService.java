@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -33,7 +34,6 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -550,16 +550,24 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private Scheduler.Cancellable beginPollingClusterFormationInfo(DiscoveryNode node) {
         return Scheduler.wrapAsCancellable(transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
-            long startTime = System.nanoTime();
-            transportService.openConnection(
-                // Note: This connection must be explicitly closed below
-                node,
-                ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Transport.Connection connection) {
-                        Version minSupportedVersion = Version.V_8_4_0;
-                        if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+            Version minSupportedVersion = Version.V_8_4_0;
+            if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+                logger.trace(
+                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                    node,
+                    node.getVersion(),
+                    minSupportedVersion
+                );
+            } else {
+                long startTime = System.nanoTime();
+                transportService.connectToNode(
+                    // Note: This connection must be explicitly closed below
+                    node,
+                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Releasable connection) {
+                            Version minSupportedVersion = Version.V_8_4_0;
                             logger.trace("Opened connection to {}, making cluster coordination info request", node);
                             // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                             final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
@@ -595,26 +603,16 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                                     }
                                 }), ClusterFormationInfoAction.Response::new)
                             );
-                        } else {
-                            if (transportService.getLocalNode().equals(node) == false) {
-                                connection.close();
-                            }
-                            logger.trace(
-                                "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                                node,
-                                connection.getVersion(),
-                                minSupportedVersion
-                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("Exception connecting to master node", e);
+                            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                         }
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("Exception connecting to master node", e);
-                        nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                    }
-                }
-            );
+                );
+            }
         }, 0, 10, TimeUnit.SECONDS));
     }
 

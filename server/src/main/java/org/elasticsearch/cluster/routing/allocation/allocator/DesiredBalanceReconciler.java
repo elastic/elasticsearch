@@ -228,10 +228,10 @@ public class DesiredBalanceReconciler {
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;
-                if (isThrottled) {
-                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
-                } else if (desiredBalance.isBalanceComputed(shard.shardId()) == false) {
+                if (desiredBalance.isBalanceComputed(shard.shardId()) == false) {
                     allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
+                } else if (isThrottled) {
+                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
                 } else {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;
                 }

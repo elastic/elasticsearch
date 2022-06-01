@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRes
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -43,8 +45,10 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -185,5 +189,33 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.hasPrivilegeUids(), emptyIterable());
         assertThat(response.errorUids(), is(errorProfileUids));
+    }
+
+    public void testDLSQueryIndicesPrivilegesRequestValidation() {
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];
+        for (int i = 0; i < indicesPrivileges.length; i++) {
+            indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomFrom("read", "write"))
+                .indices(randomAlphaOfLengthBetween(2, 8))
+                .query(new BytesArray(randomAlphaOfLength(5)))
+                .build();
+        }
+
+        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(
+            randomList(1, 100, () -> randomAlphaOfLengthBetween(4, 10)),
+            new AuthorizationEngine.PrivilegesToCheck(
+                new String[0],
+                indicesPrivileges,
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
+            )
+        );
+
+        final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
+        transportProfileHasPrivilegesAction.execute(mock(CancellableTask.class), request, listener);
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> listener.actionGet());
+        assertThat(ile, notNullValue());
+        assertThat(ile.getMessage(), containsString("may only check index privileges without any DLS query"));
     }
 }

@@ -399,14 +399,15 @@ sudo sysctl -w vm.max_map_count=262144
 
 ====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
 
-The `vm.max_map_count` setting must be set in the docker-desktop container:
+The `vm.max_map_count` setting must be set in your %USERPROFILE%\.wslconfig as follows:
 
-[source,sh]
+[source]
 --------------------------------------------
-wsl -d docker-desktop
-sysctl -w vm.max_map_count=262144
+[wsl2]
+kernelCommandLine = "sysctl.vm.max_map_count=262144"
 --------------------------------------------
 
+This will cause all WSL2 VMs to have that setting assigned at boot time.
 
 ===== Configuration files must be readable by the `elasticsearch` user
 

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -28,7 +27,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -127,17 +126,13 @@ public class InferenceProcessor extends AbstractProcessor {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            InternalInferModelAction.INSTANCE,
+            InferModelAction.INSTANCE,
             this.buildRequest(ingestDocument),
             ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
         );
     }
 
-    void handleResponse(
-        InternalInferModelAction.Response response,
-        IngestDocument ingestDocument,
-        BiConsumer<IngestDocument, Exception> handler
-    ) {
+    void handleResponse(InferModelAction.Response response, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (previouslyLicensed == false) {
             previouslyLicensed = true;
         }
@@ -152,14 +147,14 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
+    InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
         if (ingestDocument.getIngestMetadata().isEmpty() == false) {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -172,7 +167,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    void mutateDocument(InternalInferModelAction.Response response, IngestDocument ingestDocument) {
+    void mutateDocument(InferModelAction.Response response, IngestDocument ingestDocument) {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
@@ -243,10 +238,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     }
                     // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
-                    logger.debug(
-                        () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
-                        ex
-                    );
+                    logger.debug(() -> "failed gathering processors for pipeline [" + configuration.getId() + "]", ex);
                 }
             }
             return count;

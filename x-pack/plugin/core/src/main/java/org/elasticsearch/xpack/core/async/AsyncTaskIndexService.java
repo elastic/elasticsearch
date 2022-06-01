@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -307,7 +306,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
                     ActionListener<UpdateResponse> newListener = listener;
                     updateStoredResponseWithFailure(
                         docId,

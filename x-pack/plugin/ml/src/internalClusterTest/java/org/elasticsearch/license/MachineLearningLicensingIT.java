@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -660,10 +660,10 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         putInferenceModel(modelId);
 
-        PlainActionFuture<InternalInferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            new InferModelAction.Request(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
@@ -671,7 +671,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             ),
             inferModelSuccess
         );
-        InternalInferModelAction.Response response = inferModelSuccess.actionGet();
+        InferModelAction.Response response = inferModelSuccess.actionGet();
         assertThat(response.getInferenceResults(), is(not(empty())));
         assertThat(response.isLicensed(), is(true));
 
@@ -683,8 +683,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // inferring against a model should now fail
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
-                InternalInferModelAction.INSTANCE,
-                new InternalInferModelAction.Request(
+                InferModelAction.INSTANCE,
+                new InferModelAction.Request(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
@@ -699,8 +699,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Inferring with previously Licensed == true should pass, but indicate license issues
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            new InferModelAction.Request(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
@@ -717,10 +717,10 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
 
-        PlainActionFuture<InternalInferModelAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
-            InternalInferModelAction.INSTANCE,
-            new InternalInferModelAction.Request(
+            InferModelAction.INSTANCE,
+            new InferModelAction.Request(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,

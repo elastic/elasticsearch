@@ -460,6 +460,11 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
+            public long docValueCount() {
+                return values.size();
+            }
+
+            @Override
             public BytesRef lookupOrd(long ord) {
                 return values.get((int) ord);
             }

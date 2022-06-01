@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,9 +62,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -109,21 +109,30 @@ public class TransportSetEnabledActionTests extends ESTestCase {
     }
 
     public void testValidUser() throws Exception {
-        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())));
+        testValidUser(
+            randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())),
+            defaultAuthentication()
+        );
     }
 
     public void testValidUserWithInternalUsername() throws Exception {
-        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()), defaultAuthentication());
     }
 
-    private void testValidUser(User user) throws IOException {
+    public void testUserCanModifySameNameUserFromDifferentRealm() throws Exception {
+        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), "other_realm", randomAlphaOfLengthBetween(3, 8)))
+            .build(false);
+        testValidUser(user, authentication);
+    }
+
+    private void testValidUser(User user, Authentication authentication) throws IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User("the runner"));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -188,10 +197,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User("the runner"));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+        new AuthenticationContextSerializer().writeToContext(defaultAuthentication(), threadContext);
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -258,9 +264,16 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(
+                new Authentication.RealmRef(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(NativeRealmSettings.TYPE, ReservedRealm.TYPE),
+                    randomAlphaOfLengthBetween(3, 8)
+                )
+            )
+            .build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -304,5 +317,15 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("own account"));
         verifyNoMoreInteractions(usersStore);
+    }
+
+    private Authentication defaultAuthentication() throws IOException {
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("the runner"))
+            .realmRef(
+                new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8))
+            )
+            .build();
+        return authentication;
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -141,60 +140,6 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff<Integer, String, ImmutableOpenMap<Integer, String>> readDiff(StreamInput in) throws IOException {
                 return DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, nonDiffableValueSerializer());
-            }
-        }.execute();
-    }
-
-    public void testImmutableOpenIntMapDiff() throws IOException {
-        new ImmutableOpenIntMapDriver<TestDiffable>() {
-            @Override
-            protected boolean diffableValues() {
-                return true;
-            }
-
-            @Override
-            protected TestDiffable createValue(Integer key, boolean before) {
-                return new TestDiffable(String.valueOf(before ? key : key + 1));
-            }
-
-            @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> diff(
-                ImmutableOpenIntMap<TestDiffable> before,
-                ImmutableOpenIntMap<TestDiffable> after
-            ) {
-                return DiffableUtils.diff(before, after, keySerializer);
-            }
-
-            @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> readDiff(StreamInput in) throws IOException {
-                return useProtoForDiffableSerialization
-                    ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                    : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
-            }
-        }.execute();
-
-        new ImmutableOpenIntMapDriver<String>() {
-            @Override
-            protected boolean diffableValues() {
-                return false;
-            }
-
-            @Override
-            protected String createValue(Integer key, boolean before) {
-                return String.valueOf(before ? key : key + 1);
-            }
-
-            @Override
-            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> diff(
-                ImmutableOpenIntMap<String> before,
-                ImmutableOpenIntMap<String> after
-            ) {
-                return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
-            }
-
-            @Override
-            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> readDiff(StreamInput in) throws IOException {
-                return DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, nonDiffableValueSerializer());
             }
         }.execute();
     }
@@ -384,24 +329,6 @@ public class DiffableTests extends ESTestCase {
 
         @Override
         protected int size(ImmutableOpenMap<Integer, V> map) {
-            return map.size();
-        }
-    }
-
-    abstract class ImmutableOpenIntMapDriver<V> extends MapDriver<ImmutableOpenIntMap<V>, V> {
-
-        @Override
-        protected ImmutableOpenIntMap<V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenIntMap.<V>builder().putAll(values).build();
-        }
-
-        @Override
-        protected V get(ImmutableOpenIntMap<V> map, Integer key) {
-            return map.get(key);
-        }
-
-        @Override
-        protected int size(ImmutableOpenIntMap<V> map) {
             return map.size();
         }
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -81,19 +82,19 @@ public class OperatorClusterStateController {
 
     public ClusterState process(String namespace, XContentParser parser) throws IOException {
         SettingsFile operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
-
         Map<String, Object> operatorState = operatorStateFileContent.state;
         OperatorStateVersionMetadata stateVersionMetadata = operatorStateFileContent.metadata;
 
         LinkedHashSet<String> orderedHandlers = orderedStateHandlers(operatorState.keySet());
 
         ClusterState state = clusterService.state();
-
         OperatorMetadata existingMetadata = state.metadata().operatorState(namespace);
-
-        checkMetadataVersion(existingMetadata, stateVersionMetadata);
+        if (checkMetadataVersion(existingMetadata, stateVersionMetadata) == false) {
+            return state;
+        }
 
         OperatorMetadata.Builder operatorMetadataBuilder = new OperatorMetadata.Builder(namespace).version(stateVersionMetadata.version());
+        List<String> errors = new ArrayList<>();
 
         for (var handlerKey : orderedHandlers) {
             OperatorHandler<?> handler = handlers.get(handlerKey);
@@ -103,10 +104,34 @@ public class OperatorClusterStateController {
                 state = transformState.state();
                 operatorMetadataBuilder.putHandler(new OperatorHandlerMetadata.Builder(handlerKey).keys(transformState.keys()).build());
             } catch (Exception e) {
-                // TODO: Collect all errors, store them in the cluster state metadata, throw at the end with all of them
-                throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
+                errors.add(String.format("Error processing %s state change: %s", handler.key(), e.getMessage()));
             }
         }
+
+        if (errors.isEmpty() == false) {
+            clusterService.submitStateUpdateTask("operator state error for [ " + namespace + "]",
+                new OperatorUpdateErrorTask(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        logger.info("Successfully applied new operator error state for namespace [{}]", namespace);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Failed to apply operator error cluster state", e);
+                    }
+                }),
+                ClusterStateTaskConfig.build(Priority.URGENT),
+                new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor(namespace, stateVersionMetadata.version(), errors)
+            );
+
+            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace);
+        }
+
+        // remove the last error if we had previously encountered any
+        operatorMetadataBuilder.errorMetadata(null);
 
         ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).putOperatorState(operatorMetadataBuilder.build());
@@ -139,14 +164,24 @@ public class OperatorClusterStateController {
         return operatorMetadata.handlers().get(handlerKey).keys();
     }
 
-    void checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
+    boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
         if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
-            throw new IllegalStateException("Newer version operator cluster state");
+           logger.info(
+               "Cluster state version [{}] is not compatible with this Elasticsearch node",
+               stateVersionMetadata.minCompatibleVersion()
+           );
+           return false;
         }
 
         if (existingMetadata != null && existingMetadata.version() >= stateVersionMetadata.version()) {
-            throw new IllegalStateException("Cluster state not updated because version is less or equal to before");
+            logger.info(
+                "Not updating cluster state because version [{}] is less or equal to the current metadata version [{}]",
+                stateVersionMetadata.version(), existingMetadata.version()
+            );
+            return false;
         }
+
+        return true;
     }
 
     LinkedHashSet<String> orderedStateHandlers(Set<String> keys) {

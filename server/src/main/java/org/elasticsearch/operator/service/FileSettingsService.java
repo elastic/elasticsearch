@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -35,6 +34,9 @@ import java.util.concurrent.CountDownLatch;
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
+    private static final String SETTINGS_FILE_NAME = "settings.json";
+    private static final String NAMESPACE = "file_settings";
+
     private final ClusterService clusterService;
     private final OperatorClusterStateController controller;
     private final Environment environment;
@@ -42,7 +44,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
 
-    private volatile long lastUpdatedTime = 0L;
+    private volatile FileUpdateState fileUpdateState = null;
 
     private volatile boolean active = false;
 
@@ -67,17 +69,24 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // package private for testing
     Path operatorSettingsFile() {
-        return operatorSettingsDir().resolve("settings.json");
+        return operatorSettingsDir().resolve(SETTINGS_FILE_NAME);
     }
 
-    // package private for testing
-    static long watchedFileTimestamp(Path path) throws IOException {
+    boolean watchedFileChanged(Path path) throws IOException {
         if (Files.exists(path) == false) {
-            return 0;
+            return false;
         }
-        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
 
-        return attr.lastModifiedTime().toMillis();
+        FileUpdateState previousUpdateState = fileUpdateState;
+
+        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
+        fileUpdateState = new FileUpdateState(
+            attr.lastModifiedTime().toMillis(),
+            path.toRealPath().toString(),
+            attr.fileKey()
+        );
+
+        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
     @Override
@@ -135,14 +144,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             this.watchService = PathUtils.getDefaultFileSystem().newWatchService();
             if (Files.exists(settingsDir)) {
                 Path settingsFilePath = operatorSettingsFile();
-                try {
-                    this.lastUpdatedTime = watchedFileTimestamp(settingsFilePath);
-                    if (lastUpdatedTime > 0L) {
-                        logger.info("found initial operator settings file [{}], applying...", settingsFilePath);
-                        processFileSettings(settingsFilePath);
-                    }
-                } catch (IOException e) {
-                    logger.warn("encountered I/O exception trying to read file attributes for the file based settings", e);
+                if (Files.exists(settingsFilePath)) {
+                    logger.info("found initial operator settings file [{}], applying...", settingsFilePath);
+                    processFileSettings(settingsFilePath);
                 }
                 enableSettingsWatcher(settingsDir);
             } else {
@@ -169,29 +173,40 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
                 WatchKey key;
                 while ((key = watchService.take()) != null) {
-                    // Reading and interpreting watch service events can vary from platform to platform.
-                    // After we get an indication that something has changed, we check the timestamp of our desired file.
+                    // Reading and interpreting watch service events can vary from platform to platform. E.g:
+                    // MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                    //      ENTRY_MODIFY:operator
+                    //      ENTRY_CREATE:settings.json
+                    //      ENTRY_MODIFY:settings.json
+                    // Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                    //      ENTRY_CREATE:operator
+                    // After we get an indication that something has changed, we check the timestamp, file id,
+                    // real path of our desired file.
                     if (Files.exists(settingsDir)) {
                         try {
-                            key.cancel();
-                            enableSettingsWatcher(settingsDir);
-
                             Path path = operatorSettingsFile();
 
-                            long updatedTime = watchedFileTimestamp(path);
-                            if (updatedTime > lastUpdatedTime) {
-                                this.lastUpdatedTime = updatedTime;
+                            if (logger.isDebugEnabled()) {
+                                key.pollEvents().stream().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
+                            }
+
+                            key.pollEvents();
+                            key.reset();
+
+                            enableSettingsWatcher(settingsDir);
+
+                            if (watchedFileChanged(path)) {
                                 processFileSettings(path);
                             }
                         } catch (IOException e) {
                             logger.warn("unable to watch or read operator settings file", e);
                         }
                     } else {
-                        key.cancel();
-                        enableSettingsWatcher(environment.configFile());
+                        key.pollEvents();
+                        key.reset();
                     }
                 }
-            } catch (InterruptedException | ClosedWatchServiceException | IOException e) {
+            } catch (Exception e) {
                 logger.debug("encountered exception watching, shutting down watcher thread.", e);
             } finally {
                 watcherThreadLatch.countDown();
@@ -226,13 +241,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     void processFileSettings(Path path) {
-        logger.info("Processing path [{}]", path);
+        logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
         ) {
-            controller.process("operator", parser);
+            controller.process(NAMESPACE, parser);
         } catch (Exception e) {
-            logger.error("Error parsing operator settings json file", e);
+            logger.error("Error processing operator settings json file", e);
         }
     }
+
+    record FileUpdateState(long timestamp, String path, Object fileKey) {}
 }

@@ -160,11 +160,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def assertValidJar(File jar) {
         try (ZipFile zipFile = new ZipFile(jar)) {
-            ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
-            ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
+            ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt")
+            ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt")
 
-            assert licenseEntry != null : "Jar does not have META-INF/LICENSE.txt";
-            assert noticeEntry != null : "Jar does not have META-INF/NOTICE.txt";
+            assert licenseEntry != null : "Jar does not have META-INF/LICENSE.txt"
+            assert noticeEntry != null : "Jar does not have META-INF/NOTICE.txt"
             try (InputStream license = zipFile.getInputStream(licenseEntry); InputStream notice = zipFile.getInputStream(noticeEntry)) {
                 assert "this is a test license file" == IOUtils.toString(license, StandardCharsets.UTF_8.name())
                 assert "this is a test notice file" == IOUtils.toString(notice, StandardCharsets.UTF_8.name())

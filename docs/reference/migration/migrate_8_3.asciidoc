@@ -50,10 +50,8 @@ to start if a bind DN is specified without a password.
 
 *Impact* +
 If you have a bind DN configured for an LDAP or AD authentication
-realm, set a bind password for
-[LDAP](https://www.elastic.co/guide/en/elasticsearch/reference/current/ldap-realm.html#ldap-realm-configuration)
-or [Active
-Directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/active-directory-realm.html#ad-realm-configuration).
+realm, set a bind password for {ref}/ldap-realm.html#ldap-realm-configuration[LDAP]
+or {ref}/active-directory-realm.html#ad-realm-configuration[Active Directory].
 Configuring a bind DN without a password generates a warning in the
 deprecation logs.
 

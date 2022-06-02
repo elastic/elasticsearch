@@ -57,6 +57,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * An indexer for rollups that iterates documents collected by {@link TimeSeriesIndexSearcher},
  * computes the rollup buckets and stores the buckets in the rollup index.
@@ -188,10 +190,7 @@ class RollupShardIndexer {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     numFailed.addAndGet(items);
-                    logger.error(
-                        () -> new ParameterizedMessage("Shard [{}] failed to populate rollup index.", indexShard.shardId()),
-                        failure
-                    );
+                    logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
                 }
             }
         };

@@ -1,0 +1,4 @@
+pr: 87342
+summary: add return information to _feature API
+area: Java Hight Level REST Client
+type: enhancement

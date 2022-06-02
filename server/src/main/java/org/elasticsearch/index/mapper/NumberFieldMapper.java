@@ -1537,13 +1537,14 @@ public class NumberFieldMapper extends FieldMapper {
     private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
         throws IllegalArgumentException, IOException {
 
-        if (parser.currentToken() == Token.VALUE_NULL) {
+        final Token currentToken = parser.currentToken();
+        if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
-        if (parser.currentToken() == Token.START_OBJECT) {
+        if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
         return numberType.parse(parser, coerce);

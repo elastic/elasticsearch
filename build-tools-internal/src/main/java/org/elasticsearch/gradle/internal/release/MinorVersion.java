@@ -31,7 +31,7 @@ public record MinorVersion(int major, int minor) implements Comparable<MinorVers
 
     /** Generate version string with underscore instead of dot */
     public String underscore() {
-        return String.format(Locale.ROOT, "%d_%d", major, minor);
+        return major + "_" + minor;
     }
 
     private static final Comparator<MinorVersion> COMPARATOR = Comparator.comparing((MinorVersion v) -> v.major)

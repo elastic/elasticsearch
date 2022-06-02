@@ -99,14 +99,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final TimeValue NODE_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(30, TimeUnit.SECONDS);
     private static final TimeValue SMALLEST_ALLOWED_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(1, TimeUnit.SECONDS);
 
-    // This is the default number of times that it is not OK to have a master go null. This many transitions or more will be reported as a
-    // problem.
-    private static final int DEFAULT_NULL_TRANSITIONS_THRESHOLD = 4;
-
-    // This is the default number of times that it is not OK to have a master change identity. This many changes or more will be reported
-    // as a problem
-    private static final int DEFAULT_IDENTITY_CHANGES_THRESHOLD = 4;
-
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
@@ -119,6 +111,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         + "work. The _cat APIs will not work.";
     private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
 
+    /**
+     * This is the list of the impacts to be reported when the master node is determined to be unstable.
+     */
+    private static final List<HealthIndicatorImpact> UNSTABLE_MASTER_IMPACTS = List.of(
+        new HealthIndicatorImpact(1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)),
+        new HealthIndicatorImpact(1, UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
+        new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
+    );
+
     public static final Setting<TimeValue> NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING = Setting.timeSetting(
         "health.master_history.has_master_lookup_timeframe",
         NODE_HAS_MASTER_LOOKUP_TIMEFRAME,
@@ -126,16 +127,23 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> NULL_TRANSITIONS_THRESHOLD_SETTING = Setting.intSetting(
-        "health.master_history.null_transitions_threshold",
-        DEFAULT_NULL_TRANSITIONS_THRESHOLD,
+    /**
+     * This is the number of times that it is not OK to have a master go null. This many transitions or more will be reported as a problem.
+     */
+    public static final Setting<Integer> NO_MASTER_TRANSITIONS_THRESHOLD_SETTING = Setting.intSetting(
+        "health.master_history.no_master_transitions_threshold",
+        4,
         0,
         Setting.Property.NodeScope
     );
 
+    /**
+     * This is the number of times that it is not OK to have a master change identity. This many changes or more will be reported as a
+     * problem.
+     */
     public static final Setting<Integer> IDENTITY_CHANGES_THRESHOLD_SETTING = Setting.intSetting(
         "health.master_history.identity_changes_threshold",
-        DEFAULT_IDENTITY_CHANGES_THRESHOLD,
+        4,
         0,
         Setting.Property.NodeScope
     );
@@ -154,7 +162,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         this.masterHistoryService = masterHistoryService;
         this.transportService = transportService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
-        this.unacceptableNullTransitions = NULL_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
+        this.unacceptableNullTransitions = NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
         this.unacceptableIdentityChanges = IDENTITY_CHANGES_THRESHOLD_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
     }
@@ -225,14 +233,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus stableMasterStatus = HealthStatus.YELLOW;
         String summary = String.format(
             Locale.ROOT,
-            "The master has changed %d times in the last %s",
+            "The elected master node has changed %d times in the last %s",
             masterChanges,
             localMasterHistory.getMaxHistoryAge()
         );
         HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
-        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
         List<UserAction> userActions = getContactSupportUserActions(explain);
-        return createIndicator(stableMasterStatus, summary, explain ? details : HealthIndicatorDetails.EMPTY, impacts, userActions);
+        return createIndicator(
+            stableMasterStatus,
+            summary,
+            explain ? details : HealthIndicatorDetails.EMPTY,
+            UNSTABLE_MASTER_IMPACTS,
+            userActions
+        );
     }
 
     /**
@@ -273,18 +286,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         } else {
             return List.of();
         }
-    }
-
-    /**
-     * Returns the list of the impacts of an unstable master node.
-     * @return The list of the impacts of an unstable master node
-     */
-    private List<HealthIndicatorImpact> getUnstableMasterImpacts() {
-        List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        impacts.add(new HealthIndicatorImpact(1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)));
-        impacts.add(new HealthIndicatorImpact(1, UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
-        impacts.add(new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP)));
-        return impacts;
     }
 
     /**
@@ -329,21 +330,25 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) >= unacceptableIdentityChanges));
         if (masterConfirmedUnstable) {
             logger.trace("The master node {} thinks it is unstable", master);
-            final HealthStatus stableMasterStatus = HealthStatus.YELLOW;
             String summary = String.format(
                 Locale.ROOT,
                 "The cluster's master has alternated between %s and no master multiple times in the last %s",
                 localMasterHistory.getNodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()),
                 localMasterHistory.getMaxHistoryAge()
             );
-            final Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
             final HealthIndicatorDetails details = getHealthIndicatorDetailsOnMasterHasFlappedNull(
                 explain,
                 localMasterHistory,
                 remoteHistoryException
             );
             final List<UserAction> userActions = getContactSupportUserActions(explain);
-            return createIndicator(stableMasterStatus, summary, explain ? details : HealthIndicatorDetails.EMPTY, impacts, userActions);
+            return createIndicator(
+                HealthStatus.YELLOW,
+                summary,
+                explain ? details : HealthIndicatorDetails.EMPTY,
+                UNSTABLE_MASTER_IMPACTS,
+                userActions
+            );
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
             return getMasterIsStableResult(explain, localMasterHistory);
@@ -374,13 +379,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return A HealthIndicatorResult for the case when the master is seen as stable (GREEN status, no impacts or details)
      */
     private HealthIndicatorResult getMasterIsStableResult(boolean explain, MasterHistory localMasterHistory) {
-        HealthStatus stableMasterStatus = HealthStatus.GREEN;
         String summary = "The cluster has a stable master node";
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = List.of();
         logger.trace("The cluster has a stable master node");
         HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
-        return createIndicator(stableMasterStatus, summary, details, impacts, userActions);
+        return createIndicator(HealthStatus.GREEN, summary, details, impacts, userActions);
     }
 
     /**
@@ -394,7 +398,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus stableMasterStatus;
         String summary;
         HealthIndicatorDetails details = HealthIndicatorDetails.EMPTY;
-        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
         List<UserAction> userActions = getContactSupportUserActions(explain);
         if (masterEligibleNodes.isEmpty()) {
             stableMasterStatus = HealthStatus.RED;
@@ -436,7 +439,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                             HealthStatus.RED,
                             String.format(Locale.ROOT, "Exception reaching out to %s: %s", entry.getKey(), entry.getValue().exception()),
                             details,
-                            impacts,
+                            UNSTABLE_MASTER_IMPACTS,
                             userActions
                         );
                     }
@@ -457,7 +460,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         HealthStatus.RED,
                         "Some master eligible nodes have not discovered other master eligible nodes",
                         details,
-                        impacts,
+                        UNSTABLE_MASTER_IMPACTS,
                         userActions
                     );
                 }
@@ -469,7 +472,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     }
                 }
                 if (quorumProblems.isEmpty() == false) {
-                    return createIndicator(HealthStatus.RED, "Master eligible nodes cannot form a quorum", details, impacts, userActions);
+                    return createIndicator(
+                        HealthStatus.RED,
+                        "Master eligible nodes cannot form a quorum",
+                        details,
+                        UNSTABLE_MASTER_IMPACTS,
+                        userActions
+                    );
                 }
                 stableMasterStatus = HealthStatus.RED;
                 summary = "Something is very wrong";
@@ -479,7 +488,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             // Else if none is elected master and we are master eligible
         }
 
-        return createIndicator(stableMasterStatus, summary, details, impacts, userActions);
+        return createIndicator(stableMasterStatus, summary, details, UNSTABLE_MASTER_IMPACTS, userActions);
     }
 
     /**

@@ -151,7 +151,11 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     void warningValidator(String name, String value) {
         if (WARNINGS.keySet().contains(name) == false) {
             throw new IllegalArgumentException(
-                format("Warning [%s] is not supported. Only the following warnings are supported [%s]", name, String.join(", ", WARNINGS.keySet()))
+                format(
+                    "Warning [%s] is not supported. Only the following warnings are supported [%s]",
+                    name,
+                    String.join(", ", WARNINGS.keySet())
+                )
             );
         }
     }

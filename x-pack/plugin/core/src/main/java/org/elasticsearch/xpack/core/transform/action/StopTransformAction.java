@@ -130,7 +130,10 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
-                return addValidationError(format("cannot set both [%s] and [%s] to true", TransformField.FORCE, TransformField.WAIT_FOR_CHECKPOINT), null);
+                return addValidationError(
+                    format("cannot set both [%s] and [%s] to true", TransformField.FORCE, TransformField.WAIT_FOR_CHECKPOINT),
+                    null
+                );
             }
             return null;
         }

@@ -330,7 +330,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
                 .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), acceptableIdentityChanges)
-                .put(StableMasterHealthIndicatorService.NULL_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
+                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
                 .build()
         );
         ensureStableCluster(3);

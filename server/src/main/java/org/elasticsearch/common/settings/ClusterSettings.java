@@ -514,7 +514,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
         StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
-        StableMasterHealthIndicatorService.NULL_TRANSITIONS_THRESHOLD_SETTING,
+        StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT
     );

@@ -145,7 +145,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30m"));
+        assertThat(result.summary(), equalTo("The elected master node has changed 4 times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
@@ -400,7 +400,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     public void testYellowWithTooManyMasterChanges() {
-        testChangeMasterThreeTimes(2, 100, "The master has changed");
+        testChangeMasterThreeTimes(2, 100, "The elected master node has changed");
     }
 
     public void testYellowWithTooManyMasterNullTransitions() {
@@ -412,7 +412,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         int masterChanges = 3;
         Settings settings = Settings.builder()
             .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), acceptableIdentityChanges)
-            .put(StableMasterHealthIndicatorService.NULL_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
+            .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
             .build();
         try (Cluster cluster = new Cluster(clusterSize, true, settings)) {
             cluster.runRandomly();

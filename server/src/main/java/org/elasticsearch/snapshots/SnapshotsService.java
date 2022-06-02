@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -321,11 +320,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     explicitlyRequestedSystemIndices.retainAll(Arrays.asList(request.indices()));
                     if (explicitlyRequestedSystemIndices.isEmpty() == false) {
                         throw new IllegalArgumentException(
-                            new ParameterizedMessage(
-                                "the [indices] parameter includes system indices {}; to include or exclude system indices from a "
+                            format(
+                                "the [indices] parameter includes system indices %s; to include or exclude system indices from a "
                                     + "snapshot, use the [include_global_state] or [feature_states] parameters",
                                 explicitlyRequestedSystemIndices
-                            ).getFormattedMessage()
+                            )
                         );
                     }
                 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,6 +44,7 @@ import java.util.Set;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
@@ -81,12 +81,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
             List<Response.Error> errors = transformTasks.stream()
                 .map(PersistentTasksCustomMetadata.PersistentTask::getId)
                 .filter(not(transformConfigIds::contains))
-                .map(
-                    transformId -> new Response.Error(
-                        "dangling_task",
-                        new ParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
-                    )
-                )
+                .map(transformId -> new Response.Error("dangling_task", format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)))
                 .collect(toList());
             listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
         }, listener::onFailure);

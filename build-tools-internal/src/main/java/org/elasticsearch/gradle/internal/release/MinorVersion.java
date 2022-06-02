@@ -26,7 +26,7 @@ public record MinorVersion(int major, int minor) implements Comparable<MinorVers
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "%d.%d", major, minor);
+        return major + "." + minor;
     }
 
     /** Generate version string with underscore instead of dot */

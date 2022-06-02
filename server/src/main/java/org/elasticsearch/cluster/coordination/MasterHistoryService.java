@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -156,7 +157,7 @@ public class MasterHistoryService {
                                 logger.warn("Exception in master history request to master node", e);
                                 remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                             }
-                        }, releasable::close), MasterHistoryAction.Response::new)
+                        }, () -> Releasables.close(releasable)), MasterHistoryAction.Response::new)
                     );
                 }
 

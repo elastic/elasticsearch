@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -823,10 +822,7 @@ public class SearchActionTests extends ESTestCase {
         when(liveIndexMeta.mapping()).thenReturn(liveMappingMetadata);
 
         Map<String, IndexMetadata> metaMap = Map.of("foo", indexMeta, "bar", liveIndexMeta);
-        TransportRollupSearchAction.RollupSearchContext separateIndices = TransportRollupSearchAction.separateIndices(
-            indices,
-            metaMap
-        );
+        TransportRollupSearchAction.RollupSearchContext separateIndices = TransportRollupSearchAction.separateIndices(indices, metaMap);
 
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));

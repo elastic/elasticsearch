@@ -10,8 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -39,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -65,6 +64,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -402,7 +402,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
-                final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
+                final Supplier<String> messageSupplier = () -> Strings.format(
                     "{} failed to execute bulk item ({}) {}",
                     context.getPrimary().shardId(),
                     opType.getLowercase(),

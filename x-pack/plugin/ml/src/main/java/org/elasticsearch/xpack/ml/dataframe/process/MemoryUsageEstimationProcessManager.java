@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,6 +21,9 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.serverError;
 
 public class MemoryUsageEstimationProcessManager {
 
@@ -100,26 +102,26 @@ public class MemoryUsageEstimationProcessManager {
         try {
             return readResult(jobId, process);
         } catch (Exception e) {
-            String errorMsg = new ParameterizedMessage(
-                "[{}] Error while processing process output [{}], process errors: [{}]",
+            String errorMsg = format(
+                "[%s] Error while processing process output [%s], process errors: [%s]",
                 jobId,
                 e.getMessage(),
                 process.readError()
-            ).getFormattedMessage();
-            throw ExceptionsHelper.serverError(errorMsg, e);
+            );
+            throw serverError(errorMsg, e);
         } finally {
             try {
                 LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
                 LOGGER.debug("[{}] Closed process", jobId);
             } catch (Exception e) {
-                String errorMsg = new ParameterizedMessage(
-                    "[{}] Error while closing process [{}], process errors: [{}]",
+                String errorMsg = format(
+                    "[%s] Error while closing process [%s], process errors: [%s]",
                     jobId,
                     e.getMessage(),
                     process.readError()
-                ).getFormattedMessage();
-                throw ExceptionsHelper.serverError(errorMsg, e);
+                );
+                throw serverError(errorMsg, e);
             }
         }
     }

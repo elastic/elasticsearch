@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -119,6 +118,14 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     nonInputProperties.systemProperty('tests.clustername', baseName)
     def toBlackList = []
     // Dataframe transforms were not added until 7.2.0
+    if (bwcVersion.before('6.8.99')) {
+      toBlackList.addAll([
+        'old_cluster/30_ml_jobs_crud/Put job on the old cluster and post some data',
+        'old_cluster/30_ml_jobs_crud/Put categorization job on the old cluster and post some data',
+        'old_cluster/30_ml_jobs_crud/Put job on the old cluster with the default model memory limit and post some data',
+        'old_cluster/30_ml_jobs_crud/Put categorization job on the old cluster and post some data'
+      ])
+    }
     if (bwcVersion.before('7.2.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put batch transform on old cluster'
     }
@@ -165,6 +172,14 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster',
       'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
     ]
+    if (bwcVersion.before('6.8.99')) {
+      toBlackList.addAll([
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster job',
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster job\'s timing stats',
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster categorization job',
+        'mixed_cluster/30_ml_jobs_crud/Put categorization job on the old cluster and post some data'
+      ])
+    }
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
     if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
@@ -205,6 +220,17 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
+      ])
+    }
+    if (bwcVersion.before('6.8.99')) {
+      toBlackList.addAll([
+        'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster job',
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster job\'s timing stats',
+        'mixed_cluster/30_ml_jobs_crud/Test get old cluster categorization job',
+        'mixed_cluster/30_ml_jobs_crud/Put categorization job on the old cluster and post some data',
+        'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
+        'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
       ])
     }
     if (bwcVersion.before('7.9.0')) {
@@ -270,6 +296,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job',
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats',
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats'
+      ])
+    }
+    if (bwcVersion.before('6.8.99')) {
+      toBlackList.addAll([
+        'upgraded_cluster/30_ml_jobs_crud/Test open old jobs',
+        'upgraded_cluster/30_ml_jobs_crud/Test get old cluster job\'s timing stats',
+        'upgraded_cluster/30_ml_jobs_crud/Test get old cluster job\'s timing stats',
       ])
     }
     // API key metadata requires flattened field type introduced in 7.3.0

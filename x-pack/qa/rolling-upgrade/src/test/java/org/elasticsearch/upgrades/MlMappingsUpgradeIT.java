@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -53,7 +54,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testMappingsUpgrade() throws Exception {
-
+        assumeTrue(
+            "See: https://github.com/elastic/elasticsearch/issues/87330",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0) || Constants.LINUX == false
+        );
         switch (CLUSTER_TYPE) {
             case OLD:
                 createAndOpenTestJob();

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
@@ -98,6 +99,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testSnapshotUpgrader() throws Exception {
+        assumeTrue(
+            "See: https://github.com/elastic/elasticsearch/issues/87328",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0) || Constants.LINUX == false
+        );
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("{\"persistent\": {" + "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" + "}}");

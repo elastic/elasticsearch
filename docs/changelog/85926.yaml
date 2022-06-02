@@ -4,3 +4,37 @@ area: Ingest
 type: bug
 issues:
  - 85790
+highlight:
+  title: Execute self-reference checks once per pipeline
+  body: |-
+    Ingest pipelines have a mechanism to prevent circular references in the records
+    they process, so that they are serializable. Prior to this change, this check was
+    performed after each `script` processor execution, and was ignorable.
+
+    Because of this check, a script processor configured with
+    ```
+    "source": """
+        def x = ctx;
+        ctx.x = x;
+    """
+    ```
+
+    ...would error with `"type" : "illegal_argument_exception", "reason" : "Iterable
+    object is self-referencing itself (ingest script)"`.
+
+    If the script processor also had
+    ```
+    "ignore_failure" true
+    ```
+
+    ...then the handling thread would actually crash from an unrecoverable
+    StackOverFlowError when trying to serialize the resulting event.
+
+    Now, this check is performed once per pipeline, remediating the potential for
+    a StackOverflowError. There are some side effects also:
+
+    - The resulting error message specifies which pipeline is causing the issue.
+    - There is a slight speed up for pipelines with multiple scripts, and a slight
+    slowdown for pipelines without scripts.
+
+  notable: true

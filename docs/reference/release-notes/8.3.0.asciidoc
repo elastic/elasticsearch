@@ -94,6 +94,11 @@ License::
 Machine Learning::
 * Fix ML task auditor exception early in cluster lifecycle {es-pull}87023[#87023] (issue: {es-issue}87002[#87002])
 * Fix distribution change check for `change_point` aggregation {es-pull}86423[#86423]
+* Correct logic for restart from failover fine tuning hyperparameters for training classification and regression models {ml-pull}2251[#2251]
+* Fix possible source of "x = NaN, distribution = class   boost::math::normal_distribution<..." log errors training classification and regression models {ml-pull}2249[#2249]
+* Fix some bugs affecting decision to stop optimizing hyperparameters for training classification and regression models {ml-pull}2259[#2259]
+* Fix cause of "Must provide points at which to evaluate function" log error training classification and regression models {ml-pull}2268[#2268]
+* Fix a source of "Discarding sample = nan, weights = ..." log errors for time series anomaly detection {ml-pull}2286[#2286]
 
 Network::
 * Reject `openConnection` attempt while closing {es-pull}86315[#86315] (issue: {es-issue}86249[#86249])
@@ -215,6 +220,13 @@ Machine Learning::
 * Adds start and end params to `_preview` and excludes cold/frozen tiers from unbounded previews {es-pull}86989[#86989]
 * Adjust automatic JVM heap sizing for dedicated ML nodes {es-pull}86399[#86399]
 * Replace the implementation of the `categorize_text` aggregation {es-pull}85872[#85872]
+* Upgrade PyTorch to version 1.11 {ml-pull}2233[#2233], {ml-pull}2235[#2235],{ml-pull}2238[#2238]
+* Upgrade zlib to version 1.2.12 on Windows {ml-pull}2253[#2253]
+* Upgrade libxml2 to version 2.9.14 on Linux and Windows {ml-pull}2287[#2287]
+* Improve time series model stability and anomaly scoring consistency for data
+  for which many buckets are empty {ml-pull}2267[#2267]
+* Address root cause for actual equals typical equals zero anomalies {ml-pull}2270[#2270]
+* Better handling of outliers in update immediately after detecting changes in time series {ml-pull}2280[#2280]
 
 Mapping::
 * Intern field names in Mappers {es-pull}86301[#86301]

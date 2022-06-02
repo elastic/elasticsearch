@@ -148,7 +148,7 @@ public final class BloomFilteringPostingsFormat extends PostingsFormat {
 
     static class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
-        HashMap<String, OnDiskFuzzySet> bloomsByFieldName = new HashMap<>();
+        HashMap<String, InMemoryFuzzySet> bloomsByFieldName = new HashMap<>();
         private final IndexInput bloomIn;
 
         public BloomFilteredFieldsProducer(SegmentReadState state) throws IOException {
@@ -177,7 +177,7 @@ public final class BloomFilteringPostingsFormat extends PostingsFormat {
                 for (int i = 0; i < numBlooms; i++) {
                     int fieldNum = bloomIn.readInt();
                     FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
-                    bloomsByFieldName.put(fieldInfo.name, new OnDiskFuzzySet(bloomIn));
+                    bloomsByFieldName.put(fieldInfo.name, new InMemoryFuzzySet(bloomIn));
                 }
                 success = true;
             } finally {
@@ -199,7 +199,7 @@ public final class BloomFilteringPostingsFormat extends PostingsFormat {
 
         @Override
         public Terms terms(String field) throws IOException {
-            OnDiskFuzzySet filter = bloomsByFieldName.get(field);
+            InMemoryFuzzySet filter = bloomsByFieldName.get(field);
             if (filter == null) {
                 return delegateFieldsProducer.terms(field);
             } else {
@@ -218,9 +218,9 @@ public final class BloomFilteringPostingsFormat extends PostingsFormat {
 
         static final class BloomFilteredTerms extends Terms {
             private Terms delegateTerms;
-            private OnDiskFuzzySet filter;
+            private InMemoryFuzzySet filter;
 
-            public BloomFilteredTerms(Terms terms, OnDiskFuzzySet filter) {
+            public BloomFilteredTerms(Terms terms, InMemoryFuzzySet filter) {
                 this.delegateTerms = terms;
                 this.filter = filter;
             }
@@ -294,9 +294,9 @@ public final class BloomFilteringPostingsFormat extends PostingsFormat {
         static final class BloomFilteredTermsEnum extends BaseTermsEnum {
             private Terms delegateTerms;
             private TermsEnum delegateTermsEnum;
-            private final OnDiskFuzzySet filter;
+            private final InMemoryFuzzySet filter;
 
-            public BloomFilteredTermsEnum(Terms delegateTerms, OnDiskFuzzySet filter) throws IOException {
+            public BloomFilteredTermsEnum(Terms delegateTerms, InMemoryFuzzySet filter) throws IOException {
                 this.delegateTerms = delegateTerms;
                 this.filter = filter;
             }

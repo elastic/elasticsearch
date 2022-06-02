@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -67,7 +66,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     static RestResponse buildRestResponse(
         boolean aliasesExplicitlyRequested,
         String[] requestedAliases,
-        ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+        Map<String, List<AliasMetadata>> responseAliasMap,
         Map<String, List<DataStreamAlias>> dataStreamAliases,
         XContentBuilder builder
     ) throws Exception {

@@ -25,7 +25,7 @@ public class AllocationActionListenerTest extends ESTestCase {
         );
 
         listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
-        listener.rereoute().onResponse(null);
+        listener.reroute().onResponse(null);
 
         assertThat(completed.get(), equalTo(true));
     }
@@ -39,7 +39,7 @@ public class AllocationActionListenerTest extends ESTestCase {
         if (randomBoolean()) {
             listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
         } else {
-            listener.rereoute().onResponse(null);
+            listener.reroute().onResponse(null);
         }
 
         assertThat(completed.get(), equalTo(false));
@@ -54,7 +54,7 @@ public class AllocationActionListenerTest extends ESTestCase {
         if (randomBoolean()) {
             listener.clusterStateUpdate().onFailure(new RuntimeException());
         } else {
-            listener.rereoute().onFailure(new RuntimeException());
+            listener.reroute().onFailure(new RuntimeException());
         }
 
         assertThat(completed.get(), equalTo(true));

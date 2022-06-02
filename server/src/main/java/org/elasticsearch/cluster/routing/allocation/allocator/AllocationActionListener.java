@@ -44,7 +44,7 @@ public class AllocationActionListener<T> {
         };
     }
 
-    public ActionListener<Void> rereoute() {
+    public ActionListener<Void> reroute() {
         return new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {

@@ -293,7 +293,7 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, null, delegate.rereoute());
+                    return applyCreateIndexRequest(currentState, request, false, null, delegate.reroute());
                 }
 
                 @Override

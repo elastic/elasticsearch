@@ -26,7 +26,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -232,18 +231,21 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private void setSpanAttributes(ThreadContext threadContext, Traceable traceable, SpanBuilder spanBuilder) {
-        for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+        final Map<String, Object> spanAttributes = traceable.getAttributes();
+
+        for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
+            final String key = entry.getKey();
             final Object value = entry.getValue();
             if (value instanceof String) {
-                spanBuilder.setAttribute(entry.getKey(), (String) value);
+                spanBuilder.setAttribute(key, (String) value);
             } else if (value instanceof Long) {
-                spanBuilder.setAttribute(entry.getKey(), (Long) value);
+                spanBuilder.setAttribute(key, (Long) value);
             } else if (value instanceof Integer) {
-                spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+                spanBuilder.setAttribute(key, (Integer) value);
             } else if (value instanceof Double) {
-                spanBuilder.setAttribute(entry.getKey(), (Double) value);
+                spanBuilder.setAttribute(key, (Double) value);
             } else if (value instanceof Boolean) {
-                spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+                spanBuilder.setAttribute(key, (Boolean) value);
             } else {
                 throw new IllegalArgumentException(
                     "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
@@ -251,7 +253,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
         }
 
-        final boolean isHttpSpan = traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http."));
+        final boolean isHttpSpan = spanAttributes.keySet().stream().anyMatch(key -> key.startsWith("http."));
         spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
 
         spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());

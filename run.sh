@@ -23,11 +23,11 @@ fi
 
 
 # Optional - override the agent jar
-# OVERRIDE_AGENT_JAR="$HOME/.m2/repository/co/elastic/apm/elastic-apm-agent/1.30.2-SNAPSHOT/elastic-apm-agent-1.30.2-SNAPSHOT.jar"
+# OVERRIDE_AGENT_JAR="$HOME/.m2/repository/co/elastic/apm/elastic-apm-agent/1.31.1-SNAPSHOT/elastic-apm-agent-1.31.1-SNAPSHOT.jar"
 
 if [[ -n "$OVERRIDE_AGENT_JAR" ]]; then
   # Copy in WIP agent
-  cp "$OVERRIDE_AGENT_JAR" "modules/apm-integration/elastic-apm-agent-${AGENT_VERSION}.jar"
+  cp "$OVERRIDE_AGENT_JAR" "modules/x-pack-apm-integration/elastic-apm-agent-${AGENT_VERSION}.jar"
 fi
 
 # Configure the agent

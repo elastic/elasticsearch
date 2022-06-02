@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.release;
 
 import java.util.Comparator;
-import java.util.Locale;
 import java.util.Objects;
 
 /**

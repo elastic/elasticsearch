@@ -16,7 +16,7 @@ esplugin {
   classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
-def localVersions = versions + [
+def localVersions = versions.properties + [
   'azure' : '0.9.3',
   'jersey': '1.13'
 ]

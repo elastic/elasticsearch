@@ -12,7 +12,8 @@ import nebula.plugin.info.InfoBrokerPlugin;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.VersionInfo;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
@@ -103,13 +104,15 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     private static void configureJarManifest(Project project) {
         project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
+            VersionInfo versionInfo = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo();
+
             manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
             manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
-            manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
-            manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
+            manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(versionInfo::getElasticsearch));
+            manifestPlugin.add("X-Compile-Lucene-Version", toStringable(versionInfo::getLucene));
             manifestPlugin.add(
                 "X-Compile-Elasticsearch-Snapshot",
-                toStringable(() -> Boolean.toString(VersionProperties.isElasticsearchSnapshot()))
+                toStringable(() -> Boolean.toString(versionInfo.isElasticsearchSnapshot()))
             );
         });
 

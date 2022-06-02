@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
@@ -47,13 +47,15 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(JavaPlugin.class);
-        configureCompileModulePath(project);
+        String elasticsearchVersion = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo().getElasticsearch();
+
+        configureCompileModulePath(project, elasticsearchVersion);
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
     static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
 
-    static void configureCompileModulePath(Project project) {
+    static void configureCompileModulePath(Project project, String elasticsearchVersion) {
         // first disable Gradle's builtin module path inference
         project.getTasks()
             .withType(JavaCompile.class)
@@ -92,7 +94,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         }).getFiles();
 
         project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
-            var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath);
+            var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath, elasticsearchVersion);
             task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
             FileCollection classpath = task.getClasspath();
             if (isIdea() == false && task.getClasspath() != null) {
@@ -143,9 +145,12 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         private final boolean isModuleProject;
         private final FileCollection modulePath;
 
-        CompileModulePathArgumentProvider(boolean isModuleProject, FileCollection modulePath) {
+        private final String moduleVersion;
+
+        CompileModulePathArgumentProvider(boolean isModuleProject, FileCollection modulePath, String version) {
             this.isModuleProject = isModuleProject;
             this.modulePath = modulePath;
+            this.moduleVersion = version;
         }
 
         @Override
@@ -159,7 +164,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                 extraArgs.add("--module-path=" + mp);
             }
             if (isModuleProject) {
-                extraArgs.add("--module-version=" + VersionProperties.getElasticsearch());
+                extraArgs.add("--module-version=" + moduleVersion);
                 extraArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor");
             }
             return List.copyOf(extraArgs);

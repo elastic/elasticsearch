@@ -22,7 +22,7 @@ esplugin {
   classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
-versions << [
+versions.properties << [
   'azure': '12.16.0',
   'azureCommon': '12.15.1',
   'azureCore': '1.27.0',

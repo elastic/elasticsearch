@@ -23,7 +23,7 @@ esplugin {
     classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
-versions << [
+versions.properties << [
         'hadoop': '3.3.1'
 ]
 

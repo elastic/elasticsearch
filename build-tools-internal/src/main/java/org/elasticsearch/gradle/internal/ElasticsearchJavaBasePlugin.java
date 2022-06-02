@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
@@ -47,9 +46,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureConfigurations(project);
         configureCompile(project);
         configureInputNormalization(project);
-
-        // convenience access to common versions used in dependencies
-        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
     }
 
     /**

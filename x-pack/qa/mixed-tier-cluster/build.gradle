@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -11,7 +10,7 @@ dependencies {
 
 // Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0
 BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
-        v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
+        v != elasticsearchVersion) { bwcVersion, baseName ->
 
   def baseCluster = testClusters.register(baseName) {
     versions = [bwcVersion.toString(), project.version]

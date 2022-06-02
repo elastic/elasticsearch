@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
@@ -67,12 +66,12 @@ subprojects {
 
     tasks.named("javaRestTest").configure {
         classpath += configurations.jdbcDriver
-        systemProperty 'jdbc.driver.version', VersionProperties.elasticsearch
+        systemProperty 'jdbc.driver.version', project.version
     }
 
     // Configure compatibility testing tasks
     // Compatibility testing for JDBC driver started with version 7.9.0
-    BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }) { bwcVersion, baseName ->
+    BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString("7.9.0")) && it != elasticsearchVersion }) { bwcVersion, baseName ->
       UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
       Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
         // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433

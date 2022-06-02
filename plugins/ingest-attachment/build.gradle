@@ -15,7 +15,7 @@ esplugin {
   classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
-versions << [
+versions.properties << [
   'tika'  : '2.4.0',
   'pdfbox': '2.0.26',
   'poi'   : '5.2.2',

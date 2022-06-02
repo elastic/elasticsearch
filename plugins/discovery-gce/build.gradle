@@ -6,7 +6,7 @@ esplugin {
   classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
 }
 
-versions << [
+versions.properties << [
   'google'              : '1.41.1',
   'google_api_client'   : '1.33.1',
   'api_services_compute': 'v1-rev20220322-1.32.1',

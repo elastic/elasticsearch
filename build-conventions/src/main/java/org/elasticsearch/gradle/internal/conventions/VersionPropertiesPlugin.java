@@ -16,6 +16,8 @@ import java.io.File;
 
 public class VersionPropertiesPlugin implements Plugin<Project> {
 
+    private VersionInfo versionInfo;
+
     @Override
     public void apply(Project project) {
         File workspaceDir;
@@ -32,6 +34,13 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
             spec.getParameters().getInfoPath().set(infoPath);
         });
-        project.getExtensions().add("versions", serviceProvider.get().getProperties());
+        VersionPropertiesBuildService versionPropertiesBuildService = serviceProvider.get();
+        versionInfo = versionPropertiesBuildService.getVersionInfo();
+        project.getExtensions().add("versions", versionInfo);
+        project.setVersion(versionInfo.getElasticsearch());
+    }
+
+    public VersionInfo getVersionInfo() {
+        return versionInfo;
     }
 }

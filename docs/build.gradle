@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT

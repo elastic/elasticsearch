@@ -117,7 +117,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("modulename") == ""
         props.get("type") == "isolated"
         props.get("java.version") == Integer.toString(Runtime.version().feature())
-        props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
+        props.get("elasticsearch.version") == VersionProperties.elasticsearch.toString()
         props.get("extended.plugins") == ""
         props.get("has.native.controller") == "false"
         props.size() == 10

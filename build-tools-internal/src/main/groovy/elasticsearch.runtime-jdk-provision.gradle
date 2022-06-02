@@ -8,20 +8,18 @@
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 
-
-configure(allprojects) {
+configure(subprojects) {
     apply plugin: 'elasticsearch.jdk-download'
-
+    apply plugin: 'elasticsearch.versions'
     jdks {
         provisioned_runtime {
-            vendor = VersionProperties.bundledJdkVendor
-            version = VersionProperties.bundledJdkVersion
+            vendor = versions.bundledJdkVendor
+            version = versions.getBundledJdkVersion()
             platform = OS.current().name().toLowerCase()
             architecture = Architecture.current().name().toLowerCase()
         }
@@ -31,7 +29,7 @@ configure(allprojects) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
         } else {
             test.dependsOn(project.jdks.provisioned_runtime)
-            test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+            test.executable = project.jdks.provisioned_runtime.getBinJavaPath()
         }
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->

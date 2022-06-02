@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.VersionProperties
-
 buildscript {
   repositories {
     maven {
@@ -31,7 +29,7 @@ subprojects {
     }
 
     // Same for Lucene, add the snapshot repo based on the currently used Lucene version
-    def luceneVersion = VersionProperties.getLucene()
+    def luceneVersion = verions.getLucene()
     if (luceneVersion.contains('-snapshot')) {
       def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
       assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"

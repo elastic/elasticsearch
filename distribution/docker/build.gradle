@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
@@ -41,7 +40,7 @@ repositories {
         artifact '/[organisation]/[module]-[revision]-linux-[classifier].[ext]'
       }
     } else {
-      url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
+      url "https://${versions.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
       patternLayout {
         artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
       }
@@ -72,12 +71,12 @@ dependencies {
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
-  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
-  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+  filebeat "beats:filebeat:${versions.elasticsearch}:${beatsArch}@tar.gz"
+  metricbeat "beats:metricbeat:${versions.elasticsearch}:${beatsArch}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
-  def (major,minor) = VersionProperties.elasticsearch.split("\\.")
+  def (major,minor) = project.version.split("\\.")
 
   // We tag our Docker images with various pieces of information, including a timestamp
   // for when the image was built. However, this makes it impossible completely cache
@@ -96,7 +95,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
     'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt-get'),
     'docker_base'        : base.name().toLowerCase(),
-    'version'            : VersionProperties.elasticsearch,
+    'version'            : versionInfo.elasticsearch,
     'major_minor_version': "${major}.${minor}",
     'retry'              : ShellRetry
   ]
@@ -180,7 +179,7 @@ elasticsearch_distributions {
     "docker_${eachArchitecture == Architecture.AARCH64 ? '_aarch64' : ''}" {
       architecture = eachArchitecture
       type = InternalElasticsearchDistributionTypes.DOCKER
-      version = VersionProperties.getElasticsearch()
+      version = project.version
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
     }
   }
@@ -254,14 +253,14 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         // infer that we're not at the Docker building stage of the build, and therefore
         // we should skip the beats part of the build.
         String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
-        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
+        boolean includeBeats = versions.isElasticsearchSnapshot() == true || buildId != null
 
         if (includeBeats) {
           from configurations.filebeat
           from configurations.metricbeat
         }
         // For some reason, the artifact name can differ depending on what repository we used.
-        rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+        rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${project.version}.tar.gz"
       }
 
       onlyIf { Architecture.current() == architecture }
@@ -280,8 +279,8 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     dependsOn(buildContextTask)
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
-    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+    String archiveName = "elasticsearch${base.suffix}-${versions.elasticsearch}-docker-build-context${arch}"
+    String distributionName = "elasticsearch-${project.version}-linux-${architecture.classifier}.tar.gz"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
@@ -316,9 +315,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 }
 
 
-private static List<String> generateTags(DockerBase base) {
-  final String version = VersionProperties.elasticsearch
-
+private static List<String> generateTags(DockerBase base, String version) {
   String image = "elasticsearch${base.suffix}"
 
   String namespace = 'elasticsearch'
@@ -343,7 +340,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = BuildParams.isCi
-      tags = generateTags(base)
+      tags = generateTags(base, project.version)
 
       // We don't build the Iron Bank image when we release Elasticsearch, as there's
       // separate process for submitting new releases. However, for testing we do a
@@ -381,7 +378,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 void addBuildEssDockerImageTask(Architecture architecture) {
   DockerBase base = DockerBase.CLOUD_ESS
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-  String contextDir = "${project.buildDir}/docker-context/elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+  String contextDir = "${project.buildDir}/docker-context/elasticsearch${base.suffix}-${project.version}-docker-build-context${arch}"
 
   final TaskProvider<Sync> buildContextTask =
     tasks.register(taskName('build', architecture, base, 'DockerContext'), Sync) {
@@ -395,7 +392,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {
         expand([
-          base_image: "elasticsearch${DockerBase.CLOUD.suffix}:${VersionProperties.elasticsearch}"
+          base_image: "elasticsearch${DockerBase.CLOUD.suffix}:${project.version}"
         ])
         filter SquashNewlinesFilter
         rename ~/Dockerfile\.cloud-ess$/, 'Dockerfile'
@@ -412,7 +409,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       noCache = BuildParams.isCi
       baseImages = []
-      tags = generateTags(base)
+      tags = generateTags(base, project.version)
 
       onlyIf { Architecture.current() == architecture }
     }
@@ -465,7 +462,7 @@ subprojects { Project subProject ->
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
     final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
-    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
+    final String tarFile = "${parent.projectDir}/build/${artifactName}_${subProject.version}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")

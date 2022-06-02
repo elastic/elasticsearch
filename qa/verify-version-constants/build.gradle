@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -45,7 +44,7 @@ tasks.register("verifyDocsLuceneVersion") {
     if (docsLuceneVersion == null) {
       throw new GradleException('Could not find lucene version in docs version file')
     }
-    String expectedLuceneVersion = VersionProperties.lucene
+    String expectedLuceneVersion = versions.lucene
     // remove potential -snapshot-{gitrev} suffix
     expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
     if (docsLuceneVersion != expectedLuceneVersion) {

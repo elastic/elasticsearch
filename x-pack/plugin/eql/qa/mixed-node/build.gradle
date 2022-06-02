@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -14,7 +13,7 @@ dependencies {
 tasks.named("javaRestTest").configure { enabled = false }
 
 BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
-        v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
+        v != elasticsearchVersion) { bwcVersion, baseName ->
     def cluster = testClusters.register(baseName) {
         versions = [bwcVersion.toString(), project.version]
         numberOfNodes = 3

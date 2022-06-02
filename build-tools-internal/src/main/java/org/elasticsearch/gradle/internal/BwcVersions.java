@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,10 +71,6 @@ public class BwcVersions {
     private final List<VersionPair> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
-    public BwcVersions(List<String> versionLines) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
-    }
-
     public BwcVersions(Version currentVersionProperty, List<VersionPair> allVersions) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
@@ -88,8 +83,7 @@ public class BwcVersions {
         this.unreleased = computeUnreleased();
     }
 
-    // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty) {
+    public BwcVersions(List<String> versionLines, Version currentVersionProperty) {
         this(currentVersionProperty, parseVersionLines(versionLines));
     }
 

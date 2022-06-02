@@ -8,7 +8,9 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -68,6 +70,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        String elasticsearchVersion = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo().getElasticsearch();
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
@@ -112,7 +115,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             AtomicReference<BwcVersions> cache = new AtomicReference<>();
-            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
+            params.setBwcVersions(
+                providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir, elasticsearchVersion) : val))
+            );
         });
 
         // Enforce the minimum compiler version
@@ -130,11 +135,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private static BwcVersions resolveBwcVersions(File root) {
+    private static BwcVersions resolveBwcVersions(File root, String elasticsearchVersion) {
         File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
         try {
             List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
-            return new BwcVersions(versionLines);
+            return new BwcVersions(versionLines, Version.fromString(elasticsearchVersion));
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }

@@ -110,7 +110,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
                     final Path noticePath = checkExtraction.get()
                         .getDestinationDir()
                         .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
+                        .resolve("elasticsearch-" + project.getVersion() + "/modules/x-pack-ml/NOTICE.txt");
                     final List<String> actualLines;
                     try {
                         actualLines = Files.readAllLines(noticePath);

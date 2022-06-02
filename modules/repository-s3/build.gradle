@@ -22,7 +22,7 @@ esplugin {
   classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
-versions << [
+versions.properties << [
   'aws': '1.11.749'
 ]
 

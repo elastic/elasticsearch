@@ -18,7 +18,6 @@
  */
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
 
 apply plugin: 'elasticsearch.build'
@@ -51,7 +50,7 @@ dependencies {
 
 tasks.named("processResources").configure {
   expand versions: [
-    elasticsearch: VersionProperties.getElasticsearch()
+    elasticsearch: project.version
   ]
 }
 

@@ -18,21 +18,24 @@ import org.gradle.api.services.BuildServiceParameters;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import javax.inject.Inject;
 
 abstract class VersionPropertiesBuildService implements BuildService<VersionPropertiesBuildService.Params>, AutoCloseable {
 
-    private final Properties properties;
+    private final VersionInfo versionInfo;
 
     @Inject
     public VersionPropertiesBuildService(ProviderFactory providerFactory) {
         File infoPath = getParameters().getInfoPath().getAsFile().get();
         try {
             File propertiesInputFile = new File(infoPath, "version.properties");
-            properties = VersionPropertiesLoader.loadBuildSrcVersion(propertiesInputFile, providerFactory);
+            Properties properties = VersionPropertiesLoader.loadBuildSrcVersion(propertiesInputFile, providerFactory);
             properties.computeIfAbsent("minimumRuntimeJava", s -> resolveMinimumRuntimeJavaVersion(infoPath));
             properties.computeIfAbsent("minimumCompilerJava", s -> resolveMinimumCompilerJavaVersion(infoPath));
+            versionInfo = new VersionInfo(properties);
         } catch (IOException e) {
             throw new GradleException("Cannot load VersionPropertiesBuildService", e);
         }
@@ -58,14 +61,13 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
         return minimumJavaVersion;
     }
 
-    public Properties getProperties() {
-        return properties;
+    public VersionInfo getVersionInfo() {
+        return versionInfo;
     }
 
     @Override
     public void close() throws Exception {
     }
-
     public interface Params extends BuildServiceParameters {
         RegularFileProperty getInfoPath();
     }

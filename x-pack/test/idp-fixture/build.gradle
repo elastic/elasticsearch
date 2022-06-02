@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
@@ -19,7 +18,7 @@ elasticsearch_distributions {
   docker {
     type = DOCKER
     architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
+    version = project.version
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }

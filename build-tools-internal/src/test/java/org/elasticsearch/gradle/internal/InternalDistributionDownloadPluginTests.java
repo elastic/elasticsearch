@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.AbstractDistributionDownloadPluginTests;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -28,7 +27,7 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
                 Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
                 packageProject.getConfigurations().create("default");
                 packageProject.getArtifacts().add("default", new File("doesnotmatter"));
-                createDistro(project, "distro", VersionProperties.getElasticsearch(), packageType, null, bundledJdk);
+                createDistro(project, "distro", "8.2.0", packageType, null, bundledJdk);
             }
         }
     }

@@ -15,7 +15,7 @@ esplugin {
   classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
-versions << [
+versions.properties << [
   'aws': '1.11.749'
 ]
 

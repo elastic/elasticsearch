@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.VersionProperties
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 

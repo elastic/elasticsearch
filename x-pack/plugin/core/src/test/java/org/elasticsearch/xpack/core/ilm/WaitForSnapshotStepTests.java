@@ -57,9 +57,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices.build());
+        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         WaitForSnapshotStep instance = createRandomInstance();
         IllegalStateException e = expectThrows(
@@ -87,9 +86,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
+        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
@@ -139,9 +137,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
+        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
         if (startTimeAfterPhaseTime) {
@@ -174,9 +171,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
+        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         IllegalStateException e = expectThrows(
             IllegalStateException.class,

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -153,10 +154,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(generatedShrunkenIndexName, indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(generatedShrunkenIndexName, indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .build();
 
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {

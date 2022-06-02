@@ -206,8 +206,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .fPut(
+                Map.of(
                         AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                         IndexMetadata.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
                             .settings(
@@ -219,9 +218,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                     .build()
                             )
                             .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
-                            .build()
-                    )
-                    .fPut(
+                            .build(),
                         AnnotationIndex.LATEST_INDEX_NAME,
                         IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
                             .settings(
@@ -236,7 +233,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                             .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
                             .build()
                     )
-                    .build()
             )
             .build();
         clusterState = mock(ClusterState.class);

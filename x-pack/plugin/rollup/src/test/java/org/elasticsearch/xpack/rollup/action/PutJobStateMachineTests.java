@@ -205,10 +205,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.emptyMap());
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -246,10 +243,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put("random", Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -282,10 +276,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -319,10 +310,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -363,10 +351,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(unrelatedJob.getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(unrelatedJob.getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());

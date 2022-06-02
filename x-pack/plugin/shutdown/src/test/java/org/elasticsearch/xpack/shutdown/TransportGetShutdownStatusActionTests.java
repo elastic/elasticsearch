@@ -46,7 +46,9 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -416,13 +418,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     public void testNodeNotInCluster() {
         String bogusNodeId = randomAlphaOfLength(10);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -513,13 +515,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
-        indices.forEach(imd -> { indicesTable.fPut(imd.getIndex().getName(), imd); });
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
+        indices.forEach(imd -> { indicesTable.put(imd.getIndex().getName(), imd); });
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(

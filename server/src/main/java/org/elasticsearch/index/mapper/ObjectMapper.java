@@ -151,7 +151,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (subobjects.value() == false && mapper instanceof ObjectMapper) {
                     // we already check this at parse time (parseProperties) but we need to check again
                     // here as dynamic mapping updates don't go through parsing.
-                    //Nested can only be dynamically mapped through dynamic templates, which are parsed and validated earlier.
+                    // Nested can only be dynamically mapped through dynamic templates, which are parsed and validated earlier.
                     assert mapper instanceof NestedObjectMapper == false;
                     throw new IllegalArgumentException(
                         "Object ["

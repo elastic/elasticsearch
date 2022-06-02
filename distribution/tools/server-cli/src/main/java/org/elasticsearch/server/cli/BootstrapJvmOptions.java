@@ -45,6 +45,9 @@ public class BootstrapJvmOptions {
         final List<Path> pluginDirs = Files.list(plugins).collect(Collectors.toList());
 
         for (Path pluginDir : pluginDirs) {
+            if (Files.isDirectory(pluginDir) == false) {
+                continue; // validation is done elsewhere in startup. here we just ignore errant files
+            }
             final List<String> jarFiles = new ArrayList<>();
             final Properties props = new Properties();
 

@@ -6,12 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
-
-/**
- * This is a marker interface for classes that are capable of synchronizing the currently-installed ES plugins
- * with those that ought to be installed according to a configuration file.
- */
-public interface PluginsSynchronizer {
-    void execute() throws Exception;
+module org.elasticsearch.dissect {
+    exports org.elasticsearch.dissect;
 }

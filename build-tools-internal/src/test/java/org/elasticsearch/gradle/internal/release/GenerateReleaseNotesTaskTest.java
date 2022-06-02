@@ -181,7 +181,8 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that when deriving a lit of major.minor versions from git tags, the current unreleased version is included.
+     * Check that when deriving a list of major.minor versions from git tags, the current unreleased version is included,
+     * but any higher version numbers are not.
      */
     @Test
     public void getMinorVersions_includesCurrentButNotFutureVersions() {

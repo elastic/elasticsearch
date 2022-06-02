@@ -143,7 +143,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
 
         LOGGER.info("Updating migration/index...");
-        MigrateIndexGenerator.update(
+        MigrationIndexGenerator.update(
             getMinorVersions(versions),
             this.migrationIndexTemplate.get().getAsFile(),
             this.migrationIndexFile.get().getAsFile()

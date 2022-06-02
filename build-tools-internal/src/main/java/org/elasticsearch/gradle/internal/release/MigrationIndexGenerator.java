@@ -14,7 +14,11 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static java.util.Comparator.reverseOrder;
@@ -23,7 +27,7 @@ import static java.util.Comparator.reverseOrder;
  * This class ensures that the migrate/index page has the appropriate anchors and include directives
  * for the current repository version.
  */
-public class MigrateIndexGenerator {
+public class MigrationIndexGenerator {
 
     static void update(Set<MinorVersion> versions, File indexTemplate, File indexFile) throws IOException {
         try (FileWriter indexFileWriter = new FileWriter(indexFile)) {

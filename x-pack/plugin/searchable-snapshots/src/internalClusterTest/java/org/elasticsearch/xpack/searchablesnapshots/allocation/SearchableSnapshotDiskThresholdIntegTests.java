@@ -282,17 +282,19 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         int nbIndices = createIndices();
 
+        String repository = "repository";
         assertAcked(
             client().admin()
                 .cluster()
-                .preparePutRepository("repository")
+                .preparePutRepository(repository)
                 .setType("mock")
                 .setSettings(Settings.builder().put("location", randomRepoPath()).build())
         );
         var mockRepository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
-            .repository("repository");
+            .repository(repository);
 
-        createSnapshot("repository", "snapshot", nbIndices);
+        String snapshotName = "snapshot";
+        createSnapshot(repository, snapshotName, nbIndices);
 
         Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
@@ -326,29 +328,40 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
         mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
 
-        mountIndices(indicesStoresSizes.keySet(), "mounted-", "repository", "snapshot", FULL_COPY);
+        String prefix = "mounted-";
+        mountIndices(indicesToBeMounted.keySet(), prefix, repository, snapshotName, FULL_COPY);
         mockRepository.unblock();
-        assertBusy(() -> assertShardsAreStarted(otherDataNodeId, indicesToBeMounted.keySet()));
-
-        mountIndices(List.of(indexToSkip), "mounted-", "repository", "snapshot", FULL_COPY);
         assertBusy(() -> {
-            assertShardsAreStarted(otherDataNodeId, indicesToBeMounted.keySet());
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(
+                state.routingTable()
+                    .allShards()
+                    .stream()
+                    .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
+                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                    .filter(s -> s.state() == ShardRoutingState.STARTED)
+                    .count(),
+                equalTo((long) indicesToBeMounted.size())
+            );
+        });
+
+        mountIndices(List.of(indexToSkip), prefix, repository, snapshotName, FULL_COPY);
+        assertBusy(() -> {
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(
+                state.routingTable()
+                    .allShards()
+                    .stream()
+                    .filter(s -> indexToSkip.equals(s.shardId().getIndexName().replace(prefix, "")))
+                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                    .filter(s -> s.state() == ShardRoutingState.STARTED)
+                    .count(),
+                equalTo(0L)
+            );
             assertEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
         });
-    }
-
-    private void assertShardsAreStarted(String otherDataNodeId, Collection<String> indices) {
-        var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
-        assertThat(
-            state.routingTable()
-                .allShards()
-                .stream()
-                .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
-                .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
-                .filter(s -> s.state() == ShardRoutingState.STARTED)
-                .count(),
-            equalTo((long) indices.size())
-        );
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {

@@ -1205,7 +1205,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          */
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             final Parameter<?>[] params = getParameters();
+            // we know the paramsMap size up-front
             Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
+            // don't know this map's size up-front
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
             for (Parameter<?> param : params) {
                 paramsMap.put(param.name, param);

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
+    String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
 
     BoundTransportAddress boundAddress();

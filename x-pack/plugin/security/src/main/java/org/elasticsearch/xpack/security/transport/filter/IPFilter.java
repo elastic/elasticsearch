@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.Security;
@@ -45,7 +46,7 @@ public class IPFilter {
      * for HTTP. This name starts withs a dot, because no profile name can ever start like that due to
      * how we handle settings
      */
-    public static final String HTTP_PROFILE_NAME = ".http";
+    public static final String HTTP_PROFILE_NAME = HttpServerTransport.HTTP_PROFILE_NAME;
 
     public static final Setting<Boolean> ALLOW_BOUND_ADDRESSES_SETTING = Setting.boolSetting(
         setting("filter.always_allow_bound_address"),

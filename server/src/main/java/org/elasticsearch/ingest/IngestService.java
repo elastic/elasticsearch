@@ -43,7 +43,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -898,13 +897,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                try {
-                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" + pipeline.getId() + "]");
-                } catch (IllegalArgumentException ex) {
-                    totalMetrics.ingestFailed();
-                    handler.accept(ex);
-                    return;
-                }
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 
                 String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);
@@ -923,7 +915,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
                     indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
                 }
-                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                try {
+                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                } catch (IllegalArgumentException ex) {
+                    // An IllegalArgumentException can be thrown when an ingest
+                    // processor creates a source map that is self-referencing.
+                    // In that case, we catch and wrap the exception so we can
+                    // include which pipeline failed.
+                    totalMetrics.ingestFailed();
+                    handler.accept(
+                        new IllegalArgumentException(
+                            "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                            ex
+                        )
+                    );
+                    return;
+                }
                 if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
                     @SuppressWarnings("unchecked")

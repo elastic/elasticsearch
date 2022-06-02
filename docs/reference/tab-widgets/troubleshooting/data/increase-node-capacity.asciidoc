@@ -132,8 +132,32 @@ The response will look like this:
 <1> Represents the currently configured value for the number of replica shards
 required for the index
 
+. Use the `_cat/nodes` API to find the number of nodes in the target tier:
++
+[source,console]
+----
+GET /_cat/nodes?h=node.role
+----
+// TEST[continued]
++
+The response will look like this, containing one row per node:
++
+[source,console-result]
+----
+himrst
+mv
+himrst
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
++
+You can count the rows containing the letter representing the target tier to know how many nodes you have. See
+<<cat-nodes-api-query-params>> for details. The example above has two rows containing `h`, so there are two
+nodes in the hot tier.
++
 . <<indices-update-settings, Decrease>> the
-value for the total number of replica shards required for this index:
+value for the total number of replica shards required for this index. The new value needs to be less
+than the number of nodes found above minus one. Since the example above found 2 nodes in the hot tier,
+the maximum value for `index.number_of_replicas` is 1.
 +
 [source,console]
 ----
@@ -149,7 +173,7 @@ PUT /my-index-000001/_settings
 +
 <1> The new value for the `index.number_of_replicas` index configuration
 is decreased from the previous value of `2` to `1`. It can be set as low as 0 but
-cnfiguring it to 0 may lead to temporary availability loss during node restarts
+configuring it to 0 may lead to temporary availability loss during node restarts
 or permanent data loss in case of data corruption.
 
 //end::kibana-api-ex-2[]
@@ -227,8 +251,32 @@ The response will look like this:
 <1> Represents the currently configured value for the number of replica shards
 required for the index
 
-. If the setting value is greater than 0, you can <<indices-update-settings, decrease>> the
-value for the total number of replica shards required for this index:
+. Use the `_cat/nodes` API to find the number of nodes in the target tier:
++
+[source,console]
+----
+GET /_cat/nodes?h=node.role
+----
+// TEST[continued]
++
+The response will look like this, containing one row per node:
++
+[source,console-result]
+----
+himrst
+mv
+himrst
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
++
+You can count the rows containing the letter representing the target tier to know how many nodes you have. See
+<<cat-nodes-api-query-params>> for details. The example above has two rows containing `h`, so there are two
+nodes in the hot tier.
++
+. <<indices-update-settings, Decrease>> the
+value for the total number of replica shards required for this index. The new value needs to be less
+than the number of nodes found above minus one. Since the example above found 2 nodes in the hot tier,
+the maximum value for `index.number_of_replicas` is 1.
 +
 [source,console]
 ----
@@ -244,7 +292,7 @@ PUT /my-index-000001/_settings
 +
 <1> The new value for the `index.number_of_replicas` index configuration
 is decreased from the previous value of `2` to `1`. It can be set as low as 0 but
-cnfiguring it to 0 may lead to temporary availability loss during node restarts
+configuring it to 0 may lead to temporary availability loss during node restarts
 or permanent data loss in case of data corruption.
 
 // end::self-managed[]

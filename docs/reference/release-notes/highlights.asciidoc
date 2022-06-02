@@ -19,6 +19,17 @@ Other versions:
 // tag::notable-highlights[]
 
 [discrete]
+[[reading_indices_from_older_elasticsearch_versions]]
+=== Reading indices from older Elasticsearch versions
+Elasticsearch has full query and write support for indices created in the previous major
+version. If you have indices created in Elasticsearch versions 5 or 6, you can now use
+the archive functionality to import and query these indices as well.
+The archive functionality provides slower read-only access to older data,
+for compliance or regulatory reasons, the occasional lookback or investigation,
+or to rehydrate parts of it. Access to the data is expected to be infrequent,
+and can therefore happen with limited performance and query capabilities.
+
+[discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]
 === Add support for dots in field names for metrics usecases
 Metrics data can often be made of several fields with dots in their names,

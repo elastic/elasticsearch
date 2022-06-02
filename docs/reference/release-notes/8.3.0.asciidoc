@@ -284,6 +284,9 @@ Mapping::
 SQL::
 * SQ: Allow partial results in SQL queries {es-pull}85897[#85897] (issue: {es-issue}33148[#33148])
 
+Search::
+* Snapshots as simple archives {es-pull}86261[#86261] (issue: {es-issue}81210[#81210])
+
 TSDB::
 * TSDB: Implement downsampling on time-series indices {es-pull}85708[#85708] (issues: {es-issue}69799[#69799], {es-issue}65769[#65769])
 

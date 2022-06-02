@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheServi
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
@@ -151,16 +152,11 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         assertThat(snapshotInfo.failedShards(), equalTo(0));
     }
 
-    private void mountIndices(
-        Map<String, Long> indicesStoresSizes,
-        String prefix,
-        String repositoryName,
-        String snapshotName,
-        Storage storage
-    ) throws InterruptedException {
-        CountDownLatch mountLatch = new CountDownLatch(indicesStoresSizes.size());
-        logger.info("--> mounting [{}] indices with [{}] prefix", indicesStoresSizes.size(), prefix);
-        for (String index : indicesStoresSizes.keySet()) {
+    private void mountIndices(Collection<String> indices, String prefix, String repositoryName, String snapshotName, Storage storage)
+        throws InterruptedException {
+        CountDownLatch mountLatch = new CountDownLatch(indices.size());
+        logger.info("--> mounting [{}] indices with [{}] prefix", indices.size(), prefix);
+        for (String index : indices) {
             logger.info("Mounting index {}", index);
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
@@ -236,7 +232,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
-        mountIndices(indicesStoresSizes, "mounted-", repository, snapshot, storage);
+        mountIndices(indicesStoresSizes.keySet(), "mounted-", repository, snapshot, storage);
 
         // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
@@ -254,7 +250,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             );
         });
 
-        mountIndices(indicesStoresSizes, "extra-", repository, snapshot, storage);
+        mountIndices(indicesStoresSizes.keySet(), "extra-", repository, snapshot, storage);
 
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
@@ -313,11 +309,11 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             otherDataNodeId
         );
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
-        long totalSpace = indicesStoresSizes.entrySet()
+        Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
             .stream()
             .filter(e -> e.getKey().equals(indexToSkip) == false)
-            .mapToLong(e -> e.getValue())
-            .sum() + WATERMARK_BYTES + 1024L;
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        long totalSpace = indicesToBeMounted.values().stream().mapToLong(e -> e).sum() + WATERMARK_BYTES + 1024L;
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
@@ -329,13 +325,29 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
         mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
-        mountIndices(indicesStoresSizes, "mounted-", "repository", "snapshot", FULL_COPY);
+
+        mountIndices(indicesStoresSizes.keySet(), "mounted-", "repository", "snapshot", FULL_COPY);
         mockRepository.unblock();
-        assertBusy(
-            () -> assertEquals(
-                ClusterHealthStatus.RED,
-                client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus()
-            )
+        assertBusy(() -> assertShardsAreStarted(otherDataNodeId, indicesToBeMounted.keySet()));
+
+        mountIndices(List.of(indexToSkip), "mounted-", "repository", "snapshot", FULL_COPY);
+        assertBusy(() -> {
+            assertShardsAreStarted(otherDataNodeId, indicesToBeMounted.keySet());
+            assertEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
+        });
+    }
+
+    private void assertShardsAreStarted(String otherDataNodeId, Collection<String> indices) {
+        var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+        assertThat(
+            state.routingTable()
+                .allShards()
+                .stream()
+                .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                .filter(s -> s.state() == ShardRoutingState.STARTED)
+                .count(),
+            equalTo((long) indices.size())
         );
     }
 

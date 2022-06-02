@@ -28,7 +28,7 @@ highlight:
     ```
 
     ...then the handling thread would actually crash from an unrecoverable
-    StackOverFlowError when trying to serialize the resulting event.
+    StackOverflowError when trying to serialize the resulting event.
 
     Now, this check is performed once per pipeline, remediating the potential for
     a StackOverflowError. There are some side effects also:

@@ -6,37 +6,32 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.fixtures;
+package org.elasticsearch.gradle.fixtures
 
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.description.modifier.Ownership;
-import net.bytebuddy.description.modifier.Visibility;
-import net.bytebuddy.description.type.TypeDescription;
-import net.bytebuddy.dynamic.DynamicType;
-import net.bytebuddy.dynamic.scaffold.InstrumentedType;
-import net.bytebuddy.implementation.ExceptionMethod;
-import net.bytebuddy.implementation.FixedValue;
-import net.bytebuddy.implementation.Implementation;
-import net.bytebuddy.implementation.bytecode.ByteCodeAppender;
+import net.bytebuddy.ByteBuddy
+import net.bytebuddy.description.modifier.Ownership
+import net.bytebuddy.description.modifier.Visibility
+import net.bytebuddy.description.type.TypeDescription
+import net.bytebuddy.dynamic.DynamicType
+import net.bytebuddy.implementation.ExceptionMethod
+import net.bytebuddy.implementation.FixedValue
+import net.bytebuddy.implementation.Implementation
 
-import java.io.File;
-import java.io.IOException;
-
-import static org.junit.Assert.fail;
+import static org.junit.Assert.fail
 
 class TestClasspathUtils {
 
     static void setupJarHellJar(File projectRoot) {
-        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", FixedValue.value(TypeDescription.VOID));
+        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", FixedValue.value(TypeDescription.VOID))
     }
 
     static void setupJarJdkClasspath(File projectRoot) {
-        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JdkJarHellCheck", FixedValue.value(TypeDescription.VOID));
+        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JdkJarHellCheck", FixedValue.value(TypeDescription.VOID))
     }
 
     static void setupJarJdkClasspath(File projectRoot, String errorMessage) {
         generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JdkJarHellCheck",
-                ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
+                ExceptionMethod.throwing(IllegalStateException.class, errorMessage))
     }
 
     private static void generateJdkJarHellCheck(File targetDir, String className, Implementation mainImplementation) {
@@ -45,24 +40,24 @@ class TestClasspathUtils {
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
             .withParameters(String[].class)
             .intercept(mainImplementation)
-            .make();
+            .make()
         try {
-            dynamicType.toJar(targetFile(targetDir));
+            dynamicType.toJar(targetFile(targetDir))
         } catch (IOException e) {
-            e.printStackTrace();
-            fail("Cannot setup jdk jar hell classpath");
+            e.printStackTrace()
+            fail("Cannot setup jdk jar hell classpath")
         }
     }
 
     private static File targetFile(File projectRoot) {
-        File targetFile = new File(projectRoot, "elasticsearch-core-current.jar");
-        targetFile.getParentFile().mkdirs();
-        return targetFile;
+        File targetFile = new File(projectRoot, "elasticsearch-core-current.jar")
+        targetFile.getParentFile().mkdirs()
+        return targetFile
     }
 
     static class JdkJarHellBase {
         static void main(String[] args) {
-            System.out.println("args = " + args);
+            System.out.println("args = " + args)
         }
     }
 }

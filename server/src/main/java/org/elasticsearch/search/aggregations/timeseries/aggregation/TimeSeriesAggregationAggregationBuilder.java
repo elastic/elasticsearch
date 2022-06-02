@@ -82,8 +82,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private BucketOrder order = BucketOrder.key(true);
-    private long startTime;
-    private long endTime;
+    private Long startTime;
+    private Long endTime;
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, true, false);
@@ -215,8 +215,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             downsample,
             bucketCountThresholds,
             order,
-            startTime,
-            endTime,
+            startTime != null ? startTime : -1,
+            endTime != null ? endTime : -1,
             config,
             context,
             parent,
@@ -253,8 +253,12 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         bucketCountThresholds.toXContent(builder, params);
         builder.field(ORDER_FIELD.getPreferredName());
         order.toXContent(builder, params);
-        builder.field(START_TIME_FIELD.getPreferredName(), startTime);
-        builder.field(END_TIME_FIELD.getPreferredName(), endTime);
+        if (startTime != null) {
+            builder.field(START_TIME_FIELD.getPreferredName(), startTime);
+        }
+        if (endTime != null) {
+            builder.field(END_TIME_FIELD.getPreferredName(), endTime);
+        }
         return builder;
     }
 
@@ -517,7 +521,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return this;
     }
 
-    public long startTime() {
+    public Long startTime() {
         return startTime;
     }
 
@@ -526,7 +530,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return this;
     }
 
-    public long endTime() {
+    public Long endTime() {
         return endTime;
     }
 
@@ -552,7 +556,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             && Objects.equals(without, that.without)
             && Objects.equals(interval, that.interval)
             && Objects.equals(offset, that.offset)
-            && Objects.equals(aggregator, that.aggregator)
+            && aggregator == that.aggregator
+            && Objects.equals(aggregatorParams, that.aggregatorParams)
             && Objects.equals(downsample, that.downsample)
             && Objects.equals(bucketCountThresholds, that.bucketCountThresholds)
             && Objects.equals(order, that.order)
@@ -570,6 +575,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             interval,
             offset,
             aggregator,
+            aggregatorParams,
             downsample,
             bucketCountThresholds,
             order,

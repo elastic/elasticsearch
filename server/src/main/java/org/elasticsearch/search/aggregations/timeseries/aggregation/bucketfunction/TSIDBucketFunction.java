@@ -74,6 +74,7 @@ public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
 
     @Override
     public void close() {
+        aggregatorBucketFunction.close();
         Releasables.close(values);
     }
 

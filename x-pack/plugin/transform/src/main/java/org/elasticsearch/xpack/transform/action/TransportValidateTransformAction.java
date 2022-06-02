@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.transform.TransformDeprecations.MIN_TRANSFORM_VERSION;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
 
@@ -108,7 +107,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
                         "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
                             + "Minimum required version is [%s]",
                         config.getVersion(),
-                        MIN_TRANSFORM_VERSION
+                        TransformDeprecations.MIN_TRANSFORM_VERSION
                     )
                 )
             );

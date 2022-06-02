@@ -34,8 +34,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.transform.TransformField.FORCE;
-import static org.elasticsearch.xpack.core.transform.TransformField.WAIT_FOR_CHECKPOINT;
 
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
@@ -132,7 +130,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
-                return addValidationError(format("cannot set both [%s] and [%s] to true", FORCE, WAIT_FOR_CHECKPOINT), null);
+                return addValidationError(format("cannot set both [%s] and [%s] to true", TransformField.FORCE, TransformField.WAIT_FOR_CHECKPOINT), null);
             }
             return null;
         }

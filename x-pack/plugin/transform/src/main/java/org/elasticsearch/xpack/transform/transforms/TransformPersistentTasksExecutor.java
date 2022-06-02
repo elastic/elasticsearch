@@ -59,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.transform.TransformDeprecations.MIN_TRANSFORM_VERSION;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -298,7 +297,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
                         + "Minimum required version is [%s]",
                     config.getVersion(),
-                    MIN_TRANSFORM_VERSION
+                    TransformDeprecations.MIN_TRANSFORM_VERSION
                 );
                 auditor.error(transformId, transformTooOldError);
                 markAsFailed(buildTask, transformTooOldError);

@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
 
 public class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
@@ -152,7 +151,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     void warningValidator(String name, String value) {
         if (WARNINGS.keySet().contains(name) == false) {
             throw new IllegalArgumentException(
-                format("Warning [%s] is not supported. Only the following warnings are supported [%s]", name, join(", ", WARNINGS.keySet()))
+                format("Warning [%s] is not supported. Only the following warnings are supported [%s]", name, String.join(", ", WARNINGS.keySet()))
             );
         }
     }

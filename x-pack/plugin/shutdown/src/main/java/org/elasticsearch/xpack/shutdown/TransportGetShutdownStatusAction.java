@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
@@ -289,7 +288,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             ShardAllocationDecision decision = unmovableShard.get().v2();
 
             return new ShutdownShardMigrationStatus(
-                STALLED,
+                SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
                 format(
                     "shard [%s] [%s] of index [%s] cannot move, use the Cluster Allocation Explain API on this shard for details",

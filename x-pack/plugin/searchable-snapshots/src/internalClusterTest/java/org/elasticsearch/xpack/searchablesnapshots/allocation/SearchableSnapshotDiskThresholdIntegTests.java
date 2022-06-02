@@ -295,8 +295,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         var mockRepository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository("repository");
-        // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
-        mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
 
         createSnapshot("repository", "snapshot", nbIndices);
 
@@ -329,6 +327,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
+        // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
+        mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
         mountIndices(indicesStoresSizes, "mounted-", "repository", "snapshot", FULL_COPY);
         mockRepository.unblock();
         assertBusy(

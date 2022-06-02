@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -18,6 +17,8 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -46,11 +47,14 @@ public class PruneChangelogsTask extends DefaultTask {
     private final GitWrapper gitWrapper;
     private final Path rootDir;
 
+    private final Property<String> elasticsearchVersion;
+
     @Inject
     public PruneChangelogsTask(Project project, ObjectFactory objectFactory, ExecOperations execOperations) {
         changelogs = objectFactory.fileCollection();
         gitWrapper = new GitWrapper(execOperations);
         rootDir = project.getRootDir().toPath();
+        elasticsearchVersion = objectFactory.property(String.class);
     }
 
     @Internal
@@ -62,12 +66,21 @@ public class PruneChangelogsTask extends DefaultTask {
         this.changelogs = files;
     }
 
+    @Input
+    public Property<String> getElasticsearchVersion() {
+        return elasticsearchVersion;
+    }
+
+    public void setElasticsearchVersion(String elasticsearchVersion) {
+        this.elasticsearchVersion.set(elasticsearchVersion);
+    }
+
     @TaskAction
     public void executeTask() {
         findAndDeleteFiles(
             this.gitWrapper,
             files -> files.stream().filter(each -> each.delete() == false).collect(Collectors.toSet()),
-            QualifiedVersion.of(VersionProperties.getElasticsearch()),
+            QualifiedVersion.of(elasticsearchVersion.get()),
             this.getChangelogs().getFiles(),
             this.rootDir
         );

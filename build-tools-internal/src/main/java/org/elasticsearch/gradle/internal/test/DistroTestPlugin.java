@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
@@ -387,17 +386,13 @@ public class DistroTestPlugin implements Plugin<Project> {
         for (Architecture architecture : Architecture.values()) {
             ALL_INTERNAL.stream()
                 .forEach(
-                    type -> currentDistros.add(
-                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-                    )
+                    type -> currentDistros.add(createDistro(distributions, architecture, type, null, true, project.getVersion().toString()))
                 );
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                currentDistros.add(
-                    createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
-                );
+                currentDistros.add(createDistro(distributions, architecture, ARCHIVE, platform, true, project.getVersion().toString()));
             }
         }
 

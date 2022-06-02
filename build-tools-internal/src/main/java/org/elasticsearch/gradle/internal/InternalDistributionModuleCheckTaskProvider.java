@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -76,13 +75,14 @@ public class InternalDistributionModuleCheckTaskProvider {
     static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {
         return project.getTasks().register("checkModules", task -> {
             task.dependsOn(checkExtraction);
+            String version = project.getVersion().toString();
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     final Path libPath = checkExtraction.get()
                         .getDestinationDir()
                         .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch())
+                        .resolve("elasticsearch-" + version)
                         .resolve("lib");
                     try {
                         assertAllESJarsAreModular(libPath);

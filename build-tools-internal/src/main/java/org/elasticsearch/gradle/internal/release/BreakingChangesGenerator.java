@@ -10,8 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.VersionProperties;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -31,15 +29,14 @@ import static java.util.stream.Collectors.toList;
  */
 public class BreakingChangesGenerator {
 
-    static void update(File migrationTemplateFile, File migrationOutputFile, List<ChangelogEntry> entries) throws IOException {
+    static void update(
+        File migrationTemplateFile,
+        File migrationOutputFile,
+        QualifiedVersion qualifiedVersion,
+        List<ChangelogEntry> entries
+    ) throws IOException {
         try (FileWriter output = new FileWriter(migrationOutputFile)) {
-            output.write(
-                generateMigrationFile(
-                    QualifiedVersion.of(VersionProperties.getElasticsearch()),
-                    Files.readString(migrationTemplateFile.toPath()),
-                    entries
-                )
-            );
+            output.write(generateMigrationFile(qualifiedVersion, Files.readString(migrationTemplateFile.toPath()), entries));
         }
     }
 

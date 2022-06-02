@@ -10,8 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.VersionProperties;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -27,11 +25,10 @@ import java.util.stream.Collectors;
  * Generates the release highlights notes, for changelog files that contain the <code>highlight</code> field.
  */
 public class ReleaseHighlightsGenerator {
-    static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+    static void update(File templateFile, File outputFile, QualifiedVersion qualifiedVersion, List<ChangelogEntry> entries)
+        throws IOException {
         try (FileWriter output = new FileWriter(outputFile)) {
-            output.write(
-                generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries)
-            );
+            output.write(generateFile(qualifiedVersion, Files.readString(templateFile.toPath()), entries));
         }
     }
 

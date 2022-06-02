@@ -8,13 +8,13 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -39,8 +39,6 @@ import static java.util.stream.Collectors.toSet;
 
 public class JavaModulePrecommitTask extends PrecommitTask {
 
-    private static final String expectedVersion = VersionProperties.getElasticsearch();
-
     private final SetProperty<File> srcDirs;
 
     private FileCollection classesDirs;
@@ -48,6 +46,8 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     private FileCollection classpath;
 
     private File resourcesDir;
+
+    private String expectedVersion;
 
     @Inject
     public JavaModulePrecommitTask(ObjectFactory objectFactory) {
@@ -62,6 +62,15 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     public void setClassesDirs(FileCollection classesDirs) {
         Objects.requireNonNull(classesDirs, "classesDirs");
         this.classesDirs = classesDirs;
+    }
+
+    @Input
+    public String getExpectedVersion() {
+        return expectedVersion;
+    }
+
+    public void setExpectedVersion(String expectedVersion) {
+        this.expectedVersion = expectedVersion;
     }
 
     @InputFiles

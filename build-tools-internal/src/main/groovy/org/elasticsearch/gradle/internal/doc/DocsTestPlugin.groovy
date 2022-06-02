@@ -9,9 +9,8 @@ package org.elasticsearch.gradle.internal.doc
 
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
-import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
+import org.elasticsearch.gradle.internal.conventions.VersionInfo
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
@@ -26,6 +25,8 @@ class DocsTestPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         project.pluginManager.apply('elasticsearch.internal-yaml-rest-test')
+        project.pluginManager.apply('elasticsearch.internal-yaml-rest-test')
+        VersionInfo versionInfo = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo();
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
@@ -38,9 +39,9 @@ class DocsTestPlugin implements Plugin<Project> {
                  * the values may differ. In particular {version} needs to resolve
                  * to the version being built for testing but needs to resolve to
                  * the last released version for docs. */
-            '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
-            '\\{version_qualified\\}': VersionProperties.elasticsearch,
-            '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
+            '\\{version\\}': Version.fromString(versionInfo.elasticsearch).toString(),
+            '\\{version_qualified\\}': versionInfo.elasticsearch,
+            '\\{lucene_version\\}' : versionInfo.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' : distribution,
             '\\{build_type\\}' : OS.conditionalString().onWindows({"zip"}).onUnix({"tar"}).supply(),
         ]

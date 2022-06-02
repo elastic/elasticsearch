@@ -8,8 +8,9 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionInfo;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -33,6 +34,8 @@ import java.nio.file.StandardCopyOption;
 public class CheckstylePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
+        VersionInfo versionInfo = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo();
+
         // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
         // file. If the resources are located in a jar, Gradle will fail when it tries to turn the URL into a file
         URL checkstyleConfUrl = CheckstylePrecommitPlugin.class.getResource("/checkstyle.xml");
@@ -85,7 +88,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         checkstyle.getConfigDirectory().set(checkstyleDir);
 
         DependencyHandler dependencies = project.getDependencies();
-        String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
+        String checkstyleVersion = versionInfo.get("checkstyle");
         Provider<String> dependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
         dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
@@ -47,15 +46,13 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(JavaPlugin.class);
-        String elasticsearchVersion = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo().getElasticsearch();
-
-        configureCompileModulePath(project, elasticsearchVersion);
+        configureCompileModulePath(project);
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
     static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
 
-    static void configureCompileModulePath(Project project, String elasticsearchVersion) {
+    static void configureCompileModulePath(Project project) {
         // first disable Gradle's builtin module path inference
         project.getTasks()
             .withType(JavaCompile.class)
@@ -94,7 +91,11 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         }).getFiles();
 
         project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
-            var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath, elasticsearchVersion);
+            var argumentProvider = new CompileModulePathArgumentProvider(
+                isModuleProject,
+                moduleCompileClasspath,
+                project.getVersion().toString()
+            );
             task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
             FileCollection classpath = task.getClasspath();
             if (isIdea() == false && task.getClasspath() != null) {

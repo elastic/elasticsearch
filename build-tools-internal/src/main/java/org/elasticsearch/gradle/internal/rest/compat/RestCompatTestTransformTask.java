@@ -20,8 +20,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
@@ -44,6 +42,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -86,7 +85,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
     private final FileSystemOperations fileSystemOperations;
-    private final int compatibleVersion;
+    private final Property<Integer> compatibleVersion;
     private final DirectoryProperty sourceDirectory;
     private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
@@ -105,15 +104,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
     ) {
         this.patternSetFactory = patternSetFactory;
         this.fileSystemOperations = fileSystemOperations;
-        this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+        this.compatibleVersion = objectFactory.property(Integer.class);
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
-        // always inject compat headers
-        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
-        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
-        transformations.add(new InjectHeaders(headers, Set.of(RestCompatTestTransformTask::doesNotHaveCatOperation)));
     }
 
     private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
@@ -426,6 +421,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @TaskAction
     public void transform() throws IOException {
+        // always inject compat headers
+        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion.get());
+        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion.get());
+        transformations.add(new InjectHeaders(headers, Set.of(RestCompatTestTransformTask::doesNotHaveCatOperation)));
+
         // clean the output directory to ensure no stale files persist
         fileSystemOperations.delete(d -> d.delete(outputDirectory));
 
@@ -509,5 +509,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
             .stream()
             .map(key -> String.join(",", key.getIncludes()) + skippedTestByTestNameTransformations.get(key))
             .collect(Collectors.joining());
+    }
+
+    @Input
+    public Property<Integer> getCompatibleVersion() {
+        return compatibleVersion;
     }
 }

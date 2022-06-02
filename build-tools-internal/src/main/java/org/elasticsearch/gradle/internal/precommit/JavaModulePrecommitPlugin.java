@@ -30,6 +30,7 @@ public class JavaModulePrecommitPlugin extends PrecommitPlugin implements Intern
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             t.setClassesDirs(mainSourceSet.getOutput().getClassesDirs());
             t.setResourcesDirs(mainSourceSet.getOutput().getResourcesDir());
+            t.setExpectedVersion(project.getVersion().toString());
         });
         return task;
     }

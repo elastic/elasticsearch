@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.DistributionResolution;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
@@ -52,7 +51,10 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         distributionDownloadPlugin.setDockerAvailability(
             dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable())
         );
-        registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
+        registerInternalDistributionResolutions(
+            DistributionDownloadPlugin.getRegistrationsContainer(project),
+            Version.fromString(project.getVersion().toString())
+        );
     }
 
     /**
@@ -63,9 +65,12 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
+    private void registerInternalDistributionResolutions(
+        NamedDomainObjectContainer<DistributionResolution> resolutions,
+        Version currentVersion
+    ) {
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            if (isCurrentVersion(distribution)) {
+            if (isCurrentVersion(distribution, currentVersion)) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
                     config -> projectDependency(project, distributionProjectPath(distribution), config)
@@ -95,8 +100,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }));
     }
 
-    private boolean isCurrentVersion(ElasticsearchDistribution distribution) {
-        Version currentVersionNumber = Version.fromString(VersionProperties.getElasticsearch());
+    private boolean isCurrentVersion(ElasticsearchDistribution distribution, Version currentVersionNumber) {
         Version parsedDistVersionNumber = Version.fromString(distribution.getVersion());
         return currentVersionNumber.equals(parsedDistVersionNumber);
     }

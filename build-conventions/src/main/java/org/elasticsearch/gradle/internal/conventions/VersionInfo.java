@@ -48,7 +48,7 @@ public class VersionInfo {
         return getElasticsearch().endsWith("-SNAPSHOT");
     }
 
-    public Object get(Object key) {
+    public String get(Object key) {
         return properties.getProperty(key.toString());
     }
 

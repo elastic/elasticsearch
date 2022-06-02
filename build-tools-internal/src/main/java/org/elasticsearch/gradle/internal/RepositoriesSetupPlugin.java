@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.VersionInfo;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -24,13 +25,15 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        configureRepositories(project);
+        VersionInfo versionInfo = project.getPlugins().apply(VersionPropertiesPlugin.class).getVersionInfo();
+
+        configureRepositories(project, versionInfo.getLucene());
     }
 
     /**
      * Adds repositories used by ES projects and dependencies
      */
-    public static void configureRepositories(Project project) {
+    public static void configureRepositories(Project project, String luceneVersion) {
         RepositoryHandler repos = project.getRepositories();
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -40,7 +43,6 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
         }
         repos.mavenCentral();
 
-        String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {
             // extract the revision number from the version with a regex matcher
             Matcher matcher = LUCENE_SNAPSHOT_REGEX.matcher(luceneVersion);

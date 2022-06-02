@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -20,6 +19,8 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -62,6 +63,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesMigrationFile;
 
+    private final Property<String> elasticsearchVersion;
     private final GitWrapper gitWrapper;
 
     @Inject
@@ -77,13 +79,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
         breakingChangesMigrationFile = objectFactory.fileProperty();
+        elasticsearchVersion = objectFactory.property(String.class);
 
         gitWrapper = new GitWrapper(execOperations);
     }
 
     @TaskAction
     public void executeTask() throws IOException {
-        final String currentVersion = VersionProperties.getElasticsearch();
+        final String currentVersion = elasticsearchVersion.get();
 
         if (needsGitTags(currentVersion)) {
             findAndUpdateUpstreamRemote(gitWrapper);
@@ -128,6 +131,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         ReleaseHighlightsGenerator.update(
             this.releaseHighlightsTemplate.get().getAsFile(),
             this.releaseHighlightsFile.get().getAsFile(),
+            qualifiedVersion,
             entries
         );
 
@@ -135,6 +139,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         BreakingChangesGenerator.update(
             this.breakingChangesTemplate.get().getAsFile(),
             this.breakingChangesMigrationFile.get().getAsFile(),
+            qualifiedVersion,
             entries
         );
     }
@@ -354,5 +359,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setBreakingChangesMigrationFile(RegularFile file) {
         this.breakingChangesMigrationFile.set(file);
+    }
+
+    @Input
+    public Property<String> getElasticsearchVersion() {
+        return elasticsearchVersion;
+    }
+
+    public void setElasticsearchVersion(String elasticsearchVersion) {
+        this.elasticsearchVersion.set(elasticsearchVersion);
     }
 }

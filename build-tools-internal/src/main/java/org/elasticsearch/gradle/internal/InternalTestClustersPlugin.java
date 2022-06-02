@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.Plugin;
@@ -32,8 +32,9 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
         testClustersPlugin.setRuntimeJava(providerFactory.provider(() -> BuildParams.getRuntimeJavaHome()));
+        Version elasticsearchVersion = Version.fromString(project.getVersion().toString());
         testClustersPlugin.setIsReleasedVersion(
-            version -> (version.equals(VersionProperties.getElasticsearchVersion()) && BuildParams.isSnapshotBuild() == false)
+            version -> (version.equals(elasticsearchVersion) && BuildParams.isSnapshotBuild() == false)
                 || BuildParams.getBwcVersions().unreleasedInfo(version) == null
         );
     }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.gradle.api.Action;
@@ -54,8 +53,9 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 
         // sanity checks if archives can be extracted
         TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
-        TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
-        TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
+        String version = project.getVersion().toString();
+        TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, version, checkExtraction);
+        TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, version, checkExtraction);
         TaskProvider<Task> checkModulesTask = InternalDistributionModuleCheckTaskProvider.registerCheckModulesTask(
             project,
             checkExtraction
@@ -128,7 +128,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
         return checkMlCppNoticeTask;
     }
 
-    private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
+    private TaskProvider<Task> registerCheckNoticeTask(Project project, String version, TaskProvider<Copy> checkExtraction) {
         return project.getTasks().register("checkNotice", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
@@ -138,14 +138,14 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
                     final Path noticePath = checkExtraction.get()
                         .getDestinationDir()
                         .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/NOTICE.txt");
+                        .resolve("elasticsearch-" + version + "/NOTICE.txt");
                     assertLinesInFile(noticePath, noticeLines);
                 }
             });
         });
     }
 
-    private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
+    private TaskProvider<Task> registerCheckLicenseTask(Project project, String version, TaskProvider<Copy> checkExtraction) {
         TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
@@ -163,7 +163,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
                         final Path licensePath = checkExtraction.get()
                             .getDestinationDir()
                             .toPath()
-                            .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/LICENSE.txt");
+                            .resolve("elasticsearch-" + version + "/LICENSE.txt");
                         assertLinesInFile(licensePath, licenseLines);
                     } catch (IOException ioException) {
                         ioException.printStackTrace();

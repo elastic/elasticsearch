@@ -9,12 +9,12 @@
 package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.VersionInfo;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
@@ -42,9 +42,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
-        final Directory projectDirectory = projectLayout.getProjectDirectory();
-
-        final Version version = VersionProperties.getElasticsearchVersion();
+        project.getPlugins().apply(VersionPropertiesPlugin.class);
+        final var projectDirectory = projectLayout.getProjectDirectory();
+        final var elasticsearch = project.getExtensions().getByType(VersionInfo.class).getElasticsearch();
+        final var version = Version.fromString(elasticsearch);
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
@@ -74,7 +75,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
             task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
             task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
-
+            task.setElasticsearchVersion(elasticsearch);
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
                 projectDirectory.file(
@@ -104,6 +105,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setGroup("Documentation");
             task.setDescription("Removes changelog files that have been used in a previous release");
             task.setChangelogs(yamlFiles);
+            task.setElasticsearchVersion(elasticsearch);
         });
 
         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));

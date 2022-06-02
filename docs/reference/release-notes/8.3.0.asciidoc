@@ -265,9 +265,6 @@ Health::
 * New service to keep track of the master history as seen from each node {es-pull}85941[#85941]
 * Sorting impact index names by index priority {es-pull}85347[#85347]
 
-Ingest::
-* Upgrading to tika 2.4 {es-pull}86015[#86015]
-
 Mapping::
 * Add support for dots in field names for metrics usecases {es-pull}86166[#86166] (issue: {es-issue}63530[#63530])
 * Synthetic source {es-pull}85649[#85649]
@@ -287,6 +284,9 @@ Infra/CLI::
 
 Infra/Core::
 * Upgrade jackson to 2.13.2 {es-pull}86051[#86051]
+
+Ingest::
+* Upgrading to tika 2.4 {es-pull}86015[#86015]
 
 Network::
 * Upgrade to Netty 4.1.76 {es-pull}86252[#86252]

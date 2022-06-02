@@ -175,7 +175,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                     ? Map.of()
                     : Map.of(
                         new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
-                        new ShardAssignment(Set.of("node-0"), 0)
+                        new ShardAssignment(Set.of("node-0"), 0, 0)
                     )
             )
         );
@@ -1026,7 +1026,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                             .stream()
                             .map(DiscoveryNode::getId)
                             .filter(nodeId -> isDesiredPredicate.test(indexShardRoutingTable.shardId(), nodeId))
-                            .collect(Collectors.collectingAndThen(Collectors.toSet(), set -> new ShardAssignment(set, 0)))
+                            .collect(Collectors.collectingAndThen(Collectors.toSet(), set -> new ShardAssignment(set, 0, 0)))
                     )
                 )
         );

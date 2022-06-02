@@ -53,7 +53,7 @@ public class DesiredBalanceService {
      */
     boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
 
-        logger.trace("starting to recompute desired balance");
+        logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
@@ -244,7 +244,8 @@ public class DesiredBalanceService {
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
                 : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
 
-            assignments.merge(ignored.shardId(), ShardAssignment.UNASSIGNED, ShardAssignment::merge);
+            var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
+            assignments.merge(ignored.shardId(), unassigned ? ShardAssignment.UNASSIGNED : ShardAssignment.IGNORED, ShardAssignment::merge);
         }
 
         logger.trace(

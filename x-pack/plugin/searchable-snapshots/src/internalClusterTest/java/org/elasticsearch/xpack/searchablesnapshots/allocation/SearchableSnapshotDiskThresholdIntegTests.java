@@ -275,11 +275,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 
-        InternalClusterInfoService masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
-            ClusterInfoService.class
-        );
-        ClusterInfoServiceUtils.refresh(masterInfoService);
-
         int nbIndices = createIndices();
 
         String repository = "repository";
@@ -317,6 +312,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
+        InternalClusterInfoService masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
+            ClusterInfoService.class
+        );
         ClusterInfoServiceUtils.refresh(masterInfoService);
         assertThat(
             masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),

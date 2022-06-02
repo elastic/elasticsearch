@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -90,7 +91,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                     for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
                         // return the partial response if the "has privilege" task got cancelled in the meantime
                         if (((CancellableTask) task).isCancelled()) {
-                            listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
+                            listener.onFailure(new TaskCancelledException("has privilege task cancelled"));
                             return;
                         }
                         final String profileUid = profileUidToSubject.getKey();

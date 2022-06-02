@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,16 +43,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -225,7 +226,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCancellation() throws Exception {
+    public void testCancellation() {
         final List<String> profileUids = new ArrayList<>(new HashSet<>(randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 10))));
         final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(profileUids, randomValidPrivilegesToCheckRequest());
         doAnswer(invocation -> {
@@ -247,19 +248,18 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anyCollection(), any(), anyActionListener());
 
-        final int partialResultSize = randomIntBetween(1, profileUids.size());
-        final AtomicInteger cancelAfter = new AtomicInteger(partialResultSize);
+        final AtomicInteger cancelAfter = new AtomicInteger(randomIntBetween(1, profileUids.size()));
         final CancellableTask cancellableTask = new CancellableTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of());
 
-        final Set<String> partialResultSet = ConcurrentHashMap.newKeySet();
+        if (cancelAfter.decrementAndGet() == 0) {
+            TaskCancelHelper.cancel(cancellableTask, "reason");
+        }
         doAnswer(invocation -> {
-            Subject subject = (Subject) invocation.getArguments()[0];
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
                 AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
             if (cancelAfter.decrementAndGet() == 0) {
                 TaskCancelHelper.cancel(cancellableTask, "reason");
             }
-            partialResultSet.add(subject.getUser().principal().substring("user_for_profile_".length()));
             listener.onResponse(ALL_CHECKS_SUCCESS_NO_DETAILS);
             return null;
         }).when(authorizationService)
@@ -267,8 +267,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(cancellableTask, request, listener);
-        ProfileHasPrivilegesResponse response = listener.get();
-        assertThat(response.hasPrivilegeUids(), contains(partialResultSet.toArray()));
-        assertThat(response.errorUids(), emptyIterable());
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(TaskCancelledException.class));
     }
 }

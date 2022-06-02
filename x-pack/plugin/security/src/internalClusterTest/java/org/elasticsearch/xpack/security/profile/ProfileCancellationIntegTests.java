@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -16,11 +15,11 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -32,7 +31,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
@@ -69,7 +67,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -243,18 +240,9 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         responseLatch.await();
 
         if (cancelViaAPI) {
-            // partial response, no error
-            assertThat(responseReference.get(), notNullValue());
-            Map<String, Object> hasPrivilegesResponseMap = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
-                EntityUtils.toString(responseReference.get().getEntity()),
-                false
-            );
-            assertThat(hasPrivilegesResponseMap.size(), is(1));
-            assertThat(((List<?>) hasPrivilegesResponseMap.get("has_privilege_uids")).size(), is(1));
-            assertThat(error.get(), nullValue());
+            assertThat(responseReference.get(), nullValue());
+            assertThat(error.get(), instanceOf(ResponseException.class));
         } else {
-            // error, no response
             assertThat(responseReference.get(), nullValue());
             assertThat(error.get(), instanceOf(CancellationException.class));
         }

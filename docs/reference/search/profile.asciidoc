@@ -650,10 +650,12 @@ The API returns the following result:
                   "compute_max_score": 0,
                   "advance": 3942,
                   "advance_count": 4,
+                  "count_weight_count": 0,
                   "score": 0,
                   "build_scorer_count": 2,
                   "create_weight": 38380,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 99296
                 }
@@ -676,9 +678,11 @@ The API returns the following result:
                   "advance": 3552,
                   "advance_count": 1,
                   "score": 5027,
+                  "count_weight_count": 0,
                   "build_scorer_count": 2,
                   "create_weight": 107840,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 44215
                 }

@@ -180,7 +180,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 
-
         final int nbIndices = createIndices();
 
         final String repositoryName = "repository";
@@ -262,7 +261,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         });
     }
 
-    public void testOvercommitInitializingSearchableSnapshotShards() throws Exception {
+    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 

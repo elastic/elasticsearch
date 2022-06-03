@@ -507,7 +507,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 10
             ),
-            metadata
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         ShardRouting shard2 = ShardRoutingHelper.moveToStarted(
             ShardRoutingHelper.initialize(
@@ -520,7 +520,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 20
             ),
-            metadata
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         ShardRouting shard3 = ShardRoutingHelper.moveToStarted(
             ShardRoutingHelper.initialize(
@@ -533,7 +533,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 30
             ),
-            metadata
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
 
         long sizeOfRelocatingShards = sizeOfUnaccountedShards(
@@ -850,7 +850,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
 
-        decision = decider.canRemain(test_0.initialize(node_0.getId(), null, 0L).moveToStarted(), routingNode, allocation);
+        decision = decider.canRemain(
+            test_0.initialize(node_0.getId(), null, 0L).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+            routingNode,
+            allocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
     }

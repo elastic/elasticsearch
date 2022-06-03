@@ -2648,7 +2648,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             gcpTracker.initiateTracking(initializingReplica.allocationId().getId());
             gcpTracker.markAllocationIdAsInSync(initializingReplica.allocationId().getId(), replicaLocalCheckpoint);
-            final ShardRouting replica = initializingReplica.moveToStarted();
+            final ShardRouting replica = initializingReplica.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             gcpTracker.updateFromMaster(
                 3L,
                 new HashSet<>(Arrays.asList(primary.allocationId().getId(), replica.allocationId().getId())),

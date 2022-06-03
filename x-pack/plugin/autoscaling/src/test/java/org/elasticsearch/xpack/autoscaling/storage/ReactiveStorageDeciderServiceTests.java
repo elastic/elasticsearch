@@ -300,7 +300,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                     ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                     allocation.changes()
                 );
-                allocation.routingNodes().startShard(logger, initialized, allocation.changes(), allocation.metadata());
+                allocation.routingNodes()
+                    .startShard(logger, initialized, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 return;
             }
         }

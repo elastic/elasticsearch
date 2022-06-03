@@ -315,15 +315,6 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         testRepeatedMasterChanges(1, 100, "The elected master node has changed ");
     }
 
-    public void testRepeatedMasterNullChangesRecognizedAsUnstable() throws Exception {
-        /*
-         * In this test we force multiple master transitions to null, and make sure that the returned status is YELLOW. In order to not
-         * accidentally test the case where the master identity changes multiple times, we set the identity change threshold very high
-         * and the null transition threshold very low.
-         */
-        testRepeatedMasterChanges(100, 1, "and no master multiple times in the last 30m");
-    }
-
     /**
      * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
      * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
@@ -349,7 +340,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         );
         ensureStableCluster(3);
         String firstMaster = internalCluster().getMasterName();
-        // Force the master to change 5 times:
+        // Force the master to change 2 times:
         for (int i = 0; i < 2; i++) {
             // Save the current master node as old master node, because that node will get frozen
             final String oldMasterNode = internalCluster().getMasterName();
@@ -416,7 +407,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertThat(masters.size(), equalTo(2));
         }
         List<String> nodeNamesExceptFirstMaster = Arrays.stream(internalCluster().getNodeNames())
-            .filter(name -> name.equals(firstMaster))
+            .filter(name -> name.equals(firstMaster) == false)
             .toList();
         /*
          * It is possible that the first node that became master got re-elected repeatedly. And since it was in a simulated GC when the

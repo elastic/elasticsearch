@@ -1,0 +1,5 @@
+pr: 87363
+summary: Warn when stored credential hashers not compliant with FIPS
+area: FIPS
+type: enhancement
+issues: []

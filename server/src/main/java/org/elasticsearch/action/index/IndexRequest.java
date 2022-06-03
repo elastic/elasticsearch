@@ -388,7 +388,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
     }
 
-    public IndexRequest source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences)
+        throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source, ensureNoSelfReferences);

@@ -507,7 +507,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 10
             ),
-            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+            10
         );
         ShardRouting shard2 = ShardRoutingHelper.moveToStarted(
             ShardRoutingHelper.initialize(
@@ -520,7 +520,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 20
             ),
-            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+            20
         );
         ShardRouting shard3 = ShardRoutingHelper.moveToStarted(
             ShardRoutingHelper.initialize(
@@ -533,7 +533,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 nodeId,
                 30
             ),
-            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+            30
         );
 
         long sizeOfRelocatingShards = sizeOfUnaccountedShards(

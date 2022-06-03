@@ -88,7 +88,7 @@ specified set of cluster, index, and application privileges:
 --------------------------------------------------
 POST /_security/user/_has_privileges
 {
-  "uids": ["u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0", "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"]
+  "uids": ["u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0", "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"],
   "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
   "index" : [
     {

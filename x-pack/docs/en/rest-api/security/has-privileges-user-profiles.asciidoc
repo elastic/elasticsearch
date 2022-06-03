@@ -1,14 +1,15 @@
 [role="xpack"]
 [[security-api-has-privileges-user-profiles]]
-=== Has privileges user profiles API
+=== Has privileges user profile API
 ++++
-<titleabbrev>Has privileges user profiles</titleabbrev>
+<titleabbrev>Has privileges user profile</titleabbrev>
 ++++
 [[security-api-has-privileges-user-profiles]]
 
 beta::[]
 
-Determines whether the users with the specified <<user-profile, user profile>> IDs have the requested list of privileges.
+Determines whether the users with the specified <<user-profile, user profile>> IDs
+have all the requested list of privileges.
 
 [[security-api-has-privileges-user-profiles-request]]
 ==== {api-request-title}
@@ -27,12 +28,12 @@ To use this API, you must have the `manage_user_profile` cluster privilege.
 
 This API is similar to the <<security-api-has-privileges>> API, which checks the privileges only of the user
 that's calling it.
-However, this API uses the profile IDs, as returned by the <<security-api-activate-user-profile>>,
+However, this API uses the profile IDs, as returned by <<security-api-activate-user-profile>>,
 to identify the users for which to check the privileges of.
 
 See <<security-privileges>> for the list of privileges that can be specified in this API.
 
-A successful call returns the subset array of profile IDs that have **all** the requested privileges.
+A successful call returns the subset list of profile IDs that have **all** the requested privileges.
 
 [[security-api-has-privileges-user-profiles-request-body]]
 ==== {api-request-body-title}
@@ -57,12 +58,12 @@ specified indices.
 `application`:::: (string) The name of the application.
 `privileges`:::: (list) A list of the privileges that you want to check for the
 specified resources. May be either application privilege names, or the names of
-actions that are granted by those privileges
+actions that are granted by those privileges.
 `resources`:::: (list) A list of resource names against which the privileges
-should be checked
+should be checked.
 
-Note that the `privileges` section above is identical to
-<<security-api-has-privileges-request-body>>.
+Note that the `privileges` section above is identical to the
+<<security-api-has-privileges-request-body, request body of the other Has Privileges API>>.
 
 [[security-api-has-privileges-user-profiles-response-body]]
 ==== {api-response-body-title}
@@ -75,4 +76,47 @@ two list fields:
 
 `error_uids`:: (list) The subset of the requested profile IDs for which an error was
 encountered. It does **not** include the missing profile IDs or the profile IDs of
-the users that do not have all the requested privileges.
+the users that do not have all the requested privileges. This field is absent if empty.
+
+[[security-api-has-privileges-user-profiles-example]]
+==== {api-examples-title}
+
+The following example checks whether the two users identified by the given profile IDs have all the
+specified set of cluster, index, and application privileges:
+
+[source,console]
+--------------------------------------------------
+POST /_security/user/_has_privileges
+{
+  "uids": ["u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0", "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"]
+  "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
+  "index" : [
+    {
+      "names": [ "suppliers", "products" ],
+      "privileges": [ "create_doc"]
+    },
+    {
+      "names": [ "inventory" ],
+      "privileges" : [ "read", "write" ]
+    }
+  ],
+  "application": [
+    {
+      "application": "inventory_manager",
+      "privileges" : [ "read", "data:write/inventory" ],
+      "resources" : [ "product/1852563" ]
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]
+
+The following example output indicates that only one of the two users has all the privileges:
+
+[source,js]
+--------------------------------------------------
+{
+  "has_privilege_uids": ["u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"]
+}
+--------------------------------------------------
+// NOTCONSOLE

@@ -8,7 +8,10 @@
 
 package org.elasticsearch.health.node.selection;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
@@ -33,5 +36,11 @@ public class HealthNodeSelector extends AllocatedPersistentTask {
     @Override
     protected void onCancelled() {
         markAsCompleted();
+    }
+
+    @Nullable
+    public static PersistentTasksCustomMetadata.PersistentTask<?> findTask(ClusterState clusterState) {
+        PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return taskMetadata == null ? null : taskMetadata.getTask(TASK_NAME);
     }
 }

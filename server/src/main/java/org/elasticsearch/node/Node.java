@@ -101,7 +101,6 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.node.selection.HealthNodeSelector;
-import org.elasticsearch.health.node.selection.HealthNodeSelectorLifecycleHandler;
 import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -860,9 +859,6 @@ public class Node implements Closeable {
             final HealthNodeSelectorTaskExecutor healthNodeSelectorTaskExecutor = HealthNodeSelector.isEnabled()
                 ? new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService)
                 : null;
-            final HealthNodeSelectorLifecycleHandler healthNodeSelectorLifecycleHandler = HealthNodeSelector.isEnabled()
-                ? new HealthNodeSelectorLifecycleHandler(healthNodeSelectorTaskExecutor)
-                : null;
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNodeSelector.isEnabled()
                 ? List.of(systemIndexMigrationExecutor, healthNodeSelectorTaskExecutor)
                 : List.of(systemIndexMigrationExecutor);
@@ -986,7 +982,6 @@ public class Node implements Closeable {
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
                 if (HealthNodeSelector.isEnabled()) {
                     b.bind(HealthNodeSelectorTaskExecutor.class).toInstance(healthNodeSelectorTaskExecutor);
-                    b.bind(HealthNodeSelectorLifecycleHandler.class).toInstance(healthNodeSelectorLifecycleHandler);
                 }
             });
 
@@ -1294,9 +1289,6 @@ public class Node implements Closeable {
 
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).stop();
-        }
-        if (HealthNodeSelector.isEnabled()) {
-            injector.getInstance(HealthNodeSelectorLifecycleHandler.class).stop();
         }
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();

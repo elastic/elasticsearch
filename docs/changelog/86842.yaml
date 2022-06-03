@@ -1,5 +1,0 @@
-pr: 86842
-summary: Don't download geoip databases if geoip system index is blocked
-area: Ingest
-type: bug
-issues: []

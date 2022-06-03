@@ -193,8 +193,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },
@@ -218,8 +217,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },
@@ -235,8 +233,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },

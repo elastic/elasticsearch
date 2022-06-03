@@ -76,8 +76,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             3,
-                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of your "
-                                + "system could be impacted.",
+                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of the "
+                                + "cluster could be impacted.",
                             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                         )
                     ),
@@ -99,7 +99,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     DATA,
                     GREEN,
-                    "No policies configured",
+                    "No ILM policies configured",
                     null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
                     Collections.emptyList(),
@@ -120,7 +120,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     DATA,
                     GREEN,
-                    "No policies configured",
+                    "No ILM policies configured",
                     null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),

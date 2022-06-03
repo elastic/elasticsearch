@@ -25,8 +25,8 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
-    public static final String PERSISTENT = "persistent";
-    public static final String TRANSIENT = "transient";
+    private static final String PERSISTENT = "persistent";
+    private static final String TRANSIENT = "transient";
 
     @Override
     public List<Route> routes() {

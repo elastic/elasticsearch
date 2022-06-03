@@ -74,11 +74,11 @@ curl -H "es-security-runas-user: jacknich" -u es-admin -X GET http://localhost:9
 
 The `run_as` user passed in through the `es-security-runas-user` header must be
 available from a realm that supports delegated authorization lookup by username. 
-Realms that don't support user lookup can't be used by `run_as` delegation.
-from other realms.
+Realms that don't support user lookup can't be used by `run_as` delegation from 
+other realms.
 
-For example, JWT realms can authenticate external users specified in JWTs, and execute
-requests as a `run_as` user in the `native` realm. {es} will retrieve the
+For example, JWT realms can authenticate external users specified in JWTs, and 
+execute requests as a `run_as` user in the `native` realm. {es} will retrieve the
 indicated `runas` user and execute the request as that user using their roles.
 
 [[run-as-privilege-apply]]
@@ -88,12 +88,17 @@ You can apply the `run_as` privilege when creating roles with the
 a role that contains the `run_as` privilege inherit all privileges from their
 role, and can also submit requests on behalf of the indicated users.
 
+NOTE: Roles for the authenticated user and the `run_as` user are not merged. If
+a user authenticates without specifying the `run_as` parameter, only the 
+authenticated user's roles are used. If a user authenticates and their roles
+include the `run_as` parameter, only the `run_as` user's roles are used.
+
 After a user successfully authenticates to {es}, an authorization process determines whether the user behind an incoming request is allowed to run 
 that request. If the authenticated user has the `run_as` privilege in their list 
-of permissions, and specifies the run-as header, {es} _discards_ the authenticated user and associated roles. It 
-then looks in each of the configured realms in the realm chain until it finds the 
-username that's associated with the `run_as` user, and uses those roles to execute
-any requests.
+of permissions and specifies the run-as header, {es} _discards_ the authenticated 
+user and associated roles. It then looks in each of the configured realms in the 
+realm chain until it finds the username that's associated with the `run_as` user, 
+and uses those roles to execute any requests.
 
 Consider an admin role and an analyst role. The admin role has higher privileges,
 but might also want to submit requests as another user to test and verify their
@@ -129,8 +134,9 @@ POST /_security/role/my_admin_role?refresh=true
 }
 ----
 
-Next, we'll create an analyst role named `my_analyst_role`, which has more restricted `monitor`
-cluster privileges and `manage` privileges on a subset of indices.
+Next, we'll create an analyst role named `my_analyst_role`, which has more 
+restricted `monitor` cluster privileges and `manage` privileges on a subset of 
+indices.
 
 [source,console]
 ----
@@ -204,6 +210,10 @@ the roles of the `run_as` user.
 "metadata":{"innovation":8},"enabled":true,"authentication_realm":{"name":"native",
 "type":"native"},"lookup_realm":{"name":"native","type":"native"},"authentication_type":"realm"}
 %  
-
-NOTE: Notice `authentication_realm` and `lookup_realm` in the response both specify native realm. That is because this example used two users, `admin_user` and `analyst_user`, from the same native realm. If the two users are in different realms, the values for `authentication_realm` and `lookup_realm` will be different (ex: `pki` vs `native`).
 ----
+
+The `authentication_realm` and `lookup_realm` in the response both specify 
+the `native` realm because both the `admin_user` and `analyst_user` are from 
+that realm. If the two users are in different realms, the values for 
+`authentication_realm` and `lookup_realm` are different (such as `pki` and 
+`native`).

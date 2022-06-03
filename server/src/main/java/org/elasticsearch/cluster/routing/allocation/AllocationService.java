@@ -616,12 +616,9 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            IndexMetadata indexMetadata = routingAllocation.metadata() != null
-                ? routingAllocation.metadata().index(startedShard.index())
-                : null;
-            long expectedShardSize = indexMetadata == null || indexMetadata.isSearchableSnapshot() == false
-                ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                : startedShard.getExpectedShardSize();
+            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }

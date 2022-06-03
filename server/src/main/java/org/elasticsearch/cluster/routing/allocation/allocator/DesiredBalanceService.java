@@ -242,7 +242,11 @@ public class DesiredBalanceService {
             assert ignored.unassignedInfo() != null;
             assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
+                : "Unexpected status: "
+                    + ignored.unassignedInfo().getLastAllocationStatus()
+                    + " caused by ["
+                    + ignored.unassignedInfo()
+                    + "]";
 
             assignments.merge(ignored.shardId(), ShardAssignment.UNASSIGNED, ShardAssignment::merge);
         }

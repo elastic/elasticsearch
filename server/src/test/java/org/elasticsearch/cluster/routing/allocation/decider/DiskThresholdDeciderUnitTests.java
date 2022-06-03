@@ -37,8 +37,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -496,45 +498,25 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         Index index = new Index("test", "1234");
         String nodeId = "node1";
-        ShardRouting shard1 = ShardRoutingHelper.moveToStarted(
-            ShardRoutingHelper.initialize(
-                ShardRouting.newUnassigned(
-                    new ShardId(index, 1),
-                    false,
-                    PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-                ),
-                nodeId,
-                10
-            ),
-            10
-        );
-        ShardRouting shard2 = ShardRoutingHelper.moveToStarted(
-            ShardRoutingHelper.initialize(
-                ShardRouting.newUnassigned(
-                    new ShardId(index, 2),
-                    false,
-                    PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-                ),
-                nodeId,
-                20
-            ),
-            20
-        );
-        ShardRouting shard3 = ShardRoutingHelper.moveToStarted(
-            ShardRoutingHelper.initialize(
-                ShardRouting.newUnassigned(
-                    new ShardId(index, 3),
-                    false,
-                    PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-                ),
-                nodeId,
-                30
-            ),
-            30
-        );
+        List<ShardRouting> shards = new ArrayList<>();
+        for (int i = 1; i <= 3; i++) {
+            int expectedSize = 10 * i;
+            shards.add(
+                ShardRoutingHelper.moveToStarted(
+                    ShardRoutingHelper.initialize(
+                        ShardRouting.newUnassigned(
+                            new ShardId(index, i),
+                            false,
+                            PeerRecoverySource.INSTANCE,
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+                        ),
+                        nodeId,
+                        expectedSize
+                    ),
+                    expectedSize
+                )
+            );
+        }
 
         long sizeOfRelocatingShards = sizeOfUnaccountedShards(
             new RoutingAllocation(
@@ -550,9 +532,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new RoutingNode(
                 nodeId,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                shard1,
-                shard2,
-                shard3
+                shards.toArray(ShardRouting[]::new)
             ),
             false,
             "/dev/null"

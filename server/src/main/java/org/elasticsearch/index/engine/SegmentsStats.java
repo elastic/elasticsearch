@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,9 +33,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
-    private Map<String, FileStats> files = new HashMap<>();
+    private final Map<String, FileStats> files;
 
-    public SegmentsStats() {}
+    public SegmentsStats() {
+        files = new HashMap<>();
+    }
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
@@ -51,7 +54,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
-        files = in.readList(FileStats::new).stream().collect(Collectors.toMap(FileStats::getExt, Function.identity()));
+
+        final int size = in.readVInt();
+        files = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            FileStats file = new FileStats(in);
+            files.put(file.getExt(), file);
+        }
     }
 
     public void add(long count) {
@@ -75,9 +84,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public void addFiles(Map<String, FileStats> newFiles) {
-        for (var newEntry : newFiles.entrySet()) {
-            files.merge(newEntry.getKey(), newEntry.getValue(), FileStats::merge);
-        }
+        newFiles.forEach((k, v) -> files.merge(k, v, FileStats::merge));
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -132,6 +139,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
+    /**
+     * Returns a mapping of file extension to statistics about files of that type.
+     *
+     * Note: This should only be used by tests.
+     */
     public Map<String, FileStats> getFiles() {
         return Collections.unmodifiableMap(files);
     }

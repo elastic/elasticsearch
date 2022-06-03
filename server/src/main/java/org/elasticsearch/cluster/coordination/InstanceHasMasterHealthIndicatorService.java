@@ -84,7 +84,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         return createIndicator(
             instanceHasMasterStatus,
             instanceHasMasterSummary,
-            getDetails(explain, masterNode, coordinatingNode),
+            getDetails(explain, coordinatingNode, masterNode),
             impacts,
             Collections.emptyList()
         );

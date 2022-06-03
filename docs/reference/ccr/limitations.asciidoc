@@ -1,0 +1,76 @@
+[role="xpack"]
+[[ccr-limitations]]
+== CCR Limitations
+
+As {ccr} is designed to replicate user-generated indices only, all
+<<system-indices,system indices>>, <<machine-learning,machine learning jobs>>,
+<<index-templates,index templates>>, <<ilm,index lifecycle management>> and
+<<slm,snapshot lifecycle management>> policies, <<user-roles,user role settings
+and mappings>>, <<snapshot-repositories,snapshot repository settings>> and
+<<cluster-settings,cluster settings>> currently do not support getting
+replicated via {ccr}. 
+
+[discrete]
+
+
+[[ccr-system-indices]]
+=== System indices
+
+All <<system-indices,system indices>> are not designed to be replicated using
+{ccr}.  This includes:
+[unordered]
+APM:: All APM configurations stored in `.apm*`.
+Elastic Security:: All SIEM objects.
+EnterpriseSearch:: All enterprise Search system objects stored in `.ent-search*`.
+Fleet:: All fleet agent actions and configurations stored in `.fleet*`.
+Kibana:: Saved objects (including visualization, reporting, alerts etc)
+currently stored in `.kibana*` or `.reporting*`. 
+Machine Learning:: All machine learning jobs.
+Watcher:: All watcher definition and execution history.
+
+[[ccr-index-templates]]
+=== Index templates
+
+{ccr} does not support replicating index templates across clusters, please
+replicate them to a remote cluster manually.
+
+[[ccr-ilm-slm-policies]]
+=== ILM/SLM Policies
+
+Both <<ilm,index lifecycle management>> and <<slm,snapshot lifecycle
+management>> polices are stored locally in cluster state. {ccr} does not
+support replicating these policies, please replicate them to a remote cluster
+manually. 
+
+[[ccr-snapshot-settings]]
+=== Snapshot Settings
+
+Snapshot repository settings are stored locally in the cluster state. {ccr}
+does not support replicating these settings, please replicate them to a remote
+cluster manually. 
+
+[[ccr-searchable-snapshots]]
+=== Searchable Snapshots
+
+The actual data for <<searchable-snapshots, searchable snapshot>> indices are 
+stored in the snapshot repository while indices are either partially-cached or
+fully-cached on the Elasticearch nodes, {ccr} will not replicate the searchable
+snapshot correctly. You can still set up snapshot repositories on the remote
+cluster and use the same ilm policy to move data into cold or frozen tier thus
+achieving searchable snapshots in the remote cluster. Data stored in the cold
+and frozen tier are expected to be read-only, thus only replicate the data in
+the hot and warm tier and moving them into searchable snapshots in the cold or
+frozen tier will achieve the same effect. See <<ilm-searchable-snapshot, ILM
+searchable snapshot action>> for more details.
+
+[[ccr-user-role-permission-mapping]]
+=== User/Role Permission and Mapping
+
+User permissions and role mappings are stored as part of the cluster state.
+{ccr} does not support replicating these settings, please replicate them to a
+remote cluster manually. 
+
+[[ccr-cluster-settings]]
+=== Cluster Settings
+{ccr} does not support replicating cluster settings, please replicate them to a
+remote cluster manually. 

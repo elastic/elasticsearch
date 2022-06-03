@@ -89,6 +89,7 @@ Now that you know the tier, increase the number of availability zones.
 
 . Go back to the deployment's landing page by clicking on the three horizontal bars on the top left of the screen
 and choosing **Manage this deployment**. On that page click the **Manage** button, and choose **Edit deployment**.
+Note that you must be logged in to https://cloud.elastic.co/ in order to do this.
 
 . In the {es} section, find the tier where the replica shards could not be assigned. Select a higher number
 of availability zones for that tier.
@@ -154,7 +155,7 @@ You can count the rows containing the letter representing the target tier to kno
 <<cat-nodes-api-query-params>> for details. The example above has two rows containing `h`, so there are two
 nodes in the hot tier.
 +
-. <<indices-update-settings, Decrease>> the value for the total number of 
+. <<indices-update-settings, Decrease>> the value for the total number of
 replica shards required for this index. As replica shards cannot reside on the
 same node as primary shards for <<high-availability-cluster-design,high
 availability>>, the new value needs to be less than or equal to the number of nodes found
@@ -174,9 +175,9 @@ PUT /my-index-000001/_settings
 
 +
 <1> The new value for the `index.number_of_replicas` index configuration
-is decreased from the previous value of `2` to `1`. It can be set as low as 0 
+is decreased from the previous value of `2` to `1`. It can be set as low as 0
 but configuring it to 0 for indices other than <<searchable-snapshots,
-searchable snapshot indices>> may lead to temporary availability loss during 
+searchable snapshot indices>> may lead to temporary availability loss during
 node restarts or permanent data loss in case of data corruption.```
 
 //end::kibana-api-ex-2[]
@@ -294,9 +295,9 @@ PUT /my-index-000001/_settings
 
 +
 <1> The new value for the `index.number_of_replicas` index configuration
-is decreased from the previous value of `2` to `1`. It can be set as low as 0 
+is decreased from the previous value of `2` to `1`. It can be set as low as 0
 but configuring it to 0 for indices other than <<searchable-snapshots,
-searchable snapshot indices>> may lead to temporary availability loss during 
+searchable snapshot indices>> may lead to temporary availability loss during
 node restarts
 or permanent data loss in case of data corruption.
 

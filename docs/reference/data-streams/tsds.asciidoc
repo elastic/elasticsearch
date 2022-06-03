@@ -207,15 +207,15 @@ using the <<search-fields-param,`fields` parameter>>.
 [[time-bound-indices]]
 ==== Time-bound indices
 
-In a TSDS, each backing index, including the write index, has a range of
-accepted `@timestamp` values. This range is defined by the
+In a TSDS, each backing index, including the most recent backing index, has a
+range of accepted `@timestamp` values. This range is defined by the
 <<index-time-series-start-time,`index.time_series.start_time`>> and
 <<index-time-series-end-time,`index.time_series.end_time`>> index settings.
 
 When you add a document to a TSDS, {es} adds the document to the appropriate
 backing index based on its `@timestamp` value. As a result, a TSDS can add
 documents to any TSDS backing index that can receive writes. This applies even
-if the index isn't the current write index.
+if the index isn't the most recent backing index.
 
 image::images/data-streams/time-bound-indices.svg[align="center"]
 

@@ -12,6 +12,7 @@ Determines whether the logged in user has a specified list of privileges.
 ==== {api-request-title}
 
 `GET /_security/user/_has_privileges`
+`POST /_security/user/_has_privileges`
 
 
 [[security-api-has-privileges-prereqs]]

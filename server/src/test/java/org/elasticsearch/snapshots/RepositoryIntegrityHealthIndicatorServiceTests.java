@@ -19,7 +19,6 @@ import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -53,7 +52,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
                     null,
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    new HealthIndicatorDetails(Map.of("total_repositories", repos.size())),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -78,7 +77,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
                     RepositoryIntegrityHealthIndicatorService.HELP_URL,
-                    new SimpleHealthIndicatorDetails(
+                    new HealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
                     Collections.singletonList(

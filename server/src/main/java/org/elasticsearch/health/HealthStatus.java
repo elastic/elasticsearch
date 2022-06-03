@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -26,6 +27,17 @@ public enum HealthStatus implements Writeable {
 
     HealthStatus(byte value) {
         this.value = value;
+    }
+
+    public static HealthStatus fromStreamInput(StreamInput in) throws IOException {
+        byte value = in.readByte();
+        return switch (value) {
+            case 0 -> GREEN;
+            case 1 -> UNKNOWN;
+            case 2 -> YELLOW;
+            case 3 -> RED;
+            default -> UNKNOWN;
+        };
     }
 
     @Override

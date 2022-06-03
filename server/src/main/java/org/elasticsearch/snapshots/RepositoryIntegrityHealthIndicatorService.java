@@ -16,7 +16,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -95,7 +94,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 GREEN,
                 "No corrupted snapshot repositories.",
-                explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
+                explain ? new HealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -116,7 +115,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             RED,
             createCorruptedRepositorySummary(corrupted),
             explain
-                ? new SimpleHealthIndicatorDetails(
+                ? new HealthIndicatorDetails(
                     Map.of(
                         "total_repositories",
                         totalRepositories,

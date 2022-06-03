@@ -39,7 +39,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -1170,7 +1169,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             status,
             summary,
             helpURL,
-            new SimpleHealthIndicatorDetails(addDefaults(details)),
+            new HealthIndicatorDetails(addDefaults(details)),
             impacts,
             actions
         );

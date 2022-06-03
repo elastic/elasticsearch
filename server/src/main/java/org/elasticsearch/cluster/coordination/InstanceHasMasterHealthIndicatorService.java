@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -21,7 +22,9 @@ import org.elasticsearch.health.ImpactArea;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -78,22 +81,24 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
             impacts.add(new HealthIndicatorImpact(3, NO_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP)));
         }
 
-        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, explain ? (builder, params) -> {
-            builder.startObject();
-            builder.object("coordinating_node", xContentBuilder -> {
-                builder.field("node_id", coordinatingNode.getId());
-                builder.field("name", coordinatingNode.getName());
-            });
-            builder.object("master_node", xContentBuilder -> {
-                if (masterNode != null) {
-                    builder.field("node_id", masterNode.getId());
-                    builder.field("name", masterNode.getName());
-                } else {
-                    builder.nullField("node_id");
-                    builder.nullField("name");
-                }
-            });
-            return builder.endObject();
-        } : HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
+        return createIndicator(
+            instanceHasMasterStatus,
+            instanceHasMasterSummary,
+            getDetails(explain, masterNode, coordinatingNode),
+            impacts,
+            Collections.emptyList()
+        );
+    }
+
+    private static HealthIndicatorDetails getDetails(boolean explain, DiscoveryNode coordinatingNode, @Nullable DiscoveryNode masterNode) {
+        if (explain == false) {
+            return HealthIndicatorDetails.EMPTY;
+        }
+        Map<String, String> masterNodeMap = new HashMap<>();
+        masterNodeMap.put("node_id", masterNode == null ? null : masterNode.getId());
+        masterNodeMap.put("name", masterNode == null ? null : masterNode.getName());
+        Map<String, String> coordinatingNodeMap = Map.of("node_id", coordinatingNode.getId(), "name", coordinatingNode.getName());
+        Map<String, Object> details = Map.of("master_node", masterNodeMap, "coordinating_node", coordinatingNodeMap);
+        return new HealthIndicatorDetails(details);
     }
 }

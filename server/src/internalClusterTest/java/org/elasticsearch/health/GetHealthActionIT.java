@@ -167,7 +167,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             return createIndicator(
                 status,
                 "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                new HealthIndicatorDetails(Map.of("explain", explain)),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -277,7 +277,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                             ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         ),
@@ -287,7 +287,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                             slmIndicatorStatus.indicatesHealthProblem() ? SLM_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -308,7 +308,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             clusterCoordinationIndicatorStatus,
                             "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
                             clusterCoordinationIndicatorStatus.indicatesHealthProblem() ? INSTANCE_HAS_MASTER_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -338,7 +338,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                             ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -367,7 +367,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                             ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         ),
@@ -377,7 +377,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                             slmIndicatorStatus.indicatesHealthProblem() ? SLM_INDICATOR_HELP_URL : null,
-                            new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                            new HealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )

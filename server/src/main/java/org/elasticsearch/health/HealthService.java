@@ -47,7 +47,7 @@ public class HealthService {
     private static final String REASON = "reasons";
 
     private static final String CLUSTER_STATE_RECOVERED = "cluster_state_recovered";
-    private static final SimpleHealthIndicatorDetails DETAILS_UNKNOWN_STATE_NOT_RECOVERED = new SimpleHealthIndicatorDetails(
+    private static final HealthIndicatorDetails DETAILS_UNKNOWN_STATE_NOT_RECOVERED = new HealthIndicatorDetails(
         Map.of(REASON, Map.of(CLUSTER_STATE_RECOVERED, false))
     );
 
@@ -181,7 +181,7 @@ public class HealthService {
                     .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
                     .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
                 assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
-                unknownDetails = new SimpleHealthIndicatorDetails(Map.of(REASON, clusterUnstableReasons));
+                unknownDetails = new HealthIndicatorDetails(Map.of(REASON, clusterUnstableReasons));
             } else {
                 unknownDetails = DETAILS_UNKNOWN_STATE_NOT_RECOVERED;
             }

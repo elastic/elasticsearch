@@ -9,8 +9,11 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -53,5 +56,20 @@ public class HealthStatusTests extends ESTestCase {
             result.addAll(randomList(1, 10, () -> status));
         }
         return result.stream();
+    }
+
+    public void testWriteableSerialization() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            randomFrom(HealthStatus.values()),
+            status -> copyWriteable(status, writableRegistry(), HealthStatus::fromStreamInput),
+            this::mutateStatus
+        );
+    }
+
+    private HealthStatus mutateStatus(HealthStatus originalStatus) {
+        List<HealthStatus> otherStatuses = Arrays.stream(HealthStatus.values())
+            .filter(status -> status.equals(originalStatus) == false)
+            .toList();
+        return randomFrom(otherStatuses);
     }
 }

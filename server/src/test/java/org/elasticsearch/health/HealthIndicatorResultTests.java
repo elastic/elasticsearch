@@ -11,11 +11,13 @@ package org.elasticsearch.health;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +31,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String helpUrl = randomAlphaOfLength(20);
         Map<String, Object> detailsMap = new HashMap<>();
         detailsMap.put("key", "value");
-        HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
+        HealthIndicatorDetails details = new HealthIndicatorDetails(detailsMap);
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
         int impact1Severity = randomIntBetween(1, 5);
         String impact1Description = randomAlphaOfLength(30);
@@ -96,5 +98,154 @@ public class HealthIndicatorResultTests extends ESTestCase {
             expectedUserActions.add(expectedAction2);
         }
         assertEquals(expectedUserActions, xContentMap.get("user_actions"));
+    }
+
+    public void testWriteableSerialization() {
+        String name = randomAlphaOfLength(10);
+        String component = randomAlphaOfLength(10);
+        HealthStatus status = randomFrom(HealthStatus.RED, HealthStatus.YELLOW, HealthStatus.GREEN);
+        String summary = randomAlphaOfLength(20);
+        String helpUrl = randomAlphaOfLength(20);
+        Map<String, Object> detailsMap = new HashMap<>();
+        detailsMap.put("key", "value");
+        HealthIndicatorDetails details = new HealthIndicatorDetails(detailsMap);
+        List<HealthIndicatorImpact> impacts = new ArrayList<>();
+        int impact1Severity = randomIntBetween(1, 5);
+        String impact1Description = randomAlphaOfLength(30);
+        ImpactArea firstImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(impact1Severity, impact1Description, List.of(firstImpactArea)));
+        int impact2Severity = randomIntBetween(1, 5);
+        String impact2Description = randomAlphaOfLength(30);
+        ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description, List.of(secondImpactArea)));
+        List<UserAction> actions = new ArrayList<>();
+        UserAction action1 = new UserAction(
+            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+            new ArrayList<>()
+        );
+        for (int i = 0; i < randomInt(10); i++) {
+            action1.affectedResources().add(randomAlphaOfLength(10));
+        }
+        actions.add(action1);
+        UserAction action2 = new UserAction(
+            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+            new ArrayList<>()
+        );
+        for (int i = 0; i < randomInt(10); i++) {
+            action2.affectedResources().add(randomAlphaOfLength(10));
+        }
+        actions.add(action2);
+        HealthIndicatorResult healthIndicatorResult = new HealthIndicatorResult(
+            name,
+            component,
+            status,
+            summary,
+            helpUrl,
+            details,
+            impacts,
+            actions
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            healthIndicatorResult,
+            result -> copyWriteable(result, writableRegistry(), HealthIndicatorResult::new),
+            this::mutateResult
+        );
+    }
+
+    private HealthIndicatorResult mutateResult(HealthIndicatorResult originalResult) {
+        switch (randomIntBetween(1, 7)) {
+            case 1 -> {
+                return new HealthIndicatorResult(
+                    randomAlphaOfLength(20),
+                    originalResult.component(),
+                    originalResult.status(),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    originalResult.impacts(),
+                    originalResult.userActions()
+                );
+            }
+            case 2 -> {
+                List<HealthStatus> otherStatuses = Arrays.stream(HealthStatus.values())
+                    .filter(status -> status.equals(originalResult.status()) == false)
+                    .toList();
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    originalResult.component(),
+                    randomFrom(otherStatuses),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    originalResult.impacts(),
+                    originalResult.userActions()
+                );
+            }
+            case 3 -> {
+                List<HealthIndicatorImpact> newImpacts = new ArrayList<>(originalResult.impacts());
+                newImpacts.remove(0);
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    originalResult.component(),
+                    originalResult.status(),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    newImpacts,
+                    originalResult.userActions()
+                );
+            }
+            case 4 -> {
+                List<UserAction> newUserActions = new ArrayList<>(originalResult.userActions());
+                newUserActions.remove(0);
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    originalResult.component(),
+                    originalResult.status(),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    originalResult.impacts(),
+                    newUserActions
+                );
+            }
+            case 5 -> {
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    randomAlphaOfLength(20),
+                    originalResult.status(),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    originalResult.impacts(),
+                    originalResult.userActions()
+                );
+            }
+            case 6 -> {
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    originalResult.component(),
+                    originalResult.status(),
+                    randomAlphaOfLength(20),
+                    originalResult.helpURL(),
+                    originalResult.details(),
+                    originalResult.impacts(),
+                    originalResult.userActions()
+                );
+            }
+            case 7 -> {
+                return new HealthIndicatorResult(
+                    originalResult.name(),
+                    originalResult.component(),
+                    originalResult.status(),
+                    originalResult.summary(),
+                    originalResult.helpURL(),
+                    HealthIndicatorDetails.EMPTY,
+                    originalResult.impacts(),
+                    originalResult.userActions()
+                );
+            }
+            default -> throw new IllegalStateException();
+        }
     }
 }

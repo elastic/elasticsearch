@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 
 /**

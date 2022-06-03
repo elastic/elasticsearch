@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -607,8 +608,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
                     new ActionListener<>() {
                         @Override
-                        public void onResponse(Releasable connection) {
-                            Version minSupportedVersion = Version.V_8_4_0;
+                        public void onResponse(Releasable releasable) {
                             logger.trace("Opened connection to {}, making cluster coordination info request", node);
                             // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                             final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
@@ -638,11 +638,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                                         logger.warn("Exception in cluster coordination info request to master node", e);
                                         nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                                     }
-                                }, () -> {
-                                    if (transportService.getLocalNode().equals(node) == false) {
-                                        connection.close();
-                                    }
-                                }), ClusterFormationInfoAction.Response::new)
+                                }, () -> Releasables.close(releasable)), ClusterFormationInfoAction.Response::new)
                             );
                         }
 

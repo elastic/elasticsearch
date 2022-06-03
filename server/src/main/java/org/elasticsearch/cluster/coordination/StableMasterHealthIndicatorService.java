@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.StableMasterIndicatorAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -146,6 +147,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
     private final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new HashMap<>();
+
+    private Scheduler.Cancellable remoteStableMasterHealthIndicatorTask = null;
+    private volatile RemoteMasterHealthResult remoteMasterHealthResult = null;
 
     public StableMasterHealthIndicatorService(
         ClusterService clusterService,
@@ -462,9 +466,30 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 );
                 details = getDetails(explain, localMasterHistory, coordinator.getClusterFormationState().getDescription());
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
-                // Use StableMasterHealthIndicatorServiceAction
-                stableMasterStatus = HealthStatus.RED;
-                summary = "No node is elected master, and this node is not master eligible. Reaching out to other nodes";
+                RemoteMasterHealthResult remoteResultOrException = remoteMasterHealthResult;
+                if (remoteResultOrException == null) {
+                    stableMasterStatus = HealthStatus.RED;
+                    summary = "No node is elected master, and this node is not master eligible. Reaching out to other nodes";
+                } else {
+                    DiscoveryNode remoteNode = remoteResultOrException.node;
+                    HealthIndicatorResult remoteResult = remoteResultOrException.result;
+                    Exception exception = remoteResultOrException.remoteException;
+                    if (remoteResult != null) {
+                        if (remoteResult.status().equals(HealthStatus.GREEN) == false) {
+                            stableMasterStatus = remoteResult.status();
+                            summary = "Unable to elect a master because " + remoteResult.status();
+                        } else {
+                            stableMasterStatus = HealthStatus.RED;
+                            summary = "discovery problem";
+                        }
+                    } else if (exception != null) {
+                        stableMasterStatus = HealthStatus.RED;
+                        summary = "discovery problem, and exception contacting a master-eligible node";
+                    } else {
+                        stableMasterStatus = HealthStatus.RED;
+                        summary = "discovery problem, no information yet from a master-eligible node";
+                    }
+                }
             } else { // none is elected master and we are master eligible
                 for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
                     if (entry.getValue().exception() != null) {
@@ -516,9 +541,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 stableMasterStatus = HealthStatus.RED;
                 summary = "Something is very wrong";
             }
-            // If one of them is elected master
-            // Else if none is elected master and we aren't master eligible
-            // Else if none is elected master and we are master eligible
         }
 
         return createIndicator(stableMasterStatus, summary, details, UNSTABLE_MASTER_IMPACTS, userActions);
@@ -576,6 +598,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             beginPollingClusterFormationInfo();
         } else { // if already polling, stop polling
             cancelPollingClusterFormationInfo();
+        }
+        if (currentMaster == null && clusterService.localNode().isMasterNode() == false) {
+            beginPollingRemoteStableMasterHealthIndicatorService();
+        } else { // if already polling, stop polling
+            cancelPollingRemoteStableMasterHealthIndicatorService();
         }
     }
 
@@ -653,6 +680,80 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         }, 0, 10, TimeUnit.SECONDS));
     }
 
+    private void beginPollingRemoteStableMasterHealthIndicatorService() {
+        cancelPollingRemoteStableMasterHealthIndicatorService();
+        Optional<DiscoveryNode> masterNodeOptional = getMasterEligibleNodes().stream().findAny();
+        if (masterNodeOptional.isPresent()) {
+            DiscoveryNode node = masterNodeOptional.get();
+            remoteStableMasterHealthIndicatorTask =
+                Scheduler.wrapAsCancellable(transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
+                    Version minSupportedVersion = Version.V_8_4_0;
+                    if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+                        logger.trace(
+                            "Cannot ask {} for master stability indicator results because it is at version {} and {} is required",
+                            node,
+                            node.getVersion(),
+                            minSupportedVersion
+                        );
+                    } else {
+                        long startTime = System.nanoTime();
+                        transportService.connectToNode(
+                            node,
+                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(Releasable releasable) {
+                                    logger.trace("Connected to {}, making master stability request", node);
+                                    // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                                    final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                                    transportService.sendRequest(
+                                        node,
+                                        StableMasterIndicatorAction.NAME,
+                                        new StableMasterIndicatorAction.Request(true),
+                                        TransportRequestOptions.timeout(transportTimeout),
+                                        new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
+
+                                            @Override
+                                            public void onResponse(StableMasterIndicatorAction.Response response) {
+                                                long endTime = System.nanoTime();
+                                                logger.trace(
+                                                    "Received master stability result from {} in {}",
+                                                    node,
+                                                    TimeValue.timeValueNanos(endTime - startTime)
+                                                );
+                                                remoteMasterHealthResult =
+                                                    new RemoteMasterHealthResult(node, response.getHealthIndicatorResult(), null);
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                logger.warn("Exception in master stability request to master node", e);
+                                                remoteMasterHealthResult = new RemoteMasterHealthResult(node, null, e);
+                                            }
+                                        }, () -> Releasables.close(releasable)), StableMasterIndicatorAction.Response::new)
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Exception connecting to master node", e);
+                                    remoteMasterHealthResult = new RemoteMasterHealthResult(node, null, e);
+                                }
+                            }
+                        );
+                    }
+                }, 10, 10, TimeUnit.SECONDS));
+        }
+    }
+
+    private void cancelPollingRemoteStableMasterHealthIndicatorService() {
+        if (remoteStableMasterHealthIndicatorTask != null) {
+            remoteStableMasterHealthIndicatorTask.cancel();
+            remoteStableMasterHealthIndicatorTask = null;
+            remoteMasterHealthResult = null;
+        }
+    }
+
     record ClusterFormationStateOrException(
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
         Exception exception
@@ -672,5 +773,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         ClusterFormationStateOrException(Exception exception) {
             this(null, exception);
         }
+    }
+
+    private record RemoteMasterHealthResult(DiscoveryNode node, HealthIndicatorResult result, Exception remoteException) {
     }
 }

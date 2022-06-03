@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -483,16 +481,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         );
     }
 
-    public ShardRouting moveToStarted() {
-        return moveToStarted(null);
-    }
-
     /**
      * Set the shards state to <code>STARTED</code>. The shards state must be
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
      * canceled.
      */
-    public ShardRouting moveToStarted(@Nullable Metadata metadata) {
+    public ShardRouting moveToStarted(long expectedShardSize) {
         assert state == ShardRoutingState.INITIALIZING : "expected an initializing shard " + this;
         AllocationId allocationId = this.allocationId;
         if (allocationId.getRelocationId() != null) {
@@ -500,10 +494,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             allocationId = AllocationId.finishRelocation(allocationId);
         }
 
-        IndexMetadata indexMetadata = metadata != null ? metadata.index(index()) : null;
-        long startedExpectedShardSize = indexMetadata == null || indexMetadata.isSearchableSnapshot() == false
-            ? UNAVAILABLE_EXPECTED_SHARD_SIZE
-            : expectedShardSize;
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -513,7 +503,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             null,
             allocationId,
-            startedExpectedShardSize
+            expectedShardSize
         );
     }
 

@@ -513,10 +513,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         Logger logger,
         ShardRouting initializingShard,
         RoutingChangesObserver routingChangesObserver,
-        Metadata metadata
+        long startedExpectedShardSize
     ) {
         ensureMutable();
-        ShardRouting startedShard = started(initializingShard, metadata);
+        ShardRouting startedShard = started(initializingShard, startedExpectedShardSize);
         logger.trace("{} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
         routingChangesObserver.shardStarted(initializingShard, startedShard);
 
@@ -718,7 +718,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      *
      * @return the started shard
      */
-    private ShardRouting started(ShardRouting shard, Metadata metadata) {
+    private ShardRouting started(ShardRouting shard, long expectedShardSize) {
         assert shard.initializing() : "expected an initializing shard " + shard;
         if (shard.relocatingNodeId() == null) {
             // if this is not a target shard for relocation, we need to update statistics
@@ -728,7 +728,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             }
         }
         removeRecovery(shard);
-        ShardRouting startedShard = shard.moveToStarted(metadata);
+        ShardRouting startedShard = shard.moveToStarted(expectedShardSize);
         updateAssigned(shard, startedShard);
         return startedShard;
     }

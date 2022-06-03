@@ -791,7 +791,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             newRoutingTable
         );
         replica.updateShardState(
-            replica.routingEntry().moveToStarted(),
+            replica.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
             replica.getPendingPrimaryTerm(),
             null,
             currentClusterStateVersion.get(),

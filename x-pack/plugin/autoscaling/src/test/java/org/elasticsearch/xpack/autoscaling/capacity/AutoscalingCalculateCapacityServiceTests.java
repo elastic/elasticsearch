@@ -290,9 +290,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(context.currentCapacity(), is(nullValue()));
 
             String multiPathNodeId = randomFrom(expectedNodes).getId();
-            mostUsagesBuilder = ImmutableOpenMap.builder(mostUsages);
-            DiskUsage original = mostUsagesBuilder.get(multiPathNodeId);
-            mostUsagesBuilder.put(
+            DiskUsage original = mostUsages.get(multiPathNodeId);
+            mostUsages.put(
                 multiPathNodeId,
                 new DiskUsage(
                     multiPathNodeId,
@@ -303,7 +302,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null, null);
+            info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
                 roleNames,
                 state,

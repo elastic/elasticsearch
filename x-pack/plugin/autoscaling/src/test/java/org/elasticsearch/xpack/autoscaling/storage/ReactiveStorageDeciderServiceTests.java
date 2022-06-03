@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -251,31 +252,26 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         final ClusterState clusterState = updateClusterState(initialClusterState, allocation);
 
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder = ImmutableOpenMap.builder();
+        Map<String, Long> shardSize = new HashMap<>();
         IntStream.range(0, randomInt(10))
             .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
             .filter(s -> s.shardId().getId() != shardId)
-            .forEach(s -> shardSizeBuilder.put(shardIdentifier(s), randomNonNegativeLong()));
+            .forEach(s -> shardSize.put(shardIdentifier(s), randomNonNegativeLong()));
 
         long expected = randomLongBetween(1, Long.MAX_VALUE);
         if (useReplica == false || randomBoolean()) {
-            shardSizeBuilder.put(shardIdentifier(primaryShard), expected);
+            shardSize.put(shardIdentifier(primaryShard), expected);
         } else {
-            shardSizeBuilder.put(shardIdentifier(replicaShard), expected);
+            shardSize.put(shardIdentifier(replicaShard), expected);
         }
 
         ShardRouting subjectShard = useReplica ? replicaShard : primaryShard;
-        validateSizeOf(clusterState, subjectShard, shardSizeBuilder, expected);
-        validateSizeOf(clusterState, subjectShard, ImmutableOpenMap.builder(), ByteSizeUnit.KB.toBytes(1));
+        validateSizeOf(clusterState, subjectShard, shardSize, expected);
+        validateSizeOf(clusterState, subjectShard, Map.of(), ByteSizeUnit.KB.toBytes(1));
     }
 
-    public void validateSizeOf(
-        ClusterState clusterState,
-        ShardRouting subjectShard,
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder,
-        long expected
-    ) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
+    public void validateSizeOf(ClusterState clusterState, ShardRouting subjectShard, Map<String, Long> shardSize, long expected) {
+        ClusterInfo info = new ClusterInfo(null, null, shardSize, null, null, null);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -432,16 +428,16 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ImmutableOpenMap.Builder<String, DiskUsage> diskUsagesBuilder = ImmutableOpenMap.builder();
         diskUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
         ImmutableOpenMap<String, DiskUsage> diskUsages = diskUsagesBuilder.build();
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder = ImmutableOpenMap.builder();
+        Map<String, Long> shardSize = new HashMap<>();
         ShardRouting missingShard = randomBoolean() ? randomFrom(shards) : null;
         Collection<ShardRouting> shardsWithSizes = shards.stream().filter(s -> s != missingShard).collect(Collectors.toSet());
         for (ShardRouting shard : shardsWithSizes) {
-            shardSizeBuilder.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+            shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
         }
         if (shardsWithSizes.isEmpty() == false) {
-            shardSizeBuilder.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
+            shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, null, null, null);
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,

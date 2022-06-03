@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,6 +29,7 @@ import org.junit.Assert;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -142,17 +142,15 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Settings dynamicSettings = settingsWithLowWatermark;
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         String nodeId = "123";
-        ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableSpaceUsageBuilder = ImmutableOpenMap.builder();
         long totalBytesOnMachine = 100;
         long totalBytesFree = 70;
-        mostAvailableSpaceUsageBuilder.put(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree));
         ClusterInfo clusterInfo = new ClusterInfo(
-            ImmutableOpenMap.of(),
-            mostAvailableSpaceUsageBuilder.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree)),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
         );
         DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
             nodeSettings,

@@ -1,0 +1,5 @@
+pr: 86015
+summary: Upgrading to tika 2.4
+area: Ingest
+type: feature
+issues: []

@@ -66,7 +66,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No ILM policies configured",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -75,7 +75,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of your system "
+                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )

@@ -22,7 +22,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -186,7 +185,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<GetSettingsResponse> settingsListener = ActionListener.wrap(getSettingsResponse -> {
             Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 
-            ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+            Map<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
             for (var indexSettings : indexToSettings.values()) {
                 Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings);
                 if (indexMaxDocValueFields < minDocValueFieldsLimit) {

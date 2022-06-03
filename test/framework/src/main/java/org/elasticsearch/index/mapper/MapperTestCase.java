@@ -590,9 +590,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft)).thenAnswer(
-            inv -> { return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); }); }
+            inv -> fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); })
         );
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);

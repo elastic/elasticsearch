@@ -15,23 +15,34 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
 
-public interface HealthIndicatorDetails extends ToXContentObject, Writeable, Writeable.Reader<HealthIndicatorDetails> {
+public record HealthIndicatorDetails(Map<String, Object> details) implements ToXContentObject, Writeable {
 
-    HealthIndicatorDetails EMPTY = new HealthIndicatorDetails() {
+    public static HealthIndicatorDetails EMPTY = new HealthIndicatorDetails(Collections.emptyMap());
 
-        @Override
-        public HealthIndicatorDetails read(StreamInput in) {
-            return EMPTY;
-        }
+    public HealthIndicatorDetails(StreamInput in) throws IOException {
+        this(getMapFromStreamInput(in));
+    }
 
-        @Override
-        public void writeTo(StreamOutput out) {}
+    private static Map<String, Object> getMapFromStreamInput(StreamInput in) throws IOException {
+        return in.readMap(StreamInput::readString, StreamInput::readString);
+    }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
-        }
-    };
+    public HealthIndicatorDetails {
+        Objects.requireNonNull(details);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.map(details);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeMap(details, StreamOutput::writeString, (streamOutput, value) -> streamOutput.writeString(value.toString()));
+    }
 
 }

@@ -35,7 +35,7 @@ public record HealthIndicatorResult(
             HealthStatus.fromStreamInput(in),
             in.readString(),
             in.readString(),
-            null, // TODO: figure out how to handle details
+            new HealthIndicatorDetails(in),
             in.readList(HealthIndicatorImpact::new),
             in.readList(UserAction::new)
         );

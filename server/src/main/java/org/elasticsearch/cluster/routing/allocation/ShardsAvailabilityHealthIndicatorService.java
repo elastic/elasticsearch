@@ -40,7 +40,6 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -736,7 +735,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public HealthIndicatorDetails getDetails(boolean explain) {
             if (explain) {
-                return new SimpleHealthIndicatorDetails(
+                return new HealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
                         primaries.unassigned,

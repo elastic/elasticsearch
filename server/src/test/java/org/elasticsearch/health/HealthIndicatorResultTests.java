@@ -29,7 +29,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String helpUrl = randomAlphaOfLength(20);
         Map<String, Object> detailsMap = new HashMap<>();
         detailsMap.put("key", "value");
-        HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
+        HealthIndicatorDetails details = new HealthIndicatorDetails(detailsMap);
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
         int impact1Severity = randomIntBetween(1, 5);
         String impact1Description = randomAlphaOfLength(30);

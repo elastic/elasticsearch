@@ -11,10 +11,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -50,7 +50,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "ILM is running",
                     null,
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
+                    new HealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -72,7 +72,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "ILM is not running",
                     IlmHealthIndicatorService.HELP_URL,
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
+                    new HealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             3,
@@ -101,7 +101,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No ILM policies configured",
                     null,
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
+                    new HealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -122,7 +122,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No ILM policies configured",
                     null,
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
+                    new HealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )

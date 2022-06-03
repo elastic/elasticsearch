@@ -13,7 +13,6 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -93,7 +92,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static HealthIndicatorDetails createDetails(boolean explain, SnapshotLifecycleMetadata metadata) {
         if (explain) {
-            return new SimpleHealthIndicatorDetails(
+            return new HealthIndicatorDetails(
                 Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
             );
         } else {

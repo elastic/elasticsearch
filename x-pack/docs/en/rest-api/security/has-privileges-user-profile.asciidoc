@@ -1,29 +1,29 @@
 [role="xpack"]
-[[security-api-has-privileges-user-profiles]]
+[[security-api-has-privileges-user-profile]]
 === Has privileges user profile API
 ++++
 <titleabbrev>Has privileges user profile</titleabbrev>
 ++++
-[[security-api-has-privileges-user-profiles]]
+[[security-api-has-privileges-user-profile]]
 
 beta::[]
 
 Determines whether the users with the specified <<user-profile, user profile>> IDs
-have all the requested list of privileges.
+have all the requested privileges.
 
-[[security-api-has-privileges-user-profiles-request]]
+[[security-api-has-privileges-user-profile-request]]
 ==== {api-request-title}
 
 `GET /_security/profile/_has_privileges`
 
 `POST /_security/profile/_has_privileges`
 
-[[security-api-has-privileges-user-profiles-prereqs]]
+[[security-api-has-privileges-user-profile-prereqs]]
 ==== {api-prereq-title}
 
 To use this API, you must have the `manage_user_profile` cluster privilege.
 
-[[security-api-has-privileges-user-profiles-desc]]
+[[security-api-has-privileges-user-profile-desc]]
 ==== {api-description-title}
 
 This API is similar to the <<security-api-has-privileges>> API, which checks the privileges only of the user
@@ -35,7 +35,7 @@ See <<security-privileges>> for the list of privileges that can be specified in 
 
 A successful call returns the subset list of profile IDs that have **all** the requested privileges.
 
-[[security-api-has-privileges-user-profiles-request-body]]
+[[security-api-has-privileges-user-profile-request-body]]
 ==== {api-request-body-title}
 
 `uids`:: (list) A list of <<security-api-activate-user-profile-response-body, profile IDs>> that identify
@@ -65,7 +65,7 @@ should be checked.
 Note that the `privileges` section above is identical to the
 <<security-api-has-privileges-request-body, request body of the other Has Privileges API>>.
 
-[[security-api-has-privileges-user-profiles-response-body]]
+[[security-api-has-privileges-user-profile-response-body]]
 ==== {api-response-body-title}
 
 A successful has privileges user profile API call returns a JSON structure that contains
@@ -78,7 +78,7 @@ two list fields:
 encountered. It does **not** include the missing profile IDs or the profile IDs of
 the users that do not have all the requested privileges. This field is absent if empty.
 
-[[security-api-has-privileges-user-profiles-example]]
+[[security-api-has-privileges-user-profile-example]]
 ==== {api-examples-title}
 
 The following example checks whether the two users identified by the given profile IDs have all the

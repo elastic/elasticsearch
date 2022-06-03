@@ -180,8 +180,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 
-        final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ClusterInfoServiceUtils.refresh(masterInfoService);
 
         final int nbIndices = createIndices();
 
@@ -217,6 +215,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
+        final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
         assertThat(

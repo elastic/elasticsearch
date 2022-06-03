@@ -1,0 +1,6 @@
+pr: 87388
+summary: Making `HealthIndicatorResult` Writeable so it can be used in a transport
+  action
+area: Health
+type: enhancement
+issues: []

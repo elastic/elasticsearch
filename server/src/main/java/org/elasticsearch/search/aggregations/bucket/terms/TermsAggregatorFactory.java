@@ -50,6 +50,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     protected static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
+
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             TermsAggregationBuilder.REGISTRY_KEY,
@@ -133,7 +134,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
-                logger.info("Creating bytes terms aggregator with execution mode [" + execution +"]");
+                logger.info("Creating bytes terms aggregator with execution mode [" + execution + "]");
                 return execution.create(
                     name,
                     factories,

@@ -1,6 +1,0 @@
-pr: 87364
-summary: Tests ignore longitude=180 when index Legacy point
-area: Geo
-type: bug
-issues:
- - 86118

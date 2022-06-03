@@ -39,10 +39,10 @@ Defaults to `true`, which enables
 <<configuring-stack-security,security auto configuration>>.
 +
 --
-If set to `false`, security auto configuration is disabled, which is not 
-recommended. When disabled, security is not configured automatically when 
+If set to `false`, security auto configuration is disabled, which is not
+recommended. When disabled, security is not configured automatically when
 starting {es} for the first time, which means that you must
-<<manually-configure-security,manually configure security>>. 
+<<manually-configure-security,manually configure security>>.
 --
 
 `xpack.security.hide_settings`::
@@ -1694,7 +1694,10 @@ or one of `id_token`, `id_token token` for the implicit flow.
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+Defaults to `RS256`.
+
 // end::rp-signature-algorithm-tag[]
 
 // tag::rp-requested-scopes-tag[]

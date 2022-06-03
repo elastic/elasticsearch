@@ -5,8 +5,6 @@
       "description":"Retrieves user profile for the given unique ID."
     },
     "stability":"experimental",
-    "visibility":"feature_flag",
-    "feature_flag": "es.user_profile_feature_flag_enabled",
     "headers":{
       "accept": [ "application/json"]
     },

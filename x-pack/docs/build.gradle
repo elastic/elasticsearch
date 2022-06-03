@@ -64,8 +64,6 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
 
-  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
-
   user username: 'test_admin'
 }
 

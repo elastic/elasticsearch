@@ -9,15 +9,15 @@ your application to {es} 8.3.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.3.0-SNAPSHOT]
-
+coming::[8.3.0]
 
 [discrete]
 [[breaking-changes-8.3]]
 === Breaking changes
 
+// tag::notable-breaking-changes[]
 There are no breaking changes in {es} 8.3.
-
+// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-8.3]]

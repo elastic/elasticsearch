@@ -112,8 +112,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        sourceIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
-        rollupIndex = "rollup-" + sourceIndex + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        sourceIndex = getTestName().toLowerCase(Locale.ROOT) + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
         numOfShards = randomIntBetween(1, 4);
@@ -332,7 +332,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         // Clone the source index before rollup deletes it
         String sourceIndexClone = cloneSourceIndex(sourceIndex);
-        String rollupIndex = "rollup-" + sourceIndex + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        String rollupIndex = "rollup-" + sourceIndex;
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
 

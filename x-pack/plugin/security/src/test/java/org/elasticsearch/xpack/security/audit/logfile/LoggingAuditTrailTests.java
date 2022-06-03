@@ -2235,12 +2235,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final RealmRef authRealmRef = AuthenticationTestHelper.randomRealmRef();
+        final RealmRef lookupRealmRef = AuthenticationTestHelper.randomRealmRef();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("_username", "r1"))
-            .realmRef(new RealmRef("authRealm", "test", "foo"))
+            .realmRef(authRealmRef)
             .runAs()
             .user(new User("running as", "r2"))
-            .realmRef(new RealmRef("lookRealm", "up", "by"))
+            .realmRef(lookupRealmRef)
             .build();
         final String requestId = randomRequestId();
 
@@ -2250,12 +2252,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_granted")
             .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username")
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, "authRealm")
+            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName())
             .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as")
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, "lookRealm")
+            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName())
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        if (authRealmRef.getDomain() != null) {
+            checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, authRealmRef.getDomain().name());
+        }
+        if (lookupRealmRef.getDomain() != null) {
+            checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, lookupRealmRef.getDomain().name());
+        }
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
@@ -2275,12 +2283,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final RealmRef authRealmRef = AuthenticationTestHelper.randomRealmRef();
+        final RealmRef lookupRealmRef = AuthenticationTestHelper.randomRealmRef();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("_username", "r1"))
-            .realmRef(new RealmRef("authRealm", "test", "foo"))
+            .realmRef(authRealmRef)
             .runAs()
             .user(new User("running as", "r2"))
-            .realmRef(new RealmRef("lookRealm", "up", "by"))
+            .realmRef(lookupRealmRef)
             .build();
         final String requestId = randomRequestId();
 
@@ -2290,12 +2300,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_denied")
             .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username")
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, "authRealm")
+            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName())
             .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as")
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, "lookRealm")
+            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName())
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        if (authRealmRef.getDomain() != null) {
+            checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, authRealmRef.getDomain().name());
+        }
+        if (lookupRealmRef.getDomain() != null) {
+            checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, lookupRealmRef.getDomain().name());
+        }
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
@@ -2775,12 +2791,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
             }
         } else {
+            final RealmRef authenticatedBy = authentication.getAuthenticatedBy();
             if (authentication.isRunAs()) {
-                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
+                final RealmRef lookedUpBy = authentication.getLookedUpBy();
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
                     .put(LoggingAuditTrail.PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
-                    .put(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                    .put(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
+                if (lookedUpBy.getDomain() != null) {
+                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
+                }
+                if (authenticatedBy.getDomain() != null) {
+                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                }
             } else {
-                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authenticatedBy.getName());
+                if (authenticatedBy.getDomain() != null) {
+                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                }
             }
         }
         if (authentication.isAuthenticatedWithServiceAccount()) {

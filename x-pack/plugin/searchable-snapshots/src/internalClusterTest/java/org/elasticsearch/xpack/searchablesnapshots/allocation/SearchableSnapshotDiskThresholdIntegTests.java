@@ -328,7 +328,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         String prefix = "mounted-";
         mountIndices(indicesToBeMounted.keySet(), prefix, repository, snapshotName, FULL_COPY);
-        mockRepository.unblock();
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
             assertThat(

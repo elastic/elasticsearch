@@ -46,6 +46,8 @@ include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 
+include::modules/discovery/discovery.asciidoc#troubleshooting-discovery[]
+
 include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]

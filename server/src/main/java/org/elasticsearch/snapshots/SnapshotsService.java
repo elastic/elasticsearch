@@ -426,7 +426,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                logger.warn(() -> format("[%s][%s] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
 
@@ -531,7 +531,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(snapshot);
-                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
+                logger.warn(() -> format("[%s][%s] failed to clone snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
 
@@ -1232,13 +1232,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "failed to update snapshot state after shards started or nodes removed from [{}] ",
-                        source
-                    ),
-                    e
-                );
+                logger.warn(() -> format("failed to update snapshot state after shards started or nodes removed from [%s] ", source), e);
             }
 
             @Override
@@ -2554,7 +2548,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("{} failed to remove snapshot deletion metadata", deleteEntry), e);
+            logger.warn(() -> format("%s failed to remove snapshot deletion metadata", deleteEntry), e);
             repositoryOperations.finishDeletion(deleteEntry.uuid());
             failAllListenersOnMasterFailOver(e);
         }
@@ -3574,10 +3568,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners",
-                    repository
-                ),
+                () -> format("Removed all snapshot tasks for repository [%s] from cluster state, now failing listeners", repository),
                 failure
             );
             synchronized (currentlyFinalizing) {

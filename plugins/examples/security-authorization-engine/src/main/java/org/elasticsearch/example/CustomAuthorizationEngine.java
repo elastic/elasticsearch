@@ -185,7 +185,8 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
             }
             privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
         }
-        return new PrivilegesCheckResult(authorized, clusterPrivMap, indices, privilegesByApplication);
+        return new PrivilegesCheckResult(authorized,
+            new PrivilegesCheckResult.Details(clusterPrivMap, indices, privilegesByApplication));
     }
 
     private GetUserPrivilegesResponse getUserPrivilegesResponse(boolean isSuperuser) {

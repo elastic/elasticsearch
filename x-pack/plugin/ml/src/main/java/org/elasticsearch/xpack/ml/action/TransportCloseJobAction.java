@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -201,10 +200,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                         () -> format("[%s] removed task to close unassigned job", resolvedJobId)
                                                     ),
                                                     e -> logger.error(
-                                                        () -> new ParameterizedMessage(
-                                                            "[{}] failed to remove task to close unassigned job",
-                                                            resolvedJobId
-                                                        ),
+                                                        () -> format("[%s] failed to remove task to close unassigned job", resolvedJobId),
                                                         e
                                                     )
                                                 )
@@ -428,8 +424,8 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         logger.trace(
-                            () -> new ParameterizedMessage(
-                                "[{}] [{}] failed to close job due to resource not found exception",
+                            () -> format(
+                                "[%s] [%s] failed to close job due to resource not found exception",
                                 jobTask.getJobId(),
                                 jobTask.getId()
                             ),
@@ -451,8 +447,8 @@ public class TransportCloseJobAction extends TransportTasksAction<
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "[{}] [{}] failed to update job to closing due to resource not found exception",
+                    () -> format(
+                        "[%s] [%s] failed to update job to closing due to resource not found exception",
                         jobTask.getJobId(),
                         jobTask.getId()
                     ),

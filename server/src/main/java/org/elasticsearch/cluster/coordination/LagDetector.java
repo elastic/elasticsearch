@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A publication can succeed and complete before all nodes have applied the published state and acknowledged it; however we need every node
@@ -236,9 +236,9 @@ public class LagDetector {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(
-                            new ParameterizedMessage(
-                                "failed to get hot threads from node [{}] lagging at version {} "
-                                    + "despite commit of cluster state version [{}]",
+                            () -> format(
+                                "failed to get hot threads from node [%s] lagging at version %s "
+                                    + "despite commit of cluster state version [%s]",
                                 discoveryNode.descriptionWithoutAttributes(),
                                 appliedVersion,
                                 expectedVersion

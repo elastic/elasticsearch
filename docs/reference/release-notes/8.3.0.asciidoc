@@ -24,11 +24,15 @@ Authentication::
 * An authorized user can disable a user with same name but different realm {es-pull}86473[#86473]
 * Fix clearing of `lastSuccessfulAuthCache` when clear all realm cache API is called {es-pull}86909[#86909] (issue: {es-issue}86650[#86650])
 
+Authorization::
+* Fix resolution of wildcard application privileges {es-pull}87293[#87293]
+
 CAT APIs::
 * Get hidden indices stats in `GET _cat/shards` {es-pull}86601[#86601] (issue: {es-issue}84656[#84656])
 
 CCR::
 * Prevent invalid datastream metadata when CCR follows a datastream with closed indices on the follower {es-pull}87076[#87076] (issue: {es-issue}87048[#87048])
+* Remove some blocking in CcrRepository {es-pull}87235[#87235]
 
 Cluster Coordination::
 * Add `master_timeout` support to voting config exclusions APIs {es-pull}86670[#86670]
@@ -109,6 +113,7 @@ SQL::
 
 Search::
 * Add status field to Multi Search Template Responses {es-pull}85496[#85496] (issue: {es-issue}83029[#83029])
+* Fields API to allow fetching values when `_source` is disabled {es-pull}87267[#87267] (issue: {es-issue}87072[#87072])
 * Fix `_terms_enum` on unconfigured `constant_keyword` {es-pull}86191[#86191] (issues: {es-issue}86187[#86187], {es-issue}86267[#86267])
 * Fix status code when open point in time without `keep_alive` {es-pull}87011[#87011] (issue: {es-issue}87003[#87003])
 * Make sure to rewrite explain query on coordinator {es-pull}87013[#87013] (issue: {es-issue}64281[#64281])
@@ -209,6 +214,7 @@ Infra/Scripting::
 
 Ingest::
 * Iteratively execute synchronous ingest processors {es-pull}84250[#84250] (issue: {es-issue}84274[#84274])
+* Skip `ensureNoSelfReferences` check in `IngestService` {es-pull}87337[#87337]
 
 License::
 * Initialize active realms without logging a message {es-pull}86134[#86134] (issue: {es-issue}81380[#81380])

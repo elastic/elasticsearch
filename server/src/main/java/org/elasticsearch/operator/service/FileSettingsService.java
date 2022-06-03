@@ -80,11 +80,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         FileUpdateState previousUpdateState = fileUpdateState;
 
         BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileUpdateState(
-            attr.lastModifiedTime().toMillis(),
-            path.toRealPath().toString(),
-            attr.fileKey()
-        );
+        fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
@@ -173,15 +169,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
                 WatchKey key;
                 while ((key = watchService.take()) != null) {
-                    // Reading and interpreting watch service events can vary from platform to platform. E.g:
-                    // MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                    //      ENTRY_MODIFY:operator
-                    //      ENTRY_CREATE:settings.json
-                    //      ENTRY_MODIFY:settings.json
-                    // Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                    //      ENTRY_CREATE:operator
-                    // After we get an indication that something has changed, we check the timestamp, file id,
-                    // real path of our desired file.
+                    /**
+                     * Reading and interpreting watch service events can vary from platform to platform. E.g:
+                     * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                     *     ENTRY_MODIFY:operator
+                     *     ENTRY_CREATE:settings.json
+                     *     ENTRY_MODIFY:settings.json
+                     * Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                     *     ENTRY_CREATE:operator
+                     * After we get an indication that something has changed, we check the timestamp, file id,
+                     * real path of our desired file.
+                     */
                     if (Files.exists(settingsDir)) {
                         try {
                             Path path = operatorSettingsFile();

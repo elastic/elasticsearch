@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -35,6 +34,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Controller class for applying file based settings to ClusterState.
@@ -80,7 +81,15 @@ public class OperatorClusterStateController {
         }
     }
 
-    public ClusterState process(String namespace, XContentParser parser) throws IOException {
+    /**
+     * Saves an operator cluster state for a given 'namespace' from XContentParser
+     *
+     * @param namespace the namespace under which we'll store the operator keys in the cluster state metadata
+     * @param parser the XContentParser to process
+     * @return the modified cluster state. If applying the cluster state fails the previous state might be returned.
+     * @throws IllegalStateException if the content has errors and the cluster state cannot be correctly applied
+     */
+    public ClusterState process(String namespace, XContentParser parser) {
         SettingsFile operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
         Map<String, Object> operatorState = operatorStateFileContent.state;
         OperatorStateVersionMetadata stateVersionMetadata = operatorStateFileContent.metadata;
@@ -104,12 +113,13 @@ public class OperatorClusterStateController {
                 state = transformState.state();
                 operatorMetadataBuilder.putHandler(new OperatorHandlerMetadata.Builder(handlerKey).keys(transformState.keys()).build());
             } catch (Exception e) {
-                errors.add(String.format("Error processing %s state change: %s", handler.key(), e.getMessage()));
+                errors.add(format("Error processing %s state change: %s", handler.key(), e.getMessage()));
             }
         }
 
         if (errors.isEmpty() == false) {
-            clusterService.submitStateUpdateTask("operator state error for [ " + namespace + "]",
+            clusterService.submitStateUpdateTask(
+                "operator state error for [ " + namespace + "]",
                 new OperatorUpdateErrorTask(new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {
@@ -166,17 +176,18 @@ public class OperatorClusterStateController {
 
     boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
         if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
-           logger.info(
-               "Cluster state version [{}] is not compatible with this Elasticsearch node",
-               stateVersionMetadata.minCompatibleVersion()
-           );
-           return false;
+            logger.info(
+                "Cluster state version [{}] is not compatible with this Elasticsearch node",
+                stateVersionMetadata.minCompatibleVersion()
+            );
+            return false;
         }
 
         if (existingMetadata != null && existingMetadata.version() >= stateVersionMetadata.version()) {
             logger.info(
                 "Not updating cluster state because version [{}] is less or equal to the current metadata version [{}]",
-                stateVersionMetadata.version(), existingMetadata.version()
+                stateVersionMetadata.version(),
+                existingMetadata.version()
             );
             return false;
         }

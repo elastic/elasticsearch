@@ -32,7 +32,8 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         String namespace,
         Long version,
         Map<String, OperatorHandlerMetadata> handlers,
-        OperatorErrorMetadata errorMetadata) {
+        OperatorErrorMetadata errorMetadata
+    ) {
         this.namespace = namespace;
         this.version = version;
         this.handlers = handlers;

@@ -100,8 +100,7 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
          * @param builder
          * @param params
          */
-        public static void toXContent(OperatorErrorMetadata metadata, XContentBuilder builder, Params params)
-            throws IOException {
+        public static void toXContent(OperatorErrorMetadata metadata, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(VERSION, metadata.version);
             builder.stringListField(ERRORS, metadata.errors);

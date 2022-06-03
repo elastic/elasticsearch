@@ -246,7 +246,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -341,7 +342,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id), Strings.toString(builder));
     }
@@ -405,7 +407,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -507,7 +510,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -615,7 +619,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }

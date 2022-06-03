@@ -74,6 +74,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -347,6 +348,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
         };
 
+        final AtomicBoolean seenThrottledWrite = new AtomicBoolean(false);
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 Settings.EMPTY,
@@ -364,10 +366,21 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         protected void initChannel(Channel ch) throws Exception {
                             super.initChannel(ch);
                             ch.pipeline().addBefore("pipelining", "assert-throttling", new ChannelOutboundHandlerAdapter() {
+
+                                private boolean seenNotWritable = false;
+
                                 @Override
                                 public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                                    if (seenNotWritable) {
+                                        // track that we saw a write after the channel became unwriteable on a previous write, so we can
+                                        // later assert that we indeed saw throttled writes in this test
+                                        seenThrottledWrite.set(true);
+                                    }
                                     assertTrue("handler should throttle to only write into writable channels", ctx.channel().isWritable());
                                     super.write(ctx, msg, promise);
+                                    if (ctx.channel().isWritable() == false) {
+                                        seenNotWritable = true;
+                                    }
                                 }
                             });
                         }
@@ -391,6 +404,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     byte[] bytes = new byte[response.content().readableBytes()];
                     response.content().readBytes(bytes);
                     assertThat(new String(bytes, StandardCharsets.UTF_8), equalTo(responseString));
+                    assertTrue(seenThrottledWrite.get());
                 } finally {
                     response.release();
                 }

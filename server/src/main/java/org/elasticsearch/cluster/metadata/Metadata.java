@@ -1130,7 +1130,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            operatorState = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), OPERATOR_DIFF_VALUE_READER);
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                operatorState = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    OPERATOR_DIFF_VALUE_READER
+                );
+            } else {
+                operatorState = OperatorMetadata.EMPTY_DIFF;
+            }
         }
 
         @Override
@@ -1147,7 +1155,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
-            operatorState.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                operatorState.writeTo(out);
+            }
         }
 
         @Override

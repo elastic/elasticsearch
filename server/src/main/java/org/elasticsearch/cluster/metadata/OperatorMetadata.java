@@ -10,7 +10,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
@@ -80,6 +83,14 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
     public static Diff<OperatorMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(OperatorMetadata::readFrom, in);
     }
+
+    public static final DiffableUtils.MapDiff<String, OperatorMetadata, ImmutableOpenMap<String, OperatorMetadata>> EMPTY_DIFF =
+        new DiffableUtils.MapDiff<>(null, null, List.of(), List.of(), List.of()) {
+            @Override
+            public ImmutableOpenMap<String, OperatorMetadata> apply(ImmutableOpenMap<String, OperatorMetadata> part) {
+                return part;
+            }
+        };
 
     public static Builder builder(String namespace) {
         return new Builder(namespace);

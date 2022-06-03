@@ -995,6 +995,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             Loggers.removeAppender(logger, appender);
             appender.stop();
             Loggers.setLevel(logger, (Level) null);
+            openIdConnectAuthenticator.close();
         }
     }
 

@@ -5,6 +5,7 @@
       "description":"Disables a user profile so it's not visible in user profile searches."
     },
     "stability":"experimental",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -5,6 +5,7 @@
       "description":"Enables a user profile so it's visible in user profile searches."
     },
     "stability":"experimental",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

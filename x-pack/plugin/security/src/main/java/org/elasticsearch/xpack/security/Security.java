@@ -1426,7 +1426,7 @@ public class Security extends Plugin
         Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
             final var storedHashAlgo = setting.get(settings);
             if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-                // warn-only for backwards compatibility
+                // log instead of validation error for backwards compatibility
                 logger.warn(
                     "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
                         + "Please set the appropriate value for [{}] setting.",

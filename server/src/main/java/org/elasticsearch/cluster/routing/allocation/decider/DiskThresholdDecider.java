@@ -132,7 +132,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 continue;
             }
             if (routing.relocatingNodeId() == null && indexMetadata.isSearchableSnapshot() == false) {
-                // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
+                // in practice the only initializing-but-not-relocating non-searchable-snapshot shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
                 // any additional space and can be ignored here
                 continue;

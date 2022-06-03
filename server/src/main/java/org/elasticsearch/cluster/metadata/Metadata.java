@@ -1207,11 +1207,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.putOperatorState(OperatorMetadata.readFrom(in));
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            int operatorSize = in.readVInt();
+            for (int i = 0; i < operatorSize; i++) {
+                builder.putOperatorState(OperatorMetadata.readFrom(in));
+            }
         }
-
         return builder.build();
     }
 
@@ -1238,7 +1239,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        out.writeCollection(operatorState.values());
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeCollection(operatorState.values());
+        }
     }
 
     public static Builder builder() {

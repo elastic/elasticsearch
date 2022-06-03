@@ -229,10 +229,16 @@ public class BwcVersions {
         return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
-    public List<Version> getLocalIndexCompatible() {
+    /**
+     * Return versions of Elasticsearch which are index compatible with the current version, and also work on the local machine.
+     */
+    public List<Version> getIndexCompatible() {
         return filterSupportedVersions(getAllIndexCompatible());
     }
 
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
     public List<Version> getAllIndexCompatible() {
         return versions.stream()
             .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
@@ -241,11 +247,11 @@ public class BwcVersions {
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
-        getLocalIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
+        getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
-        getLocalIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
+        getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public List<Version> getWireCompatible() {
@@ -277,7 +283,7 @@ public class BwcVersions {
     }
 
     public List<Version> getUnreleasedIndexCompatible() {
-        List<Version> unreleasedIndexCompatible = new ArrayList<>(getLocalIndexCompatible());
+        List<Version> unreleasedIndexCompatible = new ArrayList<>(getIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedIndexCompatible);
     }

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction> {
 
     static RollupILMAction randomInstance() {
-        return new RollupILMAction(RollupActionConfigTests.randomConfig(random()), randomBoolean() ? randomAlphaOfLength(5) : null);
+        return new RollupILMAction(RollupActionConfigTests.randomConfig());
     }
 
     @Override
@@ -48,7 +48,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
     @Override
     public void testToSteps() {
-        RollupILMAction action = new RollupILMAction(RollupActionConfigTests.randomConfig(random()), null);
+        RollupILMAction action = new RollupILMAction(RollupActionConfigTests.randomConfig());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -76,23 +76,15 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
     }
 
     RollupILMAction copy(RollupILMAction rollupILMAction) {
-        return new RollupILMAction(rollupILMAction.config(), rollupILMAction.rollupPolicy());
+        return new RollupILMAction(rollupILMAction.config());
     }
 
     RollupILMAction notCopy(RollupILMAction rollupILMAction) {
-        RollupActionConfig newConfig = rollupILMAction.config();
-        String newRollupPolicy = rollupILMAction.rollupPolicy();
-        switch (randomIntBetween(0, 1)) {
-            case 0 -> {
-                DateHistogramInterval fixedInterval = randomValueOtherThan(
-                    rollupILMAction.config().getFixedInterval(),
-                    ConfigTestHelpers::randomInterval
-                );
-                newConfig = new RollupActionConfig(fixedInterval);
-            }
-            case 1 -> newRollupPolicy = randomAlphaOfLength(3);
-            default -> throw new IllegalStateException("unreachable branch");
-        }
-        return new RollupILMAction(newConfig, newRollupPolicy);
+        DateHistogramInterval fixedInterval = randomValueOtherThan(
+            rollupILMAction.config().getFixedInterval(),
+            ConfigTestHelpers::randomInterval
+        );
+        RollupActionConfig newConfig = new RollupActionConfig(fixedInterval);
+        return new RollupILMAction(newConfig);
     }
 }

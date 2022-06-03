@@ -37,7 +37,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     public RollupStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        RollupActionConfig config = RollupActionConfigTests.randomConfig(random());
+        RollupActionConfig config = RollupActionConfigTests.randomConfig();
         return new RollupStep(stepKey, nextStepKey, client, config);
     }
 

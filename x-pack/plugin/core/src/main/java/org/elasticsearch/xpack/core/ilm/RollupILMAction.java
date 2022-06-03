@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,18 +29,16 @@ public class RollupILMAction implements LifecycleAction {
     public static final String NAME = "rollup";
 
     private static final ParseField CONFIG_FIELD = new ParseField("config");
-    private static final ParseField POLICY_FIELD = new ParseField("rollup_policy");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RollupILMAction((RollupActionConfig) a[0], (String) a[1])
+        a -> new RollupILMAction((RollupActionConfig) a[0])
     );
     public static final String ROLLUP_INDEX_PREFIX = "rollup-";
     public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
 
     private final RollupActionConfig config;
-    private final String rollupPolicy;
 
     static {
         PARSER.declareField(
@@ -50,20 +47,18 @@ public class RollupILMAction implements LifecycleAction {
             CONFIG_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_FIELD);
     }
 
     public static RollupILMAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RollupILMAction(RollupActionConfig config, @Nullable String rollupPolicy) {
+    public RollupILMAction(RollupActionConfig config) {
         this.config = config;
-        this.rollupPolicy = rollupPolicy;
     }
 
     public RollupILMAction(StreamInput in) throws IOException {
-        this(new RollupActionConfig(in), in.readOptionalString());
+        this(new RollupActionConfig(in));
     }
 
     @Override
@@ -75,17 +70,10 @@ public class RollupILMAction implements LifecycleAction {
         return config;
     }
 
-    String rollupPolicy() {
-        return rollupPolicy;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CONFIG_FIELD.getPreferredName(), config);
-        if (rollupPolicy != null) {
-            builder.field(POLICY_FIELD.getPreferredName(), rollupPolicy);
-        }
         builder.endObject();
         return builder;
     }
@@ -93,7 +81,6 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         config.writeTo(out);
-        out.writeOptionalString(rollupPolicy);
     }
 
     @Override
@@ -118,27 +105,8 @@ public class RollupILMAction implements LifecycleAction {
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
 
-        if (rollupPolicy == null) {
-            Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-            return List.of(checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
-        } else {
-            StepKey updateRollupIndexPolicyStepKey = new StepKey(phase, NAME, UpdateRollupIndexPolicyStep.NAME);
-            Step rollupStep = new RollupStep(rollupKey, updateRollupIndexPolicyStepKey, client, config);
-            Step updateRollupIndexPolicyStep = new UpdateRollupIndexPolicyStep(
-                updateRollupIndexPolicyStepKey,
-                nextStepKey,
-                client,
-                rollupPolicy
-            );
-            return List.of(
-                checkNotWriteIndexStep,
-                waitForNoFollowersStep,
-                readOnlyStep,
-                generateRollupIndexNameStep,
-                rollupStep,
-                updateRollupIndexPolicyStep
-            );
-        }
+        Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
+        return List.of(checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
     }
 
     @Override
@@ -148,12 +116,12 @@ public class RollupILMAction implements LifecycleAction {
 
         RollupILMAction that = (RollupILMAction) o;
 
-        return Objects.equals(this.config, that.config) && Objects.equals(this.rollupPolicy, that.rollupPolicy);
+        return Objects.equals(this.config, that.config);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, rollupPolicy);
+        return Objects.hash(config);
     }
 
     @Override

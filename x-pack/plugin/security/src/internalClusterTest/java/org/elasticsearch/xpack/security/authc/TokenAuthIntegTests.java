@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -449,6 +450,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e, throwableWithMessage(containsString("token has already been refreshed more than 30 seconds in the past")));
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/85697")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());

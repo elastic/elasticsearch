@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -44,39 +44,56 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
     }
 
     public void testUserWithWildcardPrivileges() throws Exception {
-        var appName = randomApplicationName();
+        var mainApplication = randomApplicationName();
 
+        // Privilege names that are defined application privileges, possible on the "main" app, possibly for another app.
+        final Set<String> definedPrivilegeNames = new HashSet<>();
+
+        // All applications for which application privileges have been defined
         final Set<String> allApplications = new HashSet<>();
-        CheckedBiConsumer<String, Integer, IOException> createApplicationPrivilege = (app, index) -> {
-            createApplicationPrivilege(app, "priv_" + index, randomArray(1, 4, String[]::new, () -> randomActionName()));
-            allApplications.add(appName);
+        allApplications.add(mainApplication);
+        CheckedConsumer<String, IOException> createApplicationPrivilege = (app) -> {
+            final String privilegeName;
+            // If this is the first privilege for this app, then maybe (randomly) reuse a privilege name that was defined for another app
+            if (allApplications.contains(app) == false && definedPrivilegeNames.size() > 0 && randomBoolean()) {
+                privilegeName = randomFrom(definedPrivilegeNames);
+            } else {
+                privilegeName = randomValueOtherThanMany(definedPrivilegeNames::contains, this::randomPrivilegeName);
+            }
+
+            createApplicationPrivilege(app, privilegeName, randomArray(1, 4, String[]::new, () -> randomActionName()));
+            allApplications.add(app);
+            definedPrivilegeNames.add(privilegeName);
         };
 
+        // Create 0 or more application privileges for this application
         for (int i = randomIntBetween(0, 2); i > 0; i--) {
-            // Create 0 or more application privileges for this application
-            createApplicationPrivilege.accept(appName, i);
+            createApplicationPrivilege.accept(mainApplication);
         }
 
+        // Create 0 or more application privileges for other applications
         for (int i = randomIntBetween(0, 3); i > 0; i--) {
-            // Create 0 or more application privileges for other applications
-            createApplicationPrivilege.accept(randomValueOtherThan(appName, this::randomApplicationName), i);
+            createApplicationPrivilege.accept(randomValueOtherThan(mainApplication, this::randomApplicationName));
         }
 
         // Define a role with all privileges (by wildcard) for this application
         var roleName = randomAlphaOfLengthBetween(6, 10);
         var singleAppOnly = randomBoolean();
-        createRole(roleName, singleAppOnly ? appName : "*", new String[] { "*" }, new String[] { "*" });
+        createRole(roleName, singleAppOnly ? mainApplication : "*", new String[] { "*" }, new String[] { "*" });
 
         final Set<String> allRoles = new HashSet<>();
         allRoles.add(roleName);
 
+        // Create 0 or more additional roles with privileges for one of the applications
         for (int i = randomIntBetween(0, 3); i > 0; i--) {
-            // Create 0 or more additional roles with privileges for one of the applications
             var extraRoleName = randomValueOtherThanMany(allRoles::contains, () -> randomAlphaOfLengthBetween(8, 16));
+            final String privilegeName = definedPrivilegeNames.size() > 0 && randomBoolean()
+                ? randomFrom(definedPrivilegeNames) // This may or may not correspond to the application we pick. Both are valid tests
+                : randomPrivilegeName();
             createRole(
                 extraRoleName,
                 randomFrom(allApplications),
-                new String[] { "priv_" + i },
+                new String[] { privilegeName },
                 new String[] { "data/" + randomAlphaOfLength(6) }
             );
             allRoles.add(extraRoleName);
@@ -92,39 +109,58 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
             .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(username, password))
             .build();
 
-        var testPrivilege = randomBoolean()
-            ? randomAlphaOfLengthBetween(4, 12)  // privilege name
-            : randomActionName() // action name
-        ;
+        final String testPrivilege;
+        if (randomBoolean() && definedPrivilegeNames.size() > 0) {
+            testPrivilege = randomFrom(definedPrivilegeNames);
+        } else if (randomBoolean()) {
+            testPrivilege = randomPrivilegeName();
+        } else {
+            testPrivilege = randomActionName();
+        }
         var testResource = randomAlphaOfLengthBetween(4, 12);
 
         {
             final List<ResourcePrivileges> shouldHavePrivileges = hasPrivilege(
                 reqOptions,
-                appName,
+                mainApplication,
                 new String[] { testPrivilege },
                 new String[] { testResource }
             );
 
-            assertThat(shouldHavePrivileges, Matchers.hasSize(1));
-            assertThat(shouldHavePrivileges.get(0).getResource(), equalTo(testResource));
-            assertThat(shouldHavePrivileges.get(0).getPrivileges(), Matchers.hasEntry(testPrivilege, true));
-            assertThat(shouldHavePrivileges.get(0).getPrivileges(), aMapWithSize(1));
+            assertSinglePrivilege(shouldHavePrivileges, testResource, testPrivilege, true);
         }
 
         if (singleAppOnly) {
-            final List<ResourcePrivileges> shouldNotHavePrivileges = hasPrivilege(
+            List<ResourcePrivileges> shouldNotHavePrivileges = hasPrivilege(
                 reqOptions,
                 randomValueOtherThanMany(allApplications::contains, this::randomApplicationName),
                 new String[] { testPrivilege },
                 new String[] { testResource }
             );
+            assertSinglePrivilege(shouldNotHavePrivileges, testResource, testPrivilege, false);
 
-            assertThat(shouldNotHavePrivileges, Matchers.hasSize(1));
-            assertThat(shouldNotHavePrivileges.get(0).getResource(), equalTo(testResource));
-            assertThat(shouldNotHavePrivileges.get(0).getPrivileges(), Matchers.hasEntry(testPrivilege, false));
-            assertThat(shouldNotHavePrivileges.get(0).getPrivileges(), aMapWithSize(1));
+            if (allApplications.size() > 1) { // there is an app other than the main app
+                shouldNotHavePrivileges = hasPrivilege(
+                    reqOptions,
+                    randomValueOtherThan(mainApplication, () -> randomFrom(allApplications)),
+                    new String[] { testPrivilege },
+                    new String[] { testResource }
+                );
+                assertSinglePrivilege(shouldNotHavePrivileges, testResource, testPrivilege, false);
+            }
         }
+    }
+
+    private void assertSinglePrivilege(
+        List<ResourcePrivileges> hasPrivilegesResult,
+        String expectedResource,
+        String expectedPrivilegeName,
+        boolean shoudHavePrivilege
+    ) {
+        assertThat(hasPrivilegesResult, Matchers.hasSize(1));
+        assertThat(hasPrivilegesResult.get(0).getResource(), equalTo(expectedResource));
+        assertThat(hasPrivilegesResult.get(0).getPrivileges(), Matchers.hasEntry(expectedPrivilegeName, shoudHavePrivilege));
+        assertThat(hasPrivilegesResult.get(0).getPrivileges(), aMapWithSize(1));
     }
 
     private List<ResourcePrivileges> hasPrivilege(RequestOptions requestOptions, String appName, String[] privileges, String[] resources)
@@ -206,6 +242,14 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
 
     private String randomApplicationName() {
         return randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 7);
+    }
+
+    private String randomPrivilegeName() {
+        if (randomBoolean()) {
+            return randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 7);
+        } else {
+            return randomAlphaOfLengthBetween(2, 4).toLowerCase(Locale.ROOT) + randomFrom(".", "_", "-") + randomAlphaOfLengthBetween(2, 6);
+        }
     }
 
     private String randomActionName() {

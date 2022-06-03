@@ -188,7 +188,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             @Override
             protected boolean matchesSafely(ApplicationPrivilege item) {
                 return item.getApplication().equals(application)
-                    && item.name().contains(name)
+                    && item.name().equals(Set.of(name))
                     && Set.of(item.getPatterns()).equals(actions);
             }
         };

@@ -21,7 +21,13 @@ public class PipelineProcessor extends AbstractProcessor {
     private final boolean ignoreMissingPipeline;
     private final IngestService ingestService;
 
-    PipelineProcessor(String tag, String description, TemplateScript.Factory pipelineTemplate, boolean ignoreMissingPipeline, IngestService ingestService) {
+    PipelineProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory pipelineTemplate,
+        boolean ignoreMissingPipeline,
+        IngestService ingestService
+    ) {
         super(tag, description);
         this.pipelineTemplate = pipelineTemplate;
         this.ignoreMissingPipeline = ignoreMissingPipeline;

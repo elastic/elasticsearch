@@ -184,12 +184,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
-        combiner.add(enqueueWrite(response, ctx));
+        combiner.add(enqueueWrite(ctx, response));
         ByteBuf content = msg.content();
         while (content.readableBytes() > SPLIT_THRESHOLD) {
-            combiner.add(enqueueWrite(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD)), ctx));
+            combiner.add(enqueueWrite(ctx, new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD))));
         }
-        combiner.add(enqueueWrite(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes())), ctx));
+        combiner.add(enqueueWrite(ctx, new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes()))));
         combiner.finish(promise);
     }
 
@@ -272,7 +272,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         ctx.close(promise);
     }
 
-    private Future<Void> enqueueWrite(HttpObject msg, ChannelHandlerContext ctx) {
+    private Future<Void> enqueueWrite(ChannelHandlerContext ctx, HttpObject msg) {
         final ChannelPromise p = ctx.newPromise();
         enqueueWrite(ctx, msg, p);
         return p;

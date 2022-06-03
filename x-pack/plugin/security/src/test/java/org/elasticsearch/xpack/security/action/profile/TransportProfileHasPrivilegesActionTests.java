@@ -50,6 +50,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.instanceOf;
@@ -226,7 +227,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCancellation() {
+    public void testCancellation() throws Exception {
         final List<String> profileUids = new ArrayList<>(new HashSet<>(randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 10))));
         final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(profileUids, randomValidPrivilegesToCheckRequest());
         doAnswer(invocation -> {
@@ -248,16 +249,17 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anyCollection(), any(), anyActionListener());
 
-        final AtomicInteger cancelAfter = new AtomicInteger(randomIntBetween(1, profileUids.size()));
+        final AtomicInteger cancelCountDown = new AtomicInteger(randomIntBetween(1, profileUids.size() + 1));
+        final boolean taskActuallyCancelled = cancelCountDown.get() <= profileUids.size();
         final CancellableTask cancellableTask = new CancellableTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of());
 
-        if (cancelAfter.decrementAndGet() == 0) {
+        if (cancelCountDown.decrementAndGet() == 0) {
             TaskCancelHelper.cancel(cancellableTask, "reason");
         }
         doAnswer(invocation -> {
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
                 AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
-            if (cancelAfter.decrementAndGet() == 0) {
+            if (cancelCountDown.decrementAndGet() == 0) {
                 TaskCancelHelper.cancel(cancellableTask, "reason");
             }
             listener.onResponse(ALL_CHECKS_SUCCESS_NO_DETAILS);
@@ -267,7 +269,12 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(cancellableTask, request, listener);
-        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
-        assertThat(e.getCause(), instanceOf(TaskCancelledException.class));
+        if (taskActuallyCancelled) {
+            ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+            assertThat(e.getCause(), instanceOf(TaskCancelledException.class));
+        } else {
+            ProfileHasPrivilegesResponse profileHasPrivilegesResponse = listener.get();
+            assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), contains(profileUids.toArray()));
+        }
     }
 }

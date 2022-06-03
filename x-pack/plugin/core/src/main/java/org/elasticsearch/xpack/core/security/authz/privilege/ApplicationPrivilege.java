@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -192,18 +193,15 @@ public final class ApplicationPrivilege extends Privilege {
         if (name.isEmpty()) {
             return Collections.singleton(NONE.apply(application));
         } else if (application.contains("*")) {
-            Predicate<String> predicate = Automatons.predicate(application);
-            final Set<ApplicationPrivilege> result = stored.stream()
+            final Set<ApplicationPrivilege> result = Sets.newHashSet(resolve(application, name, Collections.emptyMap()));
+            final Predicate<String> predicate = Automatons.predicate(application);
+            stored.stream()
                 .map(ApplicationPrivilegeDescriptor::getApplication)
                 .filter(predicate)
                 .distinct()
                 .map(appName -> resolve(appName, name, stored))
-                .collect(Collectors.toSet());
-            if (result.isEmpty()) {
-                return Collections.singleton(resolve(application, name, Collections.emptyMap()));
-            } else {
-                return result;
-            }
+                .forEach(result::add);
+            return result;
         } else {
             return Collections.singleton(resolve(application, name, stored));
         }

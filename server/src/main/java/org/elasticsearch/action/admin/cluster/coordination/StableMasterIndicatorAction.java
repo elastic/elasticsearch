@@ -15,13 +15,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -119,7 +119,7 @@ public class StableMasterIndicatorAction extends ActionType<StableMasterIndicato
         StableMasterIndicatorAction.Response> {
         private final ClusterService clusterService;
         private final TransportService transportService;
-        private final DiscoveryModule discoveryModule;
+        private final Coordinator coordinator;
         private final MasterHistoryService masterHistoryService;
 
         @Inject
@@ -127,13 +127,13 @@ public class StableMasterIndicatorAction extends ActionType<StableMasterIndicato
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            DiscoveryModule discoveryModule,
+            Coordinator coordinator,
             MasterHistoryService masterHistoryService
         ) {
             super(StableMasterIndicatorAction.NAME, transportService, actionFilters, StableMasterIndicatorAction.Request::new);
             this.clusterService = clusterService;
             this.transportService = transportService;
-            this.discoveryModule = discoveryModule;
+            this.coordinator = coordinator;
             this.masterHistoryService = masterHistoryService;
         }
 
@@ -145,12 +145,9 @@ public class StableMasterIndicatorAction extends ActionType<StableMasterIndicato
         ) {
             listener.onResponse(
                 new Response(
-                    new StableMasterHealthIndicatorService(
-                        clusterService,
-                        discoveryModule.getCoordinator(),
-                        masterHistoryService,
-                        transportService
-                    ).calculate(request.explain)
+                    new StableMasterHealthIndicatorService(clusterService, coordinator, masterHistoryService, transportService).calculate(
+                        request.explain
+                    )
                 )
             );
         }

@@ -246,8 +246,9 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
+    // package private to testing
     @SuppressWarnings("unchecked")
-    private void getUserClaims(
+    void getUserClaims(
         @Nullable AccessToken accessToken,
         JWT idToken,
         Nonce expectedNonce,
@@ -288,6 +289,7 @@ public class OpenIdConnectAuthenticator {
                         })
                     );
             } else {
+                LOGGER.debug("ID Token header: {}", idToken.getHeader());
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
         } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {

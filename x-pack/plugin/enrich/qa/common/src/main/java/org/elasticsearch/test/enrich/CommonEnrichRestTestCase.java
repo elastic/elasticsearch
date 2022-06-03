@@ -144,7 +144,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // (This workaround, specifically using create index api to pre-create the my-index index ensures that this
         // index is created in isolation and warnings of other indices that may be created will not be returned)
         // (Go to elastic/elasticsearch#85506 for more details)
-        createIndex("my-index");
+        createIndex("my-index", Settings.EMPTY);
         // Index document using pipeline with enrich processor:
         indexRequest = new Request("PUT", "/my-index/_doc/1");
         indexRequest.addParameter("pipeline", "my_pipeline");

@@ -401,6 +401,27 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testSubobjectsFalseWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Object [service] has subobjects set to false hence it does not support nested object [time]",
+            exception.getMessage()
+        );
+    }
+
     public void testSubobjectsFalseRoot() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.field("subobjects", false);
@@ -446,6 +467,24 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals(
             "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object "
                 + "[metrics.service.time]",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service");
+                b.field("type", "nested");
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support nested object "
+                + "[metrics.service]",
             exception.getMessage()
         );
     }

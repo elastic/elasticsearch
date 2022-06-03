@@ -51,7 +51,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
@@ -624,7 +624,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
      * But the union operation overhead that comes with combining the range with
      * the top level query tends to slow us down more than the standard aggregator.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87205")
     public void testRuntimeFieldTopLevelQueryNotOptimized() throws IOException {
         long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
@@ -657,7 +656,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     "r",
                     matchesMap().entry("ranges", 3)
                         .entry("average_docs_per_range", closeTo(6667, 1))
-                        .entry("singletons", greaterThan(1))
+                        .entry("singletons", greaterThanOrEqualTo(1))
                         .entry("non-singletons", 0)
                 )
             );
@@ -706,7 +705,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("ranges", 3)
                             .entry("average_docs_per_range", closeTo(6667, 1))
                             .entry("singletons", 0)
-                            .entry("non-singletons", greaterThan(1))
+                            .entry("non-singletons", greaterThanOrEqualTo(1))
                     )
                 );
             },

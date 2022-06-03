@@ -8,12 +8,13 @@
 
 beta::[]
 
-Determines whether the users with the given profile IDs have the specified list of privileges.
+Determines whether the users with the specified <<user-profile, user profile>> IDs have the requested list of privileges.
 
 [[security-api-has-privileges-user-profiles-request]]
 ==== {api-request-title}
 
 `GET /_security/profile/_has_privileges`
+
 `POST /_security/profile/_has_privileges`
 
 [[security-api-has-privileges-user-profiles-prereqs]]
@@ -24,11 +25,10 @@ To use this API, you must have the `manage_user_profile` cluster privilege.
 [[security-api-has-privileges-user-profiles-desc]]
 ==== {api-description-title}
 
-This is analogous to the <<security-api-has-privileges>>. Unlike that API, which checks
-the privileges of the user that's calling the API, this API uses the profile IDs to
-identify the users for which to check the privileges for.
+This API is similar to the <<security-api-has-privileges>> API, which checks the privileges only of the user
+that's calling it.
+But this API uses the profile IDs to identify the users for which to check the privileges for.
 
-For a list of the privileges that you can specify in this API, see <<security-privileges>>.
+See <<security-privileges>> for the list of privileges that can be specified in this API.
 
-A successful call returns a JSON structure containing the subset of profile IDs which
-have all the specified privileges.
+A successful call returns the subset array of profile IDs which have all the requested privileges.

@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -261,7 +262,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false)); },
+            iw -> {
+                LuceneDocument doc = new LuceneDocument();
+                NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false);
+                iw.addDocument(doc);
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
@@ -282,7 +287,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.0152D).addRange("r2", 0.0152D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false)); },
+            iw -> {
+                LuceneDocument doc = new LuceneDocument();
+                NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false);
+                iw.addDocument(doc);
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();

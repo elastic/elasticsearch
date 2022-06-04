@@ -52,10 +52,10 @@ NOTE: It is an error to specify `data` as both the query parameter and the reque
 (Optional, object)
 Extra search criteria to improve relevance of the suggestion result.
 A profile matching the specified hint is ranked higher in the response.
-But non-matching the hint does not exclude a profile from the response
+But not-matching the hint does not exclude a profile from the response
 as long as it matches the `name` field query.
 +
-.Properties of `hint`
+.Properties of `hint`:
 --
 `uids`::
 (Optional, list of strings)
@@ -88,7 +88,7 @@ List of profile documents, ordered by relevance, that match the search criteria.
 ==== {api-examples-title}
 
 The following request get suggestions for profile documents with name-related fields
-matching `jack`:
+matching `jack`. It specifies both `uids` and `labels` hints for better relevance:
 
 [source,console]
 ----

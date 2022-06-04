@@ -39,10 +39,10 @@ Defaults to `true`, which enables
 <<configuring-stack-security,security auto configuration>>.
 +
 --
-If set to `false`, security auto configuration is disabled, which is not 
-recommended. When disabled, security is not configured automatically when 
+If set to `false`, security auto configuration is disabled, which is not
+recommended. When disabled, security is not configured automatically when
 starting {es} for the first time, which means that you must
-<<manually-configure-security,manually configure security>>. 
+<<manually-configure-security,manually configure security>>.
 --
 
 `xpack.security.hide_settings`::
@@ -1694,7 +1694,10 @@ or one of `id_token`, `id_token token` for the implicit flow.
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+Defaults to `RS256`.
+
 // end::rp-signature-algorithm-tag[]
 
 // tag::rp-requested-scopes-tag[]
@@ -2180,9 +2183,11 @@ for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 // tag::jwt-pkc-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set with the public key material that
+The file path or URL to a JSON Web Key Set (JWKS) with the public key material that
 the JWT Realm uses for verifying token signatures. If a path is provided,
-then it is resolved relative to the {es} configuration directory.
+then it is resolved relative to the {es} configuration directory. In {ecloud},
+use an absolute path starting with `/app/config/`.
++
 If a URL is provided, then it must be either a `file` URL or an `https` URL.
 {es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
 requests, but will attempt to refresh the JWK upon signature verification

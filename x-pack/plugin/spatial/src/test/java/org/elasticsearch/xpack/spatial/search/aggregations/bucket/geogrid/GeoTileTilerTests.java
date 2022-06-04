@@ -16,6 +16,7 @@ import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncodeTiles;
@@ -283,5 +285,17 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             long pointHash = GeoTileUtils.longEncode(encodeDecodeLon(point.getX()), encodeDecodeLat(point.getY()), precision);
             assertThat(tilerHash, equalTo(pointHash));
         }
+    }
+
+    public void testMultiPointOutOfBounds() throws Exception {
+        final double maxLat = randomDoubleBetween(GeoTileUtils.NORMALIZED_LATITUDE_MASK, 90, false);
+        final double minLat = randomDoubleBetween(-90, Math.nextDown(GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK), true);
+        // points are out of bounds, should not generate any bucket
+        MultiPoint points = new MultiPoint(List.of(new Point(0, maxLat), new Point(0, minLat)));
+        final GeoShapeValues.GeoShapeValue value = geoShapeValue(points);
+        final GeoGridTiler tiler = getUnboundedGridTiler(0);
+        final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), tiler, NOOP_BREAKER);
+        assertTrue(values.advanceExact(0));
+        assertThat(values.docValueCount(), equalTo(0));
     }
 }

@@ -132,7 +132,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          *                               overwrite the results from earlier tasks. Instead the listener should independently capture the
          *                               information it needs to properly process the completion of a cluster state update.
          */
-        // TODO remove all remaining usages of the published state and then make publishedStateConsumer a Runnable
+        // TODO remove all remaining usages of the published state and migrate all callers to the Runnable variant, then remove this
         // see https://github.com/elastic/elasticsearch/issues/84415
         @Deprecated
         void success(Consumer<ClusterState> publishedStateConsumer);
@@ -174,7 +174,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          *                                completed as nodes ack the state update. If the publication fails then the failure
          *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
          */
-        // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        // TODO remove all remaining usages of the published state and migrate all callers to the Runnable variant, then remove this
         // see https://github.com/elastic/elasticsearch/issues/84415
         @Deprecated
         void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener);

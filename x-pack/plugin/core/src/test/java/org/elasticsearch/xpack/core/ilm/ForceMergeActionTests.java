@@ -66,11 +66,12 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(4, steps.size());
+        assertEquals(5, steps.size());
         BranchingStep firstStep = (BranchingStep) steps.get(0);
         CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
-        ForceMergeStep thirdStep = (ForceMergeStep) steps.get(2);
-        SegmentCountStep fourthStep = (SegmentCountStep) steps.get(3);
+        NoopStep thirdStep = (NoopStep) steps.get(2);
+        ForceMergeStep fourthStep = (ForceMergeStep) steps.get(3);
+        SegmentCountStep fifthStep = (SegmentCountStep) steps.get(4);
 
         assertThat(
             firstStep.getKey(),
@@ -78,10 +79,12 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         );
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep.getKey()));
-        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
-        assertThat(fourthStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(thirdStep.getNextStepKey(), equalTo(fifthStep.getKey()));
+        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertThat(fourthStep.getNextStepKey(), equalTo(fifthStep.getKey()));
+        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
     private void assertBestCompression(ForceMergeAction instance) {
@@ -89,14 +92,16 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(8, steps.size());
+        assertEquals(9, steps.size());
         List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()
             // skip the first branching step as `performAction` needs to be executed to evaluate the condition before the next step is
             // available
             .skip(1)
             .map(s -> new Tuple<>(s.getKey(), s.getNextStepKey()))
             .collect(Collectors.toList());
+
         StepKey checkNotWriteIndex = new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey noop = new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME);
         StepKey closeIndex = new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME);
         StepKey updateCodec = new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME);
         StepKey openIndex = new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME);
@@ -111,6 +116,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             stepKeys,
             contains(
                 new Tuple<>(checkNotWriteIndex, closeIndex),
+                new Tuple<>(noop, closeIndex),
                 new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(updateCodec, openIndex),
                 new Tuple<>(openIndex, waitForGreen),
@@ -120,8 +126,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             )
         );
 
-        UpdateSettingsStep fourthStep = (UpdateSettingsStep) steps.get(3);
-        assertThat(fourthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+        UpdateSettingsStep updateCodecStep = (UpdateSettingsStep) steps.get(4);
+        assertThat(updateCodecStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
     public void testMissingMaxNumSegments() throws IOException {

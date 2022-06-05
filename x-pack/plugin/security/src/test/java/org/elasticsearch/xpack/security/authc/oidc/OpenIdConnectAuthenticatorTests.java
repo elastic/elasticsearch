@@ -986,11 +986,14 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         try {
             appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
+            );
+            appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "header for bad jose exception",
+                    "JWT claims",
                     logger.getName(),
                     Level.DEBUG,
-                    "ID Token Header: " + headerString + ", Claims: " + jwtClaimsSet.toString()
+                    "ID Token Claims: " + jwtClaimsSet.toString()
                 )
             );
             final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();

@@ -256,6 +256,9 @@ public class OpenIdConnectAuthenticator {
         ActionListener<JWTClaimsSet> claimsListener
     ) {
         try {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("ID Token Header: {}, Claims: {}", idToken.getHeader(), idToken.getJWTClaimsSet());
+            }
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
@@ -289,7 +292,6 @@ public class OpenIdConnectAuthenticator {
                         })
                     );
             } else {
-                LOGGER.debug("ID Token header: {}", idToken.getHeader());
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
         } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {

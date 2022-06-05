@@ -86,6 +86,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.text.ParseException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
@@ -949,8 +950,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         );
     }
 
-    public void testLogIdTokenHeaderOnValidationFailure() throws URISyntaxException, BadJOSEException, JOSEException,
-        IllegalAccessException {
+    public void testLogIdTokenHeaderAndClaims() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException,
+        ParseException {
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
@@ -960,6 +961,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final IDTokenValidator validator = mock(IDTokenValidator.class);
         final BadJOSEException badJOSEException = new BadJOSEException("bad jose");
+        // The validator throws an exception so that the getUserClaims call terminates earlier.
+        // This is OK because this test is just for the logging message which is logged before
+        // the exception is thrown.
         when(validator.validate(any(), any())).thenThrow(badJOSEException);
 
         final OpenIdConnectAuthenticator openIdConnectAuthenticator = new OpenIdConnectAuthenticator(
@@ -977,19 +981,23 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         when(header.toString()).thenReturn(headerString);
         when(idToken.getHeader()).thenReturn(header);
 
+        final JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder().subject("sub1").audience("aud1").issuer("iss1").build();
+        when(idToken.getJWTClaimsSet()).thenReturn(jwtClaimsSet);
+
         try {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "header for bad jose exception",
                     logger.getName(),
                     Level.DEBUG,
-                    "ID Token header: " + headerString
+                    "ID Token Header: " + headerString + ", Claims: " + jwtClaimsSet.toString()
                 )
             );
             final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
             openIdConnectAuthenticator.getUserClaims(null, idToken, new Nonce(randomAlphaOfLength(10)), false, future);
             final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             assertThat(e.getCause(), is(badJOSEException));
+            // The logging message assertion is the only thing we actually care in this test
             appender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, appender);

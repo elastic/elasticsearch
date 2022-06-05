@@ -127,7 +127,10 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         );
 
         UpdateSettingsStep updateCodecStep = (UpdateSettingsStep) steps.get(4);
-        assertThat(updateCodecStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+        assertThat(
+            updateCodecStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()),
+            equalTo(CodecService.BEST_COMPRESSION_CODEC)
+        );
     }
 
     public void testMissingMaxNumSegments() throws IOException {

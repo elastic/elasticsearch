@@ -981,20 +981,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         when(header.toString()).thenReturn(headerString);
         when(idToken.getHeader()).thenReturn(header);
 
-        final JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder().subject("sub1").audience("aud1").issuer("iss1").build();
-        when(idToken.getJWTClaimsSet()).thenReturn(jwtClaimsSet);
-
         try {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
-            );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "JWT claims",
-                    logger.getName(),
-                    Level.DEBUG,
-                    "ID Token Claims: " + jwtClaimsSet.toString()
-                )
             );
             final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
             openIdConnectAuthenticator.getUserClaims(null, idToken, new Nonce(randomAlphaOfLength(10)), false, future);

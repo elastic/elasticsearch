@@ -258,7 +258,6 @@ public class OpenIdConnectAuthenticator {
         try {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("ID Token Header: {}", idToken.getHeader());
-                LOGGER.debug("ID Token Claims: {}", idToken.getJWTClaimsSet());
             }
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
             if (LOGGER.isTraceEnabled()) {

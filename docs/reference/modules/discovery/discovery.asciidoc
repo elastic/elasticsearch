@@ -51,12 +51,13 @@ the obstacles preventing these nodes from joining the cluster before addressing
 other issues. It will not be possible to solve any other issues reported by
 these nodes while they are unable to join the cluster.
 
-If the cluster has no master node for more than a few seconds, the master is
-unstable, or some nodes are unable to discover or join a stable master, then
-{es} will record information in its logs explaining why. If the problems
-persist for more than a few minutes, {es} will record additional information in
-its logs. To properly troubleshoot discovery and election problems, collect and
-analyse logs covering at least five minutes from all nodes.
+If the cluster has no elected master node for more than a few seconds, the
+master is unstable, or some nodes are unable to discover or join a stable
+master, then {es} will record information in its logs explaining why. If the
+problems persist for more than a few minutes, {es} will record additional
+information in its logs. To properly troubleshoot discovery and election
+problems, collect and analyse logs covering at least five minutes from all
+nodes.
 
 The following sections describe some common discovery and election problems.
 
@@ -66,7 +67,7 @@ When a node wins the master election, it logs a message containing
 `elected-as-master` and all nodes log a message containing
 `master node changed` identifying the new elected master node.
 
-If there is no elected master node and no node can win an election, then all
+If there is no elected master node and no node can win an election, all
 nodes will repeatedly log messages about the problem using a logger called
 `org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
 default, this happens every 10 seconds.

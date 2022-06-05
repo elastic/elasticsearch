@@ -12,7 +12,7 @@ package org.elasticsearch.xpack.core.ilm;
 public class NoopStep extends Step {
     public static final String NAME = "NOOP";
 
-    public ClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
+    public NoopStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 

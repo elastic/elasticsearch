@@ -139,11 +139,11 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         return this.mappings();
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> aliases() {
+    public Map<String, AliasMetadata> aliases() {
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> getAliases() {
+    public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
     }
 

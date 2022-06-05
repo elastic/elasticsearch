@@ -348,10 +348,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             .onResponse(
                                 new RolloverResponse(
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
-                                    // it's
-                                    // possible for the rollover names generated before the actual rollover to be different due to things
-                                    // like date
-                                    // resolution
+                                    // it's possible for the rollover names generated before the actual rollover to be different due to
+                                    // things like date resolution
                                     rolloverResult.sourceIndexName(),
                                     rolloverResult.rolloverIndexName(),
                                     postConditionResults,

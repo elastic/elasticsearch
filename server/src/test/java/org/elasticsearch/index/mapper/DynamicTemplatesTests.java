@@ -1077,4 +1077,243 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
               }
             }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
     }
+
+    private MapperService createDynamicTemplateNoSubobjects() throws IOException {
+        return createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "object");
+                        b.field("match", "metric");
+                        b.startObject("mapping").field("type", "object").field("subobjects", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    private static void assertNoSubobjects(MapperService mapperService) {
+        assertThat(mapperService.fieldType("foo.bar.baz").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.bar"));
+        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.min").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.max").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.metric"));
+        assertNull(mapperService.mappingLookup().objectMappers().get("foo.metric.count"));
+    }
+
+    public void testSubobjectsFalseFlatPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("foo.metric.count", 10);
+            b.field("foo.bar.baz", 10);
+            b.field("foo.metric.count.min", 4);
+            b.field("foo.metric.count.max", 15);
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
+
+    public void testSubobjectsFalseStructuredPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startObject("metric");
+                {
+                    b.field("count", 10);
+                    b.field("count.min", 4);
+                    b.field("count.max", 15);
+                }
+                b.endObject();
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
+
+    public void testSubobjectsFalseArrayOfObjects() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startArray("metric");
+                {
+                    b.startObject();
+                    {
+                        b.field("count", 10);
+                        b.field("count.min", 4);
+                        b.field("count.max", 15);
+                    }
+                    b.endObject();
+                    b.startObject();
+                    {
+                        b.field("count", 5);
+                        b.field("count.min", 3);
+                        b.field("count.max", 50);
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
+
+    public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("location");
+                {
+                    b.field("match", "location.with.dots");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "geo_point");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "location.with.dots" : {
+                "lat": 41.12,
+                "lon": -71.34
+              },
+              "service.time.max" : 1000
+            }
+            """));
+
+        assertNotNull(parsedDocument.rootDoc().getField("service.time.max"));
+        assertNotNull(parsedDocument.rootDoc().getField("location.with.dots"));
+        assertNotNull(parsedDocument.dynamicMappingsUpdate());
+        assertNotNull(parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("service.time.max"));
+        assertThat(parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("location.with.dots"), instanceOf(GeoPointFieldMapper.class));
+    }
+
+    public void testDynamicSubobjectsFalseDynamicFalse() throws Exception {
+        // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
+        // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("metrics");
+                {
+                    b.field("match", "metrics");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "object");
+                        b.field("dynamic", "false");
+                        b.startObject("properties");
+                        {
+                            b.startObject("service");
+                            {
+                                b.field("type", "object");
+                                b.field("subobjects", false);
+                                b.startObject("properties");
+                                {
+                                    b.startObject("time");
+                                    b.field("type", "keyword");
+                                    b.endObject();
+                                }
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : 10,
+                  "time.max" : 500
+                }
+              }
+            }
+            """));
+
+        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
+        assertNull(doc.rootDoc().getField("metrics.service.time.max"));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        ObjectMapper metrics = (ObjectMapper) doc.dynamicMappingsUpdate().getRoot().getMapper("metrics");
+        assertEquals(ObjectMapper.Dynamic.FALSE, metrics.dynamic());
+        assertEquals(1, metrics.mappers.size());
+        ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
+        assertFalse(service.subobjects());
+        assertEquals(1, service.mappers.size());
+        assertNotNull(service.getMapper("time"));
+    }
+
+    public void testSubobjectsFalseWithInnerNestedFromDynamicTemplate() throws IOException {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "metric");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "object").field("subobjects", false);
+                            b.startObject("properties");
+                            {
+                                b.startObject("time");
+                                b.field("type", "nested");
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertEquals(
+            "Failed to parse mapping: dynamic template [test] has invalid content [{\"match\":\"metric\",\"mapping\":"
+                + "{\"properties\":{\"time\":{\"type\":\"nested\"}},\"subobjects\":false,\"type\":\"object\"}}], "
+                + "attempted to validate it with the following match_mapping_type: [object, string, long, double, boolean, date, binary]",
+            exception.getMessage()
+        );
+        assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
+        assertEquals(
+            "Object [__dynamic__test] has subobjects set to false hence it does not support nested object [time]",
+            exception.getRootCause().getMessage()
+        );
+    }
 }

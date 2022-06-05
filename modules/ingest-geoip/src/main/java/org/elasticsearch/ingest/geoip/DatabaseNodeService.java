@@ -9,7 +9,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -60,6 +59,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
@@ -226,7 +227,7 @@ public final class DatabaseNodeService implements Closeable {
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception ex) {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
+                LOGGER.error((Supplier<?>) () -> "attempt to download database [" + name + "] failed", ex);
             }
         });
 
@@ -309,7 +310,7 @@ public final class DatabaseNodeService implements Closeable {
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve database [{}]", databaseName), failure);
+                LOGGER.error((Supplier<?>) () -> "failed to retrieve database [" + databaseName + "]", failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(databaseTmpGzFile);
@@ -344,11 +345,7 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         } catch (Exception e) {
                             LOGGER.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to reload pipeline [{}] after downloading of database [{}]",
-                                    id,
-                                    databaseFileName
-                                ),
+                                () -> format("failed to reload pipeline [%s] after downloading of database [%s]", id, databaseFileName),
                                 e
                             );
                         }
@@ -359,7 +356,7 @@ public final class DatabaseNodeService implements Closeable {
             }
             LOGGER.info("successfully loaded geoip database file [{}]", file.getFileName());
         } catch (Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
+            LOGGER.error((Supplier<?>) () -> "failed to update database [" + databaseFileName + "]", e);
         }
     }
 
@@ -371,7 +368,7 @@ public final class DatabaseNodeService implements Closeable {
                 assert existing != null;
                 existing.close(true);
             } catch (Exception e) {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to clean database [{}]", staleEntry), e);
+                LOGGER.error((Supplier<?>) () -> "failed to clean database [" + staleEntry + "]", e);
             }
         }
     }

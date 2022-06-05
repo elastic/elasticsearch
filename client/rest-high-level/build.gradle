@@ -65,3 +65,6 @@ tasks.named('splitPackagesAudit').configure {
 
 // we don't have tests now, as HLRC is in the process of being removed
 tasks.named("test").configure {enabled = false }
+
+// not published, so no need for javadoc
+tasks.named("javadoc").configure { enabled = false }

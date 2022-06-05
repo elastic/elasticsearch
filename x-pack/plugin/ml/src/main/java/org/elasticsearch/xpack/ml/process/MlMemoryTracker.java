@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -52,6 +51,8 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class keeps track of the memory requirement of ML jobs.
@@ -444,7 +445,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
-                .collect(Collectors.toList());
+                .toList();
             ActionListener<Void> refreshDataFrameAnalyticsJobs = ActionListener.wrap(
                 aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                 refreshComplete::onFailure
@@ -525,7 +526,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.info("[{}] not refreshing anomaly detector memory as node is shutting down", jobId);
+            logger.info(() -> "[" + jobId + "] not refreshing anomaly detector memory as node is shutting down");
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }
@@ -549,10 +550,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             }, e -> {
                 logIfNecessary(
                     () -> logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to calculate anomaly detector job established model memory requirement",
-                            jobId
-                        ),
+                        () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                         e
                     )
                 );
@@ -561,10 +559,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         } catch (Exception e) {
             logIfNecessary(
                 () -> logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to calculate anomaly detector job established model memory requirement",
-                        jobId
-                    ),
+                    () -> format("[%s] failed to calculate anomaly detector job established model memory requirement", jobId),
                     e
                 )
             );
@@ -593,12 +588,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 // during the memory refresh.
                 logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
-                logIfNecessary(
-                    () -> logger.error(
-                        () -> new ParameterizedMessage("[{}] failed to get anomaly detector job during ML memory update", jobId),
-                        e
-                    )
-                );
+                logIfNecessary(() -> logger.error(() -> "[" + jobId + "] failed to get anomaly detector job during ML memory update", e));
 
             }
             memoryRequirementByAnomalyDetectorJob.remove(jobId);

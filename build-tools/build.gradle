@@ -147,8 +147,6 @@ dependencies {
 }
 
 tasks.register("integTest", Test) {
-    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
-    systemProperty 'test.version_under_test', version
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
     useJUnitPlatform()

@@ -30,10 +30,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -226,9 +228,20 @@ public class Reindexer {
                 scriptService,
                 sslConfig
             );
+            this.destinationIndexIdMapper = destinationIndexMode(state).buildNoFieldDataIdFieldMapper();
+        }
+
+        private IndexMode destinationIndexMode(ClusterState state) {
             IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
-            IndexMode destMode = destMeta == null ? IndexMode.STANDARD : IndexSettings.MODE.get(destMeta.getSettings());
-            this.destinationIndexIdMapper = destMode.buildNoFieldDataIdFieldMapper();
+            if (destMeta != null) {
+                return IndexSettings.MODE.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            if (template == null) {
+                return IndexMode.STANDARD;
+            }
+            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
+            return IndexSettings.MODE.get(settings);
         }
 
         @Override

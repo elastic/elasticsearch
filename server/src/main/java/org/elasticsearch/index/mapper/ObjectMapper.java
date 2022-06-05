@@ -37,6 +37,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Defaults {
         public static final boolean ENABLED = true;
+        public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
     }
 
     public enum Dynamic {
@@ -61,23 +62,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class Builder extends Mapper.Builder {
-
+        protected final Explicit<Boolean> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
-        protected Explicit<Boolean> subobjects = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        public Builder(String name) {
+        public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
+            this.subobjects = subobjects;
         }
 
         public Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
-            return this;
-        }
-
-        public Builder subobjects(boolean subobjects) {
-            this.subobjects = Explicit.explicitBoolean(subobjects);
             return this;
         }
 
@@ -153,6 +149,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 if (subobjects.value() == false && mapper instanceof ObjectMapper) {
+                    // we already check this at parse time (parseProperties) but we need to check again
+                    // here as dynamic mapping updates don't go through parsing.
+                    // Nested can only be dynamically mapped through dynamic templates, which are parsed and validated earlier.
+                    assert mapper instanceof NestedObjectMapper == false;
                     throw new IllegalArgumentException(
                         "Object ["
                             + context.buildFullName(name)
@@ -186,7 +186,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name);
+            Explicit<Boolean> subobjects = parseSubobjects(node);
+            ObjectMapper.Builder builder = new Builder(name, subobjects);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -219,9 +220,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals("subobjects")) {
-                builder.subobjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".subobjects"));
-                return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
@@ -240,6 +238,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             }
             return false;
+        }
+
+        protected static Explicit<Boolean> parseSubobjects(Map<String, Object> node) {
+            Object subobjectsNode = node.remove("subobjects");
+            if (subobjectsNode != null) {
+                return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
+            }
+            return Explicit.IMPLICIT_TRUE;
         }
 
         protected static void parseProperties(
@@ -278,10 +284,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
+                        throw new MapperParsingException(
                             "Object ["
                                 + objBuilder.name()
                                 + "] has subobjects set to false hence it does not support inner object ["
+                                + fieldName
+                                + "]"
+                        );
+                    }
+                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Object ["
+                                + objBuilder.name()
+                                + "] has subobjects set to false hence it does not support nested object ["
                                 + fieldName
                                 + "]"
                         );
@@ -298,7 +313,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i], Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
@@ -367,9 +382,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
     public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
-        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
+        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), subobjects);
         builder.enabled = this.enabled;
-        builder.subobjects = this.subobjects;
         builder.dynamic = this.dynamic;
         return builder;
     }
@@ -515,7 +529,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects() == false) {
+        if (subobjects != Defaults.SUBOBJECTS) {
             builder.field("subobjects", subobjects.value());
         }
         if (custom != null) {

@@ -1,6 +1,0 @@
-pr: 85977
-summary: "[DRAFT] Do not autocreate alias for non-primary system indices"
-area: Infra/Core
-type: bug
-issues:
- - 85072

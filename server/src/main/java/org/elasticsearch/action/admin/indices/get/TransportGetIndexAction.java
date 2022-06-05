@@ -76,8 +76,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         final ClusterState state,
         final ActionListener<GetIndexResponse> listener
     ) {
-        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
+        Map<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
+        Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()

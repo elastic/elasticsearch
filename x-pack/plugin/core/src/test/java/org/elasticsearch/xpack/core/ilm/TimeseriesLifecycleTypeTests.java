@@ -62,17 +62,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = DeleteAction.WITH_SNAPSHOT_DELETE;
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
-<<<<<<< HEAD
-<<<<<<< HEAD
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null);
-=======
-    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, true, null);
-=======
-    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
->>>>>>> 0fe4a970070 (fix tests to avoid passing the readOnly parameter and remove readOnly tests)
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
->>>>>>> 47923508335 (fix existing tests to use either a randomBoolean or true for the readOnly parameter in ForceMergeAction)
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);

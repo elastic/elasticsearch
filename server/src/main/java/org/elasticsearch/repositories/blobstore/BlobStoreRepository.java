@@ -1020,7 +1020,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Listener that flattens out the delete results for each index
         final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetadataListener = new GroupedActionListener<>(
-            onAllShardsCompleted.map(res -> res.stream().flatMap(Collection::stream).toList()),
+            onAllShardsCompleted.map(res -> res.stream()
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .toList()),
             indices.size()
         );
 

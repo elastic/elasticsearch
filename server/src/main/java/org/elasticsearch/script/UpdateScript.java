@@ -157,11 +157,22 @@ public abstract class UpdateScript {
             return store.getRouting();
         }
 
-        public Long getVersion() {
+        public long getVersion() {
             if (isInsert) {
                 throw new IllegalStateException("version unavailable for inserts");
             }
-            return store.getVersion();
+            Long version = store.getVersion();
+            if (version == null) {
+                return Long.MIN_VALUE;
+            }
+            return version;
+        }
+
+        public boolean hasVersion() {
+            if (isInsert) {
+                throw new IllegalStateException("version unavailable for inserts");
+            }
+            return store.getVersion() == null;
         }
 
         public List<String> validOps() {

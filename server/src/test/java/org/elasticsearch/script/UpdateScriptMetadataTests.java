@@ -61,7 +61,7 @@ public class UpdateScriptMetadataTests extends ESTestCase {
     public void testUpdateEnablesGetters() {
         update();
         assertEquals("myRouting", meta.getRouting());
-        assertEquals(Long.valueOf(5L), meta.getVersion());
+        assertEquals(5, meta.getVersion());
         assertEquals("myType", meta.getType());
     }
 

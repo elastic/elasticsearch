@@ -34,86 +34,14 @@ public class BulkMetadataTests extends ESTestCase {
         ctx = metadata.getCtx();
     }
 
-    public void testIndexChanged() {
-        assertFalse(metadata.indexChanged());
-
-        ctx.put(MapBackedMetadata.INDEX, INDEX);
-        assertFalse(metadata.indexChanged());
-
-        ctx.remove(MapBackedMetadata.INDEX);
-        assertTrue(metadata.indexChanged());
-        assertNull(metadata.getIndex());
-
-        ctx.put(MapBackedMetadata.INDEX, INDEX);
-        assertFalse(metadata.indexChanged());
-
-        ctx.put(MapBackedMetadata.INDEX, "myIndex2");
-        assertTrue(metadata.indexChanged());
-    }
-
-    public void testIdChanged() {
-        assertFalse(metadata.idChanged());
-
-        ctx.put(MapBackedMetadata.ID, ID);
-        assertFalse(metadata.idChanged());
-
-        ctx.remove(MapBackedMetadata.ID);
-        assertTrue(metadata.idChanged());
-        assertNull(metadata.getId());
-
-        ctx.put(MapBackedMetadata.ID, ID);
-        assertFalse(metadata.idChanged());
-
-        ctx.put(MapBackedMetadata.ID, "myId2");
-        assertTrue(metadata.idChanged());
-    }
-
-    public void testRoutingChanged() {
-        assertFalse(metadata.routingChanged());
-
-        ctx.put(MapBackedMetadata.ROUTING, ROUTING);
-        assertFalse(metadata.routingChanged());
-
-        ctx.remove(MapBackedMetadata.ROUTING);
-        assertTrue(metadata.routingChanged());
-        assertNull(metadata.getRouting());
-
-        ctx.put(MapBackedMetadata.ROUTING, ROUTING);
-        assertFalse(metadata.routingChanged());
-
-        ctx.put(MapBackedMetadata.ROUTING, "myRouting2");
-        assertTrue(metadata.routingChanged());
-    }
-
-    public void testVersionChanged() {
-        assertFalse(metadata.versionChanged());
-
-        ctx.put(MapBackedMetadata.VERSION, VERSION);
-        assertFalse(metadata.versionChanged());
-
-        ctx.remove(MapBackedMetadata.VERSION);
-        assertTrue(metadata.versionChanged());
-        assertNull(metadata.getVersion());
-
-        ctx.put(MapBackedMetadata.VERSION, VERSION);
-        assertFalse(metadata.versionChanged());
-
-        ctx.put(MapBackedMetadata.VERSION, VERSION + 1);
-        assertTrue(metadata.versionChanged());
-
-    }
-
     public void testOp() {
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
 
         // Index has already been set
         ctx.put(MapBackedMetadata.OP, OP.name);
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
         reset();
         metadata.setOp(Op.INDEX);
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
         assertEquals("index", ctx.get(MapBackedMetadata.OP));
 
@@ -121,11 +49,9 @@ public class BulkMetadataTests extends ESTestCase {
 
         // NOOP works
         ctx.put(MapBackedMetadata.OP, Op.NOOP.name);
-        assertTrue(metadata.opChanged());
         assertEquals(Op.NOOP, metadata.getOp());
         reset();
         metadata.setOp(Op.NOOP);
-        assertTrue(metadata.opChanged());
         assertEquals(Op.NOOP, metadata.getOp());
         assertEquals("noop", ctx.get(MapBackedMetadata.OP));
 
@@ -133,11 +59,9 @@ public class BulkMetadataTests extends ESTestCase {
 
         // Delete works
         ctx.put(MapBackedMetadata.OP, Op.DELETE.name);
-        assertTrue(metadata.opChanged());
         assertEquals(Op.DELETE, metadata.getOp());
         reset();
         metadata.setOp(Op.DELETE);
-        assertTrue(metadata.opChanged());
         assertEquals(Op.DELETE, metadata.getOp());
         assertEquals("delete", ctx.get(MapBackedMetadata.OP));
 
@@ -146,21 +70,18 @@ public class BulkMetadataTests extends ESTestCase {
         // null not allowed via setOp
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(null));
         assertEquals("operation must be non-null, valid operations are [noop, index, delete]", err.getMessage());
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
         assertEquals("index", ctx.get(MapBackedMetadata.OP));
 
         // create not allowed via setOp
         err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(Op.CREATE));
         assertEquals("Operation type [create] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
         assertEquals("index", ctx.get(MapBackedMetadata.OP));
 
         // unknown not allowed via setOp
         err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(Op.UNKOWN));
         assertEquals("Operation type [unknown] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-        assertFalse(metadata.opChanged());
         assertEquals(Op.INDEX, metadata.getOp());
         assertEquals("index", ctx.get(MapBackedMetadata.OP));
 

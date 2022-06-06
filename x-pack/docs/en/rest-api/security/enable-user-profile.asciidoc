@@ -45,11 +45,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 ==== {api-examples-title}
 
 The following request enables the user profile for a `uid` matching
-`u_kd2JMqwUQwSCCOxMv7M1vw`:
+`u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0`:
 
 [source,console]
 ----
-POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_enable
+POST /_security/profile/u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0/_enable
 ----
-// TEST[skip:uid is random and no way to ensure this uid exists]
+// TEST[setup:user_profiles]
 

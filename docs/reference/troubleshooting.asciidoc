@@ -46,7 +46,7 @@ include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 
-include::troubleshooting/data/increase-node-capacity.asciidoc[]
+include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 

@@ -1,5 +1,5 @@
-[[increase-node-capacity]]
-== Not enough nodes to place all shard replicas
+[[increase-tier-capacity]]
+== Not enough nodes to allocate all shard replicas
 
 Elasticsearch tries to keep copies of the data (index shard replicas) on different nodes to protect against
 hardware failure and increase the capacity to serve requests like searching for documents. If the index has
@@ -12,7 +12,7 @@ in use), or by reducing the
 
 In order to fix this follow the next steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/increase-node-capacity-widget.asciidoc[]
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/increase-tier-capacity-widget.asciidoc[]
 
 
 

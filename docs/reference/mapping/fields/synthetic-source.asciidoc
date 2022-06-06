@@ -23,8 +23,16 @@ slower than saving the source precisely and loading it, but it saves a lot of sp
 It also modifies the `_source` and is only supported if the index is entirely made up
 of the following field types:
 
+* <<numeric-synthetic-source,`byte`>>
+* <<numeric-synthetic-source,`double`>>
+* <<numeric-synthetic-source,`float`>>
+* <<numeric-synthetic-source,`half_float`>>
+* <<numeric-synthetic-source,`integer`>>
 * <<ip-synthetic-source,`ip`>>
 * <<keyword-synthetic-source,`keyword`>>
+* <<numeric-synthetic-source,`long`>>
+* <<numeric-synthetic-source,`scaled_float`>>
+* <<numeric-synthetic-source,`short`>>
 
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications

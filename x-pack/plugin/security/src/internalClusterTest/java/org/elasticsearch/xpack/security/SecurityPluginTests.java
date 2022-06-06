@@ -132,8 +132,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
 
     public static class DummyRealmAuthorizationEngineExtension implements SecurityExtension {
 
-        DummyRealmAuthorizationEngineExtension() {
-        }
+        DummyRealmAuthorizationEngineExtension() {}
 
         @Override
         public Map<String, Realm.Factory> getRealms(SecurityComponents components) {

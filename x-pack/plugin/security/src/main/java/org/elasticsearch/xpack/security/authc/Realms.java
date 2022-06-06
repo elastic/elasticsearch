@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -360,19 +359,14 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
     protected void doClose() throws IOException {
-        IOUtils.close(allConfiguredRealms.stream()
-            .filter(r -> r instanceof Releasable)
-            .map(r -> (Releasable) r)
-            .toList());
+        IOUtils.close(allConfiguredRealms.stream().filter(r -> r instanceof Releasable).map(r -> (Releasable) r).toList());
     }
 
     private void maybeAddBasicRealms(List<Realm> realms, List<RealmConfig> realmConfigs) throws Exception {

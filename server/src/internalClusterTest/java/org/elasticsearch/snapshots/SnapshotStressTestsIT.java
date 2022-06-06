@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -86,7 +85,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("have not necessarily written to all repositories");
     }
 
-    private static Set<String> nodeNames(ImmutableOpenMap<String, DiscoveryNode> nodesMap) {
+    private static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
         return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
 

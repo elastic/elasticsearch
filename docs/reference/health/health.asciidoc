@@ -132,7 +132,7 @@ is controlled by the worst component status.
 =====
 `status`::
     (Optional, string) Health status of the component, based on the aggregated status of all indicators
-    in the component. If the health of a specific indicator is being requested, this component level status
+    in the component. If only the health of a specific indicator is being requested, this component level status
     will be omitted. Statuses are:
 
     `green`:::

@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -250,7 +249,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         final RoutingInfo stoppedRoutingInfo = new RoutingInfo(
             routingInfo.get().getCurrentAllocations(),
             routingInfo.get().getTargetAllocations(),
-            new RoutingStateAndReason(RoutingState.STOPPED, reason)
+            RoutingState.STOPPED,
+            reason
         );
 
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
@@ -265,7 +265,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             new RoutingInfo(
                 routingInfo.get().getCurrentAllocations(),
                 routingInfo.get().getTargetAllocations(),
-                new RoutingStateAndReason(RoutingState.STOPPING, reason)
+                RoutingState.STOPPING,
+                reason
             ),
             ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -437,7 +438,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         new RoutingInfo(
                             threadSettings.numAllocations(),
                             routingInfo.getTargetAllocations(),
-                            routingInfo.getStateAndReason()
+                            routingInfo.getState(),
+                            routingInfo.getReason()
                         ),
                         ActionListener.noop()
                     );
@@ -505,11 +507,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         updateStoredState(
             modelId,
-            new RoutingInfo(
-                routingInfo.get().getCurrentAllocations(),
-                routingInfo.get().getTargetAllocations(),
-                new RoutingStateAndReason(RoutingState.STARTED, "")
-            ),
+            new RoutingInfo(routingInfo.get().getCurrentAllocations(), routingInfo.get().getTargetAllocations(), RoutingState.STARTED, ""),
             ActionListener.wrap(r -> logger.debug(() -> "[" + modelId + "] model loaded and accepting routes"), e -> {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -586,7 +584,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 new RoutingInfo(
                     routingInfo.get().getCurrentAllocations(),
                     routingInfo.get().getTargetAllocations(),
-                    new RoutingStateAndReason(RoutingState.FAILED, ExceptionsHelper.unwrapCause(ex).getMessage())
+                    RoutingState.FAILED,
+                    ExceptionsHelper.unwrapCause(ex).getMessage()
                 ),
                 ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
             );
@@ -604,7 +603,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             new RoutingInfo(
                 routingInfo.get().getCurrentAllocations(),
                 routingInfo.get().getTargetAllocations(),
-                new RoutingStateAndReason(RoutingState.FAILED, reason)
+                RoutingState.FAILED,
+                reason
             ),
             ActionListener.wrap(
                 r -> logger.debug(

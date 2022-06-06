@@ -33,32 +33,35 @@ public class RoutingInfoTests extends AbstractSerializingTestCase<RoutingInfo> {
     }
 
     public static RoutingInfo randomInstance() {
-        return new RoutingInfo(randomIntBetween(1, 10), randomIntBetween(1, 10), RoutingStateAndReasonTests.randomInstance());
+        return new RoutingInfo(
+            randomIntBetween(1, 10),
+            randomIntBetween(1, 10),
+            randomFrom(RoutingState.values()),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
     public static RoutingInfo randomInstance(RoutingState state) {
-        return new RoutingInfo(randomIntBetween(1, 10), randomIntBetween(1, 10), new RoutingStateAndReason(state, randomAlphaOfLength(10)));
+        return new RoutingInfo(randomIntBetween(1, 10), randomIntBetween(1, 10), state, randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     public void testIsRoutable_GivenNonStarted() {
         RoutingInfo routingInfo = new RoutingInfo(
             1,
             1,
-            new RoutingStateAndReason(
-                randomFrom(RoutingState.STARTING, RoutingState.FAILED, RoutingState.STOPPING, RoutingState.STOPPED),
-                ""
-            )
+            randomFrom(RoutingState.STARTING, RoutingState.FAILED, RoutingState.STOPPING, RoutingState.STOPPED),
+            ""
         );
         assertThat(routingInfo.isRoutable(), is(false));
     }
 
     public void testIsRoutable_GivenStartedWithZeroAllocations() {
-        RoutingInfo routingInfo = new RoutingInfo(0, 1, new RoutingStateAndReason(RoutingState.STARTED, ""));
+        RoutingInfo routingInfo = new RoutingInfo(0, 1, RoutingState.STARTED, "");
         assertThat(routingInfo.isRoutable(), is(false));
     }
 
     public void testIsRoutable_GivenStartedWithNonZeroAllocations() {
-        RoutingInfo routingInfo = new RoutingInfo(randomIntBetween(1, 10), 1, new RoutingStateAndReason(RoutingState.STARTED, ""));
+        RoutingInfo routingInfo = new RoutingInfo(randomIntBetween(1, 10), 1, RoutingState.STARTED, "");
         assertThat(routingInfo.isRoutable(), is(true));
     }
 }

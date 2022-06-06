@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
@@ -162,18 +161,20 @@ class TrainedModelAssignmentRebalancer {
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : assignments.entrySet()) {
                 if (existingAssignment != null && existingAssignment.isRoutedToNode(assignment.getKey().id())) {
                     RoutingInfo existingRoutingInfo = existingAssignment.getNodeRoutingTable().get(assignment.getKey().id());
-                    RoutingStateAndReason stateAndReason = existingRoutingInfo.getStateAndReason();
-                    if (stateAndReason.getState() == RoutingState.FAILED) {
-                        stateAndReason = new RoutingStateAndReason(RoutingState.STARTING, "");
+                    RoutingState state = existingRoutingInfo.getState();
+                    String reason = existingRoutingInfo.getReason();
+                    if (state == RoutingState.FAILED) {
+                        state = RoutingState.STARTING;
+                        reason = "";
                     }
                     assignmentBuilder.addRoutingEntry(
                         assignment.getKey().id(),
-                        new RoutingInfo(existingRoutingInfo.getCurrentAllocations(), assignment.getValue(), stateAndReason)
+                        new RoutingInfo(existingRoutingInfo.getCurrentAllocations(), assignment.getValue(), state, reason)
                     );
                 } else {
                     assignmentBuilder.addRoutingEntry(
                         assignment.getKey().id(),
-                        new RoutingInfo(assignment.getValue(), assignment.getValue(), new RoutingStateAndReason(RoutingState.STARTING, ""))
+                        new RoutingInfo(assignment.getValue(), assignment.getValue(), RoutingState.STARTING, "")
                     );
                 }
             }

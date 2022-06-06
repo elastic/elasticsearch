@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutin
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -107,11 +106,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId,
                                 TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
-                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, "")))
-                                    .addRoutingEntry(
-                                        startedNode,
-                                        new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                    )
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                    .addRoutingEntry(startedNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                             )
                             .build()
                     )
@@ -156,7 +152,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                     "missingNode",
                     modelId,
-                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, ""))
+                    new RoutingInfo(1, 1, RoutingState.STARTED, "")
                 )
             )
         );
@@ -167,7 +163,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                     nodeId,
                     "missingModel",
-                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, ""))
+                    new RoutingInfo(1, 1, RoutingState.STARTED, "")
                 )
             )
         );
@@ -180,7 +176,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                 "missingNode",
                 modelId,
-                new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STOPPED, ""))
+                new RoutingInfo(1, 1, RoutingState.STOPPED, "")
             )
         );
         TrainedModelAssignmentClusterService.updateModelRoutingTable(
@@ -188,17 +184,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                 nodeId,
                 "missingModel",
-                new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STOPPED, ""))
+                new RoutingInfo(1, 1, RoutingState.STOPPED, "")
             )
         );
 
         ClusterState updateState = TrainedModelAssignmentClusterService.updateModelRoutingTable(
             newState,
-            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
-                nodeId,
-                modelId,
-                new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STOPPED, ""))
-            )
+            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(nodeId, modelId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
         );
         assertThat(
             TrainedModelAssignmentMetadata.fromState(updateState).getModelAssignment(modelId).getNodeRoutingTable(),
@@ -575,22 +567,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                         .addNewAssignment(
                                             model1,
                                             TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
                                             TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
-                                                .addRoutingEntry(
-                                                    mlNode2,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                                .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .build()
                                 )
@@ -606,22 +589,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                         .addNewAssignment(
                                             model1,
                                             TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
                                             TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
-                                                .addRoutingEntry(
-                                                    mlNode2,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                                .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .build()
                                 )
@@ -647,22 +621,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                         .addNewAssignment(
                                             model1,
                                             TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
                                             TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
-                                                .addRoutingEntry(
-                                                    mlNode2,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                                .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                                 .stopAssignment("test")
                                         )
                                         .build()
@@ -679,22 +644,13 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                         .addNewAssignment(
                                             model1,
                                             TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .addNewAssignment(
                                             model2,
                                             TrainedModelAssignment.Builder.empty(newParams("model-2", 100))
-                                                .addRoutingEntry(
-                                                    mlNode1,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
-                                                .addRoutingEntry(
-                                                    mlNode2,
-                                                    new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
-                                                )
+                                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                                .addRoutingEntry(mlNode2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         )
                                         .build()
                                 )
@@ -720,9 +676,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .addNewAssignment(
                 model1,
                 TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                    .addRoutingEntry(mlNode1.getId(), new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, "")))
+                    .addRoutingEntry(mlNode1.getId(), new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                     .updateExistingRoutingEntry(mlNode1.getId(), started())
-                    .addRoutingEntry(mlNode2.getId(), new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, "")))
+                    .addRoutingEntry(mlNode2.getId(), new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                     .updateExistingRoutingEntry(mlNode2.getId(), started())
             )
             .build();
@@ -981,7 +937,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static RoutingInfo started() {
-        return new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, ""));
+        return new RoutingInfo(1, 1, RoutingState.STARTED, "");
     }
 
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {

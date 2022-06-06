@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -181,8 +180,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .addNewAssignment(
                 previousModelId,
                 TrainedModelAssignment.Builder.empty(newParams(previousModelId, 1024L, 3, 2))
-                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, new RoutingStateAndReason(RoutingState.STARTED, "")))
-                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")))
+                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
@@ -231,13 +230,13 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .addNewAssignment(
                 previousModel1Id,
                 TrainedModelAssignment.Builder.empty(newParams(previousModel1Id, 1024L, 3, 2))
-                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, new RoutingStateAndReason(RoutingState.STARTED, "")))
-                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")))
+                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 previousModel2Id,
                 TrainedModelAssignment.Builder.empty(newParams(previousModel2Id, 1024L, 4, 1))
-                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
@@ -291,13 +290,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .addNewAssignment(
                 previousModel1Id,
                 TrainedModelAssignment.Builder.empty(newParams(previousModel1Id, 1024L, 3, 2))
-                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, new RoutingStateAndReason(RoutingState.STARTED, "")))
-                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")))
+                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
                 previousModel2Id,
                 TrainedModelAssignment.Builder.empty(newParams(previousModel2Id, 1024L, 4, 1))
-                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
@@ -350,7 +350,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .addNewAssignment(
                 modelId,
                 TrainedModelAssignment.Builder.empty(newParams(modelId, 1024L, 1, 1))
-                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.FAILED, "some error")))
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.FAILED, "some error"))
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();

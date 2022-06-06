@@ -110,44 +110,44 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
 
     public void testCalculateAllocationStatus_GivenStoppingAssignment() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(1, 2, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(2, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 1, RoutingState.STARTED, ""));
         assertThat(builder.stopAssignment("test").build().calculateAllocationStatus().isEmpty(), is(true));
     }
 
     public void testCalculateAllocationStatus_GivenPartiallyAllocated() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(1, 2, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(2, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, new RoutingStateAndReason(RoutingState.STARTING, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTING, ""));
         assertThat(builder.build().calculateAllocationStatus().get(), equalTo(new AllocationStatus(3, 5)));
     }
 
     public void testCalculateAllocationStatus_GivenFullyAllocated() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         assertThat(builder.build().calculateAllocationStatus().get(), equalTo(new AllocationStatus(5, 5)));
     }
 
     public void testCalculateAssignmentState_GivenNoStartedAssignments() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTING, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTING, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTING, ""));
         assertThat(builder.calculateAssignmentState(), equalTo(AssignmentState.STARTING));
     }
 
     public void testCalculateAssignmentState_GivenOneStartedAssignment() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTING, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTING, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         assertThat(builder.calculateAssignmentState(), equalTo(AssignmentState.STARTED));
     }
 
     public void testCalculateAndSetAssignmentState_GivenStoppingAssignment() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         assertThat(
             builder.stopAssignment("test").calculateAndSetAssignmentState().build().getAssignmentState(),
             equalTo(AssignmentState.STOPPING)
@@ -156,8 +156,8 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
 
     public void testSelectRandomStartedNodeWeighedOnAllocations_GivenNoStartedAllocations() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTING, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STOPPED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTING, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STOPPED, ""));
         TrainedModelAssignment assignment = builder.build();
 
         assertThat(assignment.selectRandomStartedNodeWeighedOnAllocations().isEmpty(), is(true));
@@ -165,7 +165,7 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
 
     public void testSelectRandomStartedNodeWeighedOnAllocations_GivenSingleStartedNode() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
-        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
         Optional<String> node = assignment.selectRandomStartedNodeWeighedOnAllocations();
@@ -176,9 +176,9 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
 
     public void testSelectRandomStartedNodeWeighedOnAllocations_GivenMultipleStartedNodes() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
-        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, new RoutingStateAndReason(RoutingState.STARTED, "")));
-        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, new RoutingStateAndReason(RoutingState.STARTED, "")));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
         final long selectionCount = 10000;

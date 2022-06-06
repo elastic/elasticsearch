@@ -27,15 +27,17 @@ public class RoutingInfo implements ToXContentObject, Writeable {
     private static final ParseField CURRENT_ALLOCATIONS = new ParseField("current_allocations");
     private static final ParseField TARGET_ALLOCATIONS = new ParseField("target_allocations");
     private static final ParseField ROUTING_STATE = new ParseField("routing_state");
+    private static final ParseField REASON = new ParseField("reason");
 
     private static final ConstructingObjectParser<RoutingInfo, Void> PARSER = new ConstructingObjectParser<>(
         "trained_model_routing_state",
-        a -> new RoutingInfo((Integer) a[0], (Integer) a[1], (RoutingStateAndReason) a[2])
+        a -> new RoutingInfo((Integer) a[0], (Integer) a[1], RoutingState.fromString((String) a[2]), (String) a[3])
     );
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), CURRENT_ALLOCATIONS);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TARGET_ALLOCATIONS);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RoutingStateAndReason.fromXContent(p), ROUTING_STATE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ROUTING_STATE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 
     public static RoutingInfo fromXContent(XContentParser parser) {
@@ -44,17 +46,24 @@ public class RoutingInfo implements ToXContentObject, Writeable {
 
     private final int currentAllocations;
     private final int targetAllocations;
-    private final RoutingStateAndReason stateAndReason;
+    private final RoutingState state;
+    private final String reason;
 
     // There may be objects in cluster state prior to 8.4 that do not contain values for currentAllocations and targetAllocations.
-    private RoutingInfo(@Nullable Integer currentAllocations, @Nullable Integer targetAllocations, RoutingStateAndReason stateAndReason) {
-        this(currentAllocations == null ? 0 : currentAllocations, targetAllocations == null ? 0 : targetAllocations, stateAndReason);
+    private RoutingInfo(
+        @Nullable Integer currentAllocations,
+        @Nullable Integer targetAllocations,
+        RoutingState state,
+        @Nullable String reason
+    ) {
+        this(currentAllocations == null ? 0 : currentAllocations, targetAllocations == null ? 0 : targetAllocations, state, reason);
     }
 
-    public RoutingInfo(int currentAllocations, int targetAllocations, RoutingStateAndReason stateAndReason) {
+    public RoutingInfo(int currentAllocations, int targetAllocations, RoutingState state, String reason) {
         this.currentAllocations = currentAllocations;
         this.targetAllocations = targetAllocations;
-        this.stateAndReason = ExceptionsHelper.requireNonNull(stateAndReason, ROUTING_STATE);
+        this.state = ExceptionsHelper.requireNonNull(state, ROUTING_STATE);
+        this.reason = reason;
     }
 
     public RoutingInfo(StreamInput in) throws IOException {
@@ -65,7 +74,8 @@ public class RoutingInfo implements ToXContentObject, Writeable {
             this.currentAllocations = 0;
             this.targetAllocations = 0;
         }
-        this.stateAndReason = new RoutingStateAndReason(in);
+        this.state = in.readEnum(RoutingState.class);
+        this.reason = in.readOptionalString();
     }
 
     public int getCurrentAllocations() {
@@ -76,17 +86,13 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         return targetAllocations;
     }
 
-    public RoutingStateAndReason getStateAndReason() {
-        return stateAndReason;
-    }
-
     public RoutingState getState() {
-        return stateAndReason.getState();
+        return state;
     }
 
     @Nullable
     public String getReason() {
-        return stateAndReason.getReason();
+        return reason;
     }
 
     @Override
@@ -95,7 +101,8 @@ public class RoutingInfo implements ToXContentObject, Writeable {
             out.writeVInt(currentAllocations);
             out.writeVInt(targetAllocations);
         }
-        stateAndReason.writeTo(out);
+        out.writeEnum(state);
+        out.writeOptionalString(reason);
     }
 
     @Override
@@ -103,7 +110,10 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(CURRENT_ALLOCATIONS.getPreferredName(), currentAllocations);
         builder.field(TARGET_ALLOCATIONS.getPreferredName(), targetAllocations);
-        builder.field(ROUTING_STATE.getPreferredName(), stateAndReason);
+        builder.field(ROUTING_STATE.getPreferredName(), state);
+        if (reason != null) {
+            builder.field(REASON.getPreferredName(), reason);
+        }
         builder.endObject();
         return builder;
     }
@@ -115,12 +125,13 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         RoutingInfo that = (RoutingInfo) o;
         return currentAllocations == that.currentAllocations
             && targetAllocations == that.targetAllocations
-            && Objects.equals(stateAndReason, that.stateAndReason);
+            && state == that.state
+            && Objects.equals(reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentAllocations, targetAllocations, stateAndReason);
+        return Objects.hash(currentAllocations, targetAllocations, state, reason);
     }
 
     @Override
@@ -131,14 +142,14 @@ public class RoutingInfo implements ToXContentObject, Writeable {
             + ", target_allocations="
             + targetAllocations
             + ", reason='"
-            + stateAndReason.getReason()
+            + reason
             + '\''
             + ", state="
-            + stateAndReason.getState()
+            + state
             + '}';
     }
 
     public boolean isRoutable() {
-        return stateAndReason.getState() == RoutingState.STARTED && currentAllocations > 0;
+        return state == RoutingState.STARTED && currentAllocations > 0;
     }
 }

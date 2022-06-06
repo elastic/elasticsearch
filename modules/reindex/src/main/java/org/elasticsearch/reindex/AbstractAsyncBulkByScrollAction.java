@@ -839,6 +839,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public RequestWrapper<?> apply(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
             if (script == null) {
                 return request;

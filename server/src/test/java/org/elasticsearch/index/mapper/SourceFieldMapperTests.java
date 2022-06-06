@@ -179,6 +179,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").field("enabled", false).field("synthetic", true).endObject())
             )
         );
-        assertThat(e.getMessage(), containsString("_source may not be disabled when setting [synthetic: false]"));
+        assertThat(e.getMessage(), containsString("_source may not be disabled when setting [synthetic: true]"));
     }
 }

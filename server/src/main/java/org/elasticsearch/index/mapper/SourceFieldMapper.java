@@ -100,7 +100,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return DEFAULT;
             }
             if (enabled.getValue() == false && synthetic.getValue()) {
-                throw new IllegalArgumentException("_source may not be disabled when setting [synthetic: false]");
+                throw new IllegalArgumentException("_source may not be disabled when setting [synthetic: true]");
             }
             return new SourceFieldMapper(
                 enabled.getValue(),

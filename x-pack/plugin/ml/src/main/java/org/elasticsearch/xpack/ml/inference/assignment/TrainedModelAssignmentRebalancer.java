@@ -106,6 +106,8 @@ class TrainedModelAssignmentRebalancer {
             Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
                 .entrySet()
                 .stream()
+                // Filter out allocation without current and target allocations as they are from before using the rebalancer
+                .filter(e -> e.getValue().getCurrentAllocations() > 0 && e.getValue().getTargetAllocations() > 0)
                 .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
             return new AssignmentPlan.Model(

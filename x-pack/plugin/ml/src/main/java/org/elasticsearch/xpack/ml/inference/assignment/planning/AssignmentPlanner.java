@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
@@ -46,6 +47,7 @@ public class AssignmentPlanner {
     }
 
     public AssignmentPlan computePlan() {
+        logger.debug(() -> new ParameterizedMessage("Computing plan for nodes = {}; models = {}", nodes, models));
         AssignmentPlan planKeepingOneAllocationOnPreviousAssignments = solveKeepingOneAllocationOnPreviousAssignments();
         AssignmentPlan bestPlan = planKeepingOneAllocationOnPreviousAssignments.satisfiesPreviousAssignments()
             ? planKeepingOneAllocationOnPreviousAssignments

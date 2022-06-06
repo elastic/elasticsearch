@@ -416,7 +416,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             .filter(a -> a.isRoutedToNode(nodeId))
             .filter(a -> {
                 RoutingInfo routingInfo = a.getNodeRoutingTable().get(nodeId);
-                return routingInfo.getCurrentAllocations() != routingInfo.getTargetAllocations();
+                return routingInfo.getState() == RoutingState.STARTED
+                    && routingInfo.getCurrentAllocations() != routingInfo.getTargetAllocations();
             })
             .toList();
 
@@ -518,9 +519,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         ),
                         e
                     );
+                } else {
+                    // this is an unexpected error
+                    logger.warn(() -> "[" + modelId + "] model loaded but failed to start accepting routes", e);
                 }
-                // this is an unexpected error
-                logger.warn(() -> "[" + modelId + "] model loaded but failed to start accepting routes", e);
             })
         );
     }

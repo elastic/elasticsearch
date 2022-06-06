@@ -282,6 +282,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
             TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
             try {
                 rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);

@@ -44,8 +44,8 @@ setup:
 ---
 "Field mapping stats":
   - skip:
-      version: " - 8.2.99"
-      reason: "Cluster mappings stats for indexed dense vector was added in 8.3"
+      version: " - 8.3.99"
+      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }

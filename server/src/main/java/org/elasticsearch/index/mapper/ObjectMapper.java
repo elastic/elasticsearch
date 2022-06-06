@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -575,6 +577,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         });
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
+            public Stream<String> requiredStoredFields() {
+                return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::requiredStoredFields);
+            }
+
+            @Override
             public Leaf leaf(LeafReader reader) throws IOException {
                 List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
@@ -589,9 +596,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     @Override
-                    public boolean hasValue() {
+                    public boolean hasValue(FieldsVisitor fieldsVisitor) {
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
+                            if (leaf.hasValue(fieldsVisitor)) {
                                 return true;
                             }
                         }
@@ -599,15 +606,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     @Override
-                    public void load(XContentBuilder b) throws IOException {
+                    public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
                         boolean started = false;
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
+                            if (leaf.hasValue(fieldsVisitor)) {
                                 if (false == started) {
                                     started = true;
                                     startSyntheticField(b);
                                 }
-                                leaf.load(b);
+                                leaf.load(fieldsVisitor, b);
                             }
                         }
                         if (started) {

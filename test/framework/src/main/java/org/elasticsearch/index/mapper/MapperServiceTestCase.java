@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -83,6 +86,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -655,7 +659,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
-                String syntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                String syntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
                 roundTripSyntheticSource(mapper, syntheticSource, reader);
                 return syntheticSource;
             }
@@ -681,11 +686,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
-                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader)).source(null, 0).utf8ToString();
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                String roundTripSyntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }
         }
+    }
+
+    private FieldsVisitor storedFieldsVisitor(LeafReader leafReader, SourceLoader loader) throws IOException {
+        Set<String> fields = loader.requiredStoredFields().collect(toSet());
+        if (fields.isEmpty()) {
+            return null;
+        }
+        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fields, true);
+        leafReader.document(0, fieldsVisitor);
+        return fieldsVisitor;
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

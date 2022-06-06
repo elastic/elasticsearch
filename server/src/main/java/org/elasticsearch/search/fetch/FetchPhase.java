@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -109,8 +110,9 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
+        SourceLoader sourceLoader = context.getSearchExecutionContext().newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields, sourceLoader);
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
@@ -125,7 +127,6 @@ public class FetchPhase {
         LeafNestedDocuments leafNestedDocuments = null;
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
         boolean hasSequentialDocs = hasSequentialDocs(docs);
-        SourceLoader sourceLoader = context.getSearchExecutionContext().newSourceLoader();
         SourceLoader.Leaf leafSourceLoader = null;
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
@@ -217,7 +218,11 @@ public class FetchPhase {
         }
     }
 
-    private static FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    private static FieldsVisitor createStoredFieldsVisitor(
+        SearchContext context,
+        Map<String, Set<String>> storedToRequestedFields,
+        SourceLoader sourceLoader
+    ) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -226,6 +231,12 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                Set<String> fieldsToLoad = sourceLoader.requiredStoredFields().collect(toSet());
+                if (false == fieldsToLoad.isEmpty()) {
+                    return new CustomFieldsVisitor(fieldsToLoad, true);
+                }
+            }
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -249,6 +260,9 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
+            }
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);

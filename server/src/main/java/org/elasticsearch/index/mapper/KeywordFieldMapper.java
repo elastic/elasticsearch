@@ -47,6 +47,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
@@ -76,6 +77,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -1058,7 +1060,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
-        return new BytesSyntheticFieldLoader(name(), simpleName) {
+        return new SortedSetDocValuesFieldLoader(name(), simpleName) {
             @Override
             protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
                 b.value(value.utf8ToString());
@@ -1066,13 +1068,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         };
     }
 
-    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public abstract static class SortedSetDocValuesFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
 
-        public BytesSyntheticFieldLoader(String name, String simpleName) {
+        public SortedSetDocValuesFieldLoader(String name, String simpleName) {
             this.name = name;
             this.simpleName = simpleName;
+        }
+
+        @Override
+        public Stream<String> requiredStoredFields() {
+            return Stream.empty();
         }
 
         @Override
@@ -1087,12 +1094,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public boolean hasValue() {
+                public boolean hasValue(FieldsVisitor fieldsVisitor) {
                     return hasValue;
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
                     long first = leaf.nextOrd();
                     long next = leaf.nextOrd();
                     if (next == SortedSetDocValues.NO_MORE_ORDS) {
@@ -1112,5 +1119,52 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
+    }
+
+    public static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        public StoredFieldFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
+        }
+
+        @Override
+        public Stream<String> requiredStoredFields() {
+            return Stream.of(name);
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader) throws IOException {
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private int docId;
+
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    this.docId = docId;
+                }
+
+                @Override
+                public boolean hasValue(FieldsVisitor fieldsVisitor) {
+                    return fieldsVisitor.fields().containsKey(name);
+                }
+
+                @Override
+                public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                    List<Object> values = fieldsVisitor.fields().get(name);
+                    assert values.isEmpty() == false;
+                    if (values.size() == 1) {
+                        b.field(simpleName, (String) values.get(0));
+                        return;
+                    }
+                    b.startArray(simpleName);
+                    for (Object value : values) {
+                        b.value((String) value);
+                    }
+                    b.endArray();
+                }
+            };
+        }
     }
 }

@@ -624,11 +624,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new KeywordSyntheticSourceSupport();
+        return new KeywordSyntheticSourceSupport(false, usually() ? null : randomAlphaOfLength(2));
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final boolean store;
+        private final String nullValue;
+
+        KeywordSyntheticSourceSupport(boolean store, String nullValue) {
+            this.store = store;
+            this.nullValue = nullValue;
+        }
 
         @Override
         public SyntheticSourceExample example() {
@@ -638,7 +644,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<String, String>> values = randomList(1, 5, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
+            List<String> outList = store
+                ? values.stream().map(Tuple::v2).toList()
+                : values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -655,6 +663,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "keyword");
             if (nullValue != null) {
                 b.field("null_value", nullValue);
+            }
+            if (store) {
+                b.field("store", true);
             }
         }
 

@@ -554,7 +554,7 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
+        return new KeywordFieldMapper.SortedSetDocValuesFieldLoader(name(), simpleName()) {
             @Override
             protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);

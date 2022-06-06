@@ -1096,10 +1096,19 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport().example();
+        boolean store = randomBoolean();
+        String nullValue = store || usually() ? null : randomAlphaOfLength(2);
+        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(store, nullValue).example();
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example() throws IOException {
+            public SyntheticSourceExample example() {
+                if (store) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
                 return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
@@ -1115,8 +1124,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),

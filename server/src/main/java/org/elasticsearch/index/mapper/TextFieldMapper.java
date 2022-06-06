@@ -1273,6 +1273,9 @@ public class TextFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
+        if (store) {
+            return new KeywordFieldMapper.StoredFieldFieldLoader(name(), simpleName());
+        }
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
@@ -1287,7 +1290,7 @@ public class TextFieldMapper extends FieldMapper {
         throw new IllegalArgumentException(
             String.format(
                 Locale.ROOT,
-                "field [%s] of type [%s] doesn't support synthetic source unless it has a sub-field of"
+                "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values enabled and without ignore_above or a normalizer",
                 name(),
                 typeName()

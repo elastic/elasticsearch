@@ -45,3 +45,53 @@ keyword:
   - match:
       docs.1._source:
         kwd: bar
+
+---
+stored text:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              synthetic: true
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          text: the quick brown fox
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          text: jumped over the lazy dog
+
+
+  - do:
+      mget:
+        index: test
+        body:
+          ids:    [1, 2]
+  - match: {docs.0._index: "test"}
+  - match: {docs.0._id: "1"}
+  - match:
+      docs.0._source:
+        text: the quick brown fox
+
+  - match: {docs.1._index: "test"}
+  - match: {docs.1._id: "2"}
+  - match:
+      docs.1._source:
+        text: jumped over the lazy dog

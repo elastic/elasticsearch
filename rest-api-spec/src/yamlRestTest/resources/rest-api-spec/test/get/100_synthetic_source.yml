@@ -33,3 +33,41 @@ keyword:
   - match:
       _source:
         kwd: foo
+
+---
+stored text:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              synthetic: true
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox

@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -67,6 +68,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -1630,6 +1632,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Stream<String> requiredStoredFields() {
+            return Stream.empty();
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
@@ -1641,12 +1648,12 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public boolean hasValue() {
+                public boolean hasValue(FieldsVisitor fieldsVisitor) {
                     return hasValue;
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
                         loadNextValue(b, leaf.nextValue());

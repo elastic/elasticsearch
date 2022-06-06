@@ -15,7 +15,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -28,16 +27,21 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -221,14 +225,15 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
+        SourceLoader loader = mappingLookup.newSourceLoader();
+        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext, loader);
         if (fieldVisitor != null) {
             try {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
-            source = mappingLookup.newSourceLoader().leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
+            source = loader.leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
@@ -272,11 +277,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
-        if (fields == null || fields.length == 0) {
+    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
+        if (fields != null && fields.length > 0) {
+            Set<String> fieldsToLoad = new HashSet<>();
+            Collections.addAll(fieldsToLoad, fields);
+            if (fetchSourceContext.fetchSource()) {
+                loader.requiredStoredFields().forEach(fieldsToLoad::add);
+            }
+            return new CustomFieldsVisitor(fieldsToLoad, fetchSourceContext.fetchSource());
+        }
+        Set<String> sourceFields = fetchSourceContext.fetchSource() ? loader.requiredStoredFields().collect(toSet()) : Set.of();
+        if (sourceFields.isEmpty()) {
             return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
         }
-
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
+        return new CustomFieldsVisitor(sourceFields, fetchSourceContext.fetchSource());
     }
 }

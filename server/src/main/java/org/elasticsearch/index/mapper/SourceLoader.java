@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.stream.Stream;
 
 /**
  * Loads source {@code _source} during the a GET or {@code _search}.
@@ -25,6 +26,12 @@ public interface SourceLoader {
      * Build the loader for some segment.
      */
     Leaf leaf(LeafReader reader) throws IOException;
+
+    /**
+     * Stream containing all non-{@code _source} stored fields required
+     * to build the {@code _source}.
+     */
+    Stream<String> requiredStoredFields();
 
     /**
      * Loads {@code _source} from some segment.
@@ -52,6 +59,11 @@ public interface SourceLoader {
                 }
             };
         }
+
+        @Override
+        public Stream<String> requiredStoredFields() {
+            return Stream.empty();
+        }
     };
 
     /**
@@ -65,6 +77,11 @@ public interface SourceLoader {
         }
 
         @Override
+        public Stream<String> requiredStoredFields() {
+            return loader.requiredStoredFields();
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
             return new Leaf() {
@@ -73,8 +90,8 @@ public interface SourceLoader {
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                         leaf.advanceToDoc(docId);
-                        if (leaf.hasValue()) {
-                            leaf.load(b);
+                        if (leaf.hasValue(fieldsVisitor)) {
+                            leaf.load(fieldsVisitor, b);
                         } else {
                             b.startObject().endObject();
                         }
@@ -92,23 +109,39 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        SyntheticFieldLoader NOTHING = r -> new Leaf() {
+        SyntheticFieldLoader NOTHING = new SyntheticFieldLoader() {
             @Override
-            public void advanceToDoc(int docId) throws IOException {}
-
-            @Override
-            public boolean hasValue() {
-                return false;
+            public Stream<String> requiredStoredFields() {
+                return Stream.empty();
             }
 
             @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public Leaf leaf(LeafReader reader) throws IOException {
+                return new Leaf() {
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {}
+
+                    @Override
+                    public boolean hasValue(FieldsVisitor fieldsVisitor) {
+                        return false;
+                    }
+
+                    @Override
+                    public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {}
+                };
+            }
         };
 
         /**
          * Build a loader for this field in the provided segment.
          */
         Leaf leaf(LeafReader reader) throws IOException;
+
+        /**
+         * Stream containing all non-{@code _source} stored fields required
+         * to build the {@code _source}.
+         */
+        Stream<String> requiredStoredFields();
 
         /**
          * Loads values for a field in a particular leaf.
@@ -122,12 +155,12 @@ public interface SourceLoader {
             /**
              * Is there a value for this field in this document?
              */
-            boolean hasValue();
+            boolean hasValue(FieldsVisitor fieldsVisitor);
 
             /**
              * Load values for this document.
              */
-            void load(XContentBuilder b) throws IOException;
+            void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException;
         }
     }
 

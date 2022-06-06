@@ -160,10 +160,7 @@ public class ForceMergeAction implements LifecycleAction {
         // Indices already in this step key when upgrading need to know how to move forward but stop making the index
         // read-only. In order to achieve this we introduce a no-op step with the same key as the read-only step so that
         // the index can safely move to the next step without performing any read-only action nor getting stuck in this step
-        NoopStep noopStep = new NoopStep(
-            readOnlyKey,
-            codecChange ? closeKey : forceMergeKey
-        );
+        NoopStep noopStep = new NoopStep(readOnlyKey, codecChange ? closeKey : forceMergeKey);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(

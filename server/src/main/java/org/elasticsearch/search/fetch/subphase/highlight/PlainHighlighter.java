@@ -170,12 +170,12 @@ public class PlainHighlighter implements Highlighter {
             }
         }
 
-        // For single text inputs, the fragments are already ordered by score.  If we have multiple
+        // For single text inputs, the fragments are already ordered by score. If we have multiple
         // inputs, or if we are ordering by fragment number, then we need to resort the output list
         if (textsToHighlight.size() > 1 || field.fieldOptions().scoreOrdered() == false) {
-            Comparator<OrderedTextFragment> comparator = field.fieldOptions().scoreOrdered() ?
-                Comparator.comparingDouble(OrderedTextFragment::score).reversed() :
-                Comparator.comparingInt(OrderedTextFragment::fragNum);
+            Comparator<OrderedTextFragment> comparator = field.fieldOptions().scoreOrdered()
+                ? Comparator.comparingDouble(OrderedTextFragment::score).reversed()
+                : Comparator.comparingInt(OrderedTextFragment::fragNum);
             fragsList.sort(comparator);
         }
 

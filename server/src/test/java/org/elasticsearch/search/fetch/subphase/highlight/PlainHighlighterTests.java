@@ -50,42 +50,49 @@ public class PlainHighlighterTests extends HighlighterTestCase {
 
         {
 
-            SearchSourceBuilder search = new SearchSourceBuilder()
-                .query(QueryBuilders.matchQuery("description", "search string"))
+            SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("description", "search string"))
                 .highlighter(new HighlightBuilder().field("description").highlighterType("plain").order("score").fragmentSize(50));
 
             Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-            assertHighlights(highlights, "description",
+            assertHighlights(
+                highlights,
+                "description",
                 " literature from 45 BC, making it <em>search</em> <em>string</em> over 2000 years old.",
-                "Lorem Ipsum <em>string</em> Generator that helps to create");
+                "Lorem Ipsum <em>string</em> Generator that helps to create"
+            );
 
         }
 
         {
 
-            SearchSourceBuilder search = new SearchSourceBuilder()
-                .query(QueryBuilders.matchQuery("description", "string generator"))
+            SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("description", "string generator"))
                 .highlighter(new HighlightBuilder().field("description").highlighterType("plain").order("score").fragmentSize(50));
 
             Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-            assertHighlights(highlights, "description",
+            assertHighlights(
+                highlights,
+                "description",
                 "Lorem Ipsum <em>string</em> <em>Generator</em> that helps to create",
-                " literature from 45 BC, making it search <em>string</em> over 2000 years old.");
+                " literature from 45 BC, making it search <em>string</em> over 2000 years old."
+            );
 
         }
 
         {
 
-            SearchSourceBuilder search = new SearchSourceBuilder()
-                .query(QueryBuilders.matchQuery("description", "lorem layout needs roots years"))
-                .highlighter(new HighlightBuilder().field("description").highlighterType("plain").fragmentSize(20));
+            SearchSourceBuilder search = new SearchSourceBuilder().query(
+                QueryBuilders.matchQuery("description", "lorem layout needs roots years")
+            ).highlighter(new HighlightBuilder().field("description").highlighterType("plain").fragmentSize(20));
 
             Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-            assertHighlights(highlights, "description",
+            assertHighlights(
+                highlights,
+                "description",
                 "<em>Lorem</em> Ipsum string",
                 " text for all <em>layout</em> <em>needs</em>.",
                 "It has <em>roots</em> in a",
-                " search string over 2000 <em>years</em> old.");
+                " search string over 2000 <em>years</em> old."
+            );
 
         }
     }

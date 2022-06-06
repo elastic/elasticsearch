@@ -1,0 +1,5 @@
+pr: 87415
+summary: Filter out nulls in `writeUpdatedShardMetaDataAndComputeDeletes`
+area: Snapshot/Restore
+type: bug
+issues: []

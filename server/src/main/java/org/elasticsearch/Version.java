@@ -254,6 +254,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (rawMajor >= 7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
                 throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
+            if (parts[1].length() > 2) {
+                throw new IllegalArgumentException(
+                    "illegal minor version format - only one or two digit numbers are supported but found " + parts[1]
+                );
+            }
+            if (parts[2].length() > 2) {
+                throw new IllegalArgumentException(
+                    "illegal revision version format - only one or two digit numbers are supported but found " + parts[2]
+                );
+            }
             // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;

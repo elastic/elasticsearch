@@ -58,8 +58,11 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
-            FetchSubPhase.HitContext hitContext
-                = new FetchSubPhase.HitContext(new SearchHit(0, "id", new Text("_doc"), null, null), ir.leaves().get(0), 0);
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                new SearchHit(0, "id", new Text("_doc"), null, null),
+                ir.leaves().get(0),
+                0
+            );
             processor.process(hitContext);
             highlights.putAll(hitContext.hit().getHighlightFields());
         });

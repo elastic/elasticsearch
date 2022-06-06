@@ -276,7 +276,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
-    protected final SourceToParse source(String source) {
+    protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
 

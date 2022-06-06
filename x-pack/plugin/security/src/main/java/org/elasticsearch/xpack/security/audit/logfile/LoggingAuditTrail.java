@@ -163,8 +163,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
+    public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
+    public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
     public static final String PRINCIPAL_RUN_AS_REALM_FIELD_NAME = "user.run_as.realm";
+    public static final String PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME = "user.run_as.realm_domain";
     public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
     public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
     public static final String SERVICE_TOKEN_NAME_FIELD_NAME = "authentication.token.name";
@@ -459,6 +462,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
+                // Not adding domain since "realm" field is considered redundant for bwc purposes
                 .withRestUriAndMethod(request)
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
@@ -623,6 +627,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                     .with(REALM_FIELD_NAME, realm)
+                    // domain information is not useful here since authentication fails
                     .with(PRINCIPAL_FIELD_NAME, token.principal())
                     .with(ACTION_FIELD_NAME, action)
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
@@ -643,6 +648,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                 .with(REALM_FIELD_NAME, realm)
+                // domain information is not useful here since authentication fails
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(request)
@@ -1466,8 +1472,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                 .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getUser().principal());
+            if (authentication.getAuthenticatedBy().getDomain() != null) {
+                logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatedBy().getDomain().name());
+            }
             if (authentication.getLookedUpBy() != null) {
                 logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());
+                if (authentication.getLookedUpBy().getDomain() != null) {
+                    logEntry.with(PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, authentication.getLookedUpBy().getDomain().name());
+                }
             }
             return this;
         }
@@ -1544,17 +1556,29 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+                    // No domain information is needed here since API key itself does not work across realms
                 }
             } else {
+                final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatedBy();
                 if (authentication.isRunAs()) {
-                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
+                    final Authentication.RealmRef lookedUpBy = authentication.getLookedUpBy();
+                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
                         .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                         // API key can run-as, when that happens, the following field will be _es_api_key,
                         // not the API key owner user's realm.
-                        .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                        .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
+                    if (lookedUpBy.getDomain() != null) {
+                        logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
+                    }
+                    if (authenticatedBy.getDomain() != null) {
+                        logEntry.with(PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                    }
                     // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
-                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authenticatedBy.getName());
+                    if (authenticatedBy.getDomain() != null) {
+                        logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                    }
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)

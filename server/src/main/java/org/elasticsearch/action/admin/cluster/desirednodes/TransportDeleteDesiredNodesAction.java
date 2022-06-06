@@ -85,9 +85,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<DeleteDesiredNodesTask>> taskContexts) throws Exception {
             for (final var taskContext : taskContexts) {
-                taskContext.success(
-                    taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-                );
+                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
             }
             return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
         }

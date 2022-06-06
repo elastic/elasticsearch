@@ -109,14 +109,14 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
+    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
-                createPermissions(environment),
+                createPermissions(environment, pidFile),
                 getPluginAndModulePermissions(environment),
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment)
@@ -166,10 +166,10 @@ final class Security {
     }
 
     /** returns dynamic Permissions to configured paths and bind ports */
-    static Permissions createPermissions(Environment environment) throws IOException {
+    static Permissions createPermissions(Environment environment, Path pidFile) throws IOException {
         Permissions policy = new Permissions();
         addClasspathPermissions(policy);
-        addFilePermissions(policy, environment);
+        addFilePermissions(policy, environment, pidFile);
         addBindPermissions(policy, environment.settings());
         return policy;
     }
@@ -206,7 +206,7 @@ final class Security {
     /**
      * Adds access to all configurable paths.
      */
-    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
+    static void addFilePermissions(Permissions policy, Environment environment, Path pidFile) throws IOException {
         // read-only dirs
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
@@ -244,6 +244,10 @@ final class Security {
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
+        }
+        if (pidFile != null) {
+            // we just need permission to remove the file if its elsewhere.
+            addSingleFilePath(policy, pidFile, "delete");
         }
     }
 

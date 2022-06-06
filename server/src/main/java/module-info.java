@@ -141,7 +141,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.termvectors;
     exports org.elasticsearch.action.update;
     exports org.elasticsearch.bootstrap;
-    exports org.elasticsearch.bootstrap.plugins;
     exports org.elasticsearch.client.internal;
     exports org.elasticsearch.client.internal.node;
     exports org.elasticsearch.client.internal.support;

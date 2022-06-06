@@ -39,7 +39,7 @@ class Elasticsearch {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) {
-        overrideDnsCachePolicyProperties();
+        bootstrapSecurityProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
         /*
@@ -200,7 +200,7 @@ class Elasticsearch {
         Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
     }
 
-    private static void overrideDnsCachePolicyProperties() {
+    private static void bootstrapSecurityProperties() {
         for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
             final String overrideValue = System.getProperty(overrideProperty);
@@ -213,6 +213,9 @@ class Elasticsearch {
                 }
             }
         }
+
+        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
+        Security.setProperty("policy.expandProperties", "true");
     }
 
     void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword, Path pidFile)

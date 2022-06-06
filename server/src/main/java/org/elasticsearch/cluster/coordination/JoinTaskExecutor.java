@@ -132,17 +132,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
             }
-            joinTaskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    for (Runnable joinCompleter : onTaskSuccess) {
-                        joinCompleter.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    joinTask.onFailure(e);
+            joinTaskContext.success(() -> {
+                for (Runnable joinCompleter : onTaskSuccess) {
+                    joinCompleter.run();
                 }
             });
         }

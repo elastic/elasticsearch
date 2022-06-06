@@ -15,12 +15,12 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.field.Op;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -50,7 +50,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
-            (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
+            (params, md) -> new UpdateScript(Collections.emptyMap(), md) {
                 @Override
                 public void execute() {
                     scriptBody.accept(getCtx());
@@ -58,7 +58,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             }
         );
         when(scriptService.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn(
-            (params, ctx) -> new UpdateByQueryScript(Collections.emptyMap(), ctx) {
+            (params, md) -> new UpdateByQueryScript(Collections.emptyMap(), md) {
                 @Override
                 public void execute() {
                     scriptBody.accept(getCtx());
@@ -66,7 +66,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             }
         );
         when(scriptService.compile(any(), eq(ReindexScript.CONTEXT))).thenReturn(
-            (params, ctx) -> new ReindexScript(Collections.emptyMap(), ctx) {
+            (params, md) -> new ReindexScript(Collections.emptyMap(), md) {
                 @Override
                 public void execute() {
                     scriptBody.accept(getCtx());
@@ -97,7 +97,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     }
 
     public void testSetOpTypeDelete() throws Exception {
-        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
+        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", Op.DELETE.toString()));
         assertThat(delete.index(), equalTo("index"));
         assertThat(delete.id(), equalTo("1"));
     }

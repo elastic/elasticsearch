@@ -9,6 +9,9 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
+
 import java.util.Map;
 
 /**
@@ -24,12 +27,11 @@ public abstract class UpdateByQueryScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The context map for the script */
-    private final Map<String, Object> ctx;
+    private final Metadata metadata;
 
-    public UpdateByQueryScript(Map<String, Object> params, Map<String, Object> ctx) {
+    public UpdateByQueryScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
-        this.ctx = ctx;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
@@ -37,14 +39,26 @@ public abstract class UpdateByQueryScript {
         return params;
     }
 
-    /** Return the context map for this script */
+    public Metadata meta() {
+        return metadata;
+    }
+
     public Map<String, Object> getCtx() {
-        return ctx;
+        return metadata != null ? metadata.getCtx() : null;
     }
 
     public abstract void execute();
 
     public interface Factory {
-        UpdateByQueryScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        UpdateByQueryScript newInstance(Map<String, Object> params, Metadata metadata);
+    }
+
+    /**
+     * Metadata available to the script
+     */
+    public static class Metadata extends BulkMetadata {
+        public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
+            super(index, id, version, routing, op, source);
+        }
     }
 }

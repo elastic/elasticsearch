@@ -30,6 +30,7 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryScript;
+import org.elasticsearch.script.field.BulkMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -134,7 +135,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             return wrap(index);
         }
 
-        class UpdateByQueryScriptApplier extends ScriptApplier {
+        static class UpdateByQueryScriptApplier extends ScriptApplier {
             private UpdateByQueryScript.Factory update = null;
 
             UpdateByQueryScriptApplier(
@@ -167,11 +168,20 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected void execute(Map<String, Object> ctx) {
+            protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (update == null) {
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }
-                update.newInstance(params, ctx).execute();
+                UpdateByQueryScript.Metadata md = new UpdateByQueryScript.Metadata(
+                    doc.getIndex(),
+                    doc.getId(),
+                    doc.getVersion(),
+                    doc.getRouting(),
+                    INITIAL_OPERATION,
+                    source
+                );
+                update.newInstance(params, md).execute();
+                return md;
             }
         }
     }

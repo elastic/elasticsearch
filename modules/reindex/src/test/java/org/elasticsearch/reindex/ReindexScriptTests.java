@@ -35,7 +35,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         try {
             applyScript((Map<String, Object> ctx) -> ctx.put("_index", null));
         } catch (NullPointerException e) {
-            assertThat(e.getMessage(), containsString("Can't reindex without a destination index!"));
+            assertThat(e.getMessage(), containsString("destination index must be non-null"));
         }
     }
 
@@ -60,11 +60,11 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     public void testSettingVersionToJunkIsAnError() throws Exception {
-        Object junkVersion = randomFrom(new Object[] { "junk", Math.PI });
+        Object junkVersion = randomFrom("junk", Math.PI);
         try {
             applyScript((Map<String, Object> ctx) -> ctx.put("_version", junkVersion));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("_version may only be set to an int or a long but was ["));
+            assertThat(e.getMessage(), containsString("version may only be set to an int or a long but was ["));
             assertThat(e.getMessage(), containsString(junkVersion.toString()));
         }
     }

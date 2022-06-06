@@ -52,6 +52,7 @@ import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.BulkMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -374,7 +375,7 @@ public class Reindexer {
             }
         }
 
-        class ReindexScriptApplier extends ScriptApplier {
+        static class ReindexScriptApplier extends ScriptApplier {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
@@ -387,11 +388,20 @@ public class Reindexer {
             }
 
             @Override
-            protected void execute(Map<String, Object> ctx) {
+            protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (reindex == null) {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }
-                reindex.newInstance(params, ctx).execute();
+                ReindexScript.Metadata md = new ReindexScript.Metadata(
+                    doc.getIndex(),
+                    doc.getId(),
+                    doc.getVersion(),
+                    doc.getRouting(),
+                    INITIAL_OPERATION,
+                    source
+                );
+                reindex.newInstance(params, md).execute();
+                return md;
             }
 
             /*

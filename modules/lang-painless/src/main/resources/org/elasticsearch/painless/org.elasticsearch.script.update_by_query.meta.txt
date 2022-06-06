@@ -1,0 +1,30 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# This file only whitelists the script class and the Metadata class for update_by_query scripts.
+# Due to name conflicts, this whitelist cannot be loaded with other scripts with conflicting Metadata types.
+
+class org.elasticsearch.script.UpdateByQueryScript$Metadata @alias[class="Metadata"] {
+    String getIndex()
+    String getId()
+    String getRouting()
+    boolean hasVersion()
+    long getVersion()
+    Op getOp()
+    void setOp(Op)
+}
+
+class org.elasticsearch.script.UpdateByQueryScript {
+    Metadata meta()
+}
+
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
+}

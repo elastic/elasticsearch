@@ -44,19 +44,18 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -820,6 +819,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+        protected static final Op INITIAL_OPERATION = Op.INDEX;
 
         private final WorkerBulkByScrollTaskState taskWorker;
         protected final ScriptService scriptService;
@@ -844,20 +844,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
             if (script == null) {
                 return request;
             }
-
-            Map<String, Object> context = new HashMap<>();
-            context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(IdFieldMapper.NAME, doc.getId());
+            BulkMetadata metadata = execute(doc, request.getSource());
             Long oldVersion = doc.getVersion();
-            context.put(VersionFieldMapper.NAME, oldVersion);
             String oldRouting = doc.getRouting();
-            context.put(RoutingFieldMapper.NAME, oldRouting);
-            context.put(SourceFieldMapper.NAME, request.getSource());
+            Op oldOp = INITIAL_OPERATION;
 
-            OpType oldOpType = OpType.INDEX;
-            context.put("op", oldOpType.toString());
-
-            execute(context);
+            Map<String, Object> context = metadata.getCtx();
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {
@@ -891,9 +883,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 scriptChangedRouting(request, newValue);
             }
 
-            OpType newOpType = OpType.fromString(newOp);
-            if (newOpType != oldOpType) {
-                return scriptChangedOpType(request, oldOpType, newOpType);
+            Op newOpType = Op.fromString(newOp);
+            if (newOpType != oldOp) {
+                return scriptChangedOpType(request, oldOp, newOpType);
             }
 
             if (false == context.isEmpty()) {
@@ -902,8 +894,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return request;
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
-            switch (newOpType) {
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op oldOp, Op newOp) {
+            switch (newOp) {
                 case NOOP -> {
                     taskWorker.countNoop();
                     return null;
@@ -915,9 +907,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     delete.setRouting(request.getRouting());
                     return delete;
                 }
-                default -> throw new IllegalArgumentException(
-                    "Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]"
-                );
+                default -> throw new IllegalArgumentException("Unsupported operation type change from [" + oldOp + "] to [" + newOp + "]");
             }
         }
 
@@ -929,37 +919,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
 
-        protected abstract void execute(Map<String, Object> ctx);
-    }
-
-    public enum OpType {
-
-        NOOP("noop"),
-        INDEX("index"),
-        DELETE("delete");
-
-        private final String id;
-
-        OpType(String id) {
-            this.id = id;
-        }
-
-        public static OpType fromString(String opType) {
-            String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            return switch (lowerOpType) {
-                case "noop" -> OpType.NOOP;
-                case "index" -> OpType.INDEX;
-                case "delete" -> OpType.DELETE;
-                default -> throw new IllegalArgumentException(
-                    "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                );
-            };
-        }
-
-        @Override
-        public String toString() {
-            return id.toLowerCase(Locale.ROOT);
-        }
+        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
     }
 
     static class ScrollConsumableHitsResponse {

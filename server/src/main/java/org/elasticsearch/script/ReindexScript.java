@@ -9,6 +9,9 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
+
 import java.util.Map;
 
 /**
@@ -24,12 +27,11 @@ public abstract class ReindexScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The context map for the script */
-    private final Map<String, Object> ctx;
+    private final Metadata metadata;
 
-    public ReindexScript(Map<String, Object> params, Map<String, Object> ctx) {
+    public ReindexScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
-        this.ctx = ctx;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
@@ -37,14 +39,64 @@ public abstract class ReindexScript {
         return params;
     }
 
-    /** Return the context map for this script */
+    public Metadata meta() {
+        return metadata;
+    }
+
     public Map<String, Object> getCtx() {
-        return ctx;
+        return metadata != null ? metadata.getCtx() : null;
     }
 
     public abstract void execute();
 
     public interface Factory {
-        ReindexScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        ReindexScript newInstance(Map<String, Object> params, Metadata metadata);
+    }
+
+    /**
+     * Metadata available to the script
+     * _index can't be null
+     * _id, _routing and _version are writable and nullable
+     * op must be NOOP, INDEX or DELETE
+     */
+    public static class Metadata extends BulkMetadata {
+        public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
+            super(index, id, version, routing, op, source);
+        }
+
+        public void setIndex(String index) {
+            if (index == null) {
+                throw new NullPointerException("destination index must be non-null");
+            }
+            store.setIndex(index);
+        }
+
+        public String getIndex() {
+            String index = store.getIndex();
+            if (index == null) {
+                throw new NullPointerException("destination index must be non-null");
+            }
+            return index;
+        }
+
+        public void setId(String id) {
+            store.setId(id);
+        }
+
+        public void setRouting(String routing) {
+            store.setRouting(routing);
+        }
+
+        public void setVersion(Long version) {
+            store.setVersion(version);
+        }
+
+        public void removeVersion() {
+            store.removeVersion();
+        }
+
+        public void setVersion(long version) {
+            store.setVersion(version);
+        }
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -84,10 +83,10 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         return SimpleDiffable.readDiffFrom(OperatorMetadata::readFrom, in);
     }
 
-    public static final DiffableUtils.MapDiff<String, OperatorMetadata, ImmutableOpenMap<String, OperatorMetadata>> EMPTY_DIFF =
+    public static final DiffableUtils.MapDiff<String, OperatorMetadata, Map<String, OperatorMetadata>> EMPTY_DIFF =
         new DiffableUtils.MapDiff<>(null, null, List.of(), List.of(), List.of()) {
             @Override
-            public ImmutableOpenMap<String, OperatorMetadata> apply(ImmutableOpenMap<String, OperatorMetadata> part) {
+            public Map<String, OperatorMetadata> apply(Map<String, OperatorMetadata> part) {
                 return part;
             }
         };

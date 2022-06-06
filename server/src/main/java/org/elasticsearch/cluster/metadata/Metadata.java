@@ -207,7 +207,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
     private final ImmutableOpenMap<String, Custom> customs;
-    private final ImmutableOpenMap<String, OperatorMetadata> operatorState;
+    private final Map<String, OperatorMetadata> operatorState;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int totalOpenIndexShards;
@@ -248,7 +248,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
         Version oldestIndexVersion,
-        ImmutableOpenMap<String, OperatorMetadata> operatorState
+        Map<String, OperatorMetadata> operatorState
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -1092,7 +1092,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
-        private final Diff<ImmutableOpenMap<String, OperatorMetadata>> operatorState;
+        private final Diff<Map<String, OperatorMetadata>> operatorState;
 
         MetadataDiff(Metadata before, Metadata after) {
             clusterUUID = after.clusterUUID;
@@ -1131,11 +1131,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                operatorState = DiffableUtils.readImmutableOpenMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    OPERATOR_DIFF_VALUE_READER
-                );
+                operatorState = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), OPERATOR_DIFF_VALUE_READER);
             } else {
                 operatorState = OperatorMetadata.EMPTY_DIFF;
             }
@@ -1286,7 +1282,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
-        private final ImmutableOpenMap.Builder<String, OperatorMetadata> operatorState;
+        private final Map<String, OperatorMetadata> operatorState;
 
         // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
         // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
@@ -1315,7 +1311,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
             this.checkForUnusedMappings = false;
-            this.operatorState = ImmutableOpenMap.builder(metadata.operatorState);
+            this.operatorState = new HashMap<>(metadata.operatorState);
         }
 
         private Builder(Map<String, MappingMetadata> mappingsByHash) {
@@ -1324,7 +1320,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
-            operatorState = ImmutableOpenMap.builder();
+            operatorState = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
             this.mappingsByHash = new HashMap<>(mappingsByHash);
@@ -1682,7 +1678,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder operatorState(Map<String, OperatorMetadata> operatorState) {
-            this.operatorState.putAllFromMap(operatorState);
+            this.operatorState.putAll(operatorState);
             return this;
         }
 
@@ -1896,7 +1892,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
                 Version.fromId(oldestIndexVersionId),
-                operatorState.build()
+                Collections.unmodifiableMap(operatorState)
             );
         }
 

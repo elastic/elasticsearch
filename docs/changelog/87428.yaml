@@ -1,6 +1,6 @@
 pr: 87428
 summary: Avoid expensive search stats updates
-area: "Search, Stats"
+area: "Stats"
 type: bug
 issues:
  - 85586

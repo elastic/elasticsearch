@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,8 +38,8 @@ public final class ShardSearchStats implements SearchOperationListener {
     private final Map<String, StatsHolder> groupsStats = ConcurrentCollections.newConcurrentMap();
     private final int maxGroups;
 
-    public ShardSearchStats(IndexSettings indexSettings) {
-        this.maxGroups = indexSettings.getValue(MAX_SEARCH_STATS_GROUPS_SETTING);
+    public ShardSearchStats(Settings indexSettings) {
+        this.maxGroups = MAX_SEARCH_STATS_GROUPS_SETTING.get(indexSettings);
     }
 
     /**

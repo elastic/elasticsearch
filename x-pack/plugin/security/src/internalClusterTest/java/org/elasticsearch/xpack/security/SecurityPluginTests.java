@@ -12,8 +12,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -32,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
@@ -49,7 +53,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         {
-            // replace the security plugin with the security plugin with the dummy authorization engine extension
+            // replace the security plugin with the security plugin that contains a dummy realm
             plugins.remove(LocalStateSecurity.class);
             plugins.add(SecurityPluginTests.LocalStateWithDummyRealmAuthorizationEngineExtension.class);
         }
@@ -59,6 +63,17 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
     @Override
     protected Class<?> xpackPluginClass() {
         return SecurityPluginTests.LocalStateWithDummyRealmAuthorizationEngineExtension.class;
+    }
+
+    private static final AtomicBoolean REALM_CLOSE_FLAG = new AtomicBoolean(false);
+    private static final AtomicBoolean REALM_INIT_FLAG = new AtomicBoolean(false);
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(super.nodeSettings(nodeOrdinal, otherSettings));
+        settingsBuilder.put("xpack.security.authc.realms.dummy.dummy10.order", "10");
+        return settingsBuilder.build();
     }
 
     public void testThatPluginIsLoaded() throws IOException {
@@ -86,6 +101,15 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
     }
 
+    public void testThatPluginRealmIsLoadedAndClosed() throws IOException {
+        REALM_CLOSE_FLAG.set(false);
+        REALM_INIT_FLAG.set(false);
+        String nodeName = internalCluster().startNode();
+        assertThat(REALM_INIT_FLAG.get(), is(true));
+        internalCluster().stopNode(nodeName);
+        assertThat(REALM_CLOSE_FLAG.get(), is(true));
+    }
+
     public static class LocalStateWithDummyRealmAuthorizationEngineExtension extends LocalStateSecurity {
 
         public LocalStateWithDummyRealmAuthorizationEngineExtension(Settings settings, Path configPath) throws Exception {
@@ -95,6 +119,14 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         @Override
         protected List<SecurityExtension> securityExtensions() {
             return List.of(new DummyRealmAuthorizationEngineExtension());
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            ArrayList<Setting<?>> settings = new ArrayList<>();
+            settings.addAll(super.getSettings());
+            settings.addAll(RealmSettings.getStandardSettings(DummyRealm.TYPE));
+            return settings;
         }
     }
 
@@ -109,12 +141,13 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         }
     }
 
-    public static class DummyRealm extends Realm {
+    public static class DummyRealm extends Realm implements Releasable {
 
         public static final String TYPE = "dummy";
 
         public DummyRealm(RealmConfig config) {
             super(config);
+            REALM_INIT_FLAG.set(true);
         }
 
         @Override
@@ -136,6 +169,11 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         public void lookupUser(String username, ActionListener<User> listener) {
             // Lookup (run-as) is not supported in this realm
             listener.onResponse(null);
+        }
+
+        @Override
+        public void close() {
+            REALM_CLOSE_FLAG.set(true);
         }
     }
 

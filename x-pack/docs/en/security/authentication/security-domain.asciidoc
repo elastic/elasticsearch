@@ -72,10 +72,10 @@ during rolling restart. Inconsistent configuration could lead to issues such as:
   - Duplicated user profiles
   - Different ownership of resources depending on the authenticating node's configuration
 
-Therefore, it is best to avoid operations that depend on security domains before configuration
-changes are rolled out to all nodes.
-Alternatively, do not authenticate with newly added realms until changes are fully
-applied to all nodes.
+  Therefore, it is best to avoid operations that depend on security domains before configuration
+changes are rolled out to all nodes. Alternatively, do not authenticate with newly added realms
+until changes are fully applied to all nodes.
+
   - Operations depending on security domains are those creating resources such as
 <<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, <<async-search,async search>>.
   - An exception is adding a single realm to a new security domain. In this case, all security domain

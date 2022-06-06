@@ -278,7 +278,7 @@ public final class DocumentParser {
         innerParseObject(context, mapper);
         // restore the enable path flag
         if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+            copyNestedFields(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -344,7 +344,7 @@ public final class DocumentParser {
         );
     }
 
-    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
+    private static void copyNestedFields(DocumentParserContext context, NestedObjectMapper nested) {
         if (context.isWithinCopyTo()) {
             // Only process the nested document after we've finished parsing the actual
             // doc; we can't copy_to outside of the current nested context, so if we are

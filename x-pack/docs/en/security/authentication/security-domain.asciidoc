@@ -64,36 +64,38 @@ when authenticating with different realms, it is _not_ recommended.
 ====
 Security domain is an advanced feature and must be used with care. It can lead
 to unexpected behaviours if incorrectly configured or misused.
-Here are a few things to watch out when working with security domain:
+Here are a few things to watch out when working with security domain.
 
-* Security domains must be configured consistently across all nodes. Since changing
+Security domains must be configured consistently across all nodes. Since changing
 security domain requires node restart, this means they may not be fully functional
 during rolling restart. Inconsistent configuration could lead to issues such as:
-  - Duplicated user profiles
-  - Different ownership of resources depending on the authenticating node's configuration
 
-  Therefore, it is best to avoid operations that depend on security domains before configuration
-changes are rolled out to all nodes. Alternatively, do not authenticate with newly added realms
+- Duplicated user profiles
+- Different ownership of resources depending on the authenticating node's configuration
+
+Therefore, it is best to avoid operations related to security domains before configuration
+changes are rolled out to all nodes. Alternatively, do *not* authenticate with newly added realms
 until changes are fully applied to all nodes.
 
-  - Operations depending on security domains are those creating resources such as
-<<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, <<async-search,async search>>.
-  - An exception is adding a single realm to a new security domain. In this case, all security domain
-related operations do work normally while changes are being rolled out.
+- Operations related to security domains are those creating and managing resources such as
+<<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, <<async-search,async search>>, etc.
+- An exception is adding a single realm to a newly created security domain. In this case, security domain
+related operations will work normally while changes are being rolled out.
 Please note that we do still recommend consistent configuration in any cases.
 
-* Security domains are designed to be effective for grouping multiple realms. Splitting existing
+Security domains are designed to be effective for grouping multiple realms. Splitting existing
 realms out of a security domain is more complex and can introduce unexpected behaviors.
 This means assigning realms under a domain works as expected (assuming they are configured
 consistently across all nodes), but removing realms from a domain must be
 performed with caution. Resources
 created before domain splitting can be owned by different users depending on resource types:
-  - <<user-profile,User profiles>> will be owned by the user for whom it was last
+
+- <<user-profile,User profiles>> will be owned by the user for whom it was last
 <<security-api-activate-user-profile,activated>>.
 If the owner user's realm is under a domain, the profile is shared across realms in that
 domain for the user. Other users that are no longer in the same domain as the owner user will get
 new profiles created the next time they call the Activate User Profile API.
-  - Other resources, such as API keys, will be owned by the user who originally created them.
+- Other resources, such as API keys, will be owned by the user who originally created them.
 If the owner user's realm is under a domain, the resource is shared across realms in that
 domain for the user.
 

@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 public class ParallelDetector {
 
     private static Integer _defaultParallel = null;
+    private static final Logger LOGGER = Logging.getLogger(ParallelDetector.class);
 
     private final static int MACOS_MONTEREY_MAJOR_VERSION = 12;
 
@@ -97,7 +98,7 @@ public class ParallelDetector {
     private static boolean isMontereyOrNewer(ProviderFactory providers) {
         String rawVersion = providers.systemProperty("os.version").getOrElse("").trim();
         if (rawVersion.isEmpty()) {
-            Logging.getLogger(ParallelDetector.class).warn("Failed to validate MacOs version.");
+            LOGGER.warn("Failed to validate MacOs version.");
             return false;
         }
 

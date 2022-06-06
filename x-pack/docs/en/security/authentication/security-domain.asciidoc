@@ -64,7 +64,7 @@ when authenticating with different realms, it is _not_ recommended.
 ====
 Security domain is an advanced feature and must be used with care. It can lead
 to unexpected behaviours if incorrectly configured or misused.
-Here are few things watch out when working with security domain:
+Here are a few things to watch out when working with security domain:
 
 * Security domains must be configured consistently across all nodes. Since changing
 security domain requires node restart, this means they may not be fully functional

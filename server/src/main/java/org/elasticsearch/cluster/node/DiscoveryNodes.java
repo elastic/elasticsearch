@@ -736,7 +736,10 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     }
 
     private static Map<String, DiscoveryNode> filteredNodes(Map<String, DiscoveryNode> nodes, Predicate<DiscoveryNode> predicate) {
-        return nodes.entrySet().stream().filter(e -> predicate.test(e.getValue())).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        return nodes.entrySet()
+            .stream()
+            .filter(e -> predicate.test(e.getValue()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public static void addCommaSeparatedNodesWithoutAttributes(Iterator<DiscoveryNode> iterator, StringBuilder stringBuilder) {

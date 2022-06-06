@@ -8,6 +8,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture"

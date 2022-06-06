@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -48,6 +47,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -219,16 +220,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
                                     logger.warn(
-                                        new ParameterizedMessage(
-                                            "failed to retrieve shard stats from node [{}]",
-                                            failedNodeException.nodeId()
-                                        ),
+                                        () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
                                         failedNodeException.getCause()
                                     );
                                 }
                                 logger.trace(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
                                         shardFailure.index(),
                                         shardFailure.shardId()
                                     ),
@@ -236,8 +234,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 );
                             } else {
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
                                         shardFailure.index(),
                                         shardFailure.shardId()
                                     ),

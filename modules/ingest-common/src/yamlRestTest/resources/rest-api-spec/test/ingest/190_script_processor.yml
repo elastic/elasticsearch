@@ -281,7 +281,7 @@ teardown:
 ---
 "Test adding circular references fails pipeline":
   - skip:
-      version: " - 8.2.999"
+      version: " - 8.2.99"
       reason: "Test causes fatal error prior to 8.3.0"
 
   - do:
@@ -313,4 +313,4 @@ teardown:
               "foo": "bar"
             }
           }
-  - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ingest pipeline [my_pipeline])" }
+  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline]" }

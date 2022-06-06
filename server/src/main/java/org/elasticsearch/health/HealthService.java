@@ -35,11 +35,11 @@ import static java.util.stream.Collectors.toMap;
 public class HealthService {
 
     // Visible for testing
-    static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine indicator state. Cluster state is not stable. Check "
-        + "details for critical issues keeping this indicator from running.";
+    static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine health status. Check details on critical issues "
+        + "preventing the health status from reporting.";
     static final String UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED =
-        "Could not determine indicator state. The current node handling the health request is not ready to assess the health of the "
-            + "cluster. Try again later or execute the health API against a different node.";
+        "Could not determine health status. This node is not ready to assess the cluster health. Try again later or run the health API "
+            + "against a different node.";
 
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN
@@ -83,11 +83,11 @@ public class HealthService {
      * the given indicatorName.
      * @param componentName If not null, only the component with this name is returned
      * @param indicatorName If not null, the returned component will only have this indicator
-     * @param computeDetails Whether to compute the details portion of the component results
+     * @param explain Whether to compute the details portion of the component results
      * @return A list of all HealthComponentResults if componentName is null, or one HealthComponentResult if componentName is not null
      * @throws ResourceNotFoundException if a component name is given and the component or indicator are not found
      */
-    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean computeDetails) {
+    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean explain) {
         final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
         final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
 
@@ -99,10 +99,10 @@ public class HealthService {
         List<HealthIndicatorResult> preflightResults;
         if (clusterStateRecovered) {
             // Determine if cluster is stable enough to calculate health before running other indicators
-            preflightResults = preflightHealthIndicatorServices.stream().map(service -> service.calculate(computeDetails)).toList();
+            preflightResults = preflightHealthIndicatorServices.stream().map(service -> service.calculate(explain)).toList();
         } else {
             // Mark preflight indicators as UNKNOWN
-            HealthIndicatorDetails details = computeDetails ? DETAILS_UNKNOWN_STATE_NOT_RECOVERED : HealthIndicatorDetails.EMPTY;
+            HealthIndicatorDetails details = explain ? DETAILS_UNKNOWN_STATE_NOT_RECOVERED : HealthIndicatorDetails.EMPTY;
             preflightResults = preflightHealthIndicatorServices.stream()
                 .map(service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED, details))
                 .toList();
@@ -120,11 +120,11 @@ public class HealthService {
         Stream<HealthIndicatorResult> filteredIndicatorResults;
         if (clusterStateRecovered && clusterHealthIsObtainable) {
             // Calculate remaining indicators
-            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(computeDetails));
+            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(explain));
         } else {
             // Mark remaining indicators as UNKNOWN
             String unknownSummary = clusterStateRecovered ? UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED : UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED;
-            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, clusterStateRecovered, computeDetails);
+            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, clusterStateRecovered, explain);
             filteredIndicatorResults = filteredIndicators.map(service -> generateUnknownResult(service, unknownSummary, unknownDetails));
         }
 

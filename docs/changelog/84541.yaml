@@ -1,6 +1,0 @@
-pr: 84541
-summary: Invoke initial `AsyncActionStep` for newly created indices
-area: ILM+SLM
-type: bug
-issues:
- - 77269

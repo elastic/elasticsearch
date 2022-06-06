@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
@@ -101,12 +102,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -129,14 +134,12 @@ public class RBACEngineTests extends ESTestCase {
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
             : new AuthenticateRequestBuilder(mock(Client.class)).username(user.principal()).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(
-            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
+            randomAlphaOfLengthBetween(3, 8)
         );
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().realmRef(authenticatedBy).user(user).build(false);
 
         assertThat(request, instanceOf(UserRequest.class));
         assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -331,25 +334,21 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { ClusterHealthAction.NAME },
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build() },
-            new ApplicationResourcePrivileges[0]
+        final PrivilegesCheckResult result = hasPrivileges(
+            IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build(),
+            authzInfo,
+            List.of(),
+            new String[] { ClusterHealthAction.NAME }
         );
 
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
-
-        final PrivilegesCheckResult result = future.get();
         assertThat(result, notNullValue());
-        assertThat(result.allMatch(), is(true));
+        assertThat(result.allChecksSuccess(), is(true));
 
-        assertThat(result.cluster(), aMapWithSize(1));
-        assertThat(result.cluster().get(ClusterHealthAction.NAME), equalTo(true));
+        assertThat(result.getDetails().cluster(), aMapWithSize(1));
+        assertThat(result.getDetails().cluster().get(ClusterHealthAction.NAME), equalTo(true));
 
-        assertThat(result.index().values(), Matchers.iterableWithSize(1));
-        final ResourcePrivileges resourcePrivileges = result.index().values().iterator().next();
+        assertThat(result.getDetails().index().values(), Matchers.iterableWithSize(1));
+        final ResourcePrivileges resourcePrivileges = result.getDetails().index().values().iterator().next();
         assertThat(resourcePrivileges.getResource(), equalTo("academy"));
         assertThat(resourcePrivileges.getPrivileges(), aMapWithSize(2));
         assertThat(resourcePrivileges.getPrivileges().get(DeleteAction.NAME), equalTo(true));
@@ -368,26 +367,22 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { "monitor", "manage" },
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build() },
-            new ApplicationResourcePrivileges[0]
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build(),
+            authzInfo,
+            List.of(),
+            new String[] { "monitor", "manage" }
         );
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
 
-        final PrivilegesCheckResult response = future.get();
-        assertThat(response, notNullValue());
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.cluster(), aMapWithSize(2));
-        assertThat(response.cluster().get("monitor"), equalTo(true));
-        assertThat(response.cluster().get("manage"), equalTo(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(3));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().cluster(), aMapWithSize(2));
+        assertThat(response.getDetails().cluster().get("monitor"), equalTo(true));
+        assertThat(response.getDetails().cluster().get("manage"), equalTo(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(3));
 
-        final ResourcePrivileges academy = response.index().get("academy");
-        final ResourcePrivileges initiative = response.index().get("initiative");
-        final ResourcePrivileges school = response.index().get("school");
+        final ResourcePrivileges academy = response.getDetails().index().get("academy");
+        final ResourcePrivileges initiative = response.getDetails().index().get("initiative");
+        final ResourcePrivileges school = response.getDetails().index().get("school");
 
         assertThat(academy.getResource(), equalTo("academy"));
         assertThat(academy.getPrivileges(), aMapWithSize(3));
@@ -422,9 +417,9 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
-        final ResourcePrivileges result = response.index().values().iterator().next();
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
+        final ResourcePrivileges result = response.getDetails().index().values().iterator().next();
         assertThat(result.getResource(), equalTo("academy"));
         assertThat(result.getPrivileges(), aMapWithSize(2));
         assertThat(result.getPrivileges().get("read"), equalTo(false));
@@ -472,8 +467,7 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[0],
+        final PrivilegesCheckResult response = hasPrivileges(
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                     .indices("logstash-2016-*")
@@ -513,18 +507,17 @@ public class RBACEngineTests extends ESTestCase {
                     .resources("space/engineering/project-*", "space/*") // project-* = Yes, space/* = Not
                     .application("kibana")
                     .privileges("space:view/dashboard")
-                    .build() }
+                    .build() },
+            authzInfo,
+            privs,
+            new String[0]
         );
 
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, privs, future);
-
-        final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(8));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(8));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder("logstash-2016-*").addPrivileges(Collections.singletonMap("write", true)).build(),
                 ResourcePrivileges.builder("logstash-*").addPrivileges(Collections.singletonMap("read", true)).build(),
@@ -540,8 +533,8 @@ public class RBACEngineTests extends ESTestCase {
                     .build()
             )
         );
-        assertThat(response.application().entrySet(), Matchers.iterableWithSize(1));
-        final Collection<ResourcePrivileges> kibanaPrivileges = response.application().get("kibana");
+        assertThat(response.getDetails().application().entrySet(), Matchers.iterableWithSize(1));
+        final Collection<ResourcePrivileges> kibanaPrivileges = response.getDetails().application().get("kibana");
         assertThat(kibanaPrivileges, Matchers.iterableWithSize(3));
         assertThat(
             Strings.collectionToCommaDelimitedString(kibanaPrivileges),
@@ -557,31 +550,102 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testCheckingIndexPermissionsDefinedOnDifferentPatterns() throws Exception {
-        Role role = Role.builder(RESTRICTED_INDICES, "test-write")
-            .add(IndexPrivilege.INDEX, "apache-*")
-            .add(IndexPrivilege.DELETE, "apache-2016-*")
-            .build();
-        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(
+            Role.builder(RESTRICTED_INDICES, "test-multiple")
+                .add(IndexPrivilege.CREATE_DOC, "*")
+                .add(IndexPrivilege.INDEX, "apache-*", "unrelated", "something_else*")
+                .add(IndexPrivilege.DELETE, "apache-2016-*", ".security*")
+                .build(),
+            null
+        );
 
-        final PrivilegesCheckResult response = hasPrivileges(
-            IndicesPrivileges.builder().indices("apache-2016-12", "apache-2017-01").privileges("index", "delete").build(),
+        List<String> indices = new ArrayList<>(3);
+        indices.add("apache-2016-12");
+        indices.add("apache-2017-01");
+        indices.add("other");
+        Collections.shuffle(indices, random());
+        List<String> privileges = new ArrayList<>(3);
+        privileges.add("create_doc");
+        privileges.add("index");
+        privileges.add("delete");
+        Collections.shuffle(privileges, random());
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder().indices(indices).privileges(privileges).allowRestrictedIndices(randomBoolean()).build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(3));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder("apache-2016-12")
                     .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("delete", true).map()
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", true)
+                            .put("delete", true)
+                            .map()
                     )
                     .build(),
                 ResourcePrivileges.builder("apache-2017-01")
                     .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("delete", false).map()
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", true)
+                            .put("delete", false)
+                            .map()
+                    )
+                    .build(),
+                ResourcePrivileges.builder("other")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", false)
+                            .put("delete", false)
+                            .map()
+                    )
+                    .build()
+            )
+        );
+
+        indices = new ArrayList<>(2);
+        indices.add("apache-2016-12");
+        indices.add("apache-2017-01");
+        Collections.shuffle(indices, random());
+        privileges = new ArrayList<>(3);
+        privileges.add("create");
+        privileges.add("create_doc");
+        privileges.add("index");
+        Collections.shuffle(privileges, random());
+        response = hasPrivileges(
+            IndicesPrivileges.builder().indices(indices).privileges(privileges).allowRestrictedIndices(randomBoolean()).build(),
+            authzInfo,
+            Collections.emptyList(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
+        assertThat(
+            response.getDetails().index().values(),
+            containsInAnyOrder(
+                ResourcePrivileges.builder("apache-2016-12")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("create", true)
+                            .put("index", true)
+                            .map()
+                    )
+                    .build(),
+                ResourcePrivileges.builder("apache-2017-01")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("create", true)
+                            .put("index", true)
+                            .map()
                     )
                     .build()
             )
@@ -605,10 +669,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(prePatternPrefix)
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
@@ -623,10 +687,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(matchesPatternPrefix + "*")
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
@@ -639,10 +703,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(matchesPatternPrefix + "*")
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
@@ -655,10 +719,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(matchesPatternPrefix)
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
@@ -677,10 +741,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
@@ -697,10 +761,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
@@ -717,10 +781,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(restrictedIndexMatchingWildcard)
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
@@ -742,10 +806,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
-        assertThat(response.index().values(), Matchers.iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(matchesPatternPrefix + "*")
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
@@ -774,10 +838,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
                     .addPrivileges(
@@ -806,10 +870,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
                     .addPrivileges(
@@ -841,10 +905,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".sec*")
                     .addPrivileges(
@@ -865,10 +929,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".sec*")
                     .addPrivileges(
@@ -895,10 +959,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".sec*")
                     .addPrivileges(
@@ -919,10 +983,10 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.iterableWithSize(2));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
-            response.index().values(),
+            response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".sec*")
                     .addPrivileges(
@@ -955,28 +1019,32 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
+        List<String> resources = new ArrayList<>();
+        resources.add("foo/1");
+        resources.add("foo/bar/2");
+        resources.add("foo/bar/baz");
+        resources.add("baz/bar/foo");
+        Collections.shuffle(resources, random());
+        List<String> privileges = new ArrayList<>();
+        privileges.add("read");
+        privileges.add("write");
+        privileges.add("all");
+        Collections.shuffle(privileges, random());
+
         final PrivilegesCheckResult response = hasPrivileges(
             new IndicesPrivileges[0],
             new ApplicationResourcePrivileges[] {
-                ApplicationResourcePrivileges.builder()
-                    .application("app1")
-                    .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
-                    .privileges("read", "write", "all")
-                    .build(),
-                ApplicationResourcePrivileges.builder()
-                    .application("app2")
-                    .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
-                    .privileges("read", "write", "all")
-                    .build() },
+                ApplicationResourcePrivileges.builder().application("app1").resources(resources).privileges(privileges).build(),
+                ApplicationResourcePrivileges.builder().application("app2").resources(resources).privileges(privileges).build() },
             authzInfo,
             privs,
             Strings.EMPTY_ARRAY
         );
 
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.index().values(), Matchers.emptyIterable());
-        assertThat(response.application().entrySet(), Matchers.iterableWithSize(2));
-        final Collection<ResourcePrivileges> app1 = response.application().get("app1");
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.emptyIterable());
+        assertThat(response.getDetails().application().entrySet(), Matchers.iterableWithSize(2));
+        final Collection<ResourcePrivileges> app1 = response.getDetails().application().get("app1");
         assertThat(app1, Matchers.iterableWithSize(4));
         assertThat(
             Strings.collectionToCommaDelimitedString(app1),
@@ -1020,7 +1088,7 @@ public class RBACEngineTests extends ESTestCase {
                     .build()
             )
         );
-        final Collection<ResourcePrivileges> app2 = response.application().get("app2");
+        final Collection<ResourcePrivileges> app2 = response.getDetails().application().get("app2");
         assertThat(app2, Matchers.iterableWithSize(4));
         assertThat(
             Strings.collectionToCommaDelimitedString(app2),
@@ -1092,11 +1160,11 @@ public class RBACEngineTests extends ESTestCase {
             privs,
             "monitor"
         );
-        assertThat(response.allMatch(), is(false));
-        assertThat(response.application().keySet(), containsInAnyOrder(appName));
-        assertThat(response.application().get(appName), iterableWithSize(1));
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().application().keySet(), containsInAnyOrder(appName));
+        assertThat(response.getDetails().application().get(appName), iterableWithSize(1));
         assertThat(
-            response.application().get(appName),
+            response.getDetails().application().get(appName),
             containsInAnyOrder(
                 ResourcePrivileges.builder("user/hawkeye/name")
                     .addPrivileges(
@@ -1113,6 +1181,69 @@ public class RBACEngineTests extends ESTestCase {
         );
     }
 
+    public void testCheckPrivilegesWithCache() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        final String appName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 10);
+        final String privilegeName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 10);
+        final String action1 = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 5);
+        final ApplicationPrivilege priv1 = defineApplicationPrivilege(privs, appName, privilegeName, "DATA:read/*", "ACTION:" + action1);
+        SimpleRole role = spy(
+            Role.builder(RESTRICTED_INDICES, "test-write").addApplicationPrivilege(priv1, Collections.singleton("user/*/name")).build()
+        );
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        // 1st check privileges
+        final PrivilegesToCheck privilegesToCheck1 = new PrivilegesToCheck(
+            new String[0],
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
+                    .application(appName)
+                    .resources("user/hawkeye/name")
+                    .privileges("DATA:read/user/*", "ACTION:" + action1)
+                    .build() },
+            randomBoolean()
+        );
+
+        final PlainActionFuture<PrivilegesCheckResult> future1 = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future1);
+        final PrivilegesCheckResult privilegesCheckResult1 = future1.actionGet();
+
+        // Result should be cached
+        verify(role).cacheHasPrivileges(any(), eq(privilegesToCheck1), eq(privilegesCheckResult1));
+
+        // Stall the check so that we are sure cache is used
+        final RuntimeException stallCheckException = new RuntimeException("you shall not pass");
+        doThrow(stallCheckException).when(role).checkApplicationResourcePrivileges(anyString(), any(), any(), any(), any());
+        Mockito.clearInvocations(role);
+
+        final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future2);
+        final PrivilegesCheckResult privilegesCheckResult2 = future2.actionGet();
+
+        assertThat(privilegesCheckResult2, is(privilegesCheckResult1));
+        // Cached result won't be cached again
+        verify(role, never()).cacheHasPrivileges(any(), any(), any());
+
+        // Test a new check does not go through cache (and hence will be stalled by the exception)
+        final PrivilegesToCheck privilegesToCheck2 = new PrivilegesToCheck(
+            new String[0],
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
+                    .application(appName)
+                    .resources("user/hawkeye/name")
+                    .privileges("DATA:read/user/*")
+                    .build() },
+            randomBoolean()
+        );
+        final RuntimeException e1 = expectThrows(
+            RuntimeException.class,
+            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
+        );
+        assertThat(e1, is(stallCheckException));
+    }
+
     public void testIsCompleteMatch() throws Exception {
         final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
         final ApplicationPrivilege kibanaRead = defineApplicationPrivilege(privs, "kibana", "read", "data:read/*");
@@ -1126,19 +1257,19 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         assertThat(
-            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allMatch(),
+            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allChecksSuccess(),
             is(true)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allMatch(),
+            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allChecksSuccess(),
             is(false)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allMatch(),
+            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allChecksSuccess(),
             is(false)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allMatch(),
+            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allChecksSuccess(),
             is(false)
         );
         assertThat(
@@ -1151,7 +1282,7 @@ public class RBACEngineTests extends ESTestCase {
                 authzInfo,
                 privs,
                 "monitor"
-            ).allMatch(),
+            ).allChecksSuccess(),
             is(true)
         );
         assertThat(
@@ -1163,7 +1294,7 @@ public class RBACEngineTests extends ESTestCase {
                 authzInfo,
                 privs,
                 "monitor"
-            ).allMatch(),
+            ).allChecksSuccess(),
             is(false)
         );
     }
@@ -1224,8 +1355,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
@@ -1265,8 +1395,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")
@@ -1397,11 +1526,44 @@ public class RBACEngineTests extends ESTestCase {
         String... clusterPrivileges
     ) throws Exception {
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
+        final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            clusterPrivileges,
+            indicesPrivileges,
+            appPrivileges,
+            randomBoolean()
+        );
         engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
-        final PrivilegesCheckResult response = future.get();
-        assertThat(response, notNullValue());
-        return response;
+        // flip the "runDetailedCheck" flag
+        engine.checkPrivileges(
+            authorizationInfo,
+            new PrivilegesToCheck(
+                privilegesToCheck.cluster(),
+                privilegesToCheck.index(),
+                privilegesToCheck.application(),
+                false == privilegesToCheck.runDetailedCheck()
+            ),
+            applicationPrivilegeDescriptors,
+            future2
+        );
+
+        final PrivilegesCheckResult privilegesCheckResult = future.get();
+        assertThat(privilegesCheckResult, notNullValue());
+        final PrivilegesCheckResult privilegesCheckResult2 = future2.get();
+        assertThat(privilegesCheckResult2, notNullValue());
+
+        // same result independent of the "runDetailedCheck" flag
+        assertThat(privilegesCheckResult.allChecksSuccess(), is(privilegesCheckResult2.allChecksSuccess()));
+
+        if (privilegesToCheck.runDetailedCheck()) {
+            assertThat(privilegesCheckResult.getDetails(), notNullValue());
+            assertThat(privilegesCheckResult2.getDetails(), nullValue());
+            return privilegesCheckResult;
+        } else {
+            assertThat(privilegesCheckResult.getDetails(), nullValue());
+            assertThat(privilegesCheckResult2.getDetails(), notNullValue());
+            return privilegesCheckResult2;
+        }
     }
 
     private static MapBuilder<String, Boolean> mapBuilder() {

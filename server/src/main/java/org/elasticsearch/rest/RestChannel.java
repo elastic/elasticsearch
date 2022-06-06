@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,7 +33,7 @@ public interface RestChannel extends Traceable {
     XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType, boolean useFiltering)
         throws IOException;
 
-    BytesStreamOutput bytesOutput();
+    BytesStream bytesOutput();
 
     RestRequest request();
 

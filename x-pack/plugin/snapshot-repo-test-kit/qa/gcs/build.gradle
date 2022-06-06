@@ -13,14 +13,13 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
 }
 
 restResources {
@@ -83,7 +82,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repository-test-kit')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + BuildParams.testSeed
 
@@ -92,7 +91,7 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
 
   keystore 'gcs.client.repository_test_kit.credentials_file', serviceAccountFile, IGNORE_VALUE
@@ -107,5 +106,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("gcsThirdPartyTest")  {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

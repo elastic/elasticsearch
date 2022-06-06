@@ -36,8 +36,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
 
-    private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
-    private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
+    private final Map<String, DiskUsage> leastAvailableSpaceUsage;
+    private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final ImmutableOpenMap<String, Long> shardSizes;
     final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
@@ -67,8 +67,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
-        ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-        ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
         ImmutableOpenMap<String, Long> shardSizes,
         ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
         ImmutableOpenMap<ShardRouting, String> routingToDataPath,
@@ -116,15 +116,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.leastAvailableSpaceUsage.size());
-        for (Map.Entry<String, DiskUsage> c : this.leastAvailableSpaceUsage.entrySet()) {
-            out.writeString(c.getKey());
-            c.getValue().writeTo(out);
-        }
+        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
+        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
         if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), (o, v) -> out.writeLong(v));
+            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
         }
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
@@ -198,7 +194,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Returns a node id to disk usage mapping for the path that has the least available space on the node.
      * Note that this does not take account of reserved space: there may be another path with less available _and unreserved_ space.
      */
-    public ImmutableOpenMap<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
+    public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
         return this.leastAvailableSpaceUsage;
     }
 
@@ -206,7 +202,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Returns a node id to disk usage mapping for the path that has the most available space on the node.
      * Note that this does not take account of reserved space: there may be another path with more available _and unreserved_ space.
      */
-    public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
+    public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return this.mostAvailableSpaceUsage;
     }
 
@@ -316,10 +312,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(total);
-            out.writeVInt(shardIds.size());
-            for (ShardId shardIdCursor : shardIds) {
-                shardIdCursor.writeTo(out);
-            }
+            out.writeCollection(shardIds);
         }
 
         public long getTotal() {

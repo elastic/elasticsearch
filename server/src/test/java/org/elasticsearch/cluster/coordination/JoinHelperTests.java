@@ -65,6 +65,7 @@ public class JoinHelperTests extends ESTestCase {
         JoinHelper joinHelper = new JoinHelper(
             null,
             null,
+            new NoOpClusterApplier(),
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
@@ -219,6 +220,7 @@ public class JoinHelperTests extends ESTestCase {
         JoinHelper joinHelper = new JoinHelper(
             null,
             null,
+            new NoOpClusterApplier(),
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },

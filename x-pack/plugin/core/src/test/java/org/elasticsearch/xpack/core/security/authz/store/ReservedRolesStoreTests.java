@@ -148,9 +148,11 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
@@ -174,6 +176,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -182,12 +185,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -236,7 +238,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
         assertThat(ReservedRolesStore.isReserved("foobar"), is(false));
-        assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(false));
+        assertThat(ReservedRolesStore.isReserved(UsernamesField.ASYNC_SEARCH_ROLE), is(false));
+        assertThat(ReservedRolesStore.isReserved(UsernamesField.SECURITY_PROFILE_ROLE), is(false));
+        assertThat(ReservedRolesStore.isReserved(UsernamesField.XPACK_ROLE), is(false));
+        assertThat(ReservedRolesStore.isReserved(UsernamesField.XPACK_SECURITY_ROLE), is(false));
         assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
@@ -252,8 +258,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("beats_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
-        assertThat(ReservedRolesStore.isReserved(AsyncSearchUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(LogstashSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(BeatsSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(APMSystemUser.ROLE_NAME), is(true));
@@ -268,7 +272,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testSnapshotUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("snapshot_user");
         assertNotNull(roleDescriptor);
@@ -342,7 +346,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testIngestAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
         assertNotNull(roleDescriptor);
@@ -381,7 +385,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,  // cannot be API key for managing API keys
+            () -> AuthenticationTestHelper.builder().build()
+        );
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
@@ -409,15 +416,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
         assertThat(
-            kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(null, null, null, null, true), authentication),
+            kibanaRole.cluster().check(GetApiKeyAction.NAME, new GetApiKeyRequest(null, null, null, null, true), authentication),
             is(true)
         );
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
         queryApiKeyRequest.setFilterForCurrentUser();
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
 
         // ML
         assertRoleHasManageMl(kibanaRole);
@@ -675,21 +682,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
         });
 
-        Arrays.asList(
-            ".fleet",
-            ".fleet-agents",
-            ".fleet-actions",
-            ".fleet-enrollment-api-keys",
-            ".fleet-policies",
-            ".fleet-actions-results",
-            ".fleet-servers"
-        ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
-
-        // read-only index for Endpoint and Osquery manager specific action responses
-        Arrays.asList(
-            ".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))
-        ).forEach((index) -> {
+        // read-only indices for Endpoint events (to build timelines)
+        Arrays.asList("logs-endpoint.events.process-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
@@ -707,11 +701,74 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Index for Endpoint and Osquery manager specific actions
+        // read-only indices for Endpoint events (to build timelines)
+        Arrays.asList("logs-endpoint.events.network-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
         Arrays.asList(
-            ".logs-endpoint.actions-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".logs-osquery_manager.actions-" + randomAlphaOfLength(randomIntBetween(0, 13))
-        ).forEach((index) -> {
+            ".fleet",
+            ".fleet-agents",
+            ".fleet-actions",
+            ".fleet-enrollment-api-keys",
+            ".fleet-policies",
+            ".fleet-actions-results",
+            ".fleet-servers"
+        ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        // read-only index for Endpoint and Osquery manager specific action responses
+        Arrays.asList(".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
+        Arrays.asList(".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
+        // Index for Endpoint specific actions
+        Arrays.asList(".logs-endpoint.actions-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
@@ -856,10 +913,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Hidden data indices for endpoint package
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(3, 8),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8),
-            // Hidden data indices for osquery_manager package
-            ".logs-osquery_manager.action.responses-" + randomAlphaOfLengthBetween(3, 8),
-            ".logs-osquery_manager.actions-" + randomAlphaOfLengthBetween(3, 8)
+            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -874,8 +928,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(true)
             );
 
-            final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
-                || indexName.startsWith(".logs-osquery_manager.actions-");
+            final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
@@ -886,8 +939,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final boolean isAlsoReadIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-")
-                || indexName.startsWith(".logs-osquery_manager.actions-")
-                || indexName.startsWith(".logs-osquery_manager.action.responses-");
+                || indexName.startsWith(".logs-osquery_manager.actions-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
@@ -965,6 +1017,31 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
         });
 
+        Arrays.asList(
+            ".logs-osquery_manager.actions-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow indexing
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+            // Allow create and delete index
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
+                is(true)
+            );
+        });
+
         // read-only datastream for csp indices
         Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
@@ -1036,7 +1113,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_admin");
         assertNotNull(roleDescriptor);
@@ -1080,7 +1157,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
@@ -1125,7 +1202,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMonitoringUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("monitoring_user");
         assertNotNull(roleDescriptor);
@@ -1214,7 +1291,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRemoteMonitoringAgentRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_agent");
         assertNotNull(roleDescriptor);
@@ -1385,7 +1462,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRemoteMonitoringCollectorRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_collector");
         assertNotNull(roleDescriptor);
@@ -1650,7 +1727,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testReportingUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
@@ -1702,7 +1779,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testSuperuserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
         assertNotNull(roleDescriptor);
@@ -1829,7 +1906,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testLogstashSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
         assertNotNull(roleDescriptor);
@@ -1863,7 +1940,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testBeatsAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
@@ -1910,7 +1987,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testBeatsSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(BeatsSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
@@ -1952,7 +2029,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testAPMSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(APMSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
@@ -2005,7 +2082,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testAPMUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
         assertNotNull(roleDescriptor);
@@ -2057,7 +2134,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_admin");
         assertNotNull(roleDescriptor);
@@ -2098,7 +2175,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private void assertRoleHasManageMl(Role role) {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
@@ -2167,7 +2244,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMachineLearningUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_user");
         assertNotNull(roleDescriptor);
@@ -2261,7 +2338,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testTransformAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin"),
@@ -2324,7 +2401,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testTransformUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_user"),
@@ -2392,7 +2469,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testWatcherAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
         assertNotNull(roleDescriptor);
@@ -2423,7 +2500,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testWatcherUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
         assertNotNull(roleDescriptor);
@@ -2458,7 +2535,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testPredefinedViewerRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("viewer");
         assertNotNull(roleDescriptor);
@@ -2516,7 +2593,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testPredefinedEditorRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("editor");
         assertNotNull(roleDescriptor);
@@ -2670,7 +2747,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testLogstashAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
         assertNotNull(roleDescriptor);

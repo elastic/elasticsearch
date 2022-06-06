@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -48,6 +47,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -177,12 +178,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     public void onResponse(NodesStatsResponse nodesStatsResponse) {
                         logger.trace("received node stats response");
 
-                        for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                            logger.warn(
-                                new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
-                                failure.getCause()
-                            );
-                        }
+                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
+                    }
 
                         ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
@@ -219,39 +217,36 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         logger.trace("received indices stats response");
 
-                        if (indicesStatsResponse.getShardFailures().length > 0) {
-                            final Set<String> failedNodeIds = new HashSet<>();
-                            for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                                if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
-                                    if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                        logger.warn(
-                                            new ParameterizedMessage(
-                                                "failed to retrieve shard stats from node [{}]",
-                                                failedNodeException.nodeId()
-                                            ),
-                                            failedNodeException.getCause()
-                                        );
-                                    }
-                                    logger.trace(
-                                        new ParameterizedMessage(
-                                            "failed to retrieve stats for shard [{}][{}]",
-                                            shardFailure.index(),
-                                            shardFailure.shardId()
-                                        ),
-                                        shardFailure.getCause()
-                                    );
-                                } else {
+                    if (indicesStatsResponse.getShardFailures().length > 0) {
+                        final Set<String> failedNodeIds = new HashSet<>();
+                        for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
+                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                if (failedNodeIds.add(failedNodeException.nodeId())) {
                                     logger.warn(
-                                        new ParameterizedMessage(
-                                            "failed to retrieve stats for shard [{}][{}]",
-                                            shardFailure.index(),
-                                            shardFailure.shardId()
-                                        ),
-                                        shardFailure.getCause()
+                                        () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
+                                        failedNodeException.getCause()
                                     );
                                 }
+                                logger.trace(
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
+                                    shardFailure.getCause()
+                                );
+                            } else {
+                                logger.warn(
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
+                                    shardFailure.getCause()
+                                );
                             }
                         }
+                    }
 
                         final ShardStats[] stats = indicesStatsResponse.getShards();
                         final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
@@ -303,7 +298,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             logger.trace("notifying [{}] of new cluster info", listener);
                             listener.accept(clusterInfo);
                         } catch (Exception e) {
-                            logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                            logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                         }
                     }
                     assert anyListeners : "expected to notify at least one listener";

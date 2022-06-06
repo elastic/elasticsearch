@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.monitoring.Monitoring;
@@ -98,7 +99,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings) {
+        plugins.add(new Security(settings, thisVar.securityExtensions()) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -109,6 +110,10 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
+    }
+
+    protected List<SecurityExtension> securityExtensions() {
+        return List.of();
     }
 
     @Override

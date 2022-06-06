@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -53,6 +54,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -246,7 +248,7 @@ public class RealmsTests extends ESTestCase {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
-        List<String> domains = randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3));
+        Collection<String> domains = new HashSet<>(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3)));
         domains.add(null); // not all realms ought to have a domain
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         Map<Integer, String> indexToDomain = new HashMap<>();
@@ -268,6 +270,7 @@ public class RealmsTests extends ESTestCase {
         final String nativeRealmDomain = randomFrom(domains);
 
         Map<String, Set<RealmConfig.RealmIdentifier>> realmsForDomain = new HashMap<>();
+        final Map<String, DomainConfig> domainNameToConfig = new HashMap<>();
         for (String domain : domains) {
             if (domain != null) {
                 realmsForDomain.computeIfAbsent(domain, k -> new HashSet<>());
@@ -288,6 +291,38 @@ public class RealmsTests extends ESTestCase {
                         "xpack.security.authc.domains." + domain + ".realms",
                         realmsForDomain.get(domain).stream().map(RealmConfig.RealmIdentifier::getName).collect(Collectors.joining(", "))
                     );
+                    if (randomBoolean()) {
+                        domainNameToConfig.put(
+                            domain,
+                            new DomainConfig(
+                                domain,
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
+                                false,
+                                null
+                            )
+                        );
+                        if (randomBoolean()) {
+                            builder.put("xpack.security.authc.domains." + domain + ".uid_generation.literal_username", false);
+                        }
+                    } else {
+                        domainNameToConfig.put(
+                            domain,
+                            new DomainConfig(
+                                domain,
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
+                                true,
+                                domain + "suffix"
+                            )
+                        );
+                        builder.put("xpack.security.authc.domains." + domain + ".uid_generation.literal_username", true);
+                        builder.put("xpack.security.authc.domains." + domain + ".uid_generation.suffix", domain + "suffix");
+                    }
                 }
             }
         }
@@ -328,6 +363,12 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.name(), is("realm_" + index));
             assertDomainForRealm(realm, nodeName, realmsForDomain);
         }
+
+        domainNameToConfig.forEach((name, config) -> {
+            if (false == config.memberRealmNames().isEmpty()) {
+                assertThat(realms.getDomainConfig(name), equalTo(config));
+            }
+        });
     }
 
     private void assertDomainForRealm(Realm realm, String nodeName, Map<String, Set<RealmConfig.RealmIdentifier>> realmsByDomainName) {

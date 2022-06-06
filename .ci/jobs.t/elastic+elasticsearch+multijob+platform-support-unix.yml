@@ -24,6 +24,7 @@
             - "sles-15&&immutable"
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
+            - "ubuntu-22.04&&immutable"
             - "rocky-linux-8&&immutable"
             - "rhel-7&&immutable"
             - "rhel-8&&immutable"

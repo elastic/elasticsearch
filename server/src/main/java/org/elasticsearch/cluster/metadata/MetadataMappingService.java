@@ -105,7 +105,7 @@ public class MetadataMappingService {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);

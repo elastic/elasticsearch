@@ -17,6 +17,7 @@ import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -31,6 +32,8 @@ import java.util.NoSuchElementException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.stream;
+import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.basePrefix;
+import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.rootURI;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -44,6 +47,21 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EmbeddedImplClassLoaderTests extends ESTestCase {
+
+    public void testBasePrefix() {
+        assertThat(
+            basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2-SNAPSHOT.jar"),
+            equalTo("IMPL-JARS/x-content/jackson-core-2.13.2-SNAPSHOT.jar")
+        );
+        assertThat(
+            basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2.jar/META-INF/versions/9"),
+            equalTo("IMPL-JARS/x-content/jackson-core-2.13.2.jar")
+        );
+        assertThat(
+            basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2.jar/META-INF/versions/100"),
+            equalTo("IMPL-JARS/x-content/jackson-core-2.13.2.jar")
+        );
+    }
 
     /*
      * Tests that the root version of a class is loaded, when the multi-release attribute is absent.
@@ -159,7 +177,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
      * @param enableMulti whether to set the multi-release attribute
      * @param versions the runtime version number of the entries to create in the jar
      */
-    private static Object newFooBar(boolean enableMulti, int... versions) throws Exception {
+    private Object newFooBar(boolean enableMulti, int... versions) throws Exception {
         String prefix = "IMPL-JARS/x-foo/x-foo-impl.jar/";
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", bytes("x-foo-impl.jar"));
@@ -169,7 +187,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         }
         stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v)));
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
@@ -181,6 +199,18 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         } finally {
             PrivilegedOperations.closeURLClassLoader(parent);
         }
+    }
+
+    public void testRootURI() throws Exception {
+        assertThat(
+            rootURI(new URL("jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar!/IMPL-JARS/x-content/xlib-2.10.4.jar")),
+            equalTo(URI.create("jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar"))
+        );
+
+        assertThat(
+            rootURI(new URL("file:/x/git/es_modules/libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/xlib-2.10.4.jar")),
+            equalTo(URI.create("file:/x/git/es_modules/libs/x-content/build/generated-resources/impl"))
+        );
     }
 
     public void testCompoundEnumeration() {
@@ -200,7 +230,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
     /* Basic test for resource loading. */
     public void testResourcesBasic() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
 
         Map<String, String> jarEntries = new HashMap<>();
         jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar");
@@ -280,7 +310,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
      * @param versions the runtime version number of the entries to create in the jar
      */
     private void testResourcesVersioned(boolean enableMulti, int expectedVersion, int... versions) throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
 
         ClassLoader embedLoader, urlcLoader;
         List<URLClassLoader> closeables = new ArrayList<>();
@@ -367,7 +397,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
      * As well as additional null checks.
      */
     public void testIDontHaveIt() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
 
         ClassLoader embedLoader;
         Map<String, String> jarEntries = new HashMap<>();
@@ -420,7 +450,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/r/Baz.class", classToBytes.get("r.Baz"));
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
@@ -442,7 +472,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
      * Tests resource lookup across multiple embedded jars.
      */
     public void testResourcesWithMultipleJars() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
 
         Map<String, String> jarEntries = new HashMap<>();
         jarEntries.put("IMPL-JARS/blah/LISTING.TXT", "foo.jar\nbar.jar\nbaz.jar");

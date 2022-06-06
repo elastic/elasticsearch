@@ -51,6 +51,9 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata.fromState;
+
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
@@ -129,9 +132,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "updated model assignments based on node changes in the cluster; new metadata [{}]",
-                            Strings.toString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
+                        () -> format(
+                            "updated model assignments based on node changes in the cluster; new metadata [%s]",
+                            Strings.toString(fromState(newState), false, true)
                         )
                     );
                 }
@@ -312,9 +315,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final String modelId = request.getModelId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        logger.trace(
-            () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
-        );
+        logger.trace(() -> format("[%s] [%s] current metadata before update %s", modelId, nodeId, Strings.toString(metadata)));
         final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment
@@ -332,8 +333,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] requested update from node [{}] to update route state to [{}]",
+                () -> format(
+                    "[%s] requested update from node [%s] to update route state to [%s]",
                     modelId,
                     nodeId,
                     request.getRoutingState()

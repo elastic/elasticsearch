@@ -89,7 +89,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         localDistroSetup()
         def distroVersion = VersionProperties.getElasticsearch()
 
-        def subProjectBuildFile = addSubProject(pluginProjectPath)
+        def subProjectBuildFile = subProject(pluginProjectPath)
         subProjectBuildFile << """
             apply plugin: 'elasticsearch.esplugin'
             apply plugin: 'elasticsearch.internal-yaml-rest-test'

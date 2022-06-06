@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +37,9 @@ public class DeprecationChecks {
 
     private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.unmodifiableList(
+        Arrays.asList(ClusterDeprecationChecks::checkShards)
+    );
 
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List

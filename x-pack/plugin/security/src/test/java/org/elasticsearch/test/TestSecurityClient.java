@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;

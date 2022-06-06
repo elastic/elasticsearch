@@ -68,7 +68,16 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
                  },
                  "state": {
                      "cluster_settings": {
-                         "indices.recovery.max_bytes_per_sec": "50mb"
+                         "indices.recovery.max_bytes_per_sec": "50mb",
+                         "cluster": {
+                             "remote": {
+                                 "cluster_one": {
+                                     "seeds": [
+                                         "127.0.0.1:9300"
+                                     ]
+                                 }
+                             }
+                         }
                      }
                  }
             }

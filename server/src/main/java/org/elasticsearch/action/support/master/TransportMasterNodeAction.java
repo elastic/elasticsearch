@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +43,11 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -142,9 +148,45 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    protected Optional<String> operatorHandlerName() {
+        return Optional.empty();
+    }
+
+    boolean supportsOperatorSetState() {
+        return operatorHandlerName().isPresent();
+    }
+
+    protected Set<String> modifiedKeys(Request request) {
+        return Collections.emptySet();
+    }
+
+    void validateForOperatorState(Request request, ClusterState state) {
+        Optional<String> handlerName = operatorHandlerName();
+        assert handlerName.isPresent();
+
+        Set<String> modified = modifiedKeys(request);
+        List<String> errors = new ArrayList<>();
+
+        for (OperatorMetadata operator : state.metadata().operatorState().values()) {
+            Set<String> conflicts = operator.conflicts(handlerName.get(), modified);
+            if (conflicts.isEmpty() == false) {
+                errors.add(format("[%s] set in operator mode by [%s]", String.join(",", conflicts), operator.namespace()));
+            }
+        }
+
+        if (errors.isEmpty() == false) {
+            throw new IllegalStateException(
+                format("Failed to process request [%s] with errors: %s", request, String.join(System.lineSeparator(), errors))
+            );
+        }
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
+        if (supportsOperatorSetState()) {
+            validateForOperatorState(request, state);
+        }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());

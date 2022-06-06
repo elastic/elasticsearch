@@ -21,8 +21,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Metadata class that contains information about cluster settings/entities set
@@ -71,6 +73,17 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
 
     public Map<String, OperatorHandlerMetadata> handlers() {
         return handlers;
+    }
+
+    public Set<String> conflicts(String handlerName, Set<String> modified) {
+        OperatorHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> intersect = new HashSet<>(handlerMetadata.keys());
+        intersect.retainAll(modified);
+        return Collections.unmodifiableSet(intersect);
     }
 
     public static OperatorMetadata readFrom(StreamInput in) throws IOException {

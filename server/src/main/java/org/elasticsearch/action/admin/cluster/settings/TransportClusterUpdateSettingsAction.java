@@ -29,11 +29,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
@@ -126,6 +128,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             clearedBlockAndArchivedSettings.add(key);
         }
         return true;
+    }
+
+    @Override
+    protected Optional<String> operatorHandlerName() {
+        return Optional.of(OperatorClusterUpdateSettingsAction.KEY);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+        Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        return allSettings.keySet();
     }
 
     private static final String UPDATE_TASK_SOURCE = "cluster_update_settings";

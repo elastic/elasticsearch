@@ -306,50 +306,26 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertGreenMasterStability(internalCluster().client());
     }
 
-    public void testRepeatedMasterIdentityChangesRecognizedAsUnstable() throws Exception {
-        /*
-         * In this test we force multiple master identity changes, and make sure that the returned status is YELLOW. In order to not
-         * accidentally test the case where the node transitions to null multiple times, we set the identity change threshold very low
-         * and the null transition threshold very high.
-         */
-        testRepeatedMasterChanges(1, 100, "The elected master node has changed ");
-    }
-
-    public void testRepeatedMasterNullChangesRecognizedAsUnstable() throws Exception {
-        /*
-         * In this test we force multiple master transitions to null, and make sure that the returned status is YELLOW. In order to not
-         * accidentally test the case where the master identity changes multiple times, we set the identity change threshold very high
-         * and the null transition threshold very low.
-         */
-        testRepeatedMasterChanges(100, 1, "and no master multiple times in the last 30m");
-    }
-
     /**
      * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
      * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
      * YELLOW, and that expectedMasterStabilitySummarySubstring is contained in the summary.
-     * @param unacceptableIdentityChanges The value to use for the health.master_history.acceptable_identity_changes setting
-     * @param unacceptableNullTransitions The value to use for the health.master_history.acceptable_null_transitions setting
      * @param expectedMasterStabilitySummarySubstring A string to expect in the master stability health indictor summary
      * @throws Exception
      */
-    private void testRepeatedMasterChanges(
-        int unacceptableIdentityChanges,
-        int unacceptableNullTransitions,
-        String expectedMasterStabilitySummarySubstring
-    ) throws Exception {
+    public void testRepeatedMasterChanges(String expectedMasterStabilitySummarySubstring) throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), unacceptableIdentityChanges)
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), unacceptableNullTransitions)
+                .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
+                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 100)
                 .build()
         );
         ensureStableCluster(3);
         String firstMaster = internalCluster().getMasterName();
-        // Force the master to change 5 times:
+        // Force the master to change 2 times:
         for (int i = 0; i < 2; i++) {
             // Save the current master node as old master node, because that node will get frozen
             final String oldMasterNode = internalCluster().getMasterName();
@@ -416,7 +392,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertThat(masters.size(), equalTo(2));
         }
         List<String> nodeNamesExceptFirstMaster = Arrays.stream(internalCluster().getNodeNames())
-            .filter(name -> name.equals(firstMaster))
+            .filter(name -> name.equals(firstMaster) == false)
             .toList();
         /*
          * It is possible that the first node that became master got re-elected repeatedly. And since it was in a simulated GC when the

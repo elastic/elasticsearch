@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -125,7 +126,7 @@ public class ClusterFormationFailureHelper {
     public record ClusterFormationState(
         List<String> initialMasterNodesSetting,
         DiscoveryNode localNode,
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes,
+        Map<String, DiscoveryNode> masterEligibleNodes,
         long clusterStateVersion,
         long acceptedTerm,
         VotingConfiguration lastAcceptedConfiguration,

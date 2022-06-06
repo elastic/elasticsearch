@@ -394,7 +394,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
-        return mappingLookup.newSourceLoader(forceSyntheticSource);
+        if (forceSyntheticSource) {
+            return new SourceLoader.Synthetic(mappingLookup.getMapping());
+        }
+        return mappingLookup.newSourceLoader();
     }
 
     /**

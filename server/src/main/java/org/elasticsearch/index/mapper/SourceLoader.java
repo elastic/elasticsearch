@@ -60,8 +60,8 @@ public interface SourceLoader {
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
-        Synthetic(RootObjectMapper root) {
-            loader = root.syntheticFieldLoader();
+        public Synthetic(Mapping mapping) {
+            loader = mapping.getRoot().syntheticFieldLoader();
         }
 
         @Override

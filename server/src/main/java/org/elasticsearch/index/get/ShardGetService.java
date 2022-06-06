@@ -228,7 +228,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
-            source = mappingLookup.newSourceLoader(false).leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
+            source = mappingLookup.newSourceLoader().leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {

@@ -54,7 +54,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return global;
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
+    public Map<String, Set<ClusterBlock>> indices() {
         return indicesBlocks;
     }
 
@@ -62,7 +62,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return levelHolders.get(level).global();
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders.get(level).indices();
     }
 

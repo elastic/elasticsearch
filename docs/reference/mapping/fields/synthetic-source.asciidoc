@@ -1,0 +1,150 @@
+[[synthetic-source]]
+==== Synthetic `_source`
+
+Though very handy to have around, the source field takes up a fair amount of
+space on disk. Instead of storing it on disk precisely as you sent it, Elasticsearch
+can reconstruct it on the fly. Enable this by setting `synthetic: true` in `_source`:
+
+[source,console,id=enable-synthetic-source-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": {
+      "synthetic": true
+    }
+  }
+}
+----
+// TESTSETUP
+
+This on the fly reconstruction <<synthetic-source-modifications,modifies>> is *generally*
+slower than saving the source precisely and loading it, but it saves a lot of space.
+It also modifies the `_source` and is only supported if the index is entirely made up
+of the following field types:
+
+* <<ip-synthetic-source,`ip`>>
+* <<keyword-synthetic-source,`keyword`>>
+
+[[synthetic-source-modifications]]
+===== Synthetic source modifications
+
+[[synthetic-source-modifications-alphabetical]]
+====== Sorts fields alphabetically
+Synthetic source will make sort all fields alphabetically so:
+
+[source,console,id=synthetic-source-sorted-example]
+----
+PUT idx/_doc/1
+{
+  "foo": 1,
+  "bar": 2,
+  "baz": 3
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "bar": 2,
+  "baz": 3,
+  "foo": 1
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+[[synthetic-source-modifications-leaf-arrays]]
+====== Moves arrays to leaf fields
+Synthetic source will move all arrays to leaves so:
+
+[source,console,id=synthetic-source-leaf-arrays-example]
+----
+PUT idx/_doc/1
+{
+  "foo": [
+    {
+      "bar": 1
+    },
+    {
+      "bar": 2
+    }
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "foo": {
+    "bar": [1, 2]
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+[[synthetic-source-modifications-field-names]]
+====== Names fields as they are named in the mapping
+Synthetic source will name fields as they are mapped. <<dynamic,dynamic mapping>>
+defaults to interpreting fields with dots in their names as objects so dynamic
+mapping will make documents as "objecty" as possible so:
+
+[source,console,id=synthetic-source-objecty-example]
+----
+PUT idx/_doc/1
+{
+  "foo.bar.baz": 1
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "foo": {
+    "bar": {
+      "baz": 1
+    }
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+You can keep dots in the names by settings <<subobjects>> to `false` so:
+
+[source,console,id=synthetic-dot-example]
+----
+PUT idx
+{
+  "mappings": {
+    "subobjects": false,
+    "_source": {
+      "synthetic": true
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "foo.bar.baz": 1
+}
+----
+// TEST[s/^/DELETE idx\n/]
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will stay:
+
+[source,console-result]
+----
+{
+  "foo.bar.baz": 1
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

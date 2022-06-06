@@ -58,8 +58,13 @@ class Elasticsearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting elasticsearch
      */
+<<<<<<< HEAD
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
+=======
+    public static void main(final String[] args) {
+        bootstrapSecurityProperties();
+>>>>>>> 9160207f363 (Force property expansion for security policy (#87396))
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
         /*
@@ -103,7 +108,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    private static void overrideDnsCachePolicyProperties() {
+    private static void bootstrapSecurityProperties() {
         for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
             final String overrideValue = System.getProperty(overrideProperty);
@@ -116,6 +121,9 @@ class Elasticsearch extends EnvironmentAwareCommand {
                 }
             }
         }
+
+        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
+        Security.setProperty("policy.expandProperties", "true");
     }
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {

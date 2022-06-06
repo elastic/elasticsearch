@@ -30,6 +30,9 @@ setup:
           - '{"flattened.primary": "quux"}'
 ---
 "Key exists, no missing values":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -51,6 +54,9 @@ setup:
   - match: { aggregations.primary_terms.buckets.2.doc_count: 1 }
 ---
 "Key exists, missing values, missing specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -73,6 +79,9 @@ setup:
   - match: { aggregations.primary_terms.buckets.2.doc_count: 1 }
 ---
 "Key exists, missing values, missing not specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -91,6 +100,9 @@ setup:
   - match: { aggregations.primary_terms.buckets.1.doc_count: 1 }
 ---
 "Key does not exist, missing specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -108,6 +120,9 @@ setup:
   - match: { aggregations.primary_terms.buckets.0.doc_count: 4 }
 ---
 "Key does not exist, missing not specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true

@@ -59,7 +59,7 @@ manually configure multiple realms that are backed by the same directory service
 Though it's possible to configure different <<roles,roles>> for the same user
 when authenticating with different realms, it is _not_ recommended.
 
-[[security-domain-warning]]]]
+[[security-domain-warning]]
 [IMPORTANT]
 ====
 Security domain is an advanced feature and must be used with care. It can lead

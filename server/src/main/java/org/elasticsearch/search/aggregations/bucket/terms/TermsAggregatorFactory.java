@@ -134,7 +134,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
-                logger.info("Creating bytes terms aggregator with execution mode [" + execution + "]");
+                logger.debug("Creating bytes terms aggregator with execution mode [" + execution + "]");
                 return execution.create(
                     name,
                     factories,
@@ -466,7 +466,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                          * any more times doing filter-by-filter then we would
                          * doing regular collection.
                          */
-                        logger.info("Using adapted fiter-by-filter implementation");
+                        logger.debug("Using adapted fiter-by-filter implementation");
                         return adapted;
                     }
                 }
@@ -488,7 +488,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
-                    logger.info("Using low cardinality global ordinals implementation");
+                    logger.debug("Using low cardinality global ordinals implementation");
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -532,7 +532,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         remapGlobalOrds = false;
                     }
                 }
-                logger.info("Using standard global ordinals implementation.  remap is [" + remapGlobalOrds + "]");
+                logger.debug("Using standard global ordinals implementation.  remap is [" + remapGlobalOrds + "]");
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,

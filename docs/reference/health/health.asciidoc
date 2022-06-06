@@ -106,7 +106,12 @@ also optionally provide URLs to troubleshooting documentation.
 
 `explain`::
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
+    These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
+
+NOTE: Some health indicators perform root cause analysis of non-green health statuses. This can
+be computationally expensive when called frequently. When setting up automated polling of the API
+for health status set `explain` to `false` to disable the more expensive analysis logic.
 
 [role="child_attributes"]
 [[health-api-response-body]]

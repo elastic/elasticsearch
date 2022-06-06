@@ -75,10 +75,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
-    // This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
-    private static final TimeValue NODE_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(30, TimeUnit.SECONDS);
-    private static final TimeValue SMALLEST_ALLOWED_HAS_MASTER_LOOKUP_TIMEFRAME = new TimeValue(1, TimeUnit.SECONDS);
-
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
@@ -89,7 +85,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         + "insert or update documents.";
     private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not "
         + "work. The _cat APIs will not work.";
-    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
+    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be "
+        + "mounted.";
 
     /**
      * This is the list of the impacts to be reported when the master node is determined to be unstable.
@@ -100,10 +97,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
     );
 
+    /**
+     * This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
+     */
     public static final Setting<TimeValue> NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING = Setting.timeSetting(
         "health.master_history.has_master_lookup_timeframe",
-        NODE_HAS_MASTER_LOOKUP_TIMEFRAME,
-        SMALLEST_ALLOWED_HAS_MASTER_LOOKUP_TIMEFRAME,
+        new TimeValue(30, TimeUnit.SECONDS),
+        new TimeValue(1, TimeUnit.SECONDS),
         Setting.Property.NodeScope
     );
 
@@ -155,7 +155,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     @Override
     public HealthIndicatorResult calculate(boolean explain) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        if (hasSeenMasterInVeryRecentPast()) {
+        if (hasSeenMasterInHasMasterLookupTimeframe()) {
             return calculateOnHaveSeenMasterRecently(localMasterHistory, explain);
         } else {
             return calculateOnHaveNotSeenMasterRecently(localMasterHistory, explain);
@@ -426,7 +426,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * This returns true if this node has seen a master node within the last few seconds
      * @return true if this node has seen a master node within the last few seconds, false otherwise
      */
-    private boolean hasSeenMasterInVeryRecentPast() {
+    private boolean hasSeenMasterInHasMasterLookupTimeframe() {
         // If there is currently a master, there's no point in looking at the history:
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;

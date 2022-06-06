@@ -24,8 +24,6 @@ setup:
                   type: long
                 date:
                   type: date
-                flattened:
-                  type: flattened
 
   - do:
       indices.create:
@@ -41,64 +39,6 @@ setup:
   - do:
       cluster.health:
         wait_for_status: green
----
-"Flattened Field Test":
-  - do:
-      index:
-        index: test_1
-        id: 1
-        body:
-          flattened:
-            primary: foo
-            secondary: bar
-
-  - do:
-      index:
-        index: test_1
-        id: 2
-        body:
-          flattened:
-            primary: foo
-            secondary: quux
-
-  - do:
-      index:
-        index: test_1
-        id: 3
-        body:
-          flattened:
-            primary: baz
-            secondary: zwomp
-
-  - do:
-      index:
-        index: test_1
-        id: 4
-        body:
-          flattened:
-            secondary: zwomp
-
-
-  - do:
-      indices.refresh: {}
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          size: 0
-          aggs: 
-            primary_terms: 
-              terms: 
-                field: "flattened.bogus"
-                missing: "missing_val"
-
-
-  - match: { hits.total: 4 }
-  - length: { aggregations.primary_terms.buckets: 1 }
-  - match: { aggregations.primary_terms.buckets.0.key: "missing_val" }
-  - match: { aggregations.primary_terms.buckets.0.doc_count: 4 }
-
 ---
 "Basic test":
   - do:

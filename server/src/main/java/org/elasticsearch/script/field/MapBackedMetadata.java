@@ -66,12 +66,16 @@ public class MapBackedMetadata {
         );
     }
 
-    protected Object getRawVersion() {
+    public Object getRawVersion() {
         return map.get(VERSION);
     }
 
     public MapBackedMetadata setVersion(Long version) {
         return set(VERSION, version);
+    }
+
+    public void removeVersion() {
+        map.remove(VERSION);
     }
 
     public String getRouting() {

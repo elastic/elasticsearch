@@ -1,0 +1,5 @@
+pr: 87418
+summary: Adding `chunk_size` for `random_sampler` agg
+area: Aggregations
+type: enhancement
+issues: []

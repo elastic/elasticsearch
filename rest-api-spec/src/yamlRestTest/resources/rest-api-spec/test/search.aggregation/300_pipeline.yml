@@ -94,6 +94,7 @@ setup:
               aggs:
                 the_percentiles:
                   percentiles:
+                    percents: [10, 50, 90, 99]
                     field: "int_field"
             the_bad_max:
               max_bucket:
@@ -227,6 +228,7 @@ setup:
               aggs:
                 the_percentiles:
                   percentiles:
+                    percents: [10, 50, 90, 99]
                     field: "int_field"
                     hdr:
                       number_of_significant_value_digits: 3

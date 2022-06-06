@@ -47,7 +47,7 @@ public record OperatorUpdateStateTask(ActionListener<ActionResponse.Empty> liste
         public ClusterState execute(ClusterState currentState, List<TaskContext<OperatorUpdateStateTask>> taskContexts) throws Exception {
             for (final var taskContext : taskContexts) {
                 taskContext.success(
-                    taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
+                    () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
                 );
             }
             return newState;

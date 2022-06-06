@@ -73,13 +73,11 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
                 Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
                     taskContext.success(
-                        listener.delegateFailure(
-                            (delegate, ignored) -> delegate.onResponse(
-                                new PostStartBasicResponse(
-                                    PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
-                                    ackMessageMap,
-                                    ACKNOWLEDGEMENT_HEADER
-                                )
+                        () -> listener.onResponse(
+                            new PostStartBasicResponse(
+                                PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
+                                ackMessageMap,
+                                ACKNOWLEDGEMENT_HEADER
                             )
                         )
                     );
@@ -95,7 +93,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         final var responseStatus = newLicenseGenerated
             ? PostStartBasicResponse.Status.GENERATED_BASIC
             : PostStartBasicResponse.Status.ALREADY_USING_BASIC;
-        taskContext.success(listener.delegateFailure((l, s) -> l.onResponse(new PostStartBasicResponse(responseStatus))));
+        taskContext.success(() -> listener.onResponse(new PostStartBasicResponse(responseStatus)));
         return updatedLicensesMetadata;
     }
 

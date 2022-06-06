@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
@@ -130,6 +131,11 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
+            logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
+            listener.onResponse(Collections.emptySet());
+            return;
+        }
 
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*"))
             ? Set.of("*")

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -52,8 +51,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -749,7 +750,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     private static ClusterState createClusterStateWithTransformIndex(String... indexes) throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         Metadata.Builder metaBuilder = Metadata.builder();
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -780,7 +781,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         }
         csBuilder.routingTable(routingTableBuilder.build());
-        metaBuilder.indices(indexMapBuilder.build());
+        metaBuilder.indices(indexMapBuilder);
         csBuilder.metadata(metaBuilder.build());
 
         return csBuilder.build();

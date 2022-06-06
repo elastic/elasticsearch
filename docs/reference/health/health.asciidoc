@@ -49,8 +49,12 @@ is controlled by the worst component status.
 +
 --
   `cluster_coordination`::
-      All health reporting that pertains to successful, stable, and continued membership
-      in a cluster.
+    All health reporting that pertains to a single, stable elected master which 
+coordinates other nodes to ensure they all have a consistent view of the
+<<cluster-state, cluster state>>.  If your cluster doesn’t have a stable
+master, many of its features won’t work correctly. You must fix the master
+node’s instability before addressing these other issues. It will not be
+possible to solve any other issues while the master node is unstable.
 
   `data`::
       All health reporting that pertains to data availability, lifecycle, and responsiveness.

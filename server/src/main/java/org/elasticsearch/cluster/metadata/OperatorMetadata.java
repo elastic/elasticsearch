@@ -24,12 +24,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Metadata class that contains information about cluster settings/entities set
+ * in an operator mode. These types of settings are read only through the REST API,
+ * and cannot be modified by the end user.
+ */
 public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
     private final String namespace;
     private final Long version;
     private final Map<String, OperatorHandlerMetadata> handlers;
     private final OperatorErrorMetadata errorMetadata;
 
+    /**
+     * OperatorMetadata contains information about settings set in operator mode.
+     * These settings cannot be updated by the end user and are set outside of the
+     * REST layer, e.g. through file based settings or by plugin/modules.
+     *
+     * @param namespace The namespace of the setting creator, e.g. file_settings, security plugin, etc.
+     * @param version The update version, must increase with each update
+     * @param handlers Per state update handler information on key set in by this update. These keys are validated at REST time.
+     * @param errorMetadata If the update failed for some reason, this is where we store the error information metadata.
+     */
     public OperatorMetadata(
         String namespace,
         Long version,
@@ -99,6 +114,9 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         return new Builder(namespace, metadata);
     }
 
+    /**
+     * Builder class for OperatorMetadata
+     */
     public static class Builder {
         private static final String VERSION = "version";
         private static final String HANDLERS = "handlers";
@@ -109,6 +127,10 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         private Map<String, OperatorHandlerMetadata> handlers;
         OperatorErrorMetadata errorMetadata;
 
+        /**
+         * Empty builder for OperatorMetadata
+         * @param namespace The namespace for this metadata
+         */
         public Builder(String namespace) {
             this.namespace = namespace;
             this.version = 0L;
@@ -116,6 +138,11 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
             this.errorMetadata = null;
         }
 
+        /**
+         * Creates an operator metadata builder
+         * @param namespace the namespace for which we are storing metadata, e.g. file_settings
+         * @param metadata the previous metadata
+         */
         public Builder(String namespace, OperatorMetadata metadata) {
             this(namespace);
             if (metadata != null) {
@@ -150,7 +177,7 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         }
 
         /**
-         * Serializes the metadata to xContent
+         * Serializes the operator metadata to xContent
          *
          * @param operatorMetadata
          * @param builder
@@ -170,7 +197,7 @@ public class OperatorMetadata implements SimpleDiffable<OperatorMetadata> {
         }
 
         /**
-         * Reads the metadata from xContent
+         * Reads the operator metadata from xContent
          *
          * @param parser
          * @param namespace

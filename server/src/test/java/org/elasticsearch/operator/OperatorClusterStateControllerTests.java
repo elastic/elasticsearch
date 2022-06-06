@@ -48,7 +48,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
                  "state": {
                      "cluster_settings": {
                          "indices.recovery.max_bytes_per_sec": "50mb"
-                     }
+
                  }
             }
             """;

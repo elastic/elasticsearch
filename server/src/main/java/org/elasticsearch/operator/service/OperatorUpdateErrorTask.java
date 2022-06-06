@@ -43,9 +43,12 @@ public record OperatorUpdateErrorTask(ActionListener<ActionResponse.Empty> liste
      * @param version of the update that failed
      * @param errors the list of errors to report
      */
-    public record OperatorUpdateErrorTaskExecutor(String namespace, Long version, List<String> errors)
-        implements
-            ClusterStateTaskExecutor<OperatorUpdateErrorTask> {
+    public record OperatorUpdateErrorTaskExecutor(
+        String namespace,
+        Long version,
+        OperatorErrorMetadata.ErrorKind errorKind,
+        List<String> errors
+    ) implements ClusterStateTaskExecutor<OperatorUpdateErrorTask> {
 
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<OperatorUpdateErrorTask>> taskContexts) throws Exception {
@@ -59,7 +62,9 @@ public record OperatorUpdateErrorTask(ActionListener<ActionResponse.Empty> liste
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             OperatorMetadata operatorMetadata = currentState.metadata().operatorState(namespace);
             OperatorMetadata.Builder operatorMetadataBuilder = OperatorMetadata.builder(namespace, operatorMetadata);
-            operatorMetadataBuilder.errorMetadata(OperatorErrorMetadata.builder().version(version).errors(errors).build());
+            operatorMetadataBuilder.errorMetadata(
+                OperatorErrorMetadata.builder().version(version).errorKind(errorKind).errors(errors).build()
+            );
             metadataBuilder.putOperatorState(operatorMetadataBuilder.build());
             ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
 

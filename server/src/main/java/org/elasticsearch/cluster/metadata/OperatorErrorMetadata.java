@@ -22,16 +22,26 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Metadata class to hold the operator set keys for each operator handler
+ * Metadata class to hold error information about errors encountered
+ * while applying a cluster state update for a given namespace.
  *
+ * This information is held by the OperatorMetadata class.
  */
 public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetadata>, ToXContentFragment {
     private final Long version;
+    private final ErrorKind errorKind;
     private final List<String> errors;
 
-    public OperatorErrorMetadata(Long version, List<String> errors) {
+    /**
+     * Contructs an operator metadata
+     * @param version the metadata version which failed to apply
+     * @param errorKind the kind of error we encountered while processing
+     * @param errors the list of errors encountered during parsing and validation of the metadata
+     */
+    public OperatorErrorMetadata(Long version, ErrorKind errorKind, List<String> errors) {
         this.version = version;
         this.errors = errors;
+        this.errorKind = errorKind;
     }
 
     public Long version() {
@@ -42,14 +52,21 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
         return this.errors;
     }
 
+    public ErrorKind errorKind() {
+        return errorKind;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
+        out.writeString(errorKind.getKindValue());
         out.writeCollection(errors, StreamOutput::writeString);
     }
 
     public static OperatorErrorMetadata readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder().version(in.readLong()).errors(in.readList(StreamInput::readString));
+        Builder builder = new Builder().version(in.readLong())
+            .errorKind(ErrorKind.of(in.readString()))
+            .errors(in.readList(StreamInput::readString));
         return builder.build();
     }
 
@@ -67,12 +84,17 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
         return new Builder();
     }
 
+    /**
+     * Builder class for the OperatorErrorMetadata
+     */
     public static class Builder {
         private static final String ERRORS = "errors";
         private static final String VERSION = "version";
+        private static final String ERROR_KIND = "error_kind";
 
         private Long version;
         private List<String> errors;
+        private ErrorKind errorKind;
 
         public Builder() {
             this.version = 0L;
@@ -89,12 +111,17 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
             return this;
         }
 
+        public Builder errorKind(ErrorKind errorKind) {
+            this.errorKind = errorKind;
+            return this;
+        }
+
         public OperatorErrorMetadata build() {
-            return new OperatorErrorMetadata(version, Collections.unmodifiableList(errors));
+            return new OperatorErrorMetadata(version, errorKind, Collections.unmodifiableList(errors));
         }
 
         /**
-         * Serializes the metadata to xContent
+         * Serializes the error metadata to xContent
          *
          * @param metadata
          * @param builder
@@ -103,12 +130,13 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
         public static void toXContent(OperatorErrorMetadata metadata, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(VERSION, metadata.version);
+            builder.field(ERROR_KIND, metadata.errorKind.getKindValue());
             builder.stringListField(ERRORS, metadata.errors);
             builder.endObject();
         }
 
         /**
-         * Reads the metadata from xContent
+         * Reads the error metadata from xContent
          *
          * @param parser
          * @return
@@ -133,10 +161,40 @@ public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetada
                 } else if (token.isValue()) {
                     if (VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());
+                    } else if (ERROR_KIND.equals(currentFieldName)) {
+                        builder.errorKind(ErrorKind.of(parser.text()));
                     }
                 }
             }
             return builder.build();
+        }
+    }
+
+    /**
+     * Enum for kinds of errors we might encounter while processing operator cluster state updates.
+     */
+    public enum ErrorKind {
+        PARSING("parsing"),
+        VALIDATION("validation"),
+        TRANSIENT("transient");
+
+        private final String kind;
+
+        ErrorKind(String kind) {
+            this.kind = kind;
+        }
+
+        public String getKindValue() {
+            return kind;
+        }
+
+        public static ErrorKind of(String kind) {
+            for (var report : values()) {
+                if (report.kind.equals(kind)) {
+                    return report;
+                }
+            }
+            throw new IllegalArgumentException("kind not supported [" + kind + "]");
         }
     }
 }

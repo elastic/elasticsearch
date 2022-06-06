@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.OperatorErrorMetadata;
 import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
 import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -90,7 +91,18 @@ public class OperatorClusterStateController {
      * @throws IllegalStateException if the content has errors and the cluster state cannot be correctly applied
      */
     public ClusterState process(String namespace, XContentParser parser) {
-        SettingsFile operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
+        SettingsFile operatorStateFileContent = null;
+
+        try {
+            operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
+        } catch (Exception e) {
+            List<String> errors = List.of(e.getMessage());
+            recordErrorState(namespace, -1L, errors, OperatorErrorMetadata.ErrorKind.PARSING);
+            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace, e);
+        }
+
         Map<String, Object> operatorState = operatorStateFileContent.state;
         OperatorStateVersionMetadata stateVersionMetadata = operatorStateFileContent.metadata;
 
@@ -118,23 +130,7 @@ public class OperatorClusterStateController {
         }
 
         if (errors.isEmpty() == false) {
-            clusterService.submitStateUpdateTask(
-                "operator state error for [ " + namespace + "]",
-                new OperatorUpdateErrorTask(new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse.Empty empty) {
-                        logger.info("Successfully applied new operator error state for namespace [{}]", namespace);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Failed to apply operator error cluster state", e);
-                    }
-                }),
-                ClusterStateTaskConfig.build(Priority.URGENT),
-                new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor(namespace, stateVersionMetadata.version(), errors)
-            );
-
+            recordErrorState(namespace, stateVersionMetadata.version(), errors, OperatorErrorMetadata.ErrorKind.VALIDATION);
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             throw new IllegalStateException("Error processing state change request for " + namespace);
@@ -157,6 +153,12 @@ public class OperatorClusterStateController {
             @Override
             public void onFailure(Exception e) {
                 logger.error("Failed to apply operator cluster state", e);
+                recordErrorState(
+                    namespace,
+                    stateVersionMetadata.version(),
+                    List.of(e.getMessage()),
+                    OperatorErrorMetadata.ErrorKind.TRANSIENT
+                );
             }
         }),
             ClusterStateTaskConfig.build(Priority.URGENT),
@@ -193,6 +195,25 @@ public class OperatorClusterStateController {
         }
 
         return true;
+    }
+
+    void recordErrorState(String namespace, Long version, List<String> errors, OperatorErrorMetadata.ErrorKind errorKind) {
+        clusterService.submitStateUpdateTask(
+            "operator state error for [ " + namespace + "]",
+            new OperatorUpdateErrorTask(new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse.Empty empty) {
+                    logger.info("Successfully applied new operator error state for namespace [{}]", namespace);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to apply operator error cluster state", e);
+                }
+            }),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor(namespace, version, errorKind, errors)
+        );
     }
 
     LinkedHashSet<String> orderedStateHandlers(Set<String> keys) {

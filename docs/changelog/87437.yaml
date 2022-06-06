@@ -1,0 +1,5 @@
+pr: 87437
+summary: "Script: Metadata for Update, `UpdateByQuery` and Reindex contexts"
+area: Infra/Scripting
+type: enhancement
+issues: []

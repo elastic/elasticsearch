@@ -159,6 +159,57 @@ The following parameters are accepted by `text` fields:
 
     Metadata about the field.
 
+ifeval::["{release-state}"=="unreleased"]
+[[text-synthetic-source]]
+==== Synthetic source
+`text` fields support <<synthetic-source,synthetic `_source`>> if they have
+a `keyword` sub-field that supports synthetic `_source` and *doesn't* have
+<<copy-to,`copy_to`>>.
+
+Synthetic source will always sort `keyword` fields and remove duplicates so
+it will also do that for `text` fields using their sub-`keyword` field. So:
+[source,console,id=synthetic-source-text-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "synthetic": true },
+    "properties": {
+      "text": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "text": [
+    "jumped over the lazy dog",
+    "the quick brown fox"
+  ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+endif::[]
+
 [[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter
 

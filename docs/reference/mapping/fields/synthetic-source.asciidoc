@@ -23,9 +23,11 @@ slower than saving the source precisely and loading it, but it saves a lot of sp
 It also modifies the `_source` and is only supported if the index is entirely made up
 of the following field types:
 
+* <<boolean-synthetic-source,`boolean`>>
 * <<numeric-synthetic-source,`byte`>>
 * <<numeric-synthetic-source,`double`>>
 * <<numeric-synthetic-source,`float`>>
+* <<geo-point-synthetic-source,`geo_point`>>
 * <<numeric-synthetic-source,`half_float`>>
 * <<numeric-synthetic-source,`integer`>>
 * <<ip-synthetic-source,`ip`>>
@@ -33,6 +35,7 @@ of the following field types:
 * <<numeric-synthetic-source,`long`>>
 * <<numeric-synthetic-source,`scaled_float`>>
 * <<numeric-synthetic-source,`short`>>
+* <<text-synthetic-source,`text`>>
 
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications

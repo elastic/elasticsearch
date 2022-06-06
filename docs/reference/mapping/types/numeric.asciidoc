@@ -240,7 +240,7 @@ ifeval::["{release-state}"=="unreleased"]
 All numeric fields except `unsigned_long` support
 <<synthetic-source,synthetic `_source`>> in their default configuration. But
 they don't support synthetic `_source` if you add
-<<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or if you
+<<ignore-malformed,`ignore_malformed`>>, add <<copy-to,`copy_to`>>, or if you
 disable <<doc-values,`doc_values`>>.
 
 Synthetic source will always sort numeric fields and remove duplicates so:
@@ -257,7 +257,7 @@ PUT idx
 }
 PUT idx/_doc/1
 {
-  "long": [0, -123466, 87612]
+  "long": [0, 0, -123466, 87612]
 }
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
@@ -266,7 +266,7 @@ Will become:
 [source,console-result]
 ----
 {
-  "long": [-123466, 0, 87612]
+  "long": [-123466, 0, 0, 87612]
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]

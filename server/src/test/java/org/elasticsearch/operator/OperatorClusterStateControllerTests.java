@@ -54,6 +54,27 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            assertEquals(
+                "Error processing state change request for operator",
+                expectThrows(IllegalStateException.class, () -> controller.process("operator", parser)).getMessage()
+            );
+        }
+
+        testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     }
+                 }
+            }
+            """;
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             controller.process("operator", parser);
         }
     }

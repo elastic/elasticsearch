@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.internal.Client;
@@ -30,8 +29,10 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -407,7 +408,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Environment.PATH_LOGS_SETTING,
         Environment.PATH_REPO_SETTING,
         Environment.PATH_SHARED_DATA_SETTING,
-        Environment.NODE_PIDFILE_SETTING,
         NodeEnvironment.NODE_ID_SEED_SETTING,
         Node.INITIAL_STATE_TIMEOUT_SETTING,
         DiscoveryModule.DISCOVERY_TYPE_SETTING,
@@ -513,7 +513,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE,
+        StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
+        StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT
     );
 

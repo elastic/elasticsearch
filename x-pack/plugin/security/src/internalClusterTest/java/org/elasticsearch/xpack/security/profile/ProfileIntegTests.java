@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -273,9 +275,18 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             "Super Anxious Admin Qux"
         );
         users.forEach((key, value) -> {
+            final Authentication.RealmRef realmRef = randomBoolean()
+                ? AuthenticationTestHelper.randomRealmRef(false)
+                : new Authentication.RealmRef(
+                    "file",
+                    "file",
+                    randomAlphaOfLengthBetween(3, 8),
+                    new RealmDomain("my_domain", Set.of(new RealmConfig.RealmIdentifier("file", "file")))
+                );
             final Authentication authentication = AuthenticationTestHelper.builder()
                 .realm()
                 .user(new User(key, new String[] { "rac_role" }, value, key.substring(5) + "email@example.org", Map.of(), true))
+                .realmRef(realmRef)
                 .build();
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             profileService.activateProfile(authentication, future);
@@ -316,8 +327,16 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
     public void testSuggestProfileWithData() {
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final Authentication.RealmRef realmRef = randomBoolean()
+            ? AuthenticationTestHelper.randomRealmRef(false)
+            : new Authentication.RealmRef(
+                "file",
+                "file",
+                randomAlphaOfLengthBetween(3, 8),
+                new RealmDomain("my_domain", Set.of(new RealmConfig.RealmIdentifier("file", "file")))
+            );
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
-        profileService.activateProfile(AuthenticationTestHelper.builder().realm().build(), future1);
+        profileService.activateProfile(AuthenticationTestHelper.builder().realm().realmRef(realmRef).build(), future1);
         final Profile profile = future1.actionGet();
 
         final PlainActionFuture<AcknowledgedResponse> future2 = new PlainActionFuture<>();
@@ -371,6 +390,14 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final List<Profile> profiles = spaces.stream().map(space -> {
             final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
             final String lastName = randomAlphaOfLengthBetween(3, 8);
+            final Authentication.RealmRef realmRef = randomBoolean()
+                ? AuthenticationTestHelper.randomRealmRef(false)
+                : new Authentication.RealmRef(
+                    "file",
+                    "file",
+                    randomAlphaOfLengthBetween(3, 8),
+                    new RealmDomain("my_domain", Set.of(new RealmConfig.RealmIdentifier("file", "file")))
+                );
             final Authentication authentication = AuthenticationTestHelper.builder()
                 .realm()
                 .user(
@@ -383,6 +410,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                         true
                     )
                 )
+                .realmRef(realmRef)
                 .build();
             profileService.activateProfile(authentication, future1);
             final Profile profile = future1.actionGet();
@@ -511,7 +539,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                             .application("test-app")
                             .resources("some/resource")
                             .privileges("write")
-                            .build() }
+                            .build() },
+                    false
                 )
             )
         ).actionGet();
@@ -574,7 +603,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 new PrivilegesToCheck(
                     new String[] { "cluster:monitor/state" },
                     new RoleDescriptor.IndicesPrivileges[0],
-                    new RoleDescriptor.ApplicationResourcePrivileges[0]
+                    new RoleDescriptor.ApplicationResourcePrivileges[0],
+                    false
                 )
             )
         ).actionGet();
@@ -625,7 +655,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                     .application("app-1")
                     .resources("foo1")
                     .privileges("get/some/thing")
-                    .build() }
+                    .build() },
+            false
         );
         if (randomBoolean()) {
             assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck1).hasPrivilegeUids(), equalTo(Set.of(profile.uid())));
@@ -643,7 +674,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                     .application("app-1")
                     .resources("foo1")
                     .privileges("get/some/thing", "put/some/thing")
-                    .build() }
+                    .build() },
+            false
         );
         if (randomBoolean()) {
             assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck2).hasPrivilegeUids(), empty());

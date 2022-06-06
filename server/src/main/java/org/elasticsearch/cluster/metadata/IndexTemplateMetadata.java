@@ -139,11 +139,11 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         return this.mappings();
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> aliases() {
+    public Map<String, AliasMetadata> aliases() {
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> getAliases() {
+    public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
     }
 
@@ -207,15 +207,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, CompressedXContent> cursor : mappings.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
+        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
 

@@ -47,12 +47,14 @@ Increasing this value generally increases the throughput.
 If this setting is greater than the number of hardware threads
 it will automatically be changed to a value less than the number of hardware threads.
 Defaults to 1.
-
++
+--
 [NOTE]
 =============================================
-If the sum of `threads_per_allocation` and `number_of_allocations` is greater than the number of
-hardware threads then the number of `inference_threads` will be reduced.
+If the sum of `threads_per_allocation` and `number_of_allocations` is greater
+than the number of hardware threads, the `threads_per_allocation` value is reduced.
 =============================================
+--
 
 `queue_capacity`::
 (Optional, integer)
@@ -103,7 +105,10 @@ The API returns the following results:
     "assignment": {
         "task_parameters": {
             "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
-            "model_bytes": 265632637
+            "model_bytes": 265632637,
+            "threads_per_allocation" : 1,
+            "number_of_allocations" : 1,
+            "queue_capacity" : 1024
         },
         "routing_table": {
             "uckeG3R8TLe2MMNBQ6AGrw": {
@@ -112,7 +117,7 @@ The API returns the following results:
             }
         },
         "assignment_state": "started",
-        "start_time": "2021-11-02T11:50:34.766591Z"
+        "start_time": "2022-11-02T11:50:34.766591Z"
     }
 }
 ----

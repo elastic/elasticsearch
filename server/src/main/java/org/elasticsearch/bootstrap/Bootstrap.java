@@ -14,21 +14,18 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -163,7 +160,7 @@ final class Bootstrap {
         HotThreads.initializeRuntimeMonitoring();
     }
 
-    private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
+    private void setup(boolean addShutdownHook, Environment environment, Path pidFile) throws BootstrapException {
         Settings settings = environment.settings();
 
         try {
@@ -223,7 +220,7 @@ final class Bootstrap {
 
         // install SM after natives, shutdown hooks, etc.
         try {
-            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings), pidFile);
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new BootstrapException(e);
         }
@@ -243,15 +240,11 @@ final class Bootstrap {
     // visible for tests
 
     private static Environment createEnvironment(
-        final Path pidFile,
         final SecureSettings secureSettings,
         final Settings initialSettings,
         final Path configPath
     ) {
         Settings.Builder builder = Settings.builder();
-        if (pidFile != null) {
-            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
-        }
         builder.put(initialSettings);
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
@@ -287,36 +280,29 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv)
-        throws BootstrapException, NodeValidationException, UserException {
+    static void init(
+        final boolean foreground,
+        final boolean quiet,
+        final Environment initialEnv,
+        SecureString keystorePassword,
+        Path pidFile
+    ) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
-        final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv, keystorePassword);
+        final Environment environment = createEnvironment(keystore, initialEnv.settings(), initialEnv.configFile());
 
         BootstrapInfo.setConsole(getConsole(environment));
-
-        // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
-        // the stream objects before calling LogConfigurator to be able to close them when appropriate
-        final Runnable sysOutCloser = getSysOutCloser();
-        final Runnable sysErrorCloser = getSysErrorCloser();
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment, quiet == false);
         } catch (IOException e) {
             throw new BootstrapException(e);
-        }
-        if (environment.pidFile() != null) {
-            try {
-                PidFile.create(environment.pidFile(), true);
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
         }
 
         try {
@@ -328,21 +314,7 @@ final class Bootstrap {
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
-            if (PluginsManager.configExists(environment)) {
-                if (Build.CURRENT.type() == Build.Type.DOCKER) {
-                    try {
-                        PluginsManager.syncPlugins(environment);
-                    } catch (Exception e) {
-                        throw new BootstrapException(e);
-                    }
-                } else {
-                    throw new BootstrapException(
-                        new ElasticsearchException("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
-                    );
-                }
-            }
-
-            INSTANCE.setup(true, environment);
+            INSTANCE.setup(true, environment, pidFile);
 
             try {
                 // any secure settings must be read during node construction
@@ -355,8 +327,6 @@ final class Bootstrap {
 
             if (foreground == false) {
                 LogConfigurator.removeConsoleAppender();
-                sysOutCloser.run();
-                sysErrorCloser.run();
             }
 
         } catch (NodeValidationException | RuntimeException e) {
@@ -384,16 +354,6 @@ final class Bootstrap {
 
     private static ConsoleLoader.Console getConsole(Environment environment) {
         return ConsoleLoader.loadConsole(environment);
-    }
-
-    @SuppressForbidden(reason = "System#out")
-    private static Runnable getSysOutCloser() {
-        return System.out::close;
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static Runnable getSysErrorCloser() {
-        return System.err::close;
     }
 
     private static void checkLucene() {

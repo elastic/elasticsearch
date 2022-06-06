@@ -1,5 +1,0 @@
-pr: 86554
-summary: Switch to OpenJDK and upgrade to 18.0.1
-area: Packaging
-type: upgrade
-issues: []

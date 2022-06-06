@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -1292,12 +1293,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             null
         );
-        docValuesFieldExistsTestCase(
-            new ExistsQueryBuilder("f"),
-            ft,
-            true,
-            i -> { return numberType.createFields("f", i, true, true, false); }
-        );
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
+            final LuceneDocument document = new LuceneDocument();
+            numberType.addFields(document, "f", i, true, true, false);
+            return document;
+        });
     }
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
@@ -1334,7 +1334,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         QueryBuilder exists,
         MappedFieldType fieldType,
         boolean canUseMetadata,
-        IntFunction<List<? extends IndexableField>> buildDocWithField
+        IntFunction<Iterable<? extends IndexableField>> buildDocWithField
     ) throws IOException {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         // Exists queries convert to MatchNone if this isn't defined

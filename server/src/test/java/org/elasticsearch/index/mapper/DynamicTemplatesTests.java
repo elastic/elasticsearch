@@ -1275,4 +1275,45 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals(1, service.mappers.size());
         assertNotNull(service.getMapper("time"));
     }
+
+    public void testSubobjectsFalseWithInnerNestedFromDynamicTemplate() throws IOException {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "metric");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "object").field("subobjects", false);
+                            b.startObject("properties");
+                            {
+                                b.startObject("time");
+                                b.field("type", "nested");
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertEquals(
+            "Failed to parse mapping: dynamic template [test] has invalid content [{\"match\":\"metric\",\"mapping\":"
+                + "{\"properties\":{\"time\":{\"type\":\"nested\"}},\"subobjects\":false,\"type\":\"object\"}}], "
+                + "attempted to validate it with the following match_mapping_type: [object, string, long, double, boolean, date, binary]",
+            exception.getMessage()
+        );
+        assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
+        assertEquals(
+            "Object [__dynamic__test] has subobjects set to false hence it does not support nested object [time]",
+            exception.getRootCause().getMessage()
+        );
+    }
 }

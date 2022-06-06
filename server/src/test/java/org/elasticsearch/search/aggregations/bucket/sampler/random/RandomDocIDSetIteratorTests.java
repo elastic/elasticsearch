@@ -16,8 +16,21 @@ import java.util.List;
 import java.util.SplittableRandom;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class RandomDocIDSetIteratorTests extends ESTestCase {
+
+    public void testRandomSamplingWithChunk() {
+        double p = 0.01;
+        int maxDoc = 10000;
+        SplittableRandom random = new SplittableRandom(randomInt());
+        RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, 10, random::nextInt);
+        int count = 0;
+        while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            count += 1;
+        }
+        assertThat(count, greaterThan((int) (maxDoc * p) - 1));
+    }
 
     public void testRandomSampler() {
         int maxDoc = 10000;
@@ -26,7 +39,7 @@ public class RandomDocIDSetIteratorTests extends ESTestCase {
         for (int i = 1; i < 100; i++) {
             double p = i / 100.0;
             int count = 0;
-            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
+            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, 1, random::nextInt);
             while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 count += 1;
             }
@@ -55,13 +68,13 @@ public class RandomDocIDSetIteratorTests extends ESTestCase {
             double p = i / 100.0;
             SplittableRandom random = new SplittableRandom(seed);
             List<Integer> iterationOne = new ArrayList<>();
-            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
+            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, 1, random::nextInt);
             while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 iterationOne.add(iter.docID());
             }
             random = new SplittableRandom(seed);
             List<Integer> iterationTwo = new ArrayList<>();
-            iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
+            iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, 1, random::nextInt);
             while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 iterationTwo.add(iter.docID());
             }

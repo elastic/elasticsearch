@@ -32,6 +32,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     public static final String NAME = "random_sampler";
 
+    static final ParseField CHUNK_SIZE = new ParseField("chunk_size");
     static final ParseField PROBABILITY = new ParseField("probability");
     static final ParseField SEED = new ParseField("seed");
 
@@ -40,6 +41,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         RandomSamplerAggregationBuilder::new
     );
     static {
+        PARSER.declareInt(RandomSamplerAggregationBuilder::setChunkSize, CHUNK_SIZE);
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
         PARSER.declareDouble(RandomSamplerAggregationBuilder::setProbability, PROBABILITY);
     }
@@ -48,6 +50,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         return PARSER.parse(parser, new RandomSamplerAggregationBuilder(aggregationName), null);
     }
 
+    private int chunkSize = 1;
     private int seed = Randomness.get().nextInt();
     private double p;
 
@@ -71,10 +74,21 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         return this;
     }
 
+    public RandomSamplerAggregationBuilder setChunkSize(int chunkSize) {
+        if (chunkSize <= 0) {
+            throw new IllegalArgumentException("[chunk_size] must be greater than 0");
+        }
+        this.chunkSize = chunkSize;
+        return this;
+    }
+
     public RandomSamplerAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            this.chunkSize = in.readVInt();
+        }
     }
 
     public double getProbability() {
@@ -89,12 +103,16 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(clone, factoriesBuilder, metadata);
         this.p = clone.p;
         this.seed = clone.seed;
+        this.chunkSize = clone.chunkSize;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeVInt(chunkSize);
+        }
     }
 
     static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
@@ -136,7 +154,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
                 );
             }
         });
-        return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
+        return new RandomSamplerAggregatorFactory(name, seed, chunkSize, p, context, parent, subfactoriesBuilder, metadata);
     }
 
     public int getSeed() {
@@ -148,6 +166,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         builder.startObject();
         builder.field(PROBABILITY.getPreferredName(), p);
         builder.field(SEED.getPreferredName(), seed);
+        builder.field(CHUNK_SIZE.getPreferredName(), chunkSize);
         builder.endObject();
         return null;
     }
@@ -174,7 +193,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), p, seed);
+        return Objects.hash(super.hashCode(), p, seed, chunkSize);
     }
 
     @Override
@@ -183,6 +202,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         RandomSamplerAggregationBuilder other = (RandomSamplerAggregationBuilder) obj;
-        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed);
+        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed) && chunkSize == other.chunkSize;
     }
 }

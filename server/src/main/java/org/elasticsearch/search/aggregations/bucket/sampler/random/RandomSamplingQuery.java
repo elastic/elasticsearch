@@ -33,6 +33,17 @@ public final class RandomSamplingQuery extends Query {
     private final double p;
     private final int seed;
     private final int hash;
+    private final int chunkSize;
+
+    public RandomSamplingQuery(double p, int seed, int hash, int chunkSize) {
+        if (p <= 0.0 || p >= 1.0) {
+            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0, was [" + p + "]");
+        }
+        this.p = p;
+        this.seed = seed;
+        this.hash = hash;
+        this.chunkSize = chunkSize;
+    }
 
     /**
      * @param p         The sampling probability e.g. 0.05 == 5% probability a document will match
@@ -41,12 +52,7 @@ public final class RandomSamplingQuery extends Query {
      *                  can be generated
      */
     public RandomSamplingQuery(double p, int seed, int hash) {
-        if (p <= 0.0 || p >= 1.0) {
-            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0, was [" + p + "]");
-        }
-        this.p = p;
-        this.seed = seed;
-        this.hash = hash;
+        this(p, seed, hash, 1);
     }
 
     @Override
@@ -81,7 +87,7 @@ public final class RandomSamplingQuery extends Query {
                     this,
                     boost,
                     ScoreMode.COMPLETE_NO_SCORES,
-                    new RandomSamplingIterator(maxDoc, p, random::nextInt)
+                    new RandomSamplingIterator(maxDoc, p, chunkSize, random::nextInt)
                 );
             }
         };
@@ -96,15 +102,23 @@ public final class RandomSamplingQuery extends Query {
      * A DocIDSetIter that skips a geometrically random number of documents
      */
     static class RandomSamplingIterator extends DocIdSetIterator {
+        private final int chunkSize;
         private final int maxDoc;
         private final double p;
         private final FastGeometric distribution;
         private int doc = -1;
+        private int currentChunkCount;
 
-        RandomSamplingIterator(int maxDoc, double p, IntSupplier rng) {
+        RandomSamplingIterator(int maxDoc, double p, int chunkSize, IntSupplier rng) {
             this.maxDoc = maxDoc;
             this.p = p;
-            this.distribution = new FastGeometric(rng, p);
+            this.distribution = new FastGeometric(rng, p / chunkSize);
+            this.chunkSize = chunkSize;
+            this.currentChunkCount = 1;
+        }
+
+        private boolean withinChunk() {
+            return currentChunkCount < chunkSize;
         }
 
         @Override
@@ -120,7 +134,13 @@ public final class RandomSamplingQuery extends Query {
         @Override
         public int advance(int target) {
             while (doc < target && doc < maxDoc) {
-                doc += distribution.next();
+                if (withinChunk()) {
+                    doc++;
+                    currentChunkCount++;
+                } else {
+                    doc += distribution.next();
+                    currentChunkCount = 1;
+                }
             }
             doc = doc < maxDoc ? doc : NO_MORE_DOCS;
             return doc;

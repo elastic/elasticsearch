@@ -25,6 +25,7 @@ import java.util.Optional;
 
 public class RandomSamplerAggregatorFactory extends AggregatorFactory {
 
+    private final int chunkSize;
     private final int seed;
     private final double probability;
     private final SamplingContext samplingContext;
@@ -33,6 +34,7 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     RandomSamplerAggregatorFactory(
         String name,
         int seed,
+        int chunkSize,
         double probability,
         AggregationContext context,
         AggregatorFactory parent,
@@ -42,6 +44,7 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactories, metadata);
         this.probability = probability;
         this.seed = seed;
+        this.chunkSize = chunkSize;
         this.samplingContext = new SamplingContext(probability, seed);
     }
 
@@ -66,7 +69,7 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
      */
     private Weight getWeight() throws IOException {
         if (weight == null) {
-            RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, context.shardRandomSeed());
+            RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, context.shardRandomSeed(), chunkSize);
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
                 .add(context.query(), BooleanClause.Occur.FILTER)
                 .build();

@@ -39,6 +39,17 @@ provide an explanation and metadata describing the reason for its current health
 A component's status is controlled by the worst indicator status. The cluster's status
 is controlled by the worst component status.
 
+In the event that an indicator's status is non-green, a list of impacts may be present in the
+indicator result which detail the parts of a cluster that are negatively affected by the health issue.
+Each impact carries with it a severity level, an area of the cluster that is affected, and a simple
+description of the impact on the system.
+
+Some health indicators can determine the root cause of a health problem and prescribe a set of
+user actions that can be performed in order to improve the health status of an indicator. User
+actions contain a message detailing a root cause analysis, the list of affected resources (if
+applicable) and steps to take that will improve the health of your cluster. User actions can
+also optionally provide URLs to troubleshooting documentation.
+
 [[health-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -49,12 +60,12 @@ is controlled by the worst component status.
 +
 --
   `cluster_coordination`::
-    All health reporting that pertains to a single, stable elected master which 
-coordinates other nodes to ensure they all have a consistent view of the
-<<cluster-state, cluster state>>.  If your cluster doesn’t have a stable
-master, many of its features won’t work correctly. You must fix the master
-node’s instability before addressing these other issues. It will not be
-possible to solve any other issues while the master node is unstable.
+    All health reporting that pertains to a single, stable elected master which
+    coordinates other nodes to ensure they all have a consistent view of the
+    <<cluster-state, cluster state>>.  If your cluster doesn't have a stable
+    master, many of its features won't work correctly. You must fix the master
+    node's instability before addressing these other issues. It will not be
+    possible to solve any other issues while the master node is unstable.
 
   `data`::
       All health reporting that pertains to data availability, lifecycle, and responsiveness.

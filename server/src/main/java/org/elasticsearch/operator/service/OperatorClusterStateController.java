@@ -91,7 +91,7 @@ public class OperatorClusterStateController {
      * @throws IllegalStateException if the content has errors and the cluster state cannot be correctly applied
      */
     public ClusterState process(String namespace, XContentParser parser) {
-        SettingsFile operatorStateFileContent = null;
+        SettingsFile operatorStateFileContent;
 
         try {
             operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
@@ -106,7 +106,16 @@ public class OperatorClusterStateController {
         Map<String, Object> operatorState = operatorStateFileContent.state;
         OperatorStateVersionMetadata stateVersionMetadata = operatorStateFileContent.metadata;
 
-        LinkedHashSet<String> orderedHandlers = orderedStateHandlers(operatorState.keySet());
+        LinkedHashSet<String> orderedHandlers;
+        try {
+            orderedHandlers = orderedStateHandlers(operatorState.keySet());
+        } catch (Exception e) {
+            List<String> errors = List.of(e.getMessage());
+            recordErrorState(namespace, stateVersionMetadata.version(), errors, OperatorErrorMetadata.ErrorKind.PARSING);
+            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace, e);
+        }
 
         ClusterState state = clusterService.state();
         OperatorMetadata existingMetadata = state.metadata().operatorState(namespace);

@@ -129,7 +129,7 @@ public class OperatorILMControllerTests extends ESTestCase {
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             assertEquals(
-                "Unknown settings definition type: ilm",
+                "Error processing state change request for operator",
                 expectThrows(IllegalStateException.class, () -> controller.process("operator", parser)).getMessage()
             );
         }

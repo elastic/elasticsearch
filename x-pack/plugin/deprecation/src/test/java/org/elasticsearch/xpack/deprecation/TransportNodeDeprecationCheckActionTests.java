@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Mockito.when;
+
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
     public void testNodeOperation() {
@@ -54,17 +56,18 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.state()).thenReturn(clusterState);
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
-        Mockito.when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
+        when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
+        when(node.getId()).thenReturn("mock-node");
         TransportService transportService = Mockito.mock(TransportService.class);
-        Mockito.when(transportService.getLocalNode()).thenReturn(node);
+        when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
         ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
         ClusterInfo clusterInfo = ClusterInfo.EMPTY;
-        Mockito.when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
+        when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
             nodeSettings,
             threadPool,

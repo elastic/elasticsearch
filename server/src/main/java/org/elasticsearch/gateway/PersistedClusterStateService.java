@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -82,6 +83,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -389,6 +391,9 @@ public class PersistedClusterStateService {
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath)) {
                     if (checkClean) {
+
+                        logger.debug("checking cluster state integrity in [{}]", indexPath);
+
                         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
                             final boolean isClean;
                             try (
@@ -415,6 +420,39 @@ public class PersistedClusterStateService {
                     }
 
                     try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+
+                        if (logger.isDebugEnabled()) {
+                            final var segmentsFileName = directoryReader.getIndexCommit().getSegmentsFileName();
+                            try {
+                                final var attributes = Files.readAttributes(indexPath.resolve(segmentsFileName), BasicFileAttributes.class);
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "]: creationTime="
+                                        + attributes.creationTime()
+                                        + ", lastModifiedTime="
+                                        + attributes.lastModifiedTime()
+                                        + ", lastAccessTime="
+                                        + attributes.lastAccessTime()
+                                );
+                            } catch (Exception e) {
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "] but could not get file attributes",
+                                    e
+                                );
+                            }
+
+                            for (final var segmentCommitInfo : SegmentInfos.readCommit(directory, segmentsFileName)) {
+                                logger.debug("loading cluster state from segment: {}", segmentCommitInfo);
+                            }
+                        }
+
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                         if (nodeId.equals(onDiskState.nodeId) == false) {

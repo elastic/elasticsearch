@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -67,13 +67,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
             currentMode,
             new SnapshotLifecycleStats()
         );
-        ImmutableOpenMap.Builder<String, Metadata.Custom> customsMapBuilder = ImmutableOpenMap.builder();
         Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(Version.CURRENT).build());
         if (metadataInstalled) {
             metadata.customs(
-                customsMapBuilder.fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
-                    .fPut(SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
-                    .build()
+                Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();

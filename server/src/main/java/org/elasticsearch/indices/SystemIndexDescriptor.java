@@ -316,6 +316,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             }
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
         } else {
+            assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
+            assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
+            assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
+            assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
             this.mappingVersion = null;
         }
 
@@ -434,6 +438,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * for indices managed externally to Elasticsearch.
      */
     public String getPrimaryIndex() {
+        assert isAutomaticallyManaged() : "Unmanaged indices should not have a primary index";
         return primaryIndex;
     }
 
@@ -473,10 +478,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getMappings() {
+        assert isAutomaticallyManaged() : "Do not request mappings for unmanaged system indices";
         return mappings;
     }
 
     public Settings getSettings() {
+        assert isAutomaticallyManaged() : "Do not request settings for unmanaged system indices";
         return settings;
     }
 
@@ -485,14 +492,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public int getIndexFormat() {
+        assert isAutomaticallyManaged() : "Do not request index format for unmanaged system indices";
         return this.indexFormat;
     }
 
     public String getVersionMetaKey() {
+        assert isAutomaticallyManaged() : "Do not request version meta keys for unmanaged system indices";
         return this.versionMetaKey;
     }
 
     public Version getMinimumNodeVersion() {
+        assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
         return minimumNodeVersion;
     }
 
@@ -507,10 +517,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @return an origin string to use for sub-requests
      */
     public String getOrigin() {
+        // TODO[wrb]: most unmanaged system indices do not set origins; could we assert on that here?
         return this.origin;
     }
 
     public boolean hasDynamicMappings() {
+        assert isAutomaticallyManaged() : "Do not check mapping properties for unmanaged system indices";
         return this.hasDynamicMappings;
     }
 
@@ -537,7 +549,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public Version getMappingVersion() {
-        if (type.isManaged() == false) {
+        if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingVersion;

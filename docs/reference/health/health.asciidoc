@@ -133,7 +133,7 @@ is controlled by the worst component status.
 `status`::
     (Optional, string) Health status of the component, based on the aggregated status of all indicators
     in the component. If only the health of a specific indicator is being requested, this component level status
-    will be omitted. Statuses are:
+    will be omitted. The component status is not displayed in this case in order to avoid reporting a false component status given that not all indicators are evaluated. Statuses are:
 
     `green`:::
     The component is healthy.

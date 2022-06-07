@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -140,7 +140,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         }
     }
 
-    public static class DummyRealm extends Realm implements Releasable {
+    public static class DummyRealm extends Realm implements Closeable {
 
         public static final String TYPE = "dummy";
 

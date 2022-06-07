@@ -52,13 +52,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
-
-        final int size = in.readVInt();
-        files = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            FileStats file = new FileStats(in);
-            files.put(file.getExt(), file);
-        }
+        files = in.readMapValues(FileStats::new, FileStats::getExt);
     }
 
     public void add(long count) {

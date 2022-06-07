@@ -208,6 +208,12 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
+
+NOTE: Reordering text fields can have an effect on <<query-dsl-match-query-phrase,phrase>>
+      and <<span-queries,span>> queries. See the discussion about
+      <<position-increment-gap, here>> for more. You can avoid this by making sure the
+      `slop` parameter on the phrase queries is lower than the `position_increment_gap`.
+      This is the default.
 endif::[]
 
 [[fielddata-mapping-param]]

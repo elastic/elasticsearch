@@ -128,7 +128,7 @@ public class PersistedClusterStateService {
     private static final String CURRENT_TERM_KEY = "current_term";
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
-    private static final String NODE_VERSION_KEY = "node_version";
+    static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
     public static final String GLOBAL_TYPE_NAME = "global";
@@ -422,7 +422,8 @@ public class PersistedClusterStateService {
                     try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
 
                         if (logger.isDebugEnabled()) {
-                            final var segmentsFileName = directoryReader.getIndexCommit().getSegmentsFileName();
+                            final var indexCommit = directoryReader.getIndexCommit();
+                            final var segmentsFileName = indexCommit.getSegmentsFileName();
                             try {
                                 final var attributes = Files.readAttributes(indexPath.resolve(segmentsFileName), BasicFileAttributes.class);
                                 logger.debug(
@@ -447,6 +448,7 @@ public class PersistedClusterStateService {
                                     e
                                 );
                             }
+                            logger.debug("cluster state commit user data: {}", indexCommit.getUserData());
 
                             for (final var segmentCommitInfo : SegmentInfos.readCommit(directory, segmentsFileName)) {
                                 logger.debug("loading cluster state from segment: {}", segmentCommitInfo);

@@ -1541,6 +1541,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
+                    "should see user data",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "should see segment message including timestamp",
                     PersistedClusterStateService.class.getCanonicalName(),
                     Level.DEBUG,

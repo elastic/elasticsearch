@@ -243,6 +243,7 @@ public class DesiredBalanceService {
             assert ignored.unassignedInfo() != null;
             assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                || (ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED && hasChanges)
                 : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
 
             var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;

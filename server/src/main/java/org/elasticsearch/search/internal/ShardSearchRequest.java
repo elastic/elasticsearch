@@ -92,6 +92,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
      */
     private final boolean forceSyntheticSource;
 
@@ -669,6 +672,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
      */
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;

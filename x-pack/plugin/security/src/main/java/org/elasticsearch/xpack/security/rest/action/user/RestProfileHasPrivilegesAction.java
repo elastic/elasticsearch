@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -50,7 +52,12 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
             ProfileHasPrivilegesRequest request = ProfileHasPrivilegesRequest.PARSER.parse(parser, null);
-            return channel -> client.execute(ProfileHasPrivilegesAction.INSTANCE, request, new RestToXContentListener<>(channel));
+            final HttpChannel httpChannel = restRequest.getHttpChannel();
+            return channel -> new RestCancellableNodeClient(client, httpChannel).execute(
+                ProfileHasPrivilegesAction.INSTANCE,
+                request,
+                new RestToXContentListener<>(channel)
+            );
         }
     }
 }

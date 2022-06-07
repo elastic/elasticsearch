@@ -116,7 +116,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 final var task = taskContext.getTask();
                 currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

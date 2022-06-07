@@ -145,6 +145,7 @@ Use the following APIs to retrieve and manage user profiles.
 * <<security-api-enable-user-profile, Enable user profile>>
 * <<security-api-disable-user-profile, Disable user profile>>
 * <<security-api-suggest-user-profile, Suggest user profile>>
+* <<security-api-has-privileges-user-profile, Has Privileges user profile>>
 endif::[]
 
 include::security/authenticate.asciidoc[]
@@ -203,4 +204,5 @@ include::security/enable-user-profile.asciidoc[]
 include::security/get-user-profile.asciidoc[]
 include::security/suggest-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]
+include::security/has-privileges-user-profile.asciidoc[]
 endif::[]

@@ -163,11 +163,11 @@ ifeval::["{release-state}"=="unreleased"]
 [[text-synthetic-source]]
 ==== Synthetic source
 `text` fields support <<synthetic-source,synthetic `_source`>> if they have
-a `keyword` sub-field that supports synthetic `_source` and *doesn't* have
+a `keyword` sub-field that supports synthetic `_source` and *do not* have
 <<copy-to,`copy_to`>>.
 
-Synthetic source will always sort `keyword` fields and remove duplicates so
-it will also do that for `text` fields using their sub-`keyword` field. So:
+Synthetic source always sorts `keyword` fields and removes duplicates, so
+`text` fields are sorted based on the sub-`keyword` field. For example:
 [source,console,id=synthetic-source-text-example]
 ----
 PUT idx

@@ -40,7 +40,7 @@ public final class Version implements Comparable<Version> {
     private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha\\d+|beta\\d+|rc\\d+|SNAPSHOT))?");
 
     private static final Pattern relaxedPattern = Pattern.compile(
-        "v?(\\d+)\\.(\\d+)\\.(\\d+)(?:[\\-+]+([a-zA-Z0-9_]+(?:-[a-zA-Z0-9]+)*))?"
+        "v?(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:[\\-+]+([a-zA-Z0-9_]+(?:-[a-zA-Z0-9]+)*))?"
     );
 
     public Version(int major, int minor, int revision) {
@@ -72,14 +72,12 @@ public final class Version implements Comparable<Version> {
             throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
         }
 
+        String major = matcher.group(1);
+        String minor = matcher.group(2);
+        String revision = matcher.group(3);
         String qualifier = matcher.group(4);
 
-        return new Version(
-            Integer.parseInt(matcher.group(1)),
-            Integer.parseInt(matcher.group(2)),
-            Integer.parseInt(matcher.group(3)),
-            qualifier
-        );
+        return new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier);
     }
 
     @Override

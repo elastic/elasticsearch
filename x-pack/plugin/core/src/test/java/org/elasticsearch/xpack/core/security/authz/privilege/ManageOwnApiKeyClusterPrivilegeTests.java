@@ -223,7 +223,11 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> clusterPermission.check("cluster:admin/xpack/security/api_key/non_existent_action", req, AuthenticationTestHelper.builder().build())
+            () -> clusterPermission.check(
+                "cluster:admin/xpack/security/api_key/non_existent_action",
+                req,
+                AuthenticationTestHelper.builder().build()
+            )
         );
     }
 }

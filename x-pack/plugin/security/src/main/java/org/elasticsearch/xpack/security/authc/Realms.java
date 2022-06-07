@@ -366,7 +366,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     @Override
     protected void doClose() throws IOException {
-        IOUtils.close(allConfiguredRealms.stream().filter(r -> r instanceof Releasable).map(r -> (Releasable) r).toList());
+        IOUtils.close(allConfiguredRealms.stream().filter(r -> r instanceof Closeable).map(r -> (Closeable) r).toList());
     }
 
     private void maybeAddBasicRealms(List<Realm> realms, List<RealmConfig> realmConfigs) throws Exception {

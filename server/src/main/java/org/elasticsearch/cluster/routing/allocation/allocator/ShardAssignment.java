@@ -26,7 +26,7 @@ public record ShardAssignment(Set<String> nodeIds, int unassigned, int ignored) 
     }
 
     public static ShardAssignment merge(ShardAssignment a, ShardAssignment b) {
-        return new ShardAssignment(merge(a.nodeIds, b.nodeIds), a.unassigned + b.unassigned, a.ignored + b.unassigned);
+        return new ShardAssignment(merge(a.nodeIds, b.nodeIds), a.unassigned + b.unassigned, a.ignored + b.ignored);
     }
 
     private static Set<String> merge(Set<String> a, Set<String> b) {

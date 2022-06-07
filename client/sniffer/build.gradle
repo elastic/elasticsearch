@@ -50,6 +50,10 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+tasks.named("testTestingConventions").configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
+}
+
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'

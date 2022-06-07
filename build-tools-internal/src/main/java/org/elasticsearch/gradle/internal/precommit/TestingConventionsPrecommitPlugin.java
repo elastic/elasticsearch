@@ -42,18 +42,23 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
 
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):
         return tasks.register(TESTING_CONVENTIONS_TASK_NAME, task -> {
-                    task.setDescription("Runs all testing conventions checks.");
-                    task.dependsOn(tasks.withType(TestingConventionsCheckTask.class));
-                });
+            task.setDescription("Runs all testing conventions checks.");
+            task.dependsOn(tasks.withType(TestingConventionsCheckTask.class));
+        });
     }
 
-    private void setupTaskPerSourceSet(Project project, NamedDomainObjectProvider<SourceSet> sourceSetProvider, Action<TestingConventionsCheckTask> config) {
+    private void setupTaskPerSourceSet(
+        Project project,
+        NamedDomainObjectProvider<SourceSet> sourceSetProvider,
+        Action<TestingConventionsCheckTask> config
+    ) {
         sourceSetProvider.configure(sourceSet -> {
             String taskName = sourceSet.getTaskName(null, TESTING_CONVENTIONS_TASK_NAME);
-            TaskProvider<TestingConventionsCheckTask> register = project.getTasks().register(taskName, TestingConventionsCheckTask.class, task -> {
-                task.getTestClassesDirs().from(sourceSet.getOutput().getClassesDirs());
-                task.getClasspath().from(sourceSet.getRuntimeClasspath());
-            });
+            TaskProvider<TestingConventionsCheckTask> register = project.getTasks()
+                .register(taskName, TestingConventionsCheckTask.class, task -> {
+                    task.getTestClassesDirs().from(sourceSet.getOutput().getClassesDirs());
+                    task.getClasspath().from(sourceSet.getRuntimeClasspath());
+                });
             register.configure(config);
         });
     }

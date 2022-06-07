@@ -213,6 +213,7 @@ repositories {
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
+
 dependencies {
   constraints {
       integTestImplementation('org.ow2.asm:asm:9.3')

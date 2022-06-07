@@ -9,27 +9,22 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
-import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
-
-import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.TaskAction;
-import org.gradle.internal.classloader.ClassLoaderSpec;
-import org.gradle.workers.ClassLoaderWorkerSpec;
+import org.gradle.api.tasks.*;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -37,21 +32,28 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import javax.inject.Inject;
+
+@CacheableTask
 public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
     @Input
     abstract Property<String> getSuffix();
 
-    @InputFiles
+    @Internal
     abstract ConfigurableFileCollection getTestClassesDirs();
+
+    @InputFiles
+    @SkipWhenEmpty
+    @IgnoreEmptyDirectories
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileTree getTestClasses() {
+        return getTestClassesDirs().getAsFileTree().matching(pattern -> pattern.include("**/*.class"));
+    }
 
     @Classpath
     abstract ConfigurableFileCollection getClasspath();
@@ -61,6 +63,10 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
     @Inject
     abstract public WorkerExecutor getWorkerExecutor();
+
+    public void baseClass(String qualifiedClassname) {
+        getBaseClasses().add(qualifiedClassname);
+    }
 
     @TaskAction
     void validate() {
@@ -75,41 +81,126 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
     abstract static class TestingConventionsCheckWorkAction implements WorkAction<Parameters> {
 
+        private static final String JUNIT3_TEST_METHOD_PREFIX = "test";
+        private static final Predicate<Class<?>> isAbstractClass = clazz -> Modifier.isAbstract(clazz.getModifiers());
+        private static final Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
+        private static final Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
+
+        private static final Predicate<Class<?>> testClassDefaultPredicate = isAbstractClass.negate()
+            .and(isPublicClass)
+            .and(isStaticClass.negate());
+
         @Inject
         public TestingConventionsCheckWorkAction() {}
 
         @Override
         public void execute() {
             List<String> testClassesCandidates = getParameters().getClassDirectories()
-                    .getFiles()
-                    .stream()
-                    .filter(File::exists)
-                    .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
-                    .collect(Collectors.toList());
-            checkBaseClassMatching(testClassesCandidates, getParameters().getBaseClassesNames().get());
+                .getFiles()
+                .stream()
+                .filter(File::exists)
+                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
+                .collect(Collectors.toList());
+            checkTestClasses(testClassesCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffix().get());
         }
 
-        private void checkBaseClassMatching(List<String> testClassesCandidates, List<String> baseClassNames) {
-             List<? extends Class<?>> testClassesCandidate = testClassesCandidates.stream().map(className ->
-             loadClassWithoutInitializing(className)).toList();
-             List<? extends Class<?>> baseClasses = baseClassNames.stream().map(className ->
-             loadClassWithoutInitializing(className)).toList();
+        private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, String suffix) {
+            List<? extends Class<?>> testClassesCandidate = testClassesCandidates.stream()
+                .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
+                .collect(Collectors.toCollection(ArrayList::new));
+            List<Class> matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClassNames);
+            assertMatchesSuffix(suffix, matchingBaseClass);
+            testClassesCandidate.removeAll(matchingBaseClass);
+            assertNoMissmatchingTest(testClassesCandidate);
+        }
 
-            Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
-            Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
-            Predicate<Class<?>> isAbstractClass = clazz -> Modifier.isAbstract(clazz.getModifiers());
-            Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().
-                    anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
-
-            String mismatchingClassNames = testClassesCandidate.stream()
-                    .filter(isPublicClass)
-                    .filter(isAbstractClass.negate())
-                    .filter(extendsBaseClass.negate())
-                    .map(c -> c.getName()).collect(Collectors.joining("\n\t"));
-
-            if(mismatchingClassNames.isEmpty() == false) {
-                throw new GradleException("Following test classes do not extend any supported base class:\n\t" + mismatchingClassNames);
+        private void assertNoMissmatchingTest(List<? extends Class<?>> testClassesCandidate) {
+            var mismatchingBaseClasses = testClassesCandidate.stream()
+                .filter(testClassDefaultPredicate)
+                .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
+                .collect(Collectors.toList());
+            if (mismatchingBaseClasses.isEmpty() == false) {
+                throw new GradleException(
+                    "Following test classes do not extend any supported base class:\n\t"
+                        + mismatchingBaseClasses.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
+                );
             }
+        }
+
+        private void assertMatchesSuffix(String suffix, List<Class> matchingBaseClass) {
+            // ensure base class matching do match suffix
+            var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
+                .filter(c -> c.getName().endsWith(suffix) == false)
+                .collect(Collectors.toList());
+            if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
+                throw new GradleException(
+                    "Following test classes do not match naming convention to use suffix '"
+                        + suffix
+                        + "':\n\t"
+                        + matchingBaseClassNotMatchingSuffix.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
+                );
+            }
+        }
+
+        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassesCandidate, List<String> baseClassNames) {
+            List<? extends Class<?>> baseClasses = baseClassNames.stream()
+                .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
+                .toList();
+
+            Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
+            return testClassesCandidate.stream()
+                .filter(testClassDefaultPredicate)
+                .filter(extendsBaseClass)
+                .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
+                .collect(Collectors.toList());
+        }
+
+        private static boolean seemsLikeATest(Class<?> clazz) {
+            try {
+                Class<?> junitTest = loadClassWithoutInitializing("org.junit.Assert", clazz.getClassLoader());
+                if (junitTest.isAssignableFrom(clazz)) {
+                    Logging.getLogger(TestingConventionsCheckWorkAction.class)
+                        .debug("{} is a test because it extends {}", clazz.getName(), junitTest.getName());
+                    return true;
+                }
+
+                Class<?> junitAnnotation = loadClassWithoutInitializing("org.junit.Test", clazz.getClassLoader());
+                for (Method method : clazz.getMethods()) {
+                    if (matchesTestMethodNamingConvention(method)) {
+                        Logging.getLogger(TestingConventionsCheckWorkAction.class)
+                            .debug("{} is a test because it has method named '{}'", clazz.getName(), method.getName());
+                        return true;
+                    }
+                    if (isAnnotated(method, junitAnnotation)) {
+                        Logging.getLogger(TestingConventionsCheckWorkAction.class)
+                            .debug(
+                                "{} is a test because it has method '{}' annotated with '{}'",
+                                clazz.getName(),
+                                method.getName(),
+                                junitAnnotation.getName()
+                            );
+                        return true;
+                    }
+                }
+
+                return false;
+            } catch (NoClassDefFoundError e) {
+                // Include the message to get more info to get more a more useful message when running Gradle without -s
+                throw new IllegalStateException("Failed to inspect class " + clazz.getName() + ". Missing class? " + e.getMessage(), e);
+            }
+        }
+
+        private static boolean matchesTestMethodNamingConvention(Method method) {
+            return method.getName().startsWith(JUNIT3_TEST_METHOD_PREFIX) && Modifier.isStatic(method.getModifiers()) == false;
+        }
+
+        private static boolean isAnnotated(Method method, Class<?> annotation) {
+            for (Annotation presentAnnotation : method.getAnnotations()) {
+                if (annotation.isAssignableFrom(presentAnnotation.getClass())) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private List<String> walkPathAndLoadClasses(File testRoot) {
@@ -158,13 +249,13 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             return classes;
         }
 
-        private Class<?> loadClassWithoutInitializing(String name) {
+        private static Class<?> loadClassWithoutInitializing(String name, ClassLoader classLoader) {
             try {
                 return Class.forName(
                     name,
                     // Don't initialize the class to save time. Not needed for this test and this doesn't share a VM with any other tests.
                     false,
-                    getClass().getClassLoader()
+                    classLoader
                 );
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Failed to load class " + name + ". Incorrect classpath?", e);

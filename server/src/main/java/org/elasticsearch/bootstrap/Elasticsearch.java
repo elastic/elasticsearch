@@ -58,13 +58,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting elasticsearch
      */
-<<<<<<< HEAD
     public static void main(final String[] args) throws Exception {
-        overrideDnsCachePolicyProperties();
-=======
-    public static void main(final String[] args) {
         bootstrapSecurityProperties();
->>>>>>> 9160207f363 (Force property expansion for security policy (#87396))
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
         /*

@@ -26,7 +26,7 @@ To use this API, you must have the `manage_user_profile` cluster privilege.
 [[security-api-has-privileges-user-profile-desc]]
 ==== {api-description-title}
 
-This API is similar to the <<security-api-has-privileges>> API, which checks the privileges only of the user
+This API is similar to the <<security-api-has-privileges>> API, which checks the privileges only for the user
 that's calling it.
 However, this API uses the profile IDs, as returned by <<security-api-activate-user-profile>>,
 to identify the users for which to check the privileges of.

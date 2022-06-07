@@ -110,7 +110,7 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
-        SourceLoader sourceLoader = context.getSearchExecutionContext().newSourceLoader();
+        SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields, sourceLoader);
         profiler.visitor(fieldsVisitor);

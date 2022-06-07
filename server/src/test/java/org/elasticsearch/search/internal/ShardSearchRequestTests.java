@@ -216,7 +216,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            Version version = request.isForceSyntheticSource()
+                ? VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.CURRENT)
+                : VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = Version.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));

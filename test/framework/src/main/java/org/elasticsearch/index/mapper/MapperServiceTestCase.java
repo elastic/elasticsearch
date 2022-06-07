@@ -658,7 +658,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.addDocument(mapper.parse(source(build)).rootDoc());
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 String syntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
                 roundTripSyntheticSource(mapper, syntheticSource, reader);
@@ -685,7 +685,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 String roundTripSyntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));

@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
- * Loads source {@code _source} during the a GET or {@code _search}.
+ * Loads source {@code _source} during a GET or {@code _search}.
  */
 public interface SourceLoader {
     /**
@@ -72,8 +72,8 @@ public interface SourceLoader {
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
-        Synthetic(RootObjectMapper root) {
-            loader = root.syntheticFieldLoader();
+        public Synthetic(Mapping mapping) {
+            loader = mapping.getRoot().syntheticFieldLoader();
         }
 
         @Override

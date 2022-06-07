@@ -137,7 +137,7 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 To change this behavior and store names without splitting them on dots, set
-<<subobjects>> to `false`. For example:```
+<<subobjects>> to `false`. For example:
 
 [source,console,id=synthetic-dot-example]
 ----

@@ -18,10 +18,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -113,52 +114,51 @@ public class MasterHistoryService {
      * @param node The node whose view of the master history we want to fetch
      */
     public void refreshRemoteMasterHistory(DiscoveryNode node) {
+        Version minSupportedVersion = Version.V_8_3_0;
+        if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
+            logger.trace(
+                "Cannot get master history for {} because it is at version {} and {} is required",
+                node,
+                node.getVersion(),
+                minSupportedVersion
+            );
+            return;
+        }
         long startTime = System.nanoTime();
-        transportService.openConnection(
+        transportService.connectToNode(
             // Note: This connection must be explicitly closed below
             node,
             ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
             new ActionListener<>() {
                 @Override
-                public void onResponse(Transport.Connection connection) {
-                    Version minSupportedVersion = Version.V_8_3_0;
-                    if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
-                        logger.trace("Opened connection to {}, making master history request", node);
-                        // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-                        final TimeValue remoteMasterHistoryTimeout = TimeValue.timeValueSeconds(10);
-                        transportService.sendRequest(
-                            node,
-                            MasterHistoryAction.NAME,
-                            new MasterHistoryAction.Request(),
-                            TransportRequestOptions.timeout(remoteMasterHistoryTimeout),
-                            new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
+                public void onResponse(Releasable releasable) {
+                    logger.trace("Connected to {}, making master history request", node);
+                    // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                    final TimeValue remoteMasterHistoryTimeout = TimeValue.timeValueSeconds(10);
+                    transportService.sendRequest(
+                        node,
+                        MasterHistoryAction.NAME,
+                        new MasterHistoryAction.Request(),
+                        TransportRequestOptions.timeout(remoteMasterHistoryTimeout),
+                        new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
 
-                                @Override
-                                public void onResponse(MasterHistoryAction.Response response) {
-                                    long endTime = System.nanoTime();
-                                    logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                    remoteHistoryOrException = new RemoteHistoryOrException(
-                                        response.getMasterHistory(),
-                                        currentTimeMillisSupplier.getAsLong()
-                                    );
-                                }
+                            @Override
+                            public void onResponse(MasterHistoryAction.Response response) {
+                                long endTime = System.nanoTime();
+                                logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+                                remoteHistoryOrException = new RemoteHistoryOrException(
+                                    response.getMasterHistory(),
+                                    currentTimeMillisSupplier.getAsLong()
+                                );
+                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn("Exception in master history request to master node", e);
-                                    remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
-                                }
-                            }, connection::close), MasterHistoryAction.Response::new)
-                        );
-                    } else {
-                        connection.close();
-                        logger.trace(
-                            "Cannot get master history for {} because it is at version {} and {} is required",
-                            node,
-                            connection.getVersion(),
-                            minSupportedVersion
-                        );
-                    }
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("Exception in master history request to master node", e);
+                                remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
+                            }
+                        }, () -> Releasables.close(releasable)), MasterHistoryAction.Response::new)
+                    );
                 }
 
                 @Override

@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.iwls;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesWriteLoadStatsCollector;
+import org.elasticsearch.indices.IndicesWriteLoadStatsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -25,6 +29,9 @@ import java.util.Collections;
 import java.util.function.Supplier;
 
 public class IndicesWriteLoadDistributionStoragePlugin extends Plugin {
+    private final SetOnce<IndicesWriteLoadStatsCollector> indicesWriteLoadsStatsCollectorRef = new SetOnce<>();
+    private final SetOnce<IndicesWriteLoadStatsService> indicesWriteLoadStatsServiceRef = new SetOnce<>();
+
     public IndicesWriteLoadDistributionStoragePlugin() {}
 
     @Override
@@ -49,7 +56,28 @@ public class IndicesWriteLoadDistributionStoragePlugin extends Plugin {
             xContentRegistry
         );
         registry.initialize();
+        final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, System::nanoTime);
+        indicesWriteLoadsStatsCollectorRef.set(indicesWriteLoadStatsCollector);
+        final var indicesWriteLoadStatsService = IndicesWriteLoadStatsService.create(
+            indicesWriteLoadStatsCollector,
+            clusterService,
+            threadPool,
+            client,
+            clusterService.getSettings()
+        );
+        indicesWriteLoadStatsServiceRef.set(indicesWriteLoadStatsService);
 
-        return Collections.emptyList();
+        return Collections.singletonList(indicesWriteLoadStatsService);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        assert indicesWriteLoadsStatsCollectorRef.get() != null;
+        indexModule.addIndexEventListener(indicesWriteLoadsStatsCollectorRef.get());
+    }
+
+    @Override
+    public void close() {
+        indicesWriteLoadStatsServiceRef.get().close();
     }
 }

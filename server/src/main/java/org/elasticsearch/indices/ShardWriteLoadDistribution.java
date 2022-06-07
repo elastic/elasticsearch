@@ -26,15 +26,9 @@ public record ShardWriteLoadDistribution(
     String dataStream,
     ShardId shardId,
     boolean primary,
-    double indexingP50,
-    double indexingP90,
-    double indexingMax,
-    double mergesP50,
-    double mergesP90,
-    double mergesMax,
-    double refreshP50,
-    double refreshP90,
-    double refreshMax
+    LoadDistribution indexingLoadDistribution,
+    LoadDistribution mergingLoadDistribution,
+    LoadDistribution refreshLoadDistribution
 ) implements Writeable, ToXContentObject {
 
     private static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
@@ -44,17 +38,9 @@ public record ShardWriteLoadDistribution(
     private static final ParseField SHARD_FIELD = new ParseField("shard");
     private static final ParseField PRIMARY_FIELD = new ParseField("primary");
 
-    private static final ParseField INDEXING_P50_FIELD = new ParseField("indexing_p50");
-    private static final ParseField INDEXING_P90_FIELD = new ParseField("indexing_p90");
-    private static final ParseField INDEXING_MAX_FIELD = new ParseField("indexing_max");
-
-    private static final ParseField MERGE_P50_FIELD = new ParseField("merge_p50");
-    private static final ParseField MERGE_P90_FIELD = new ParseField("merge_p90");
-    private static final ParseField MERGE_MAX_FIELD = new ParseField("merge_max");
-
-    private static final ParseField REFRESH_P50_FIELD = new ParseField("refresh_p50");
-    private static final ParseField REFRESH_P90_FIELD = new ParseField("refresh_p90");
-    private static final ParseField REFRESH_MAX_FIELD = new ParseField("refresh_max");
+    private static final ParseField INDEXING_LOAD_DISTRIBUTION_FIELD = new ParseField("indexing_load_distribution");
+    private static final ParseField MERGING_LOAD_DISTRIBUTION_FIELD = new ParseField("merge_load_distribution");
+    private static final ParseField REFRESH_LOAD_DISTRIBUTION_FIELD = new ParseField("refresh_load_distribution");
 
     public static final ConstructingObjectParser<ShardWriteLoadDistribution, String> PARSER = new ConstructingObjectParser<>(
         "shard_write_load_distribution",
@@ -64,18 +50,9 @@ public record ShardWriteLoadDistribution(
             (String) args[1],
             new ShardId(new Index((String) args[2], (String) args[3]), (int) args[4]),
             (boolean) args[5],
-            // Indexing
-            (double) args[6],
-            (double) args[7],
-            (double) args[8],
-            // Merge
-            (double) args[9],
-            (double) args[10],
-            (double) args[11],
-            // Refresh
-            (double) args[12],
-            (double) args[13],
-            (double) args[14]
+            (LoadDistribution) args[6],
+            (LoadDistribution) args[7],
+            (LoadDistribution) args[8]
         )
     );
 
@@ -86,18 +63,21 @@ public record ShardWriteLoadDistribution(
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), PRIMARY_FIELD);
-
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), INDEXING_P50_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), INDEXING_P90_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), INDEXING_MAX_FIELD);
-
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MERGE_P50_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MERGE_P90_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MERGE_MAX_FIELD);
-
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), REFRESH_P50_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), REFRESH_P90_FIELD);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), REFRESH_MAX_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> LoadDistribution.fromXContent(p),
+            INDEXING_LOAD_DISTRIBUTION_FIELD
+        );
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> LoadDistribution.fromXContent(p),
+            MERGING_LOAD_DISTRIBUTION_FIELD
+        );
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> LoadDistribution.fromXContent(p),
+            REFRESH_LOAD_DISTRIBUTION_FIELD
+        );
     }
 
     ShardWriteLoadDistribution(StreamInput in) throws IOException {
@@ -106,15 +86,9 @@ public record ShardWriteLoadDistribution(
             in.readString(),
             new ShardId(in),
             in.readBoolean(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble(),
-            in.readDouble()
+            new LoadDistribution(in),
+            new LoadDistribution(in),
+            new LoadDistribution(in)
         );
     }
 
@@ -124,18 +98,9 @@ public record ShardWriteLoadDistribution(
         out.writeString(dataStream);
         shardId.writeTo(out);
         out.writeBoolean(primary);
-
-        out.writeDouble(indexingP50);
-        out.writeDouble(indexingP90);
-        out.writeDouble(indexingMax);
-
-        out.writeDouble(mergesP50);
-        out.writeDouble(mergesP90);
-        out.writeDouble(mergesMax);
-
-        out.writeDouble(refreshP50);
-        out.writeDouble(refreshP90);
-        out.writeDouble(refreshMax);
+        indexingLoadDistribution.writeTo(out);
+        mergingLoadDistribution.writeTo(out);
+        refreshLoadDistribution.writeTo(out);
     }
 
     @Override
@@ -147,19 +112,9 @@ public record ShardWriteLoadDistribution(
         builder.field(INDEX_UUID_FIELD.getPreferredName(), shardId.getIndex().getUUID());
         builder.field(SHARD_FIELD.getPreferredName(), shardId.getId());
         builder.field(PRIMARY_FIELD.getPreferredName(), primary);
-
-        builder.field(INDEXING_P50_FIELD.getPreferredName(), indexingP50);
-        builder.field(INDEXING_P90_FIELD.getPreferredName(), indexingP90);
-        builder.field(INDEXING_MAX_FIELD.getPreferredName(), indexingMax);
-
-        builder.field(MERGE_P50_FIELD.getPreferredName(), mergesP50);
-        builder.field(MERGE_P90_FIELD.getPreferredName(), mergesP90);
-        builder.field(MERGE_MAX_FIELD.getPreferredName(), mergesMax);
-
-        builder.field(REFRESH_P50_FIELD.getPreferredName(), refreshP50);
-        builder.field(REFRESH_P90_FIELD.getPreferredName(), refreshP90);
-        builder.field(REFRESH_MAX_FIELD.getPreferredName(), refreshMax);
-
+        builder.field(INDEXING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), indexingLoadDistribution);
+        builder.field(MERGING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), mergingLoadDistribution);
+        builder.field(REFRESH_LOAD_DISTRIBUTION_FIELD.getPreferredName(), refreshLoadDistribution);
         builder.endObject();
 
         return builder;

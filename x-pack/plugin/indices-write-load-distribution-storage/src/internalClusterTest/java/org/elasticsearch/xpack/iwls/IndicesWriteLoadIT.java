@@ -258,6 +258,28 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
         }, 20, TimeUnit.SECONDS);
     }
 
+    public void testSamplesAreNotCollectedAfterAShardMovesToADifferentNode() throws Exception {
+        final var dataStream = randomDataStreamName();
+        putComposableIndexTemplateWithSleepingAnalyzer(List.of(dataStream));
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStream)).get());
+
+        ensureIndicesWriteLoadIndexIsSearchable();
+
+        long timestampBeforeIndexingDocs = System.currentTimeMillis();
+        indexDocs(dataStream, 2);
+
+        final var state = client().admin().cluster().prepareState().get().getState();
+        final var writeIndex = state.metadata().getIndicesLookup().get(dataStream).getWriteIndex();
+
+        final var dataOnlyNodeName = internalCluster().startDataOnlyNode();
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(writeIndex.getName())
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", dataOnlyNodeName).build())
+            .get();
+    }
+
     public void testSamplesAreNotCollectedAfterDisablingService() throws Exception {
         final var dataStream = randomDataStreamName();
         putComposableIndexTemplateWithSleepingAnalyzer(List.of(dataStream));
@@ -323,12 +345,12 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                 assertThat(shardWriteLoadDistribution.dataStream(), is(equalTo(dataStream)));
                 assertThat(
                     Strings.toString(shardWriteLoadDistribution, true, true),
-                    shardWriteLoadDistribution.indexingMax(),
+                    shardWriteLoadDistribution.indexingLoadDistribution().max(),
                     is(closeTo(1.0, 0.5))
                 );
                 assertThat(
                     Strings.toString(shardWriteLoadDistribution, true, true),
-                    shardWriteLoadDistribution.refreshMax(),
+                    shardWriteLoadDistribution.refreshLoadDistribution().max(),
                     is(greaterThanOrEqualTo(0.0))
                 );
             }

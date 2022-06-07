@@ -175,11 +175,11 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
         final AtomicInteger getAndResetCalls = new AtomicInteger();
 
         InstrumentedStatsCollector() {
-            super(mock(ClusterService.class), mock(IndicesService.class), () -> 0L);
+            super(mock(ClusterService.class), () -> 0L);
         }
 
         @Override
-        void collectWriteLoadStats() {
+        public void collectWriteLoadStats() {
             collectCalls.incrementAndGet();
             if (randomBoolean()) {
                 throw new RuntimeException("Failed collecting stats");

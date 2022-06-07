@@ -408,15 +408,19 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
             "parent",
             new ShardId("index", "uuid", 0),
             randomBoolean(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble()
+            randomLoadDistribution(),
+            randomLoadDistribution(),
+            randomLoadDistribution()
+        );
+    }
+
+    private LoadDistribution randomLoadDistribution() {
+        return new LoadDistribution(
+            randomDoubleBetween(0.0, 128.0, true),
+            randomDoubleBetween(0.0, 128.0, true),
+            randomDoubleBetween(0.0, 128.0, true),
+            randomDoubleBetween(0.0, 128.0, true),
+            randomDoubleBetween(0.0, 128.0, true)
         );
     }
 

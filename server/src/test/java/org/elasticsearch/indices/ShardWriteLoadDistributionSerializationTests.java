@@ -35,18 +35,9 @@ public class ShardWriteLoadDistributionSerializationTests extends AbstractSerial
             randomAlphaOfLength(10),
             new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
             randomBoolean(),
-
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true)
+            randomLoadDistribution(),
+            randomLoadDistribution(),
+            randomLoadDistribution()
         );
     }
 
@@ -57,15 +48,16 @@ public class ShardWriteLoadDistributionSerializationTests extends AbstractSerial
             instance.dataStream(),
             new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
             randomBoolean(),
+            randomLoadDistribution(),
+            randomLoadDistribution(),
+            randomLoadDistribution()
+        );
+    }
 
+    private LoadDistribution randomLoadDistribution() {
+        return new LoadDistribution(
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-            randomDoubleBetween(0.0, 128.0, true),
-
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true)

@@ -2941,7 +2941,6 @@ public class InternalEngine extends Engine {
             if (didRefresh) {
                 totalRefreshTimeInNanos.add(relativeTimeInNanosSupplier.getAsLong() - refreshStartTimeNanos);
             }
-            refreshStartTimeNanos = 0;
         }
 
         long getTotalRefreshTimeInNanos() {

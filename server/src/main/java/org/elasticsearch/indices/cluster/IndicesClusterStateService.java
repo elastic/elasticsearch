@@ -55,7 +55,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.IndicesWriteLoadStatsCollector;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -121,8 +120,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client,
-        final IndicesWriteLoadStatsCollector indicesWriteLoadStatsCollector
+        final NodeClient client
     ) {
         this(
             settings,
@@ -137,8 +135,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             retentionLeaseSyncer,
-            client,
-            indicesWriteLoadStatsCollector
+            client
         );
     }
 
@@ -156,17 +153,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client,
-        final IndicesWriteLoadStatsCollector indicesWriteLoadStatsCollector
+        final NodeClient client
     ) {
         this.settings = settings;
-        this.buildInIndexListener = Arrays.asList(
-            peerRecoverySourceService,
-            recoveryTargetService,
-            searchService,
-            snapshotShardsService,
-            indicesWriteLoadStatsCollector
-        );
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

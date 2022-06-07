@@ -159,7 +159,7 @@ PUT idx/_doc/1
 // TEST[s/^/DELETE idx\n/]
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
-Will stay:
+Will remain as:
 
 [source,console-result]
 ----

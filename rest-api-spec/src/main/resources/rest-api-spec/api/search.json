@@ -105,6 +105,12 @@
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
+      "force_synthetic_source": {
+        "type": "boolean",
+        "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.index_mode_feature_flag_registered"
+      },
       "lenient":{
         "type":"boolean",
         "description":"Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"

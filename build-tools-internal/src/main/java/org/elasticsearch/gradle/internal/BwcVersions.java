@@ -412,7 +412,9 @@ public class BwcVersions {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/86877">https://github.com/elastic/elasticsearch/issues/86877</a>
      */
     public static boolean isMlCompatible(Version version) {
-        Version glibcVersion = Optional.ofNullable(System.getenv(GLIBC_VERSION_ENV_VAR)).map(Version::fromString).orElse(null);
+        Version glibcVersion = Optional.ofNullable(System.getenv(GLIBC_VERSION_ENV_VAR))
+            .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+            .orElse(null);
 
         // glibc version 2.35 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
         if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.35", Version.Mode.RELAXED))) {

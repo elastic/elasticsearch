@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -43,6 +45,8 @@ import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 // NB: cannot simplify the template further since client has different request/response types and different methods between
 // search and multi-search hence the code repetition
 public class PITAwareQueryClient extends BasicQueryClient {
+
+    private static final Logger log = LogManager.getLogger(PITAwareQueryClient.class);
 
     private String pitId;
     private final TimeValue keepAlive;
@@ -139,11 +143,16 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     @Override
     public void close(ActionListener<Boolean> listener) {
-        client.execute(
-            ClosePointInTimeAction.INSTANCE,
-            new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded)
-        );
-        pitId = null;
+        // the pitId could be null as a consequence of a failure on openPIT
+        if (pitId == null) {
+            log.warn("Trying to close PointInTime with null ID (probably due to a failure in opening PointInTime)");
+        } else {
+            client.execute(
+                ClosePointInTimeAction.INSTANCE,
+                new ClosePointInTimeRequest(pitId),
+                map(listener, ClosePointInTimeResponse::isSucceeded)
+            );
+            pitId = null;
+        }
     }
 }

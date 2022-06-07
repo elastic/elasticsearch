@@ -135,10 +135,14 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             var stat = stats.get(0);
+            // If we are upgrading from a cluster before allocation distribution was introduced we should only
+            // expect a started allocation status because the newer versioned nodes will wait for the full cluster
+            // to be upgraded before loading models.
+            String expectedAllocationStatus = UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0) ? "fully_allocated" : "started";
             assertThat(
                 stat.toString(),
                 XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
-                equalTo("fully_allocated")
+                equalTo(expectedAllocationStatus)
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);

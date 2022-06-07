@@ -167,7 +167,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         }
 
         if (allocationSum == 0) {
-            return Optional.empty();
+            // If we are in a mixed cluster where there are assignments prior to introducing allocation distribution
+            // we could have a zero-sum of allocations. We fall back to returning a random started node.
+            return nodes.isEmpty() ? Optional.empty() : Optional.of(nodes.get(Randomness.get().nextInt(nodes.size())));
         }
 
         int randomInt = Randomness.get().ints(1, 1, allocationSum + 1).iterator().nextInt();

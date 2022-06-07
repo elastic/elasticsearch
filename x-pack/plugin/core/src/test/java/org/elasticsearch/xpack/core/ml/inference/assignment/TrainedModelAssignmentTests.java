@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskPar
 import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -196,6 +198,24 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-1"), selectionCount, 1.0 / 6.0, 0.2);
         assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-2"), selectionCount, 2.0 / 6.0, 0.2);
         assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-3"), selectionCount, 3.0 / 6.0, 0.2);
+    }
+
+    public void testSelectRandomStartedNodeWeighedOnAllocations_GivenMultipleStartedNodesWithZeroAllocations() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
+        builder.addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
+        TrainedModelAssignment assignment = builder.build();
+
+        final long selectionCount = 1000;
+        Set<String> selectedNodes = new HashSet<>();
+        for (int i = 0; i < selectionCount; i++) {
+            Optional<String> selectedNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
+            assertThat(selectedNode.isPresent(), is(true));
+            selectedNodes.add(selectedNode.get());
+        }
+
+        assertThat(selectedNodes, contains("node-1", "node-2", "node-3"));
     }
 
     private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double percent) {

@@ -48,6 +48,12 @@ public class UpdateScriptMetadataTests extends ESTestCase {
         assertEquals(Op.INDEX, meta.getOp());
     }
 
+    public void testType() {
+        update();
+        assertEquals("myType", ctx.get("_type"));
+        assertEquals("myType", meta.getType());
+    }
+
     public void testInsertDisablesGetters() {
         insert();
         IllegalStateException err = expectThrows(IllegalStateException.class, meta::getRouting);

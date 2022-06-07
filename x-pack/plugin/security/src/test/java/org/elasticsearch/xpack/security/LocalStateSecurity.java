@@ -39,7 +39,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, thisVar.securityExtensions()) {
+        plugins.add(new Security(settings, configPath, thisVar.securityExtensions()) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();

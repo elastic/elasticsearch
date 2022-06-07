@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,7 +58,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
             plugins.remove(LocalStateSecurity.class);
             plugins.add(SecurityPluginTests.LocalStateWithDummyRealmAuthorizationEngineExtension.class);
         }
-        return List.copyOf(plugins);
+        return plugins;
     }
 
     @Override
@@ -118,7 +119,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
 
         @Override
         protected List<SecurityExtension> securityExtensions() {
-            return List.of(new DummyRealmAuthorizationEngineExtension());
+            return Collections.singletonList(new DummyRealmAuthorizationEngineExtension());
         }
 
         @Override
@@ -160,7 +161,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         }
 
         @Override
-        public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
+        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
 

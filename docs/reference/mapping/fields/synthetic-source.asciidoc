@@ -108,10 +108,10 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[synthetic-source-modifications-field-names]]
-====== Names fields as they are named in the mapping
-Synthetic source will name fields as they are mapped. <<dynamic,dynamic mapping>>
-defaults to interpreting fields with dots in their names as objects so dynamic
-mapping will make documents as "objecty" as possible so:
+====== Fields named as they are mapped
+Synthetic source names fields as they are named in the mapping. When used
+with <<dynamic,dynamic mapping>>, fields with dots (`.`) in their names are, by
+default, interpreted as multiple objects. For example:
 
 [source,console,id=synthetic-source-objecty-example]
 ----

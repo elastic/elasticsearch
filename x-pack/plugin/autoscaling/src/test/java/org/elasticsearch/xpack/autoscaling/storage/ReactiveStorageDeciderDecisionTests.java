@@ -443,6 +443,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private AllocatableShards allocatableShards() {
         AllocationDeciders deciders = createAllocationDeciders();
         RoutingAllocation allocation = createRoutingAllocation(state, deciders);
+        // There could be duplicated of shard ids, and numOfShards is calculated based on them,
+        // so we can't just collect to the shard ids to `TreeSet`
         List<ShardId> allocatableShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(

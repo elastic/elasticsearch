@@ -40,12 +40,12 @@ A component's status is controlled by the worst indicator status. The cluster's 
 is controlled by the worst component status.
 
 In the event that an indicator's status is non-green, a list of impacts may be present in the
-indicator result which detail the parts of a cluster that are negatively affected by the health issue.
-Each impact carries with it a severity level, an area of the cluster that is affected, and a simple
+indicator result which detail the functionalities that are negatively affected by the health issue.
+Each impact carries with it a severity level, an area of the system that is affected, and a simple
 description of the impact on the system.
 
 Some health indicators can determine the root cause of a health problem and prescribe a set of
-user actions that can be performed in order to improve the health status of an indicator. User
+user actions that can be performed in order to improve the health of the system. User
 actions contain a message detailing a root cause analysis, the list of affected resources (if
 applicable) and steps to take that will improve the health of your cluster. User actions can
 also optionally provide URLs to troubleshooting documentation.

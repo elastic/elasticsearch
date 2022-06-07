@@ -177,11 +177,12 @@ ifeval::["{release-state}"=="unreleased"]
 [[keyword-synthetic-source]]
 ==== Synthetic source
 `keyword` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. But they don't support synthetic `_source` if you add
+default configuration. Synthetic `_source` cannot be used together with
 <<ignore-above,`ignore_above`>>, a <<normalizer,`normalizer`>>,
-<<copy-to,`copy_to`>>, or if you disable <<doc-values,`doc_values`>>.
+<<copy-to,`copy_to`>>, or with <<doc-values,`doc_values`>> disabled.
 
-Synthetic source will always sort `keyword` fields and remove duplicates so:
+Synthetic source always sorts `keyword` fields and removes duplicates. For
+example:
 [source,console,id=synthetic-source-keyword-example]
 ----
 PUT idx

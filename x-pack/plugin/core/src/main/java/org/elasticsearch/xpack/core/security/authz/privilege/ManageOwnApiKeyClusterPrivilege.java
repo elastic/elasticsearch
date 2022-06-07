@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,6 +26,7 @@ import java.util.Arrays;
  * Named cluster privilege for managing API keys owned by the current authenticated user.
  */
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
+
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
 
@@ -92,6 +94,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
+            } else if (request instanceof GrantApiKeyRequest) {
+                return false;
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")"

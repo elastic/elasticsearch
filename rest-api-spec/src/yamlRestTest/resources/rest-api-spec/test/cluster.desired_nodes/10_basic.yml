@@ -59,6 +59,39 @@ teardown:
   - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version } }
   - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
+"Test desired nodes keeps track of nodes status":
+  - skip:
+      reason: "status tracking added in 8.4"
+      features: contains
+      version: " - 8.3.99"
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+  - set: { nodes.$master.name: master_node_name }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.name": $master_node_name }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-0001" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes:
+          include_status: true
+
+  - contains: { nodes: { settings: { node: { name: $master_node_name } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version, status: "ACTUALIZED" } }
+  - contains: { nodes: { settings: { node: { name: "instance-0001" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version, status: "PENDING" } }
+---
 "Test update move to a new history id":
   - skip:
       reason: "contains is a newly added assertion"

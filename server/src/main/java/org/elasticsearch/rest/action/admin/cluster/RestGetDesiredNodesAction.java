@@ -16,6 +16,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+
+import static org.elasticsearch.cluster.metadata.DesiredNodeWithStatus.INCLUDE_STATUS_XCONTENT_PARAM;
 
 public class RestGetDesiredNodesAction extends BaseRestHandler {
     @Override
@@ -26,6 +29,11 @@ public class RestGetDesiredNodesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(RestRequest.Method.GET, "_internal/desired_nodes/_latest"));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Set.of(INCLUDE_STATUS_XCONTENT_PARAM);
     }
 
     @Override

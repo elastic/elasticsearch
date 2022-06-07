@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 /*
  * This QA test is intended to smoke test all security realms with minimal dependencies.
  * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
@@ -92,4 +90,5 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+  user username: "index_and_app_user", password: "security-test-password", role: "all_index_privileges,all_application_privileges"
 }

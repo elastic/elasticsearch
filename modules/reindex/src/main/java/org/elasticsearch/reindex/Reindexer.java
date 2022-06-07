@@ -49,6 +49,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -288,7 +289,7 @@ public class Reindexer {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
-                return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -374,6 +375,7 @@ public class Reindexer {
         }
 
         class ReindexScriptApplier extends ScriptApplier {
+            private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -382,6 +384,14 @@ public class Reindexer {
                 Map<String, Object> params
             ) {
                 super(taskWorker, scriptService, script, params);
+            }
+
+            @Override
+            protected void execute(Map<String, Object> ctx) {
+                if (reindex == null) {
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
+                }
+                reindex.newInstance(params, ctx).execute();
             }
 
             /*

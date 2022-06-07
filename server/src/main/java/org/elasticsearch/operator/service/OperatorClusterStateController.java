@@ -152,8 +152,8 @@ public class OperatorClusterStateController {
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).putOperatorState(operatorMetadataBuilder.build());
         state = stateBuilder.metadata(metadataBuilder).build();
 
-        // TODO: Retry, maybe use RetryableAction?
-        clusterService.submitStateUpdateTask("operator state [ " + namespace + "]", new OperatorUpdateStateTask(new ActionListener<>() {
+        // Do we need to retry this?
+        clusterService.submitStateUpdateTask("operator state [" + namespace + "]", new OperatorUpdateStateTask(new ActionListener<>() {
             @Override
             public void onResponse(ActionResponse.Empty empty) {
                 logger.info("Successfully applied new cluster state for namespace [{}]", namespace);
@@ -185,7 +185,7 @@ public class OperatorClusterStateController {
         return operatorMetadata.handlers().get(handlerKey).keys();
     }
 
-    boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
+    static boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
         if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
             logger.info(
                 "Cluster state version [{}] is not compatible with this Elasticsearch node",

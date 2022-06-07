@@ -92,6 +92,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // Versions before 7.11.0 don't support runtime mappings
             searchRequest.source().runtimeMappings(emptyMap());
         }
+        if (version.before(Version.V_8_4_0)) {
+            // Versionse before 8.4.0 don't support force_synthetic_source
+            searchRequest.setForceSyntheticSource(false);
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());

@@ -163,8 +163,23 @@ public final class ApplicationPrivilege extends Privilege {
         }
     }
 
-    private static boolean isValidPrivilegeName(String name) {
+    public static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
+    }
+
+    public static void validateActionName(String action) {
+        if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+            throw new IllegalArgumentException("action [" + action + "] must contain one of [ '/' , '*' , ':' ]");
+        }
+        if (false == isValidPrivilegeOrActionName(action)) {
+            throw new IllegalArgumentException(
+                "Application privilege names and actions must match the pattern "
+                    + VALID_NAME_OR_ACTION.pattern()
+                    + " (found '"
+                    + action
+                    + "')"
+            );
+        }
     }
 
     /**
@@ -173,7 +188,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeOrActionName(String name) {
-        if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
+        if (isValidPrivilegeOrActionName(name) == false) {
             throw new IllegalArgumentException(
                 "Application privilege names and actions must match the pattern "
                     + VALID_NAME_OR_ACTION.pattern()
@@ -182,6 +197,10 @@ public final class ApplicationPrivilege extends Privilege {
                     + "')"
             );
         }
+    }
+
+    private static boolean isValidPrivilegeOrActionName(String name) {
+        return VALID_NAME_OR_ACTION.matcher(name).matches();
     }
 
     /**

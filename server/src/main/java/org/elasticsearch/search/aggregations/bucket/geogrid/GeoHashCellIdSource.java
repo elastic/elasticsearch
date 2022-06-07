@@ -7,16 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 /**
- * {@link CellIdSource} implementation for Geohash aggregation
+ * Class to help convert {@link MultiGeoPointValues} to Geohash {@link CellValues}
  */
 public class GeoHashCellIdSource extends CellIdSource {
 
@@ -25,35 +22,8 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected NumericDocValues unboundedCellSingleValue(GeoPointValues values) {
-        return new CellSingleValue(values, precision()) {
-            @Override
-            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
-                value = Geohash.longEncode(target.getLon(), target.getLat(), precision);
-                return true;
-            }
-        };
-    }
-
-    @Override
-    protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
-        final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision(), boundingBox);
-        return new CellSingleValue(values, precision()) {
-            @Override
-            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
-                final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-                if (validPoint(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
-                    value = Geohash.longEncode(hash);
-                    return true;
-                }
-                return false;
-            }
-        };
-    }
-
-    @Override
-    protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
-        return new CellMultiValues(values, precision()) {
+    protected CellValues unboundedCellValues(MultiGeoPointValues values) {
+        return new CellValues(values, precision()) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 values[valuesIdx] = Geohash.longEncode(target.getLon(), target.getLat(), precision);
@@ -63,9 +33,9 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
+    protected CellValues boundedCellValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision(), boundingBox);
-        return new CellMultiValues(values, precision()) {
+        return new CellValues(values, precision()) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);

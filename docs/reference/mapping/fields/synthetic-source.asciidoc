@@ -73,8 +73,8 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[synthetic-source-modifications-leaf-arrays]]
-====== Moves arrays to leaf fields
-Synthetic source will move all arrays to leaves so:
+====== Arrays moved to leaf fields
+Synthetic `_source` arrays are moved to leaves. For example:
 
 [source,console,id=synthetic-source-leaf-arrays-example]
 ----

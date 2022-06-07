@@ -242,6 +242,30 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.forceSyntheticSource = forceSyntheticSource;
     }
 
+    public ShardSearchRequest(ShardSearchRequest clone) {
+        this.shardId = clone.shardId;
+        this.shardRequestIndex = clone.shardRequestIndex;
+        this.searchType = clone.searchType;
+        this.numberOfShards = clone.numberOfShards;
+        this.scroll = clone.scroll;
+        this.source(clone.source);
+        this.aliasFilter = clone.aliasFilter;
+        this.indexBoost = clone.indexBoost;
+        this.nowInMillis = clone.nowInMillis;
+        this.requestCache = clone.requestCache;
+        this.clusterAlias = clone.clusterAlias;
+        this.allowPartialSearchResults = clone.allowPartialSearchResults;
+        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
+        this.bottomSortValues = clone.bottomSortValues;
+        this.originalIndices = clone.originalIndices;
+        this.readerId = clone.readerId;
+        this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
+        this.waitForCheckpoint = clone.waitForCheckpoint;
+        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
+        this.forceSyntheticSource = clone.forceSyntheticSource;
+    }
+
     public ShardSearchRequest(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
@@ -300,30 +324,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             forceSyntheticSource = false;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
-    }
-
-    public ShardSearchRequest(ShardSearchRequest clone) {
-        this.shardId = clone.shardId;
-        this.shardRequestIndex = clone.shardRequestIndex;
-        this.searchType = clone.searchType;
-        this.numberOfShards = clone.numberOfShards;
-        this.scroll = clone.scroll;
-        this.source(clone.source);
-        this.aliasFilter = clone.aliasFilter;
-        this.indexBoost = clone.indexBoost;
-        this.nowInMillis = clone.nowInMillis;
-        this.requestCache = clone.requestCache;
-        this.clusterAlias = clone.clusterAlias;
-        this.allowPartialSearchResults = clone.allowPartialSearchResults;
-        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
-        this.bottomSortValues = clone.bottomSortValues;
-        this.originalIndices = clone.originalIndices;
-        this.readerId = clone.readerId;
-        this.keepAlive = clone.keepAlive;
-        this.channelVersion = clone.channelVersion;
-        this.waitForCheckpoint = clone.waitForCheckpoint;
-        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
-        this.forceSyntheticSource = clone.forceSyntheticSource;
     }
 
     @Override

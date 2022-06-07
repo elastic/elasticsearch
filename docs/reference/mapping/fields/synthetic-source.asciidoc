@@ -40,7 +40,7 @@ types:
 ** <<numeric-synthetic-source,`long`>>
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
-** <<text-synthetic-source,`text`>>
+** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
 
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications

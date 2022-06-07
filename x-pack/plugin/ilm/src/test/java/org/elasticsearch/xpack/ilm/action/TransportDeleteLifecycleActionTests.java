@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
 public class TransportDeleteLifecycleActionTests extends ESTestCase {
-    public void testOperatorHandler() throws Exception {
+    public void testOperatorHandler() {
         TransportDeleteLifecycleAction putAction = new TransportDeleteLifecycleAction(
             mock(TransportService.class),
             mock(ClusterService.class),

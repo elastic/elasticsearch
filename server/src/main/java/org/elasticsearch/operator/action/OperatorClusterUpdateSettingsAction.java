@@ -62,7 +62,11 @@ public class OperatorClusterUpdateSettingsAction implements OperatorHandler<Clus
     @Override
     public TransformState transform(Object input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
-        validate(request);
+
+        // allow empty requests, this is how we clean up settings
+        if (request.persistentSettings().isEmpty() == false) {
+            validate(request);
+        }
 
         ClusterState state = prevState.state();
 

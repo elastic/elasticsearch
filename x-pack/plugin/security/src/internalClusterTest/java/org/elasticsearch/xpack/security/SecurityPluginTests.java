@@ -137,7 +137,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
 
         @Override
         public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
-            return Map.of(DummyRealm.TYPE, DummyRealm::new);
+            return Collections.singletonMap(DummyRealm.TYPE, DummyRealm::new);
         }
     }
 

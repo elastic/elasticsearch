@@ -2,7 +2,7 @@
   "security.has_privileges_user_profile":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges-user-profile.html",
-      "description":"Determines whether the users with the specified profile IDs have all the requested privileges."
+      "description":"Determines whether the users associated with the specified profile IDs have all the requested privileges."
     },
     "stability":"experimental",
     "visibility":"feature_flag",

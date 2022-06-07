@@ -479,6 +479,7 @@ public class AllocationService {
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
+        logger.warn("Executing legacy reroute [{}], async result is ignored", reason);
         return reroute(clusterState, reason, DesiredBalanceShardsAllocator.REMOVE_ME);
     }
 

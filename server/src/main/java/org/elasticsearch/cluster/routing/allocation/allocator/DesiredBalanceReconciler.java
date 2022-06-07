@@ -230,7 +230,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;
-                if (assignment == null) {
+                if (assignment == null || assignment.isIgnored()) {
                     allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
                 } else if (isThrottled) {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;

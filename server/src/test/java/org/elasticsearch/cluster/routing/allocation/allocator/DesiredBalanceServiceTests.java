@@ -58,9 +58,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
         assertFalse(executeAndReroute(desiredBalanceService, clusterState));
@@ -77,9 +77,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0"), 1),
+                new ShardAssignment(Set.of("node-0"), 1, 1),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0"), 1)
+                new ShardAssignment(Set.of("node-0"), 1, 1)
             )
         );
 
@@ -93,9 +93,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }
@@ -111,9 +111,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of(), 2),
+                new ShardAssignment(Set.of(), 2, 2),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }
@@ -129,9 +129,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0"), 1),
+                new ShardAssignment(Set.of("node-0"), 1, 1),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }
@@ -173,9 +173,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-2", "node-1"), 0),
+                new ShardAssignment(Set.of("node-2", "node-1"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }
@@ -226,9 +226,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-2", "node-0"), 0),
+                new ShardAssignment(Set.of("node-2", "node-0"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }
@@ -287,9 +287,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
 
@@ -368,9 +368,9 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             desiredBalanceService,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 0)
+                new ShardAssignment(Set.of("node-0", "node-1"), 0, 0)
             )
         );
     }

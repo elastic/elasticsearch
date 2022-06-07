@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -53,7 +54,7 @@ public class DesiredBalanceService {
      */
     boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
 
-        logger.trace("starting to recompute desired balance");
+        logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
@@ -244,7 +245,14 @@ public class DesiredBalanceService {
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
                 : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
 
-            assignments.merge(ignored.shardId(), ShardAssignment.UNASSIGNED, ShardAssignment::merge);
+            var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
+            assignments.compute(
+                ignored.shardId(),
+                (key, oldValue) -> oldValue == null
+                    ? new ShardAssignment(Set.of(), 1, unassigned ? 0 : 1)
+                    : new ShardAssignment(oldValue.nodeIds(), oldValue.unassigned() + 1, oldValue.ignored() + (unassigned ? 0 : 1))
+            );
+
         }
 
         logger.trace(

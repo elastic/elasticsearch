@@ -15,15 +15,25 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-public record ShardAssignment(Set<String> nodeIds, int unassigned) {
+public record ShardAssignment(Set<String> nodeIds, int unassigned, int ignored) {
+
+    public boolean isIgnored() {
+        return ignored > 0 && nodeIds.isEmpty();
+    }
 
     public static ShardAssignment of(List<ShardRouting> routings) {
-        return new ShardAssignment(routings.stream().map(ShardRouting::currentNodeId).collect(toUnmodifiableSet()), 0);
+        return new ShardAssignment(routings.stream().map(ShardRouting::currentNodeId).collect(toUnmodifiableSet()), 0, 0);
     }
 
     public static ShardAssignment merge(ShardAssignment a, ShardAssignment b) {
-        return new ShardAssignment(a.nodeIds.isEmpty() ? b.nodeIds : a.nodeIds, a.unassigned + b.unassigned);
+        return new ShardAssignment(merge(a.nodeIds, b.nodeIds), a.unassigned + b.unassigned, a.ignored + b.ignored);
     }
 
-    public static ShardAssignment UNASSIGNED = new ShardAssignment(Set.of(), 1);
+    private static Set<String> merge(Set<String> a, Set<String> b) {
+        assert (a.size() > 0 && b.size() > 0) == false : "Only one assignment is expected to have assigned node ids";
+        return a.size() > 0 ? a : b;
+    }
+
+    public static ShardAssignment UNASSIGNED = new ShardAssignment(Set.of(), 1, 0);
+    public static ShardAssignment IGNORED = new ShardAssignment(Set.of(), 1, 1);
 }

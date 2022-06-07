@@ -1417,12 +1417,23 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
         final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);

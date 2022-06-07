@@ -3069,7 +3069,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             final var result = new ShardSnapshotUpdateResult(currentState.metadata(), updated);
             for (final var taskContext : taskContexts) {
-                taskContext.success(taskContext.getTask().listener.map(ignored -> result));
+                taskContext.success(() -> taskContext.getTask().listener.onResponse(result));
             }
 
             if (changedCount > 0) {

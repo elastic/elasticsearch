@@ -229,10 +229,21 @@ public class BwcVersions {
         return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
+    /**
+     * Return versions of Elasticsearch which are index compatible with the current version, and also work on the local machine.
+     */
     public List<Version> getIndexCompatible() {
-        return filterSupportedVersions(
-            versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList()
-        );
+        return filterSupportedVersions(getAllIndexCompatible());
+    }
+
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
+    public List<Version> getAllIndexCompatible() {
+        return versions.stream()
+            .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
+            .map(v -> v.elasticsearch)
+            .toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {

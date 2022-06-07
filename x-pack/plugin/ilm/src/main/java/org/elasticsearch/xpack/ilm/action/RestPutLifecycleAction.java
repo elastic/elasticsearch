@@ -21,8 +21,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
 
-    public static final String NAME = "name";
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, "/_ilm/policy/{name}"));
@@ -35,7 +33,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String lifecycleName = restRequest.param(NAME);
+        String lifecycleName = restRequest.param("name");
         try (XContentParser parser = restRequest.contentParser()) {
             PutLifecycleAction.Request putLifecycleRequest = PutLifecycleAction.Request.parseRequest(lifecycleName, parser);
             putLifecycleRequest.timeout(restRequest.paramAsTime("timeout", putLifecycleRequest.timeout()));

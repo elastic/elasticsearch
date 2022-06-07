@@ -1,9 +1,10 @@
 [[synthetic-source]]
 ==== Synthetic `_source`
 
-Though very handy to have around, the source field takes up a fair amount of
-space on disk. Instead of storing it on disk precisely as you sent it, Elasticsearch
-can reconstruct it on the fly. Enable this by setting `synthetic: true` in `_source`:
+Though very handy to have around, the source field takes up a significant amount
+of space on disk. Instead of storing source documents on disk exactly as you
+send them, Elasticsearch can reconstruct source content on the fly. Enable this
+by setting `synthetic: true` in `_source`:
 
 [source,console,id=enable-synthetic-source-example]
 ----

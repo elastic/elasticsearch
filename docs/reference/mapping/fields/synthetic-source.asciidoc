@@ -45,6 +45,9 @@ types:
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications
 
+When synthetic `_source` is enabled, retrieved documents undergo some
+modifications compared to the original JSON.
+
 [[synthetic-source-modifications-alphabetical]]
 ====== Sorts fields alphabetically
 Synthetic source will make sort all fields alphabetically so:

@@ -60,15 +60,13 @@ tasks.named("processYamlRestTestResources").configure {
   dependsOn("copyExtraResources")
 }
 def restTestBlacklist = []
-tasks.withType(RestIntegTestTask).configureEach {
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
-  if (BuildParams.isSnapshotBuild() == false) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are blacklisted in non-snapshot test runs
-    restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-  }
+// TODO: fix this rest test to not depend on a hardcoded port!
+restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+if (BuildParams.isSnapshotBuild() == false) {
+  // these tests attempt to install basic/internal licenses signed against the dev/public.key
+  // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+  // private key, these tests are blacklisted in non-snapshot test runs
+  restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
 }
 
 tasks.named("yamlRestTest").configure {

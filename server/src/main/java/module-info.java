@@ -44,7 +44,6 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queries;
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
-    requires org.apache.lucene.spatial3d;
     requires org.apache.lucene.suggest;
 
     exports org.elasticsearch;

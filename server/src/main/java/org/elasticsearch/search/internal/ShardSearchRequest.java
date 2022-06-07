@@ -385,7 +385,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.3.0");
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
         }
     }

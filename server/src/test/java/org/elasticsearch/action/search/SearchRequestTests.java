@@ -12,6 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -272,5 +274,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+    }
+
+    public void testForceSyntheticUnsupported() {
+        SearchRequest request = new SearchRequest();
+        request.setForceSyntheticSource(true);
+        StreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

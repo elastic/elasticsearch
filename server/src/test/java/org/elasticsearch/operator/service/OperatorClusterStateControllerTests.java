@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,12 +30,16 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -194,6 +200,101 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
             OperatorClusterStateController.checkMetadataVersion(
                 operatorMetadata,
                 new OperatorStateVersionMetadata(124L, Version.fromId(Version.CURRENT.id + 1))
+            )
+        );
+    }
+
+    public void testHandlerOrdering() {
+        OperatorHandler<?> oh1 = new OperatorHandler<>() {
+            @Override
+            public String key() {
+                return "one";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                return null;
+            }
+
+            @Override
+            public Collection<String> dependencies() {
+                return List.of("two", "three");
+            }
+        };
+
+        OperatorHandler<?> oh2 = new OperatorHandler<>() {
+            @Override
+            public String key() {
+                return "two";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                return null;
+            }
+        };
+
+        OperatorHandler<?> oh3 = new OperatorHandler<>() {
+            @Override
+            public String key() {
+                return "three";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                return null;
+            }
+
+            @Override
+            public Collection<String> dependencies() {
+                return List.of("two");
+            }
+        };
+
+        ClusterService clusterService = mock(ClusterService.class);
+        OperatorClusterStateController controller = new OperatorClusterStateController(clusterService);
+
+        controller.initHandlers(List.of(oh1, oh2, oh3));
+        Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
+        assertThat(ordered, contains("two", "three", "one"));
+
+        // assure that we bail on unknown handler
+        assertEquals(
+            "Unknown settings definition type: four",
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
+                .getMessage()
+        );
+
+        // assure that we bail on missing dependency link
+        assertEquals(
+            "Missing settings dependency definition: one -> three",
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage()
+        );
+
+        // Change the second handler so that we create cycle
+        oh2 = new OperatorHandler<>() {
+            @Override
+            public String key() {
+                return "two";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                return null;
+            }
+
+            @Override
+            public Collection<String> dependencies() {
+                return List.of("one");
+            }
+        };
+
+        controller.initHandlers(List.of(oh1, oh2));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            anyOf(
+                is("Cycle found in settings dependencies: one -> two -> one"),
+                is("Cycle found in settings dependencies: two -> one -> two")
             )
         );
     }

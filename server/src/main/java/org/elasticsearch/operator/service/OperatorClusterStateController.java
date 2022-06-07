@@ -56,11 +56,16 @@ public class OperatorClusterStateController {
         this.clusterService = clusterService;
     }
 
+    /**
+     * Initializes the controller with the currently implemented state handlers
+     *
+     * @param handlerList the list of supported operator handlers
+     */
     public void initHandlers(List<OperatorHandler<?>> handlerList) {
         handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::key, Function.identity()));
     }
 
-    static class SettingsFile {
+    private static class SettingsFile {
         public static final ParseField STATE_FIELD = new ParseField("state");
         public static final ParseField METADATA_FIELD = new ParseField("metadata");
         @SuppressWarnings("unchecked")
@@ -185,6 +190,7 @@ public class OperatorClusterStateController {
         return operatorMetadata.handlers().get(handlerKey).keys();
     }
 
+    // package private for testing
     static boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
         if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
             logger.info(
@@ -206,7 +212,7 @@ public class OperatorClusterStateController {
         return true;
     }
 
-    void recordErrorState(String namespace, Long version, List<String> errors, OperatorErrorMetadata.ErrorKind errorKind) {
+    private void recordErrorState(String namespace, Long version, List<String> errors, OperatorErrorMetadata.ErrorKind errorKind) {
         clusterService.submitStateUpdateTask(
             "operator state error for [ " + namespace + "]",
             new OperatorUpdateErrorTask(new ActionListener<>() {
@@ -225,6 +231,7 @@ public class OperatorClusterStateController {
         );
     }
 
+    // package private for testing
     LinkedHashSet<String> orderedStateHandlers(Set<String> keys) {
         LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
@@ -236,7 +243,7 @@ public class OperatorClusterStateController {
         return orderedHandlers;
     }
 
-    void addStateHandler(String key, Set<String> keys, LinkedHashSet<String> ordered, LinkedHashSet<String> visited) {
+    private void addStateHandler(String key, Set<String> keys, LinkedHashSet<String> ordered, LinkedHashSet<String> visited) {
         if (visited.contains(key)) {
             StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
             visited.forEach(s -> {

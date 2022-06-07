@@ -29,6 +29,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -134,6 +135,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
+            private UpdateByQueryScript.Factory update = null;
 
             UpdateByQueryScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -164,6 +166,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
             }
 
+            @Override
+            protected void execute(Map<String, Object> ctx) {
+                if (update == null) {
+                    update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
+                }
+                update.newInstance(params, ctx).execute();
+            }
         }
     }
 }

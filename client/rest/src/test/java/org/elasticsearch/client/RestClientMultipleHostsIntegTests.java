@@ -326,6 +326,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/87314")
     public void testNonRetryableException() throws Exception {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.setHttpAsyncResponseConsumerFactory(

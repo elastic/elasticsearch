@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -17,7 +18,10 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
 
 import org.apache.logging.log4j.Logger;
@@ -28,10 +32,12 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Queue;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
@@ -50,6 +56,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     private int readSequence;
     private int writeSequence;
+
+    /**
+     * Queue of pending writes that are flushed as the channel becomes writable. Queuing operations here instead of passing them to
+     * {@link ChannelHandlerContext#write} straight away prevents us from allocating buffers for operations that can not be written
+     * to the channel at the moment needlessly in case compression is used which creates buffers containing the compressed content
+     * in {@link io.netty.handler.codec.http.HttpContentCompressor#write}.
+     */
+    private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private final Netty4HttpServerTransport serverTransport;
 
@@ -160,7 +174,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) {
         if (DO_NOT_SPLIT_HTTP_RESPONSES || readyResponse.content().readableBytes() <= SPLIT_THRESHOLD) {
-            ctx.write(readyResponse, promise);
+            enqueueWrite(ctx, readyResponse, promise);
         } else {
             splitAndWrite(ctx, readyResponse, promise);
         }
@@ -170,13 +184,75 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
-        combiner.add(ctx.write(response));
+        combiner.add(enqueueWrite(ctx, response));
         ByteBuf content = msg.content();
         while (content.readableBytes() > SPLIT_THRESHOLD) {
-            combiner.add(ctx.write(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD))));
+            combiner.add(enqueueWrite(ctx, new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD))));
         }
-        combiner.add(ctx.write(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes()))));
+        combiner.add(enqueueWrite(ctx, new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes()))));
         combiner.finish(promise);
+    }
+
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        if (ctx.channel().isWritable()) {
+            doFlush(ctx);
+        }
+        ctx.fireChannelWritabilityChanged();
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) {
+        if (doFlush(ctx) == false) {
+            ctx.flush();
+        }
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        doFlush(ctx);
+        super.channelInactive(ctx);
+    }
+
+    /**
+     * @param ctx channel handler context
+     *
+     * @return true if a call to this method resulted in a call to {@link ChannelHandlerContext#flush()} on the given {@code ctx}
+     */
+    private boolean doFlush(ChannelHandlerContext ctx) {
+        assert ctx.executor().inEventLoop();
+        final Channel channel = ctx.channel();
+        if (channel.isActive() == false) {
+            failQueuedWrites();
+            return false;
+        }
+        boolean needsFlush = true;
+        while (channel.isWritable()) {
+            final WriteOperation currentWrite = queuedWrites.poll();
+            if (currentWrite == null) {
+                break;
+            }
+            ctx.write(currentWrite.msg, currentWrite.promise);
+            needsFlush = true;
+            if (channel.isWritable() == false) {
+                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
+                ctx.flush();
+                needsFlush = false;
+            }
+        }
+        if (needsFlush) {
+            ctx.flush();
+        }
+        if (channel.isActive() == false) {
+            failQueuedWrites();
+        }
+        return true;
+    }
+
+    private void failQueuedWrites() {
+        WriteOperation queuedWrite;
+        while ((queuedWrite = queuedWrites.poll()) != null) {
+            queuedWrite.failAsClosedChannel();
+        }
     }
 
     @Override
@@ -196,6 +272,20 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         ctx.close(promise);
     }
 
+    private Future<Void> enqueueWrite(ChannelHandlerContext ctx, HttpObject msg) {
+        final ChannelPromise p = ctx.newPromise();
+        enqueueWrite(ctx, msg, p);
+        return p;
+    }
+
+    private void enqueueWrite(ChannelHandlerContext ctx, HttpObject msg, ChannelPromise promise) {
+        if (ctx.channel().isWritable() && queuedWrites.isEmpty()) {
+            ctx.write(msg, promise);
+        } else {
+            queuedWrites.add(new WriteOperation(msg, promise));
+        }
+    }
+
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
@@ -213,5 +303,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         ArrayList<Tuple<Netty4HttpResponse, ChannelPromise>> responses = new ArrayList<>(outboundHoldingQueue);
         outboundHoldingQueue.clear();
         return responses;
+    }
+
+    private record WriteOperation(HttpObject msg, ChannelPromise promise) {
+
+        void failAsClosedChannel() {
+            promise.tryFailure(new ClosedChannelException());
+            ReferenceCountUtil.release(msg);
+        }
     }
 }

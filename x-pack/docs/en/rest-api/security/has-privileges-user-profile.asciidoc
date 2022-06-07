@@ -38,8 +38,7 @@ A successful call returns the subset list of profile IDs that have **all** the r
 [[security-api-has-privileges-user-profile-request-body]]
 ==== {api-request-body-title}
 
-`uids`:: (list) A list of <<security-api-activate-user-profile-response-body, profile IDs>> that identify
-the users for which to check the privileges of.
+`uids`:: (list) A list of <<security-api-activate-user-profile-response-body, profile IDs>>. The privileges are checked for associated users of the profiles.
 
 `privileges`:: The object containing all the privileges to be checked.
 `cluster`::: (list) A list of the cluster privileges that you want to check.

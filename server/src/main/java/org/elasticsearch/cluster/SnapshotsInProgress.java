@@ -662,7 +662,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
          */
-        private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
+        private final Map<ShardId, ShardSnapshotStatus> shards;
         /**
          * Map of index name to {@link IndexId}.
          */
@@ -703,7 +703,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             List<SnapshotFeatureInfo> featureStates,
             long startTime,
             long repositoryStateId,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+            Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
             Version version
@@ -737,7 +737,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             List<SnapshotFeatureInfo> featureStates,
             long startTime,
             long repositoryStateId,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+            Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
             Version version,
@@ -839,7 +839,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             SnapshotId source,
             State state,
             Map<String, IndexId> indices,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+            Map<ShardId, ShardSnapshotStatus> shards,
             ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
@@ -1088,7 +1088,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return this.snapshot;
         }
 
-        public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
+        public Map<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
             return shardStatusByRepoShardId;
         }
 
@@ -1097,7 +1097,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshotIndices.get(name);
         }
 
-        public ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards() {
+        public Map<ShardId, ShardSnapshotStatus> shards() {
             assert isClone() == false : "tried to get routing shards for clone entry [" + this + "]";
             return this.shards;
         }

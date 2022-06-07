@@ -46,6 +46,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -161,8 +162,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", info);
-        ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
-        ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
         ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
         ImmutableOpenMap<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
         assertNotNull(leastUsages);

@@ -1,5 +1,5 @@
 pr: 87461
-summary: '`403` on unauthorized grant API key action'
+summary: 'Return action denied error when user with only `manage_own_api_key` privilege attempts a grant API key request'
 area: Authorization
 type: enhancement
 issues:

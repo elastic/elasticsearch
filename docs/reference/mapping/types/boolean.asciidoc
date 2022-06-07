@@ -219,10 +219,10 @@ ifeval::["{release-state}"=="unreleased"]
 [[boolean-synthetic-source]]
 ==== Synthetic source
 `boolean` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. But they don't support synthetic `_source` if you add
-<<copy-to,`copy_to`>> or if you disable <<doc-values,`doc_values`>>.
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
 
-Synthetic source will always sort `boolean` fields so:
+Synthetic source always sorts `boolean` fields. For example:
 [source,console,id=synthetic-source-boolean-example]
 ----
 PUT idx

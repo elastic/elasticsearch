@@ -311,7 +311,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Version repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
-        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+        listener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));
     }
 
     @Override

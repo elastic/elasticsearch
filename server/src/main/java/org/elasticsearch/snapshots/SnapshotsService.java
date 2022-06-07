@@ -2432,7 +2432,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
 
                         @Override
-                        public void onMetaUpdated(RepositoryData updatedRepoData) {
+                        public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
                             removeSnapshotDeletionFromClusterState(
                                 deleteEntry,
                                 updatedRepoData,

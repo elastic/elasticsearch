@@ -289,12 +289,12 @@ class S3Repository extends MeteredBlobStoreRepository {
                 }
 
                 @Override
-                public void onMetaUpdated(RepositoryData repositoryData) {
+                public void onRepositoryDataWritten(RepositoryData repositoryData) {
                     logCooldownInfo();
                     final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
                         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
                         assert cancellable != null;
-                        listener.onMetaUpdated(repositoryData);
+                        listener.onRepositoryDataWritten(repositoryData);
                     }, coolDown, ThreadPool.Names.SNAPSHOT));
                     assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
                 }

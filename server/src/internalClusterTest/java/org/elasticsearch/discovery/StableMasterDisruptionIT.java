@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthStatus;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruption
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -460,5 +462,46 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             ensureStableCluster(3);
         }
         assertGreenMasterStability(internalCluster().client(randomFrom(dataNodes)));
+    }
+
+    public void testNoMasterEligibleNodes() throws Exception {
+        /*
+         * In this test we have a single master-eligible node. We then stop the master node so that we have no master-eligible nodes in
+         * the cluster. We set the master lookup threshold very low on the data nodes, so when we run the master stability check on one
+         * of the data nodes, it will see that there has been no master recently and there are no master eligible nodes, so it returns a
+         * RED status.
+         */
+        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(
+            1,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .build()
+        );
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(
+            2,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+                .put(
+                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
+                    new TimeValue(-1, TimeUnit.SECONDS)
+                )
+                .build()
+        );
+        ensureStableCluster(3);
+        internalCluster().stopCurrentMasterNode();
+        assertMasterStability(
+            internalCluster().client(randomFrom(dataNodes)),
+            HealthStatus.RED,
+            "No master eligible nodes found in the cluster"
+        );
+        assertGreenMasterStability(internalCluster().client(randomFrom(dataNodes)));
+        for (String dataNode : dataNodes) {
+            internalCluster().stopNode(dataNode);
+        }
     }
 }

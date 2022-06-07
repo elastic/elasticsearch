@@ -108,7 +108,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final Setting<TimeValue> NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING = Setting.timeSetting(
         "health.master_history.has_master_lookup_timeframe",
         new TimeValue(30, TimeUnit.SECONDS),
-        new TimeValue(1, TimeUnit.SECONDS),
         Setting.Property.NodeScope
     );
 
@@ -270,6 +269,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         };
     }
 
+    /**
+     * This returns HealthIndicatorDetails.EMPTY if explain is false, otherwise a HealthIndicatorDetails object containing only a
+     * "recent_masters" array and a "cluster_coordination" string. The "recent_masters" array will contain "recent_master" objects.
+     * Each "recent_master" object will have "node_id" and "name" fields for the master node. These fields will never be null because
+     * null masters are not written to this array. The "cluster_coordination" string will be the clusterCoordinationMessage passed in.
+     * @param explain If true, the HealthIndicatorDetails will contain "recent_masters" and "cluster_coordination". Otherwise it will be
+     *                empty.
+     * @param localMasterHistory The MasterHistory object to pull recent master info from
+     * @param clusterCoordinationMessage The cluster coordination message to put in the returned details
+     * @return An empty HealthIndicatorDetails if explain is false, otherwise a HealthIndicatorDetails containing only "recent_masters"
+     * and "cluster_coordination".
+     */
     private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory, String clusterCoordinationMessage) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;

@@ -1197,7 +1197,6 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1240,6 +1239,7 @@ public class Security extends Plugin
             return Stream.concat(
                 actionHandlers.stream(),
                 Stream.of(
+                    new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
                     new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
                     new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
                     new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
@@ -1289,7 +1289,6 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1328,6 +1327,7 @@ public class Security extends Plugin
             return Stream.concat(
                 restHandlers.stream(),
                 Stream.of(
+                    new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
                     new RestGetProfileAction(settings, getLicenseState()),
                     new RestActivateProfileAction(settings, getLicenseState()),
                     new RestUpdateProfileDataAction(settings, getLicenseState()),

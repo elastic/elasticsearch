@@ -122,7 +122,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      *
      * @return {@link Map} of the discovered nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getNodes() {
+    public Map<String, DiscoveryNode> getNodes() {
         return this.nodes;
     }
 
@@ -131,7 +131,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getDataNodes() {
+    public Map<String, DiscoveryNode> getDataNodes() {
         return this.dataNodes;
     }
 
@@ -140,14 +140,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getMasterNodes() {
+    public Map<String, DiscoveryNode> getMasterNodes() {
         return this.masterNodes;
     }
 
     /**
      * @return All the ingest nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getIngestNodes() {
+    public Map<String, DiscoveryNode> getIngestNodes() {
         return ingestNodes;
     }
 
@@ -156,7 +156,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      *
      * @return {@link Map} of the discovered master and data nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
+    public Map<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
         nodes.putAllFromMap(masterNodes);
         return nodes.build();
@@ -167,7 +167,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      *
      * @return {@link Map} of the coordinating only nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
+    public Map<String, DiscoveryNode> getCoordinatingOnlyNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
         nodes.removeAllFromCollection(masterNodes.keySet());
         nodes.removeAllFromCollection(dataNodes.keySet());

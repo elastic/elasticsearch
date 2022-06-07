@@ -115,6 +115,13 @@ public class VersionTests extends GradleUnitTestCase {
         assertThat(v.getQualifier(), equalTo("SNAPSHOT-EXTRA"));
     }
 
+    public void testRelaxedMode() {
+        Version v = Version.fromString("2.10", Version.Mode.RELAXED);
+        assertThat(v.getMajor(), equalTo(2));
+        assertThat(v.getMinor(), equalTo(10));
+        assertThat(v.getRevision(), equalTo(0));
+    }
+
     private void assertOrder(Version smaller, Version bigger) {
         assertEquals(smaller + " should be smaller than " + bigger, -1, smaller.compareTo(bigger));
     }

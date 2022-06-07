@@ -863,16 +863,36 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isPartialSearchableSnapshot;
     }
 
+    /**
+     * @return the mode this index is in. This determines the behaviour and features it supports.
+     *         If <code>null</code> is returned then this in index is in standard mode.
+     */
     @Nullable
     public IndexMode getIndexMode() {
         return indexMode;
     }
 
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     * Together with {@link #getTimeSeriesEnd()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
     @Nullable
     public Instant getTimeSeriesStart() {
         return timeSeriesStart;
     }
 
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     * Together with {@link #getTimeSeriesStart()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
     @Nullable
     public Instant getTimeSeriesEnd() {
         return timeSeriesEnd;

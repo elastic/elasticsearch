@@ -83,7 +83,7 @@ public abstract class UpdateScript {
      * documents and for inserts (via upsert).
      *
      * Metadata unique to updates:
-     * _routing, _version
+     * _routing, _version and _type
      *
      * Common metadata:
      * _index, _id, _now (timestamp)
@@ -91,7 +91,7 @@ public abstract class UpdateScript {
      */
     public static class Metadata {
         private static final String TIMESTAMP = "_now";
-        private static final String TYPE = "_now";
+        private static final String TYPE = "_type";
         private static final String LEGACY_NOOP_STRING = "none";
         private final MapBackedMetadata store;
         private final ZonedDateTime timestamp;

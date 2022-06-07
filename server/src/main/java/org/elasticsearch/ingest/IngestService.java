@@ -916,7 +916,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
                 }
                 try {
-                    boolean ensureNoSelfReferences = ingestDocument.isDoNoSelfReferencesCheck();
+                    boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                     indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest

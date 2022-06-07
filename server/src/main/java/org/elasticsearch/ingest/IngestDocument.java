@@ -848,7 +848,7 @@ public final class IngestDocument {
     /**
      * @return Whether a self referencing check should be performed
      */
-    public boolean isDoNoSelfReferencesCheck() {
+    public boolean doNoSelfReferencesCheck() {
         return doNoSelfReferencesCheck;
     }
 
@@ -861,7 +861,7 @@ public final class IngestDocument {
      *
      * @param doNoSelfReferencesCheck Whether a self referencing check should be performed
      */
-    public void setDoNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
+    public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
         this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
     }
 

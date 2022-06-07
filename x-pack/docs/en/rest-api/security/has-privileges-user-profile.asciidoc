@@ -44,7 +44,7 @@ A successful call returns the subset list of profile IDs that have **all** the r
 `cluster`::: (list) A list of the cluster privileges that you want to check.
 `index`:::
 `names`:::: (list) A list of indices.
-`allow_restricted_indices`::: (Boolean) This needs to be set to `true` (default
+`allow_restricted_indices`:::: (Boolean) This needs to be set to `true` (default
 is `false`) if using wildcards or regexps for patterns that cover restricted
 indices. Implicitly, restricted indices do not match index patterns because
 restricted indices usually have limited privileges and including them in

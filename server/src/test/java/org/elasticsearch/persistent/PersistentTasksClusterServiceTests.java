@@ -798,7 +798,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksInProgress.findTasks(
             TestPersistentTasksExecutor.NAME,
-            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam()) && nodes.nodeExists(task.getExecutorNode())
+            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam())
+                && task.getExecutorNode() != null
+                && nodes.nodeExists(task.getExecutorNode())
         ).isEmpty()) {
             return randomNodeAssignment(candidateNodes);
         } else {

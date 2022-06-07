@@ -7,6 +7,10 @@ searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
 ifeval::["{release-state}"=="unreleased"]
+In some cases, particularly where reducing the volume of your stored data is a
+priority, you may consider either using <<synthetic-source,synthetic `_source`>>
+or <<disable-source-field,disabling the `_source` field>> altogether.
+
 include::synthetic-source.asciidoc[]
 endif::[]
 

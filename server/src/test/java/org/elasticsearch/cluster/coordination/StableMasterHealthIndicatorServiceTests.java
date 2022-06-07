@@ -376,7 +376,72 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         }
     }
 
-    public void testRedForNoMaster() {
+    public void testRedForNoMasterAndNoMasterEligibleNodes() {
+        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            List<Cluster.ClusterNode> removedClusterNodes = new ArrayList<>();
+            for (Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
+                if (clusterNode.getLocalNode().isMasterNode()) {
+                    removedClusterNodes.add(clusterNode);
+                }
+            }
+            cluster.clusterNodes.removeAll(removedClusterNodes);
+            cluster.clusterNodes.removeIf(node -> node.getLocalNode().isMasterNode());
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
+                assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
+                assertThat(healthIndicatorResult.summary(), equalTo("No master eligible nodes found in the cluster"));
+            }
+            cluster.clusterNodes.addAll(removedClusterNodes);
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndLeader() {
+        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    DiscoveryNodes lastAcceptedNodes = node.coordinator.getLastAcceptedState().nodes();
+                    /*
+                     * The following has the effect of making the PeerFinder say that there is a leader, even though there is not. It is
+                     * effectively saying that there is some leader (this node) which this node has not been able to join. This is just the
+                     * easiest way to set up the condition for the test.
+                     */
+                    node.coordinator.getPeerFinder().deactivate(node.getLocalNode());
+                    HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
+                    assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
+                    assertThat(healthIndicatorResult.summary(), containsString("has been elected master, but the node being queried"));
+                    // This restores the PeerFinder so that the test cleanup doesn't fail:
+                    node.coordinator.getPeerFinder().activate(lastAcceptedNodes);
+                }
+            }
+
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndNoLeader() {
         try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -512,7 +577,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
+        return new StableMasterHealthIndicatorService(clusterService, coordinator, masterHistoryService);
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

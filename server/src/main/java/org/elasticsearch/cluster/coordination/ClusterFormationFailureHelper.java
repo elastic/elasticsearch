@@ -114,7 +114,7 @@ public class ClusterFormationFailureHelper {
         }
     }
 
-    record ClusterFormationState(
+    public record ClusterFormationState(
         Settings settings,
         ClusterState clusterState,
         List<TransportAddress> resolvedAddresses,

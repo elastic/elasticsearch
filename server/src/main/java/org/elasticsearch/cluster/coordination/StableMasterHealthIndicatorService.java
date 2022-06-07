@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -30,11 +31,13 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -58,7 +61,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String HELP_URL = "https://ela.st/fix-master";
 
     private final ClusterService clusterService;
+    private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
+
     /**
      * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
      */
@@ -128,8 +133,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Setting.Property.NodeScope
     );
 
-    public StableMasterHealthIndicatorService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
+    public StableMasterHealthIndicatorService(
+        ClusterService clusterService,
+        Coordinator coordinator,
+        MasterHistoryService masterHistoryService
+    ) {
         this.clusterService = clusterService;
+        this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
         this.unacceptableNullTransitions = NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
@@ -258,6 +268,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             });
             return builder.endObject();
         };
+    }
+
+    private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory, String clusterCoordinationMessage) {
+        if (explain == false) {
+            return HealthIndicatorDetails.EMPTY;
+        }
+        List<DiscoveryNode> recentNonNullMasters = localMasterHistory.getNodes().stream().filter(Objects::nonNull).toList();
+        List<Map<String, String>> recentMastersMaps = recentNonNullMasters.stream()
+            .map(recentMaster -> Map.of("node_id", recentMaster.getId(), "name", recentMaster.getName()))
+            .toList();
+        Map<String, Object> details = Map.of(DETAILS_RECENT_MASTERS, recentMastersMaps, "cluster_coordination", clusterCoordinationMessage);
+        return new SimpleHealthIndicatorDetails(details);
     }
 
     /**
@@ -409,17 +431,61 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
-        // NOTE: The logic in this method will be implemented in a future PR
-        String summary = "No master has been observed recently";
-        Map<String, Object> details = new HashMap<>();
-        List<UserAction> userActions = getContactSupportUserActions(explain);
-        return createIndicator(
-            HealthStatus.RED,
-            summary,
-            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-            UNSTABLE_MASTER_IMPACTS,
-            userActions
+        Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
+        final HealthIndicatorResult result;
+        if (masterEligibleNodes.isEmpty()) {
+            result = calculateOnNoMasterEligibleNodes(localMasterHistory, explain);
+        } else {
+            PeerFinder peerFinder = coordinator.getPeerFinder();
+            Optional<DiscoveryNode> currentMaster = peerFinder.getLeader();
+            if (currentMaster.isPresent()) {
+                result = calculateOnCannotJoinLeader(localMasterHistory, currentMaster.get(), explain);
+            } else {
+                // NOTE: The logic in this block will be implemented in a future PR
+                result = createIndicator(
+                    HealthStatus.RED,
+                    "No master has been observed recently",
+                    HealthIndicatorDetails.EMPTY,
+                    UNSTABLE_MASTER_IMPACTS,
+                    getContactSupportUserActions(explain)
+                );
+            }
+        }
+        return result;
+    }
+
+    private HealthIndicatorResult calculateOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
+        String summary = "No master eligible nodes found in the cluster";
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory, coordinator.getClusterFormationState().getDescription());
+        return createIndicator(HealthStatus.RED, summary, details, UNSTABLE_MASTER_IMPACTS, getContactSupportUserActions(explain));
+    }
+
+    private HealthIndicatorResult calculateOnCannotJoinLeader(
+        MasterHistory localMasterHistory,
+        DiscoveryNode currentMaster,
+        boolean explain
+    ) {
+        String summary = String.format(
+            Locale.ROOT,
+            "%s has been elected master, but the node being queried, %s, is unable to join it",
+            currentMaster,
+            clusterService.localNode()
         );
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory, coordinator.getClusterFormationState().getDescription());
+        return createIndicator(HealthStatus.RED, summary, details, UNSTABLE_MASTER_IMPACTS, getContactSupportUserActions(explain));
+    }
+
+    private Collection<DiscoveryNode> getMasterEligibleNodes() {
+        Set<DiscoveryNode> masterEligibleNodes = new HashSet<>();
+        coordinator.getFoundPeers().forEach(node -> {
+            if (node.isMasterNode()) {
+                masterEligibleNodes.add(node);
+            }
+        });
+        if (clusterService.localNode().isMasterNode()) {
+            masterEligibleNodes.add(clusterService.localNode());
+        }
+        return masterEligibleNodes;
     }
 
     /**

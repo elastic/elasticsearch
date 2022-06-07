@@ -57,7 +57,8 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
 
             tasks.named('compileJava').configure {
                 doLast {
-                    println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(';')
+                    def sep = org.gradle.internal.os.OperatingSystem.current().isWindows() ? ':' : ';'
+                    println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
                     println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
                 }
             }
@@ -163,9 +164,8 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         if(allArgs.isEmpty()) {
             assert expectedEntries.size() == 0
         } else {
-            def modulePathEntries = OperatingSystem.current().isWindows() ?
-                allArgs.find(/(?<=.*--module-path=).*/).minus(";--module-version=${ES_VERSION}") :
-                allArgs.find(/(?<=.*--module-path=)[^;]*(?=;)?/)
+            def sep = OperatingSystem.current().isWindows() ? ':' : ';'
+            def modulePathEntries = allArgs.find(/(?<=.*--module-path=)[^${sep}]*(?=${sep})?/)
             doClasspathAssertion(modulePathEntries, expectedEntries)
         }
         true

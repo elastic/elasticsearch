@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
@@ -37,7 +39,7 @@ class Elasticsearch {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) {
-        overrideDnsCachePolicyProperties();
+        bootstrapSecurityProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
         /*
@@ -61,12 +63,13 @@ class Elasticsearch {
         try {
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
+            initPidFile(serverArgs.pidFile());
             elasticsearch.init(
                 serverArgs.daemonize(),
-                serverArgs.pidFile(),
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
-                serverArgs.keystorePassword()
+                serverArgs.keystorePassword(),
+                serverArgs.pidFile()
             );
 
             err.println(BootstrapInfo.SERVER_READY_MARKER);
@@ -104,7 +107,6 @@ class Elasticsearch {
     }
 
     private static void gracefullyExit(PrintStream err, int exitCode) {
-        err.println("EXITING with non-zero status: " + exitCode);
         printLogsSuggestion(err);
         err.flush();
         exit(exitCode);
@@ -171,7 +173,34 @@ class Elasticsearch {
         }).start();
     }
 
-    private static void overrideDnsCachePolicyProperties() {
+    /**
+     * Writes the current process id into the given pidfile, if not null. The pidfile is cleaned up on system exit.
+     *
+     * @param pidFile A path to a file, or null of no pidfile should be written
+     */
+    private static void initPidFile(Path pidFile) throws IOException {
+        if (pidFile == null) {
+            return;
+        }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                Files.deleteIfExists(pidFile);
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to delete pid file " + pidFile, e);
+            }
+        }, "elasticsearch[pidfile-cleanup]"));
+
+        // It has to be an absolute path, otherwise pidFile.getParent() will return null
+        assert pidFile.isAbsolute();
+
+        if (Files.exists(pidFile.getParent()) == false) {
+            Files.createDirectories(pidFile.getParent());
+        }
+
+        Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
+    }
+
+    private static void bootstrapSecurityProperties() {
         for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
             final String overrideValue = System.getProperty(overrideProperty);
@@ -184,12 +213,15 @@ class Elasticsearch {
                 }
             }
         }
+
+        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
+        Security.setProperty("policy.expandProperties", "true");
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword, Path pidFile)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv, keystorePassword);
+            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword, pidFile);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

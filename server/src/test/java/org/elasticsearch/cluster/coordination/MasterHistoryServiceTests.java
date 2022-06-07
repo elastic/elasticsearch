@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -19,6 +20,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,15 +42,34 @@ public class MasterHistoryServiceTests extends ESTestCase {
         masterHistory.add(masterNode);
         masterHistory.add(null);
         masterHistory.add(masterNode);
-        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(masterHistory);
+        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(
+            masterHistory,
+            System.currentTimeMillis()
+        );
         remoteHistory = masterHistoryService.getRemoteMasterHistory();
         assertThat(remoteHistory, equalTo(masterHistory));
         Exception exception = new Exception("Something happened");
-        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(exception);
+        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(
+            exception,
+            System.currentTimeMillis()
+        );
         assertThat(
             expectThrows(Exception.class, masterHistoryService::getRemoteMasterHistory).getMessage(),
             containsString("Something happened")
         );
+        TimeValue tenMinutesAgo = new TimeValue(10, TimeUnit.MINUTES);
+        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(
+            masterHistory,
+            tenMinutesAgo.getMillis()
+        );
+        remoteHistory = masterHistoryService.getRemoteMasterHistory();
+        assertNull(remoteHistory);
+        masterHistoryService.remoteHistoryOrException = new MasterHistoryService.RemoteHistoryOrException(
+            exception,
+            tenMinutesAgo.getMillis()
+        );
+        remoteHistory = masterHistoryService.getRemoteMasterHistory();
+        assertNull(remoteHistory);
     }
 
     private static MasterHistoryService createMasterHistoryService() throws Exception {

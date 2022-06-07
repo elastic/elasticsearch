@@ -615,15 +615,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private static class ExtendedClusterInfo extends ClusterInfo {
             private final ClusterInfo delegate;
 
-            private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
-                super(
-                    info.getNodeLeastAvailableDiskUsages(),
-                    info.getNodeMostAvailableDiskUsages(),
-                    extraShardSizes,
-                    ImmutableOpenMap.of(),
-                    null,
-                    null
-                );
+            private ExtendedClusterInfo(Map<String, Long> extraShardSizes, ClusterInfo info) {
+                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, Map.of(), null, null);
                 this.delegate = info;
             }
 

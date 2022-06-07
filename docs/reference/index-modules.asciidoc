@@ -292,6 +292,7 @@ Defaults to `*`, which matches all fields eligible for
 <<term-level-queries,term-level queries>>, excluding metadata fields.
 --
 
+[[index-routing-allocation-enable-setting]]
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:

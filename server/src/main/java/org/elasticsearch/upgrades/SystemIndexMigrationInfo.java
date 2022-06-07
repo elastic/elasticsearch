@@ -181,15 +181,16 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         SystemIndices.Feature feature,
         IndexScopedSettings indexScopedSettings
     ) {
-        Settings.Builder settingsBuilder = Settings.builder();
-        if (descriptor.getSettings() != null) {
+        final Settings settings;
+        final String mapping;
+        if (descriptor.isAutomaticallyManaged()) {
+            Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(descriptor.getSettings());
             settingsBuilder.remove("index.version.created"); // Simplifies testing, should never impact real uses.
-        }
-        Settings settings = settingsBuilder.build();
+            settings = settingsBuilder.build();
 
-        String mapping = descriptor.getMappings();
-        if (descriptor.isAutomaticallyManaged() == false) {
+            mapping = descriptor.getMappings();
+        } else {
             // Get Settings from old index
             settings = copySettingsForNewIndex(currentIndex.getSettings(), indexScopedSettings);
 
@@ -239,7 +240,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         IndexScopedSettings indexScopedSettings
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
-        SystemIndices.Feature feature = systemIndices.getFeatures().get(taskState.getCurrentFeature());
+        SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
         IndexMetadata imd = metadata.index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:

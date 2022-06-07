@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="jwt-realm"]
+=== JWT realm
+
+Refer to <<jwt-auth-realm,JWT authentication>>.
+
+[role="exclude",id="_authorizing_with_the_role_mapping_api"]
+==== Role mapping with JWT
+
+Refer to <<jwt-authorization-role-mapping,Authorizing with the role mapping API>>.
+
 [role="exclude",id="migration-api-feature-upgrade"]
 === Feature upgrade APIs
 

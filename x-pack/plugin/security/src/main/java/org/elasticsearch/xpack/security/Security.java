@@ -151,6 +151,7 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -640,6 +641,7 @@ public class Security extends Plugin
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
+                settings,
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
@@ -776,6 +778,7 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);
@@ -1055,6 +1058,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1193,7 +1197,6 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1236,6 +1239,7 @@ public class Security extends Plugin
             return Stream.concat(
                 actionHandlers.stream(),
                 Stream.of(
+                    new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
                     new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
                     new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
                     new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
@@ -1285,7 +1289,6 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1324,6 +1327,7 @@ public class Security extends Plugin
             return Stream.concat(
                 restHandlers.stream(),
                 Stream.of(
+                    new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
                     new RestGetProfileAction(settings, getLicenseState()),
                     new RestActivateProfileAction(settings, getLicenseState()),
                     new RestUpdateProfileDataAction(settings, getLicenseState()),
@@ -1413,12 +1417,37 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            final var setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
+                logger.warn(
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
+                );
+            }
+        });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();

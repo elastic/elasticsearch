@@ -77,9 +77,11 @@
         "type":"number",
         "description":"Starting offset (default: 0)"
       },
-      "force_synthetic_source":{
-        "type":"boolean",
-        "description":"Should we force synthetic source for all fetches from this index?"
+      "force_synthetic_source": {
+        "type": "boolean",
+        "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.index_mode_feature_flag_registered"
       },
       "ignore_unavailable":{
         "type":"boolean",
@@ -104,12 +106,6 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
-      },
-      "force_synthetic_source": {
-        "type": "boolean",
-        "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
-        "visibility": "feature_flag",
-        "feature_flag": "es.index_mode_feature_flag_registered"
       },
       "lenient":{
         "type":"boolean",

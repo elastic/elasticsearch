@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -245,7 +246,13 @@ public class DesiredBalanceService {
                 : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
 
             var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
-            assignments.merge(ignored.shardId(), unassigned ? ShardAssignment.UNASSIGNED : ShardAssignment.IGNORED, ShardAssignment::merge);
+            assignments.compute(
+                ignored.shardId(),
+                (key, oldValue) -> oldValue == null
+                    ? new ShardAssignment(Set.of(), 1, unassigned ? 0 : 1)
+                    : new ShardAssignment(oldValue.nodeIds(), oldValue.unassigned() + 1, oldValue.ignored() + (unassigned ? 0 : 1))
+            );
+
         }
 
         logger.trace(

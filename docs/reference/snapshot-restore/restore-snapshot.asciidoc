@@ -471,6 +471,9 @@ PUT _cluster/settings
 ----
 POST _watcher/_start
 ----
+* Licenses
++
+Rememer to reload your license as any features requiring it will fail to work until your license is updated.
 --
 
 . If wanted, reset the `action.destructive_requires_name` cluster setting.

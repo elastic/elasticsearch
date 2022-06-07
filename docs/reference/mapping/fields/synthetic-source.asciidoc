@@ -19,24 +19,28 @@ PUT idx
 ----
 // TESTSETUP
 
-This on the fly reconstruction <<synthetic-source-modifications,modifies>> is *generally*
-slower than saving the source precisely and loading it, but it saves a lot of space.
-It also modifies the `_source` and is only supported if the index is entirely made up
-of the following field types:
+While this on the fly reconstruction is *generally* slower than saving the source
+documents verbatim and loading them at query time, it saves a lot of storage
+space. There are a couple of restrictions to be aware of:
 
-* <<boolean-synthetic-source,`boolean`>>
-* <<numeric-synthetic-source,`byte`>>
-* <<numeric-synthetic-source,`double`>>
-* <<numeric-synthetic-source,`float`>>
-* <<geo-point-synthetic-source,`geo_point`>>
-* <<numeric-synthetic-source,`half_float`>>
-* <<numeric-synthetic-source,`integer`>>
-* <<ip-synthetic-source,`ip`>>
-* <<keyword-synthetic-source,`keyword`>>
-* <<numeric-synthetic-source,`long`>>
-* <<numeric-synthetic-source,`scaled_float`>>
-* <<numeric-synthetic-source,`short`>>
-* <<text-synthetic-source,`text`>>
+* When you retrieve sythetic `_source` content it undergoes minor
+<<synthetic-source-modifications,modifications>> compared to the original JSON.
+* Synthetic `_source` can be used with indices that contain only these field
+types:
+
+** <<boolean-synthetic-source,`boolean`>>
+** <<numeric-synthetic-source,`byte`>>
+** <<numeric-synthetic-source,`double`>>
+** <<numeric-synthetic-source,`float`>>
+** <<geo-point-synthetic-source,`geo_point`>>
+** <<numeric-synthetic-source,`half_float`>>
+** <<numeric-synthetic-source,`integer`>>
+** <<ip-synthetic-source,`ip`>>
+** <<keyword-synthetic-source,`keyword`>>
+** <<numeric-synthetic-source,`long`>>
+** <<numeric-synthetic-source,`scaled_float`>>
+** <<numeric-synthetic-source,`short`>>
+** <<text-synthetic-source,`text`>>
 
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications

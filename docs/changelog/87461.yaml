@@ -1,0 +1,6 @@
+pr: 87461
+summary: '`403` on unauthorized grant API key action'
+area: Authorization
+type: enhancement
+issues:
+ - 87438

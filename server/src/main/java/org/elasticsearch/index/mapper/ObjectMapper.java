@@ -149,6 +149,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 if (subobjects.value() == false && mapper instanceof ObjectMapper) {
+                    // we already check this at parse time (parseProperties) but we need to check again
+                    // here as dynamic mapping updates don't go through parsing.
+                    // Nested can only be dynamically mapped through dynamic templates, which are parsed and validated earlier.
+                    assert mapper instanceof NestedObjectMapper == false;
                     throw new IllegalArgumentException(
                         "Object ["
                             + context.buildFullName(name)
@@ -280,10 +284,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
+                        throw new MapperParsingException(
                             "Object ["
                                 + objBuilder.name()
                                 + "] has subobjects set to false hence it does not support inner object ["
+                                + fieldName
+                                + "]"
+                        );
+                    }
+                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Object ["
+                                + objBuilder.name()
+                                + "] has subobjects set to false hence it does not support nested object ["
                                 + fieldName
                                 + "]"
                         );

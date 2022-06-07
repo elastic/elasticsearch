@@ -337,36 +337,38 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
-                rolloverTaskContext.success(rolloverTask.listener().delegateFailure((delegate, ignored) ->
-                // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
-                // active shards, as well as return the names of the indices that were rolled/created
-                activeShardsObserver.waitForActiveShards(
-                    new String[] { rolloverResult.rolloverIndexName() },
-                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                    rolloverRequest.masterNodeTimeout(),
-                    isShardsAcknowledged -> delegate.onResponse(
-                        new RolloverResponse(
-                            // Note that we use the actual rollover result for these, because even though we're single threaded, it's
-                            // possible for the rollover names generated before the actual rollover to be different due to things like date
-                            // resolution
-                            rolloverResult.sourceIndexName(),
-                            rolloverResult.rolloverIndexName(),
-                            postConditionResults,
-                            false,
-                            true,
-                            true,
-                            isShardsAcknowledged
-                        )
-                    ),
-                    delegate::onFailure
-                )));
+                rolloverTaskContext.success(() -> {
+                    // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
+                    // active shards, as well as return the names of the indices that were rolled/created
+                    activeShardsObserver.waitForActiveShards(
+                        new String[] { rolloverResult.rolloverIndexName() },
+                        rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                        rolloverRequest.masterNodeTimeout(),
+                        isShardsAcknowledged -> rolloverTask.listener()
+                            .onResponse(
+                                new RolloverResponse(
+                                    // Note that we use the actual rollover result for these, because even though we're single threaded,
+                                    // it's possible for the rollover names generated before the actual rollover to be different due to
+                                    // things like date resolution
+                                    rolloverResult.sourceIndexName(),
+                                    rolloverResult.rolloverIndexName(),
+                                    postConditionResults,
+                                    false,
+                                    true,
+                                    true,
+                                    isShardsAcknowledged
+                                )
+                            ),
+                        rolloverTask.listener()::onFailure
+                    );
+                });
 
                 // Return the new rollover cluster state, which includes the changes that create the new index
                 return rolloverResult.clusterState();
             } else {
                 // Upon re-evaluation of the conditions, none were met, so therefore do not perform a rollover, returning the current
                 // cluster state.
-                rolloverTaskContext.success(rolloverTask.listener().map(ignored -> rolloverTask.trialRolloverResponse()));
+                rolloverTaskContext.success(() -> rolloverTask.listener().onResponse(rolloverTask.trialRolloverResponse()));
                 return currentState;
             }
         }

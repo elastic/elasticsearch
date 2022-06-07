@@ -337,14 +337,17 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            filterSupportedVersions(
-                Stream.concat(
-                    groupByMajor.get(currentVersion.getMajor() - 1).stream(),
-                    groupByMajor.get(currentVersion.getMajor()).stream()
-                ).filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
-            )
-        );
+        return filterSupportedVersions(getAllIndexCompatible());
+    }
+
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
+    public List<Version> getAllIndexCompatible() {
+        return Stream.concat(
+            groupByMajor.get(currentVersion.getMajor() - 1).stream(),
+            groupByMajor.get(currentVersion.getMajor()).stream()
+        ).filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList());
     }
 
     public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {

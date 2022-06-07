@@ -49,8 +49,8 @@ When synthetic `_source` is enabled, retrieved documents undergo some
 modifications compared to the original JSON.
 
 [[synthetic-source-modifications-alphabetical]]
-====== Sorts fields alphabetically
-Synthetic source will make sort all fields alphabetically so:
+====== Alphabetical sorting
+Synthetic `_source` fields are sorted alphabetically. For example:
 
 [source,console,id=synthetic-source-sorted-example]
 ----

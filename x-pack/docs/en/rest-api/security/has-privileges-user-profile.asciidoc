@@ -8,7 +8,7 @@
 
 beta::[]
 
-Determines whether the users with the specified <<user-profile, user profile>> IDs
+Determines whether the users associated with the specified <<user-profile, user profile>> IDs
 have all the requested privileges.
 
 [[security-api-has-privileges-user-profile-request]]

@@ -34,9 +34,6 @@ archivesBaseName = 'elasticsearch-rest-client'
 projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
-tasks.named('testTestingConventions').configure {
-  baseClass 'org.elasticsearch.client.RestClientTestCase'
-}
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -77,6 +74,10 @@ tasks.named('forbiddenApisTest').configure {
 // TODO: Not anymore. Now in :libs:elasticsearch-core
 tasks.named("jarHell").configure {
   enabled = false
+}
+
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
 }
 
 tasks.named("thirdPartyAudit").configure {

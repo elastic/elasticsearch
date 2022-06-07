@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.fixtures
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 
-abstract class AbstractGradlePrecommitPluginFuncTest extends AbstractGradleFuncTest {
+abstract class AbstractGradlePrecommitPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     abstract <T extends PrecommitPlugin> Class<T> getPluginClassUnderTest();
 

@@ -50,9 +50,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named("testTestingConventions").configure {
-  baseClass 'org.elasticsearch.client.RestClientTestCase'
-}
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
@@ -70,6 +67,10 @@ tasks.named("dependencyLicenses").configure {
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
 tasks.named("jarHell").configure { enabled = false }
+
+tasks.named("testTestingConventions").configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
+}
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(

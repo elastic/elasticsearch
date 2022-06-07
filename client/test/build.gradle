@@ -61,10 +61,3 @@ tasks.named("test").configure { enabled = false }
 tasks.withType(LicenseHeadersTask.class).configureEach {
   approvedLicenses = ['Apache', 'Generated', 'Vendored']
 }
-
-tasks.named('testTestingConventions').configure {
-//  testClasses = sourceSets.test.output.getAsFileTree().matching(filter -> filter.include("**/*.class"));
-}
-
-//        FileTree matching = testClasses.matching(filter -> filter.include("**/*.class"));
-

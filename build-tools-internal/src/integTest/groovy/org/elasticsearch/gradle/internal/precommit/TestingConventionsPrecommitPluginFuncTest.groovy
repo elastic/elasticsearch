@@ -61,7 +61,29 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.UP_TO_DATE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
+    }
 
+    def "testing convention plugin is configuration cache compliant"() {
+        given:
+        buildFile << """
+        apply plugin:'java'
+        """
+
+        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+        when:
+        def result = gradleRunner("precommit", "--configuration-cache").build()
+        then:
+        assertOutputContains(result.getOutput(), "0 problems were found storing the configuration cache.")
+
+        when:
+        result = gradleRunner("precommit", "--configuration-cache").build();
+        then:
+        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
     }
 
     def "checks base class convention"() {
@@ -136,40 +158,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
-        )    }
-
-    File testClazz(String testClassName) {
-        testClazz(testClassName, {})
-    }
-
-    File testClazz(String testClassName, String parent) {
-        testClazz(testClassName, parent, {})
-    }
-
-    File testClazz(String testClassName, Closure<String> content) {
-        testClazz(testClassName, null, content)
-    }
-
-    File testClazz(String testClassName, parent, Closure<String> content) {
-        def testClassFile = file("src/test/java/${testClassName.replace('.', '/')}.java")
-        writeClazz(testClassName, parent, testClassFile, content)
-    }
-
-    File clazz(String testClassName, parent = null, Closure<String> content = null) {
-        def clazzFile = file("src/main/java/${testClassName.replace('.', '/')}.java")
-        writeClazz(testClassName, parent, clazzFile, content)
-    }
-
-    private File writeClazz(String className, String parent, File classFile, Closure<String> content) {
-        def packageName = className.substring(0, className.lastIndexOf('.'))
-        def simpleClassName = className.substring(className.lastIndexOf('.') + 1)
-
-        classFile << """
-        package ${packageName};
-        public class ${simpleClassName} ${parent == null ? "" : "extends $parent"} {
-            ${content == null ? "" : content.call()}
-        }
-        """
-        classFile
+        )
     }
 }

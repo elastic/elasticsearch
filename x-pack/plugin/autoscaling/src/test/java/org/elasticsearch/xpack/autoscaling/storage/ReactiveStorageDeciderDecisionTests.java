@@ -619,12 +619,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         return new ClusterInfo() {
             @Override
-            public ImmutableOpenMap<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
+            public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
                 return immutableDiskUsages;
             }
 
             @Override
-            public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
+            public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
                 return immutableDiskUsages;
             }
 

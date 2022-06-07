@@ -196,6 +196,7 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 NOTE: IPv4 addresses are sorted as though they were IPv6 addresses prefixed by
-      `::ffff:0:0:0/96` ala https://datatracker.ietf.org/doc/html/rfc6144[rfc6144].
+      `::ffff:0:0:0/96` as specified by
+      https://datatracker.ietf.org/doc/html/rfc6144[rfc6144].
 
 endif::[]

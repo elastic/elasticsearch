@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AllocationActionListenerTest extends ESTestCase {
+public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldDelegateWhenBothComplete() {
         var completed = new AtomicBoolean(false);

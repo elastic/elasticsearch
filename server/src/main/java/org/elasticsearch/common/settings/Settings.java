@@ -233,12 +233,7 @@ public final class Settings implements ToXContentFragment {
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
-        // below
-        char[] toPrefixCharArr = prefix.toCharArray();
-        toPrefixCharArr[toPrefixCharArr.length - 1]++;
-        String toPrefix = new String(toPrefixCharArr);
-        final Map<String, Object> subMap = settings.subMap(prefix, toPrefix);
+        final Map<String, Object> subMap = Maps.subMap(settings, prefix);
         return Settings.of(
             subMap.isEmpty() ? Map.of() : new FilteredMap(subMap, null, prefix),
             secureSettings == null ? null : new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix))

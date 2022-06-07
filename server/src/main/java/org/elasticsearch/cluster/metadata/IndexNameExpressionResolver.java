@@ -24,6 +24,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -1317,11 +1318,7 @@ public class IndexNameExpressionResolver {
         private static Map<String, IndexAbstraction> suffixWildcard(Context context, Metadata metadata, String expression) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
-            char[] toPrefixCharArr = fromPrefix.toCharArray();
-            toPrefixCharArr[toPrefixCharArr.length - 1]++;
-            String toPrefix = new String(toPrefixCharArr);
-            SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
-            return filterIndicesLookup(context, subMap, null, context.getOptions());
+            return filterIndicesLookup(context, Maps.subMap(metadata.getIndicesLookup(), fromPrefix), null, context.getOptions());
         }
 
         private static Map<String, IndexAbstraction> otherWildcard(Context context, Metadata metadata, String expression) {

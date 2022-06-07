@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -277,6 +278,25 @@ public class Maps {
      */
     public static <K, V> LinkedHashMap<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
         return new LinkedHashMap<>(capacity(expectedSize));
+    }
+
+    /**
+     * Returns the sub-map of the given {@code map} that contains all the entries under keys with the given {@code prefix}.
+     *
+     * @param map sorted map
+     * @param prefix prefix to filter by
+     * @return map
+     */
+    public static <V> SortedMap<String, V> subMap(SortedMap<String, V> map, String prefix) {
+        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // below
+        if (prefix.isEmpty()) {
+            return map;
+        }
+        char[] toPrefixCharArr = prefix.toCharArray();
+        toPrefixCharArr[toPrefixCharArr.length - 1]++;
+        String toPrefix = new String(toPrefixCharArr);
+        return map.subMap(prefix, toPrefix);
     }
 
     static int capacity(int expectedSize) {

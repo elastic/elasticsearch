@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -141,11 +142,8 @@ public class AnnotationIndex {
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getIndicesLookup().tailMap(".ml");
-        if (mlMetadata.isResetMode() == false
-            && mlMetadata.isUpgradeMode() == false
-            && mlLookup.isEmpty() == false
-            && mlLookup.firstKey().startsWith(".ml")) {
+        SortedMap<String, IndexAbstraction> mlLookup = Maps.subMap(state.getMetadata().getIndicesLookup(), ".ml");
+        if (mlMetadata.isResetMode() == false && mlMetadata.isUpgradeMode() == false && mlLookup.isEmpty() == false) {
 
             // Create the annotations index if it doesn't exist already.
             IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);

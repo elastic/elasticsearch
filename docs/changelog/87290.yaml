@@ -1,5 +1,0 @@
-pr: 87290
-summary: Optimize geogrid aggregations for singleton points
-area: Geo
-type: enhancement
-issues: []

@@ -73,11 +73,11 @@ public final class Version implements Comparable<Version>, Serializable {
             throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
         }
 
-        String qualifier = matcher.group(4);
 
         String major = matcher.group(1);
         String minor = matcher.group(2);
         String revision = matcher.group(3);
+        String qualifier = matcher.group(4);
 
         return new Version(
             Integer.parseInt(major),

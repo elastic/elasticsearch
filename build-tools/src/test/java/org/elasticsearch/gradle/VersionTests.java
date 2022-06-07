@@ -42,6 +42,7 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("6.1.2-foo-bar", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("16.01.22", 16, 1, 22, Version.Mode.RELAXED);
         assertVersionEquals("20.10.10+dfsg1", 20, 10, 10, Version.Mode.RELAXED);
+        assertVersionEquals("2.15", 2, 15, 0, Version.Mode.RELAXED);
     }
 
     public void testCompareWithStringVersions() {
@@ -113,13 +114,6 @@ public class VersionTests extends GradleUnitTestCase {
 
         v = Version.fromString("1.2.3-SNAPSHOT-EXTRA", Version.Mode.RELAXED);
         assertThat(v.getQualifier(), equalTo("SNAPSHOT-EXTRA"));
-    }
-
-    public void testRelaxedMode() {
-        Version v = Version.fromString("2.10", Version.Mode.RELAXED);
-        assertThat(v.getMajor(), equalTo(2));
-        assertThat(v.getMinor(), equalTo(10));
-        assertThat(v.getRevision(), equalTo(0));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

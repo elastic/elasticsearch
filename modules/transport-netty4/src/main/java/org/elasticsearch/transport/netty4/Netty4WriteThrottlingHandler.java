@@ -72,7 +72,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 return;
             }
             final int readerIndex = buf.readerIndex();
-            ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
+            final ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
             buf.readerIndex(readerIndex + bufferSize);
             ctx.write(writeBuffer).addListener(forwardFailureListener(ctx, promise));
             if (ctx.channel().isWritable() == false) {

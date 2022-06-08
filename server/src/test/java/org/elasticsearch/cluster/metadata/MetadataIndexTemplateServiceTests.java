@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -241,7 +240,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
-        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
         String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();
@@ -2029,9 +2028,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
 
             }
 
@@ -2048,9 +2047,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();
             }
 

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,12 +19,16 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -122,28 +127,42 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
             public static final ParseField REPLICATED = new ParseField("replicated");
+            public static final ParseField TIME_SERIES = new ParseField("time_series");
+            public static final ParseField TEMPORAL_RANGES = new ParseField("temporal_ranges");
+            public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
+            public static final ParseField TEMPORAL_RANGE_END = new ParseField("end");
 
-            DataStream dataStream;
-            ClusterHealthStatus dataStreamStatus;
+            private final DataStream dataStream;
+            private final ClusterHealthStatus dataStreamStatus;
             @Nullable
-            String indexTemplate;
+            private final String indexTemplate;
             @Nullable
-            String ilmPolicyName;
+            private final String ilmPolicyName;
+            @Nullable
+            private final TimeSeries timeSeries;
 
             public DataStreamInfo(
                 DataStream dataStream,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
-                @Nullable String ilmPolicyName
+                @Nullable String ilmPolicyName,
+                @Nullable TimeSeries timeSeries
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
+                this.timeSeries = timeSeries;
             }
 
-            public DataStreamInfo(StreamInput in) throws IOException {
-                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readOptionalString(), in.readOptionalString());
+            DataStreamInfo(StreamInput in) throws IOException {
+                this(
+                    new DataStream(in),
+                    ClusterHealthStatus.readFrom(in),
+                    in.readOptionalString(),
+                    in.readOptionalString(),
+                    in.getVersion().onOrAfter(Version.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                );
             }
 
             public DataStream getDataStream() {
@@ -164,12 +183,20 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return ilmPolicyName;
             }
 
+            @Nullable
+            public TimeSeries getTimeSeries() {
+                return timeSeries;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
+                if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                    out.writeOptionalWriteable(timeSeries);
+                }
             }
 
             @Override
@@ -193,6 +220,20 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
+                if (timeSeries != null) {
+                    builder.startObject(TIME_SERIES.getPreferredName());
+                    builder.startArray(TEMPORAL_RANGES.getPreferredName());
+                    for (var range : timeSeries.temporalRanges()) {
+                        builder.startObject();
+                        Instant start = range.v1();
+                        builder.field(TEMPORAL_RANGE_START.getPreferredName(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
+                        Instant end = range.v2();
+                        builder.field(TEMPORAL_RANGE_END.getPreferredName(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                    builder.endObject();
+                }
                 builder.endObject();
                 return builder;
             }
@@ -205,12 +246,41 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return dataStream.equals(that.dataStream)
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
-                    && Objects.equals(ilmPolicyName, that.ilmPolicyName);
+                    && Objects.equals(ilmPolicyName, that.ilmPolicyName)
+                    && Objects.equals(timeSeries, that.timeSeries);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName);
+                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries);
+            }
+        }
+
+        public static record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
+
+            TimeSeries(StreamInput in) throws IOException {
+                this(in.readList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeCollection(temporalRanges, (out1, value) -> {
+                    out1.writeInstant(value.v1());
+                    out1.writeInstant(value.v2());
+                });
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                TimeSeries that = (TimeSeries) o;
+                return temporalRanges.equals(that.temporalRanges);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(temporalRanges);
             }
         }
 

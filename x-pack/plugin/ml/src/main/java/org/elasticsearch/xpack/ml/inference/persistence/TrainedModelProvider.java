@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -105,6 +104,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
@@ -449,7 +449,7 @@ public class TrainedModelProvider {
             assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
             if (r.getItems()[0].isFailed()) {
                 logger.error(
-                    new ParameterizedMessage("[{}] failed to store trained model config for inference", trainedModelConfig.getModelId()),
+                    () -> "[" + trainedModelConfig.getModelId() + "] failed to store trained model config for inference",
                     r.getItems()[0].getFailure().getCause()
                 );
 
@@ -464,10 +464,7 @@ public class TrainedModelProvider {
                     .findFirst()
                     .orElse(new Exception("unknown failure"));
                 logger.error(
-                    new ParameterizedMessage(
-                        "[{}] failed to store trained model definition for inference",
-                        trainedModelConfig.getModelId()
-                    ),
+                    () -> format("[%s] failed to store trained model definition for inference", trainedModelConfig.getModelId()),
                     firstFailure
                 );
                 wrappedListener.onFailure(firstFailure);
@@ -976,7 +973,7 @@ public class TrainedModelProvider {
                             continue;
                         }
                         logger.error(
-                            new ParameterizedMessage("[{}] search failed for models", Strings.arrayToCommaDelimitedString(modelIds)),
+                            () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
                             response.getFailure()
                         );
                         listener.onFailure(
@@ -1046,7 +1043,7 @@ public class TrainedModelProvider {
 
     private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
         if (response.getAggregations() == null) {
-            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            logger.trace(() -> "[" + modelId + "] no previously stored stats found");
             return null;
         }
         Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
@@ -1121,7 +1118,7 @@ public class TrainedModelProvider {
             }
             return builder;
         } catch (IOException ioEx) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
+            logger.error(() -> "[" + modelId + "] failed to parse model definition", ioEx);
             throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
         }
     }
@@ -1271,7 +1268,7 @@ public class TrainedModelProvider {
             }
             return builder;
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model", e);
             throw e;
         }
     }
@@ -1284,7 +1281,7 @@ public class TrainedModelProvider {
         ) {
             return TrainedModelMetadata.fromXContent(parser, true);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model metadata", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
             throw e;
         }
     }
@@ -1304,10 +1301,7 @@ public class TrainedModelProvider {
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.
-            throw ExceptionsHelper.serverError(
-                new ParameterizedMessage("Unexpected serialization exception for [{}]", docId).getFormattedMessage(),
-                ex
-            );
+            throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
     }
 }

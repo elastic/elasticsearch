@@ -65,6 +65,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -140,6 +141,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -149,6 +151,7 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -158,6 +161,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -188,6 +192,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
@@ -313,6 +318,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -362,7 +368,8 @@ public class Security extends Plugin
         DiscoveryPlugin,
         MapperPlugin,
         ExtensiblePlugin,
-        SearchPlugin {
+        SearchPlugin,
+        RestInterceptorActionPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -634,6 +641,7 @@ public class Security extends Plugin
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
+                settings,
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
@@ -769,6 +777,8 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
+            clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);
@@ -1048,6 +1058,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1072,6 +1083,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
 
         // hide settings
         settingsList.add(
@@ -1227,6 +1239,7 @@ public class Security extends Plugin
             return Stream.concat(
                 actionHandlers.stream(),
                 Stream.of(
+                    new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
                     new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
                     new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
                     new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
@@ -1314,6 +1327,7 @@ public class Security extends Plugin
             return Stream.concat(
                 restHandlers.stream(),
                 Stream.of(
+                    new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
                     new RestGetProfileAction(settings, getLicenseState()),
                     new RestActivateProfileAction(settings, getLicenseState()),
                     new RestUpdateProfileDataAction(settings, getLicenseState()),
@@ -1403,12 +1417,37 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            final var setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
+                logger.warn(
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
+                );
+            }
+        });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
@@ -1505,7 +1544,7 @@ public class Security extends Plugin
             () -> new SecurityNetty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 ipFilter.get(),
                 getSslService(),
                 threadPool,
@@ -1520,7 +1559,7 @@ public class Security extends Plugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
         final boolean extractClientCertificate;
         if (enabled && HTTP_SSL_ENABLED.get(settings)) {
             final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();

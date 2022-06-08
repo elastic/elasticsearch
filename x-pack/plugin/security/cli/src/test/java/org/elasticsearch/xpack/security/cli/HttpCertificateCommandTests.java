@@ -17,10 +17,12 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -88,6 +90,7 @@ import static org.elasticsearch.test.FileMatchers.isDirectory;
 import static org.elasticsearch.test.FileMatchers.isRegularFile;
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessFileType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -687,9 +690,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(extensionAttributes[0].getAttributeValues(), arrayWithSize(1));
         assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DLSequence.class));
 
-        // We register 1 extension - the subject alternative names
+        // We register 1 extension with the subject alternative names and extended key usage
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);
         assertThat(extensions, notNullValue());
+        assertThat(extensions.getExtensionOIDs(), arrayWithSize(2));
+
         final GeneralNames names = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
         assertThat(names.getNames(), arrayWithSize(hostNames.size() + ipAddresses.size()));
         for (GeneralName name : names.getNames()) {
@@ -702,6 +707,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
                 assertThat(ip, in(ipAddresses));
             }
         }
+
+        ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
+        assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
     }
 
     private void verifyCertificate(

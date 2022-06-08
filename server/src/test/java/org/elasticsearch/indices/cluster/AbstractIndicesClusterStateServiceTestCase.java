@@ -156,11 +156,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         // all other shards / indices have been cleaned up
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+            final Index index = indexService.getIndexSettings().getIndex();
             if (state.blocks().disableStatePersistence()) {
-                fail("Index service " + indexService.index() + " should be removed from indicesService due to disabled state persistence");
+                fail("Index service " + index + " should be removed from indicesService due to disabled state persistence");
             }
 
-            assertTrue(state.metadata().getIndexSafe(indexService.index()) != null);
+            assertTrue(state.metadata().getIndexSafe(index) != null);
 
             boolean shardsFound = false;
             for (Shard shard : indexService) {
@@ -178,7 +179,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             if (shardsFound == false) {
                 // check if we have shards of that index in failedShardsCache
                 // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
-                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
+                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(index)));
             }
 
         }
@@ -318,11 +319,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public Iterator<MockIndexShard> iterator() {
             return shards.values().iterator();
-        }
-
-        @Override
-        public Index index() {
-            return indexSettings.getIndex();
         }
     }
 

@@ -137,6 +137,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),
+            request.isSkipQueue(),
             request.getInferenceTimeout(),
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),

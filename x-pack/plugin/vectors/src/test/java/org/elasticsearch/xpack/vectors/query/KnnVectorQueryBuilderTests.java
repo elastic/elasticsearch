@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -37,7 +39,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
@@ -98,12 +99,19 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+    protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertTrue(query instanceof KnnVectorQuery);
         KnnVectorQuery knnVectorQuery = (KnnVectorQuery) query;
 
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (QueryBuilder qb : queryBuilder.filterQueries()) {
+            builder.add(qb.toQuery(context), BooleanClause.Occur.FILTER);
+        }
+        BooleanQuery booleanQuery = builder.build();
+        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
-        assertThat(knnVectorQuery, equalTo(new KnnVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands())));
+        Query knnVectorQueryBuilt = new KnnVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
+        assertEquals(knnVectorQuery, knnVectorQueryBuilt);
     }
 
     public void testWrongDimension() {

@@ -472,7 +472,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetadata)} contains
+     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperServiceForValidation(IndexMetadata)} contains
      * custom types and similarities registered by plugins
      */
     public void testStandAloneMapperServiceWithPlugins() throws IOException {
@@ -488,7 +488,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+        MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
         Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));

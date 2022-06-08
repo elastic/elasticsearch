@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.support.ActionFilters;
@@ -112,7 +111,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(request.indices())), ex);
+            logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
             throw ex;
         }
     }
@@ -148,7 +147,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         MetadataMappingService metadataMappingService
     ) {
         final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(concreteIndices)), e);
+            logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(concreteIndices) + "]", e);
             l.onFailure(e);
         });
         final PutMappingClusterStateUpdateRequest updateRequest;

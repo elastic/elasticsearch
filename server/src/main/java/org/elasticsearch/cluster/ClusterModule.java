@@ -60,7 +60,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.health.node.selection.HealthNodeSelector;
 import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;

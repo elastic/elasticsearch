@@ -22,4 +22,8 @@ public class ESSloppyMath {
     public static double atan(double value) {
         return FastMath.atan(value);
     }
+
+    public static double log(double value) {
+        return FastMath.log(value);
+    }
 }

@@ -373,7 +373,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-        expected.put("rows", singletonList(singletonList(actualValue)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(actualValue))));
         assertResponse(expected, runSql(query));
     }
 

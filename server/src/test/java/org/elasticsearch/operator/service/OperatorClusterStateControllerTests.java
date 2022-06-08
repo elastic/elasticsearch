@@ -11,6 +11,7 @@ package org.elasticsearch.operator.service;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -42,7 +43,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -118,19 +121,29 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
 
         OperatorUpdateStateTask.OperatorUpdateStateTaskExecutor taskExecutor = new OperatorUpdateStateTask.OperatorUpdateStateTaskExecutor(
             "test",
-            state,
             clusterService.getRerouteService()
         );
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
-        OperatorUpdateStateTask task = new OperatorUpdateStateTask(new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty empty) {}
+        OperatorUpdateStateTask task = spy(
+            new OperatorUpdateStateTask(
+                "test",
+                null,
+                Collections.emptyMap(),
+                Collections.emptySet(),
+                (errorState) -> {},
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {}
 
-            @Override
-            public void onFailure(Exception e) {}
-        });
+                    @Override
+                    public void onFailure(Exception e) {}
+                }
+            )
+        );
+
+        doReturn(state).when(task).execute(any());
 
         ClusterStateTaskExecutor.TaskContext<OperatorUpdateStateTask> taskContext = new ClusterStateTaskExecutor.TaskContext<>() {
             @Override
@@ -160,6 +173,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
         ClusterState newState = taskExecutor.execute(state, List.of(taskContext));
         assertEquals(state, newState);
         assertTrue(successCalled.get());
+        verify(task, times(1)).execute(any());
 
         taskExecutor.clusterStatePublished(state);
         verify(rerouteService, times(1)).reroute(anyString(), any(), any());
@@ -168,14 +182,54 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
     public void testErrorStateTask() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
-        OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor executor = new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor(
-            "test",
-            1L,
-            OperatorErrorMetadata.ErrorKind.PARSING,
-            List.of("some parse error", "some io error")
+        OperatorUpdateErrorTask task = spy(
+            new OperatorUpdateErrorTask(
+                new OperatorClusterStateController.OperatorErrorState(
+                    "test",
+                    1L,
+                    List.of("some parse error", "some io error"),
+                    OperatorErrorMetadata.ErrorKind.PARSING
+                ),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                }
+            )
         );
 
-        ClusterState newState = executor.execute(state, Collections.emptyList());
+        OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor.TaskContext<OperatorUpdateErrorTask> taskContext =
+            new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor.TaskContext<>() {
+                @Override
+                public OperatorUpdateErrorTask getTask() {
+                    return task;
+                }
+
+                @Override
+                public void success(Runnable onPublicationSuccess) {
+                    onPublicationSuccess.run();
+                }
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer) {}
+
+                @Override
+                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void onFailure(Exception failure) {}
+            };
+
+        OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor executor = new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor();
+
+        ClusterState newState = executor.execute(state, List.of(taskContext));
+
+        verify(task, times(1)).execute(any());
 
         OperatorMetadata operatorMetadata = newState.metadata().operatorState("test");
         assertNotNull(operatorMetadata);
@@ -207,7 +261,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
     public void testHandlerOrdering() {
         OperatorHandler<?> oh1 = new OperatorHandler<>() {
             @Override
-            public String key() {
+            public String name() {
                 return "one";
             }
 
@@ -224,7 +278,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
 
         OperatorHandler<?> oh2 = new OperatorHandler<>() {
             @Override
-            public String key() {
+            public String name() {
                 return "two";
             }
 
@@ -236,7 +290,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
 
         OperatorHandler<?> oh3 = new OperatorHandler<>() {
             @Override
-            public String key() {
+            public String name() {
                 return "three";
             }
 
@@ -274,7 +328,7 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
         // Change the second handler so that we create cycle
         oh2 = new OperatorHandler<>() {
             @Override
-            public String key() {
+            public String name() {
                 return "two";
             }
 
@@ -297,5 +351,36 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
                 is("Cycle found in settings dependencies: two -> one -> two")
             )
         );
+    }
+
+    public void testDuplicateHandlerNames() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        OperatorClusterStateController controller = new OperatorClusterStateController(clusterService);
+
+        assertTrue(
+            expectThrows(
+                IllegalStateException.class,
+                () -> controller.initHandlers(List.of(new OperatorClusterUpdateSettingsAction(clusterSettings), new TestHandler()))
+            ).getMessage().startsWith("Duplicate key cluster_settings")
+        );
+    }
+
+    class TestHandler implements OperatorHandler<ClusterUpdateSettingsRequest> {
+
+        @Override
+        public String name() {
+            return OperatorClusterUpdateSettingsAction.NAME;
+        }
+
+        @Override
+        public TransformState transform(Object source, TransformState prevState) throws Exception {
+            return prevState;
+        }
     }
 }

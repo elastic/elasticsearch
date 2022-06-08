@@ -36,7 +36,7 @@ public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleActi
     private final Client client;
     private final XPackLicenseState licenseState;
 
-    public static final String KEY = "ilm";
+    public static final String NAME = "ilm";
 
     public OperatorLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
@@ -45,8 +45,8 @@ public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleActi
     }
 
     @Override
-    public String key() {
-        return KEY;
+    public String name() {
+        return NAME;
     }
 
     @SuppressWarnings("unchecked")

@@ -117,7 +117,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
 
     @Override
     protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorLifecycleAction.KEY);
+        return Optional.of(OperatorLifecycleAction.NAME);
     }
 
     @Override

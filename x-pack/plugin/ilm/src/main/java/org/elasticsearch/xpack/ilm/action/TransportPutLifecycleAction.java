@@ -301,7 +301,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
     @Override
     protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorLifecycleAction.KEY);
+        return Optional.of(OperatorLifecycleAction.NAME);
     }
 
     @Override

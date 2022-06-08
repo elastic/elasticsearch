@@ -301,7 +301,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         @Override
         protected Optional<String> operatorHandlerName() {
-            return Optional.of(OperatorClusterUpdateSettingsAction.KEY);
+            return Optional.of(OperatorClusterUpdateSettingsAction.NAME);
         }
 
         @Override
@@ -754,9 +754,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testRejectOperatorConflictClusterStateUpdate() {
-        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.KEY).keys(Set.of("a", "b"))
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.NAME).keys(Set.of("a", "b"))
             .build();
-        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.KEY).keys(
+        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.NAME).keys(
             Set.of("e", "f")
         ).build();
 

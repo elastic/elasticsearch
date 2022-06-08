@@ -132,7 +132,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     @Override
     protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorClusterUpdateSettingsAction.KEY);
+        return Optional.of(OperatorClusterUpdateSettingsAction.NAME);
     }
 
     @Override

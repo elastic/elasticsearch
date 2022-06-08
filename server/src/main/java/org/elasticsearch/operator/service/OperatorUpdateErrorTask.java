@@ -25,10 +25,20 @@ import java.util.List;
  * Cluster state update task that sets the error state of the operator metadata.
  * This is used when an operator cluster state update encounters error(s) while processing
  * the file.
- *
- * @param listener
  */
-public record OperatorUpdateErrorTask(ActionListener<ActionResponse.Empty> listener) implements ClusterStateTaskListener {
+public class OperatorUpdateErrorTask implements ClusterStateTaskListener {
+
+    private final OperatorClusterStateController.OperatorErrorState errorState;
+    private final ActionListener<ActionResponse.Empty> listener;
+
+    public OperatorUpdateErrorTask(
+        OperatorClusterStateController.OperatorErrorState errorState,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
+        this.errorState = errorState;
+        this.listener = listener;
+    }
+
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     @Override
@@ -36,39 +46,42 @@ public record OperatorUpdateErrorTask(ActionListener<ActionResponse.Empty> liste
         listener.onFailure(e);
     }
 
+    ActionListener<ActionResponse.Empty> listener() {
+        return listener;
+    }
+
+    ClusterState execute(ClusterState currentState) {
+        ClusterState.Builder stateBuilder = new ClusterState.Builder(currentState);
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        OperatorMetadata operatorMetadata = currentState.metadata().operatorState(errorState.namespace());
+        OperatorMetadata.Builder operatorMetadataBuilder = OperatorMetadata.builder(errorState.namespace(), operatorMetadata);
+        operatorMetadataBuilder.errorMetadata(
+            OperatorErrorMetadata.builder()
+                .version(errorState.version())
+                .errorKind(errorState.errorKind())
+                .errors(errorState.errors())
+                .build()
+        );
+        metadataBuilder.putOperatorState(operatorMetadataBuilder.build());
+        ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
+
+        return newState;
+    }
+
     /**
      * Operator update cluster state task executor
-     *
-     * @param namespace of the state we are updating
-     * @param version of the update that failed
-     * @param errors the list of errors to report
      */
-    public record OperatorUpdateErrorTaskExecutor(
-        String namespace,
-        Long version,
-        OperatorErrorMetadata.ErrorKind errorKind,
-        List<String> errors
-    ) implements ClusterStateTaskExecutor<OperatorUpdateErrorTask> {
+    public record OperatorUpdateErrorTaskExecutor() implements ClusterStateTaskExecutor<OperatorUpdateErrorTask> {
 
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<OperatorUpdateErrorTask>> taskContexts) throws Exception {
             for (final var taskContext : taskContexts) {
+                currentState = taskContext.getTask().execute(currentState);
                 taskContext.success(
                     () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
                 );
             }
-
-            ClusterState.Builder stateBuilder = new ClusterState.Builder(currentState);
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            OperatorMetadata operatorMetadata = currentState.metadata().operatorState(namespace);
-            OperatorMetadata.Builder operatorMetadataBuilder = OperatorMetadata.builder(namespace, operatorMetadata);
-            operatorMetadataBuilder.errorMetadata(
-                OperatorErrorMetadata.builder().version(version).errorKind(errorKind).errors(errors).build()
-            );
-            metadataBuilder.putOperatorState(operatorMetadataBuilder.build());
-            ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
-
-            return newState;
+            return currentState;
         }
 
         @Override

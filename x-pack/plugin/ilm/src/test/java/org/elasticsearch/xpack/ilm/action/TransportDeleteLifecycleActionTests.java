@@ -28,7 +28,7 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        assertEquals(OperatorLifecycleAction.KEY, putAction.operatorHandlerName().get());
+        assertEquals(OperatorLifecycleAction.NAME, putAction.operatorHandlerName().get());
 
         DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request("my_timeseries_lifecycle2");
         assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));

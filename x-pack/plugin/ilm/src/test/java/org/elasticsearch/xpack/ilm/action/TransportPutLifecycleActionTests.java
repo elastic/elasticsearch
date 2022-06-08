@@ -57,7 +57,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mock(XPackLicenseState.class),
             mock(Client.class)
         );
-        assertEquals(OperatorLifecycleAction.KEY, putAction.operatorHandlerName().get());
+        assertEquals(OperatorLifecycleAction.NAME, putAction.operatorHandlerName().get());
 
         String json = """
             {

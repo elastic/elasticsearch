@@ -32,15 +32,15 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
     String CONTENT = "content";
 
     /**
-     * The operator handler key is a unique identifier that is matched to a section in a
+     * The operator handler name is a unique identifier that is matched to a section in a
      * cluster state update content. The operator cluster state updates are done as a single
      * cluster state update and the cluster state is typically supplied as a combined content,
-     * unlike the REST handlers. This key must match a desired content key in the combined
+     * unlike the REST handlers. This name must match a desired content key name in the combined
      * cluster state update, e.g. "ilm" or "cluster_settings" (for persistent cluster settings update).
      *
      * @return a String with the operator key name
      */
-    String key();
+    String name();
 
     /**
      * The transform method of the operator handler should apply the necessary changes to
@@ -96,7 +96,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
         if (input instanceof Map<?, ?> source) {
             return (Map<String, Object>) source;
         }
-        throw new IllegalStateException("Unsupported " + key() + " request format");
+        throw new IllegalStateException("Unsupported " + name() + " request format");
     }
 
     /**

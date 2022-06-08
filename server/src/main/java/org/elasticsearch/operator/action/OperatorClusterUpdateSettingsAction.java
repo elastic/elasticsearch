@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  */
 public class OperatorClusterUpdateSettingsAction implements OperatorHandler<ClusterUpdateSettingsRequest> {
 
-    public static final String KEY = "cluster_settings";
+    public static final String NAME = "cluster_settings";
 
     private final ClusterSettings clusterSettings;
 
@@ -39,8 +39,8 @@ public class OperatorClusterUpdateSettingsAction implements OperatorHandler<Clus
     }
 
     @Override
-    public String key() {
-        return KEY;
+    public String name() {
+        return NAME;
     }
 
     @SuppressWarnings("unchecked")

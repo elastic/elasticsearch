@@ -15,28 +15,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.OperatorErrorMetadata;
-import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
 import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.operator.OperatorHandler;
-import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * Controller class for applying file based settings to ClusterState.
@@ -62,10 +55,10 @@ public class OperatorClusterStateController {
      * @param handlerList the list of supported operator handlers
      */
     public void initHandlers(List<OperatorHandler<?>> handlerList) {
-        handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::key, Function.identity()));
+        handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::name, Function.identity()));
     }
 
-    private static class SettingsFile {
+    static class SettingsFile {
         public static final ParseField STATE_FIELD = new ParseField("state");
         public static final ParseField METADATA_FIELD = new ParseField("metadata");
         @SuppressWarnings("unchecked")
@@ -92,17 +85,16 @@ public class OperatorClusterStateController {
      *
      * @param namespace the namespace under which we'll store the operator keys in the cluster state metadata
      * @param parser the XContentParser to process
-     * @return the modified cluster state. If applying the cluster state fails the previous state might be returned.
      * @throws IllegalStateException if the content has errors and the cluster state cannot be correctly applied
      */
-    public ClusterState process(String namespace, XContentParser parser) {
+    public void process(String namespace, XContentParser parser) {
         SettingsFile operatorStateFileContent;
 
         try {
             operatorStateFileContent = SettingsFile.PARSER.apply(parser, null);
         } catch (Exception e) {
             List<String> errors = List.of(e.getMessage());
-            recordErrorState(namespace, -1L, errors, OperatorErrorMetadata.ErrorKind.PARSING);
+            recordErrorState(new OperatorErrorState(namespace, -1L, errors, OperatorErrorMetadata.ErrorKind.PARSING));
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             throw new IllegalStateException("Error processing state change request for " + namespace, e);
@@ -116,7 +108,9 @@ public class OperatorClusterStateController {
             orderedHandlers = orderedStateHandlers(operatorState.keySet());
         } catch (Exception e) {
             List<String> errors = List.of(e.getMessage());
-            recordErrorState(namespace, stateVersionMetadata.version(), errors, OperatorErrorMetadata.ErrorKind.PARSING);
+            recordErrorState(
+                new OperatorErrorState(namespace, stateVersionMetadata.version(), errors, OperatorErrorMetadata.ErrorKind.PARSING)
+            );
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             throw new IllegalStateException("Error processing state change request for " + namespace, e);
@@ -125,69 +119,33 @@ public class OperatorClusterStateController {
         ClusterState state = clusterService.state();
         OperatorMetadata existingMetadata = state.metadata().operatorState(namespace);
         if (checkMetadataVersion(existingMetadata, stateVersionMetadata) == false) {
-            return state;
+            return;
         }
 
-        OperatorMetadata.Builder operatorMetadataBuilder = new OperatorMetadata.Builder(namespace).version(stateVersionMetadata.version());
-        List<String> errors = new ArrayList<>();
+        // Do we need to retry this, or it retries automatically?
+        clusterService.submitStateUpdateTask(
+            "operator state [" + namespace + "]",
+            new OperatorUpdateStateTask(
+                namespace,
+                operatorStateFileContent,
+                handlers,
+                orderedHandlers,
+                (errorState) -> recordErrorState(errorState),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        logger.info("Successfully applied new cluster state for namespace [{}]", namespace);
+                    }
 
-        for (var handlerKey : orderedHandlers) {
-            OperatorHandler<?> handler = handlers.get(handlerKey);
-            try {
-                Set<String> existingKeys = keysForHandler(existingMetadata, handlerKey);
-                TransformState transformState = handler.transform(operatorState.get(handlerKey), new TransformState(state, existingKeys));
-                state = transformState.state();
-                operatorMetadataBuilder.putHandler(new OperatorHandlerMetadata.Builder(handlerKey).keys(transformState.keys()).build());
-            } catch (Exception e) {
-                errors.add(format("Error processing %s state change: %s", handler.key(), e.getMessage()));
-            }
-        }
-
-        if (errors.isEmpty() == false) {
-            recordErrorState(namespace, stateVersionMetadata.version(), errors, OperatorErrorMetadata.ErrorKind.VALIDATION);
-            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
-
-            throw new IllegalStateException("Error processing state change request for " + namespace);
-        }
-
-        // remove the last error if we had previously encountered any
-        operatorMetadataBuilder.errorMetadata(null);
-
-        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).putOperatorState(operatorMetadataBuilder.build());
-        state = stateBuilder.metadata(metadataBuilder).build();
-
-        // Do we need to retry this?
-        clusterService.submitStateUpdateTask("operator state [" + namespace + "]", new OperatorUpdateStateTask(new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty empty) {
-                logger.info("Successfully applied new cluster state for namespace [{}]", namespace);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Failed to apply operator cluster state", e);
-                recordErrorState(
-                    namespace,
-                    stateVersionMetadata.version(),
-                    List.of(e.getMessage()),
-                    OperatorErrorMetadata.ErrorKind.TRANSIENT
-                );
-            }
-        }),
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Failed to apply operator cluster state", e);
+                    }
+                }
+            ),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            new OperatorUpdateStateTask.OperatorUpdateStateTaskExecutor(namespace, state, clusterService.getRerouteService())
+            new OperatorUpdateStateTask.OperatorUpdateStateTaskExecutor(namespace, clusterService.getRerouteService())
         );
-
-        return state;
-    }
-
-    private Set<String> keysForHandler(OperatorMetadata operatorMetadata, String handlerKey) {
-        if (operatorMetadata == null || operatorMetadata.handlers().get(handlerKey) == null) {
-            return Collections.emptySet();
-        }
-
-        return operatorMetadata.handlers().get(handlerKey).keys();
     }
 
     // package private for testing
@@ -212,13 +170,15 @@ public class OperatorClusterStateController {
         return true;
     }
 
-    private void recordErrorState(String namespace, Long version, List<String> errors, OperatorErrorMetadata.ErrorKind errorKind) {
+    record OperatorErrorState(String namespace, Long version, List<String> errors, OperatorErrorMetadata.ErrorKind errorKind) {}
+
+    private void recordErrorState(OperatorErrorState state) {
         clusterService.submitStateUpdateTask(
-            "operator state error for [ " + namespace + "]",
-            new OperatorUpdateErrorTask(new ActionListener<>() {
+            "operator state error for [ " + state.namespace + "]",
+            new OperatorUpdateErrorTask(state, new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {
-                    logger.info("Successfully applied new operator error state for namespace [{}]", namespace);
+                    logger.info("Successfully applied new operator error state for namespace [{}]", state.namespace);
                 }
 
                 @Override
@@ -227,7 +187,7 @@ public class OperatorClusterStateController {
                 }
             }),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor(namespace, version, errorKind, errors)
+            new OperatorUpdateErrorTask.OperatorUpdateErrorTaskExecutor()
         );
     }
 

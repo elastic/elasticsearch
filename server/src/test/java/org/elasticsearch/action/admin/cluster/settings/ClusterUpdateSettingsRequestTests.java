@@ -94,7 +94,7 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
             clusterSettings
         );
 
-        assertEquals(OperatorClusterUpdateSettingsAction.KEY, action.operatorHandlerName().get());
+        assertEquals(OperatorClusterUpdateSettingsAction.NAME, action.operatorHandlerName().get());
 
         String oneSettingJSON = """
             {

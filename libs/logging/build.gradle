@@ -17,9 +17,6 @@ apply plugin: 'elasticsearch.build'
 tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
-//  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-//  testImplementation "junit:junit:${versions.junit}"
-//  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-logging'
   }

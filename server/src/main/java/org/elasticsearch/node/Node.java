@@ -862,7 +862,7 @@ public class Node implements Closeable {
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNodeSelector.isEnabled()
                 ? List.of(systemIndexMigrationExecutor, healthNodeSelectorTaskExecutor)
                 : List.of(systemIndexMigrationExecutor);
-            final List<PersistentTasksExecutor<?>> persistentTasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
+            final List<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
                     p -> p.getPersistentTasksExecutor(
@@ -876,7 +876,7 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
-                concatLists(persistentTasksExecutors, builtinTaskExecutors)
+                concatLists(pluginTaskExecutors, builtinTaskExecutors)
             );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,

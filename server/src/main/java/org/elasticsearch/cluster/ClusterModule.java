@@ -176,9 +176,7 @@ public class ClusterModule extends AbstractModule {
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
         // Health node selector task is always present in the cluster state
-        if (HealthNodeSelector.isEnabled()) {
-            entries.addAll(HealthNodeSelectorTaskExecutor.getNamedWriteables());
-        }
+        entries.addAll(HealthNodeSelectorTaskExecutor.getNamedWriteables());
         return entries;
     }
 

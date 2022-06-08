@@ -82,14 +82,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
-        logger.info("Starting new node");
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
         // we must wait for the node to actually be up and running. otherwise the node might have started,
         // elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
-        logger.info("Waiting for the node to be actually up and running");
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
-        logger.info("Up and running");
         assertFalse(clusterHealthResponse.isTimedOut());
         client().admin()
             .indices()

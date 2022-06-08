@@ -154,7 +154,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, BatchSummary tasksSummary) {
-            logger.info("Processing {}", tasksSummary);
             runTasks((ClusterStateTaskExecutor<ClusterStateTaskListener>) batchingKey, (List<UpdateTask>) tasks, tasksSummary);
         }
 

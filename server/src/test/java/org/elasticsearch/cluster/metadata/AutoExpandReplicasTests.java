@@ -282,4 +282,16 @@ public class AutoExpandReplicasTests extends ESTestCase {
             terminate(threadPool);
         }
     }
+
+    public void testCalculateDesiredNumberOfReplicas() {
+        String settingValue = randomFrom("0-all", "0-3");
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
+            Settings.builder().put(SETTING_AUTO_EXPAND_REPLICAS, settingValue).build()
+        );
+        int max = autoExpandReplicas.maxReplicas();
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(0), equalTo(0));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(1), equalTo(0));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(2), equalTo(1));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max), equalTo(max - 1));
+    }
 }

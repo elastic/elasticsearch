@@ -1023,6 +1023,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         return map(values, true, true);
     }
 
+    public XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
+        return map(values, ensureNoSelfReferences, true);
+    }
+
     public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {
         field(name);
         if (values == null) {

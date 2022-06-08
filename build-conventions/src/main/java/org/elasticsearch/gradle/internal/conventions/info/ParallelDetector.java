@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal.conventions.info;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
 
@@ -26,6 +28,9 @@ import java.util.stream.Collectors;
 public class ParallelDetector {
 
     private static Integer _defaultParallel = null;
+    private static final Logger LOGGER = Logging.getLogger(ParallelDetector.class);
+
+    private final static int MACOS_MONTEREY_MAJOR_VERSION = 12;
 
     public static int findDefaultParallel(Project project) {
         // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
@@ -64,7 +69,8 @@ public class ParallelDetector {
                 ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
                 // On Apple silicon, we only want to use the performance cores
-                String query = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64")
+                boolean isAppleSilicon = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64");
+                String query = isAppleSilicon && isMontereyOrNewer(project.getProviders())
                     ? "hw.perflevel0.physicalcpu"
                     : "hw.physicalcpu";
 
@@ -88,6 +94,17 @@ public class ParallelDetector {
 
     private static boolean isMac(ProviderFactory providers) {
         return providers.systemProperty("os.name").getOrElse("").startsWith("Mac");
+    }
+
+    private static boolean isMontereyOrNewer(ProviderFactory providers) {
+        String rawVersion = providers.systemProperty("os.version").getOrElse("").trim();
+        if (rawVersion.isEmpty()) {
+            LOGGER.warn("Failed to validate MacOs version.");
+            return false;
+        }
+
+        String majorVersion = rawVersion.split("\\.")[0];
+        return Integer.parseInt(majorVersion) >= MACOS_MONTEREY_MAJOR_VERSION;
     }
 
 }

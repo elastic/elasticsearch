@@ -106,4 +106,20 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         }), equalTo("""
             {"o":{"bar":["b","c","e","f"],"foo":["a","d"]}}"""));
     }
+
+    public void testHideTheCopyTo() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("foo");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("hidden").field("type", "keyword").field("copy_to", "bar").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [foo.hidden]"));
+    }
 }

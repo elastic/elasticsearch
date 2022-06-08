@@ -44,7 +44,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities

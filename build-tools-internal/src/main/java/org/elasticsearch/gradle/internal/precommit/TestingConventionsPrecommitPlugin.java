@@ -9,6 +9,8 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
@@ -37,6 +39,24 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
             setupTaskPerSourceSet(project, sourceSet, t -> {
                 t.getSuffix().convention("Tests");
                 t.getBaseClasses().convention(List.of("org.apache.lucene.tests.util.LuceneTestCase"));
+            });
+        });
+
+        project.getPlugins().withType(InternalYamlRestTestPlugin.class, yamlRestTestPlugin -> {
+            NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
+            setupTaskPerSourceSet(project, sourceSet, t -> {
+                t.getSuffix().convention("IT");
+                t.getBaseClasses()
+                    .convention(List.of("org.elasticsearch.test.ESIntegTestCase", "org.elasticsearch.test.rest.ESRestTestCase"));
+            });
+        });
+
+        project.getPlugins().withType(InternalJavaRestTestPlugin.class, javaRestTestPlugin -> {
+            NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(InternalJavaRestTestPlugin.SOURCE_SET_NAME);
+            setupTaskPerSourceSet(project, sourceSet, t -> {
+                t.getSuffix().convention("IT");
+                t.getBaseClasses()
+                    .convention(List.of("org.elasticsearch.test.ESIntegTestCase", "org.elasticsearch.test.rest.ESRestTestCase"));
             });
         });
 

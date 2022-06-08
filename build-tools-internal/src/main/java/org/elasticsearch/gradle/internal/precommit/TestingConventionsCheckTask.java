@@ -108,7 +108,11 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             List<? extends Class<?>> testClassesCandidate = testClassesCandidates.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .collect(Collectors.toCollection(ArrayList::new));
-            List<Class> matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClassNames);
+            List<? extends Class<?>> baseClasses = baseClassNames.stream()
+                .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
+                .toList();
+            testClassesCandidate.removeAll(baseClasses);
+            List<Class> matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClasses);
             assertMatchesSuffix(suffix, matchingBaseClass);
             testClassesCandidate.removeAll(matchingBaseClass);
             assertNoMissmatchingTest(testClassesCandidate);
@@ -142,10 +146,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             }
         }
 
-        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassesCandidate, List<String> baseClassNames) {
-            List<? extends Class<?>> baseClasses = baseClassNames.stream()
-                .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
-                .toList();
+        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassesCandidate, List<? extends Class<?>> baseClasses) {
 
             Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
             return testClassesCandidate.stream()

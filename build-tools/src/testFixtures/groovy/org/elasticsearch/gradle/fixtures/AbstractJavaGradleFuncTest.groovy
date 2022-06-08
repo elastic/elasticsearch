@@ -11,20 +11,25 @@ package org.elasticsearch.gradle.fixtures
 class AbstractJavaGradleFuncTest extends AbstractGradleFuncTest {
 
     File testClazz(String testClassName) {
-        testClazz(testClassName, {})
+        testClazz(testClassName, null)
     }
 
     File testClazz(String testClassName, String parent) {
-        testClazz(testClassName, parent, {})
+        testClazz(testClassName, parent, null)
     }
 
     File testClazz(String testClassName, Closure<String> content) {
         testClazz(testClassName, null, content)
     }
 
-    File testClazz(String testClassName, parent, Closure<String> content) {
-        def testClassFile = file("src/test/java/${testClassName.replace('.', '/')}.java")
-        writeClazz(testClassName, parent, testClassFile, content)
+    File testClazz(String testClassName, String parent, Closure<String> content) {
+        clazz(dir("src/test/java"), testClassName, parent, content)
+    }
+
+    File clazz(File sourceDir, String className, String parent = null, Closure<String> content = null) {
+        def classFile = new File(sourceDir, "${className.replace('.', '/')}.java")
+        classFile.getParentFile().mkdirs()
+        writeClazz(className, parent, classFile, content)
     }
 
     File clazz(String className, parent = null, Closure<String> content = null) {

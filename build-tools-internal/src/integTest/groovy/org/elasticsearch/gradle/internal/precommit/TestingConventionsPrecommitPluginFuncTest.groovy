@@ -9,19 +9,24 @@
 package org.elasticsearch.gradle.internal.precommit
 
 import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
+import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
+    LocalRepositoryFixture repository
 
     def setup() {
-        // default base class for unit tests
-        clazz("org.apache.lucene.tests.util.LuceneTestCase")
-        // used in assuming tests
-        clazz("org.junit.Assert")
-        clazz("org.junit.Test")
+        repository = new LocalRepositoryFixture(projectDir)
+        repository.configureBuild()
+        repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
+        "org.apache.lucene.tests.util.LuceneTestCase"
+        )
+        repository.generateJar('org.junit', 'junit', "4.42",
+                "org.junit.Assert", "org.junit.Test"
+        )
     }
 
     def "skips convention check if no tests available"() {
@@ -31,7 +36,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         """
 
         when:
-        def result = gradleRunner("precommit").build();
+        def result = gradleRunner("precommit").build()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.NO_SOURCE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
@@ -39,10 +44,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     def "testing convention tasks are cacheable and uptodate"() {
         given:
-        buildFile << """
-        apply plugin:'java'
-        """
-
+        simpleJavaBuild()
         testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
             """
             public void testMe() {
@@ -50,14 +52,14 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
             """
         }
         when:
-        gradleRunner("clean", "precommit", "--build-cache").build();
-        def result = gradleRunner("clean", "precommit", "--build-cache").build();
+        gradleRunner("clean", "precommit", "--build-cache").build()
+        def result = gradleRunner("clean", "precommit", "--build-cache").build()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.FROM_CACHE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
 
         when:
-        result = gradleRunner("precommit").build();
+        result = gradleRunner("precommit").build()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.UP_TO_DATE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
@@ -65,10 +67,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     def "testing convention plugin is configuration cache compliant"() {
         given:
-        buildFile << """
-        apply plugin:'java'
-        """
-
+        simpleJavaBuild()
         testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
             """
             public void testMe() {
@@ -81,17 +80,14 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         assertOutputContains(result.getOutput(), "0 problems were found storing the configuration cache.")
 
         when:
-        result = gradleRunner("precommit", "--configuration-cache").build();
+        result = gradleRunner("precommit", "--configuration-cache").build()
         then:
         assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
     }
 
     def "checks base class convention"() {
         given:
-        buildFile << """
-        apply plugin:'java'
-        """
-
+        simpleJavaBuild()
         testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
             """
             public void testMe() {
@@ -99,7 +95,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
             """
         }
         when:
-        def result = gradleRunner("precommit").build();
+        def result = gradleRunner("precommit").build()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
         result.task(":testingConventions").outcome == TaskOutcome.SUCCESS
@@ -111,7 +107,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
             }
             """
         }
-        result = gradleRunner("precommit").buildAndFail();
+        result = gradleRunner("precommit").buildAndFail()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
 
@@ -124,11 +120,10 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         )
     }
 
-    def "checks naming convention convention"() {
+    def "checks naming convention"() {
         given:
+        simpleJavaBuild()
         buildFile << """
-        apply plugin:'java'
-        
         tasks.named('testTestingConventions').configure {
             suffix = 'UnitTest'
         }
@@ -149,7 +144,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         }
 
         when:
-        def result = gradleRunner("precommit").buildAndFail();
+        def result = gradleRunner("precommit").buildAndFail()
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
@@ -159,5 +154,118 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
         )
+    }
+
+    def "provided base classes do not need match naming convention"() {
+        given:
+        simpleJavaBuild()
+        buildFile << """
+        tasks.named('testTestingConventions').configure {
+            baseClass 'org.acme.SomeCustomTestBaseClass'
+        }
+        """
+
+        testClazz("org.acme.SomeCustomTestBaseClass", "org.junit.Assert")
+        testClazz("org.acme.valid.SomeNameMatchingTests", "org.acme.SomeCustomTestBaseClass") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        when:
+        def result = gradleRunner("precommit").build()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "applies conventions on yaml-rest-test tests"() {
+        given:
+        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.ESIntegTestCase")
+        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.ESRestTestCase")
+        buildFile << """
+        apply plugin:'elasticsearch.internal-yaml-rest-test'
+        
+        dependencies {
+            yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
+            yamlRestTestImplementation "org.junit:junit:4.42"
+        }    
+        """
+
+        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeOtherMatchingIT", null) {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        when:
+        def result = gradleRunner("testingConventions").buildAndFail()
+        then:
+        result.task(":yamlRestTestTestingConventions").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.getOutput(), """\
+            * What went wrong:
+            Execution failed for task ':yamlRestTestTestingConventions'.
+            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
+               > Following test classes do not extend any supported base class:
+                 \torg.acme.valid.SomeOtherMatchingIT""".stripIndent()
+        )
+
+    }
+    def "applies conventions on java-rest-test tests"() {
+        given:
+        clazz(dir('src/javaRestTest/java'), "org.elasticsearch.test.ESIntegTestCase")
+        clazz(dir('src/javaRestTest/java'), "org.elasticsearch.test.rest.ESRestTestCase")
+        buildFile << """
+        apply plugin:'elasticsearch.internal-java-rest-test'
+        
+        dependencies {
+            javaRestTestImplementation "org.apache.lucene:tests.util:1.0"
+            javaRestTestImplementation "org.junit:junit:4.42"
+        }    
+        """
+
+        clazz(dir("src/javaRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        clazz(dir("src/javaRestTest/java"), "org.acme.valid.SomeNonMatchingTest", "org.elasticsearch.test.ESIntegTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        when:
+        def result = gradleRunner("testingConventions").buildAndFail()
+        then:
+        result.task(":javaRestTestTestingConventions").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.getOutput(), """\
+            * What went wrong:
+            Execution failed for task ':javaRestTestTestingConventions'.
+            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
+               > Following test classes do not match naming convention to use suffix 'IT':
+                 \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
+        )
+    }
+
+    private void simpleJavaBuild() {
+        buildFile << """
+        apply plugin:'java'
+                
+        dependencies {
+            testImplementation "org.apache.lucene:tests.util:1.0"
+            testImplementation "org.junit:junit:4.42"
+        }    
+        """
     }
 }

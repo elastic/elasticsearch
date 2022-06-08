@@ -20,3 +20,8 @@ testClusters.configureEach {
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
+
+tasks.named("yamlRestTestTestingConventions").configure {
+  baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}

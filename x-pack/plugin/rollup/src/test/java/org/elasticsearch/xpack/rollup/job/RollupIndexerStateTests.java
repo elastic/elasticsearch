@@ -309,7 +309,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             AtomicBoolean isFinished = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
@@ -365,7 +365,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(config, Collections.emptyMap());
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             AtomicBoolean isFinished = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null, spyStats) {
                 @Override
@@ -397,7 +397,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         final CountDownLatch latch = new CountDownLatch(1);
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             EmptyRollupIndexer indexer = new EmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
@@ -444,7 +444,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
@@ -531,7 +531,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null);
             final CountDownLatch latch = indexer.newLatch();
             assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -553,7 +553,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
@@ -580,7 +580,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
@@ -606,7 +606,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(client, threadPool, job, state, null) {
                 @Override
@@ -726,7 +726,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         };
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 client,
@@ -848,7 +848,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         BiConsumer<IndexerState, Map<String, Object>> doSaveStateCheck = (indexerState, position) -> { isFinished.set(true); };
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 client,
                 threadPool,
@@ -905,7 +905,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         };
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (final Client client = new NoOpClient(getTestName())) {
+        try (Client client = new NoOpClient(getTestName())) {
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 client,
                 threadPool,

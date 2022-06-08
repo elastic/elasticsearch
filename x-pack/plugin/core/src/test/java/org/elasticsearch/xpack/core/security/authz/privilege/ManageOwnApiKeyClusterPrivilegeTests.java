@@ -214,20 +214,4 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         assertFalse(clusterPermission.check(GrantApiKeyAction.NAME, grantApiKeyRequest, AuthenticationTestHelper.builder().build()));
     }
-
-    public void testCheckThrowsOnUnrecognizedApiKeyRequest() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
-            .build();
-
-        final TransportRequest req = new TransportRequest.Empty();
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> clusterPermission.check(
-                "cluster:admin/xpack/security/api_key/non_existent_action",
-                req,
-                AuthenticationTestHelper.builder().build()
-            )
-        );
-    }
 }

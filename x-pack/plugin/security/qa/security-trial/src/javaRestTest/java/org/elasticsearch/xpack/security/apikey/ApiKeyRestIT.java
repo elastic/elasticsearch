@@ -55,7 +55,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(SYSTEM_USER, SYSTEM_USER_PASSWORD, List.of("system_role"));
         createRole("system_role", Set.of("grant_api_key"));
         createUser(END_USER, END_USER_PASSWORD, List.of("user_role"));
-        createRole("user_role", Set.of("monitor"));
+        createRole("user_role", Set.of("monitor", "manage_own_api_key"));
     }
 
     @After

@@ -361,6 +361,10 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
+        return unmodifiableList(filterSupportedVersions(getAllWireCompatible()));
+    }
+
+    public List<Version> getAllWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
         int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
@@ -371,7 +375,7 @@ public class BwcVersions {
         wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
-        return unmodifiableList(filterSupportedVersions(wireCompat));
+        return unmodifiableList(wireCompat);
     }
 
     public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
@@ -397,13 +401,13 @@ public class BwcVersions {
     }
 
     public List<Version> getUnreleasedIndexCompatible() {
-        List<Version> unreleasedIndexCompatible = new ArrayList<>(getIndexCompatible());
+        List<Version> unreleasedIndexCompatible = new ArrayList<>(getAllIndexCompatible());
         unreleasedIndexCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedIndexCompatible);
     }
 
     public List<Version> getUnreleasedWireCompatible() {
-        List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
+        List<Version> unreleasedWireCompatible = new ArrayList<>(getAllWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
     }

@@ -20,7 +20,9 @@ import spock.lang.Unroll
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
-
+//    def addTestMethodClosure = {->
+//
+//    }
     @ClassRule
     @Shared
     public TemporaryFolder repoFolder = new TemporaryFolder()
@@ -31,7 +33,10 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
-                "org.apache.lucene.tests.util.LuceneTestCase"
+                "org.apache.lucene.tests.util.LuceneTestCase",
+                "org.elasticsearch.test.ESSingleNodeTestCase",
+                "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase",
+                "org.elasticsearch.test.AbstractMultiClustersTestCase"
         )
         repository.generateJar('org.junit', 'junit', "4.42",
                 "org.junit.Assert", "org.junit.Test"
@@ -138,7 +143,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         simpleJavaBuild()
         buildFile << """
         tasks.named('testTestingConventions').configure {
-            suffix = 'UnitTest'
+            suffix 'UnitTest'
         }
         """
 
@@ -194,8 +199,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     def "applies conventions on yaml-rest-test tests"() {
         given:
-        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.ESIntegTestCase")
-        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.ESRestTestCase")
+        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
         apply plugin:'elasticsearch.internal-yaml-rest-test'
         
@@ -205,7 +209,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         }    
         """
 
-        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
+        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
             """
             public void testMe() {
             }
@@ -231,71 +235,34 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         )
     }
 
-    def "applies conventions on java-rest-test tests"() {
-        given:
-        clazz(dir('src/javaRestTest/java'), "org.elasticsearch.test.ESIntegTestCase")
-        clazz(dir('src/javaRestTest/java'), "org.elasticsearch.test.rest.ESRestTestCase")
-        buildFile << """
-        apply plugin:'elasticsearch.internal-java-rest-test'
-        
-        dependencies {
-            javaRestTestImplementation "org.apache.lucene:tests.util:1.0"
-            javaRestTestImplementation "org.junit:junit:4.42"
-        }    
-        """
-
-        clazz(dir("src/javaRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-
-        clazz(dir("src/javaRestTest/java"), "org.acme.valid.SomeNonMatchingTest", "org.elasticsearch.test.ESIntegTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-
-        when:
-        def result = gradleRunner("testingConventions").buildAndFail()
-        then:
-        result.task(":javaRestTestTestingConventions").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.getOutput(), """\
-            * What went wrong:
-            Execution failed for task ':javaRestTestTestingConventions'.
-            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
-               > Following test classes do not match naming convention to use suffix 'IT':
-                 \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
-        )
-    }
-
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
         buildFile << """
+        import org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask
         apply plugin:'$pluginName'
         
         dependencies {
             ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
             ${sourceSetName}Implementation "org.junit:junit:4.42"
         }    
+        tasks.withType(TestingConventionsCheckTask).configureEach {
+            suffix 'IT'
+            suffix 'Tests'
+        }
         """
 
         clazz(dir("src/${sourceSetName}/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
             """
-            public void testMe() {
-            }
+            public void testMe() {}
             """
         }
 
         clazz(dir("src/${sourceSetName}/java"), "org.acme.valid.SomeNonMatchingTest", "org.elasticsearch.test.ESIntegTestCase") {
             """
-            public void testMe() {
-            }
+            public void testMe() {}
             """
         }
 
@@ -307,7 +274,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
             * What went wrong:
             Execution failed for task '${taskName}'.
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
-               > Following test classes do not match naming convention to use suffix 'IT':
+               > Following test classes do not match naming convention to use suffix 'IT' or 'Tests':
                  \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
         )
 

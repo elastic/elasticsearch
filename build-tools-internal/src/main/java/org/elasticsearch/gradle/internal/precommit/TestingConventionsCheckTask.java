@@ -203,7 +203,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         private static boolean matchesTestMethodNamingConvention(Method method) {
             return method.getName().startsWith(JUNIT3_TEST_METHOD_PREFIX)
                 && Modifier.isStatic(method.getModifiers()) == false
-                && method.getReturnType().equals(method.getReturnType().equals(Void.TYPE));
+                && method.getReturnType().equals(Void.TYPE);
         }
 
         private static boolean isAnnotated(Method method, Class<?> annotation) {

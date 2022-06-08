@@ -190,7 +190,7 @@ PUT /my-index-000001/_settings
 is decreased from the previous value of `2` to `1`. It can be set as low as 0
 but configuring it to 0 for indices other than <<searchable-snapshots,
 searchable snapshot indices>> may lead to temporary availability loss during
-node restarts or permanent data loss in case of data corruption.```
+node restarts or permanent data loss in case of data corruption.
 
 //end::kibana-api-ex-2[]
 // end::cloud[]
@@ -290,8 +290,11 @@ You can count the rows containing the letter representing the target tier to kno
 nodes in the hot tier.
 +
 . <<indices-update-settings, Decrease>> the
-value for the total number of replica shards required for this index. The new value needs to be less
-than or equal to the number of nodes found above minus one. Since the example above found 2 nodes in the hot tier,
+value for the total number of replica shards required for this index. As 
+replica shards cannot reside on the same node as primary shards for
+<<high-availability-cluster-design,high availability>>, the new value needs to
+be less than or equal to the number of nodes found above minus one. Since the
+example above found 2 nodes in the hot tier,
 the maximum value for `index.number_of_replicas` is 1.
 +
 [source,console]

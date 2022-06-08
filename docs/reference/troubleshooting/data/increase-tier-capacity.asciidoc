@@ -1,13 +1,16 @@
 [[increase-tier-capacity]]
 == Not enough nodes to allocate all shard replicas
 
-Elasticsearch tries to keep copies of the data (index shard replicas) on different nodes to protect against
-hardware failure and increase the capacity to serve requests like searching for documents. If the index has
-a preferred tier, Elasticsearch will only try to place the copies of the data for that index on nodes in
-the target tier.
+Distributing copies of the data (index shard replicas) on different nodes can 
+parallelize processing requests thus speeding up search queries. This can be 
+achieved by increasing the number of replica shards up to the maximum value
+(total number of nodes minus one) which also serves the purpose to protect
+against hardware failure. If the index has a preferred tier, Elasticsearch will
+only place the copies of the data for that index on nodes in the target tier.
 
-Users might want to influence this behavior by adding more nodes to the cluster (or tier if tiers are
-in use), or by reducing the
+If a warning is encountered with not enough nodes to allocate all shard 
+replicas, you can influence this behavior by adding more nodes to the cluster
+(or tier if tiers are in use), or by reducing the
 <<dynamic-index-number-of-replicas,`index.number_of_replicas`>> index setting.
 
 In order to fix this follow the next steps:

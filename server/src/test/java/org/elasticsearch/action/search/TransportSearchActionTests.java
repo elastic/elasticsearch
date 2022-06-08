@@ -68,6 +68,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1056,6 +1057,21 @@ public class TransportSearchActionTests extends ESTestCase {
             }
             searchRequest.setCcsMinimizeRoundtrips(true);
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            searchRequest.source(source);
+
+            // Emulate TransportSearchAction logic: first adjust search type, then check minimize roundtrips
+            TransportSearchAction.adjustSearchType(searchRequest);
+
+            // Minimize roundtrips should always be false because kNN uses DFS_QUERY_THEN_FETCH
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }

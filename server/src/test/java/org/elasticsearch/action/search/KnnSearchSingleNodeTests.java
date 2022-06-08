@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -19,10 +21,54 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class KnnSearchActionTests extends ESSingleNodeTestCase {
+public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     private static final int VECTOR_DIMENSION = 10;
 
-    public void testTotalHits() throws IOException {
+    public void testKnnWithQuery() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            client().prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
+            client().prepareIndex("index").setSource("text", "goodnight world").get();
+        }
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).boost(5.0f);
+        SearchResponse response = client().prepareSearch("index")
+            .setKnnSearch(knnSearch)
+            .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
+            .addFetchField("*")
+            .setSize(10)
+            .get();
+
+        // The total hits is k plus the number of text matches
+        assertHitCount(response, 15);
+        assertEquals(10, response.getHits().getHits().length);
+
+        // Because of the boost, vector results should appear first
+        assertNotNull(response.getHits().getAt(0).field("vector"));
+    }
+
+    public void testKnnSearchAction() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()

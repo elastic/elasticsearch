@@ -374,6 +374,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
+            adjustSearchType(rewritten);
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
@@ -476,6 +477,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }, listener::onFailure);
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
+    }
+
+    static void adjustSearchType(SearchRequest searchRequest) {
+        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
+        if (searchRequest.hasKnnSearch()) {
+            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+        }
+
+        // if there's only suggest, disable request cache and always use QUERY_THEN_FETCH
+        if (searchRequest.isSuggestOnly()) {
+            searchRequest.requestCache(false);
+            searchRequest.searchType(QUERY_THEN_FETCH);
+        }
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
@@ -986,19 +1000,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
         // optimize search type for cases where there is only one shard group to search on
-        if (shardIterators.size() == 1) {
+        if (shardIterators.size() == 1 && searchRequest.hasKnnSearch() == false) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
-        if (searchRequest.isSuggestOnly()) {
-            // disable request cache if we have only suggest
-            searchRequest.requestCache(false);
-            switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH ->
-                    // convert to Q_T_F if we have only suggest
-                    searchRequest.searchType(QUERY_THEN_FETCH);
-            }
-        }
+
         final DiscoveryNodes nodes = clusterState.nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
             searchRequest.getLocalClusterAlias(),

@@ -94,9 +94,15 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
                 assertTrue(query instanceof ScoreDocQuery);
                 ScoreDocQuery scoreDocQuery = (ScoreDocQuery) query;
 
-                ScoreDoc[] scoreDocs = queryBuilder.scoreDocs();
-                assertEquals(scoreDocs.length, scoreDocQuery.docs().length);
-                assertEquals(scoreDocs.length, scoreDocQuery.scores().length);
+                // This search execution context always has shardIndex = 0
+                int expectedDocs = 0;
+                for (ScoreDoc scoreDoc : queryBuilder.scoreDocs()) {
+                    if (scoreDoc.shardIndex == 0) {
+                        expectedDocs++;
+                    }
+                }
+                assertEquals(expectedDocs, scoreDocQuery.docs().length);
+                assertEquals(expectedDocs, scoreDocQuery.scores().length);
             }
         }
     }
@@ -167,7 +173,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
 
                 List<ScoreDoc> allScoreDocs = new ArrayList<>();
                 List<ScoreDoc> expectedScoreDocs = new ArrayList<>();
-                for (int doc = 0; doc < 50; doc += random().nextInt(5)) {
+                for (int doc = 0; doc < 50; doc += 1 + random().nextInt(5)) {
                     int shardIndex = randomInt(3);
                     ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat(), shardIndex);
                     allScoreDocs.add(scoreDoc);

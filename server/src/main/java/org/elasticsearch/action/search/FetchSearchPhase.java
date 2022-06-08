@@ -102,7 +102,8 @@ final class FetchSearchPhase extends SearchPhase {
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
-        final boolean queryAndFetchOptimization = queryResults.length() == 1;
+        final boolean queryAndFetchOptimization = queryResults.length() == 1
+            && context.getRequest().searchType() == SearchType.QUERY_THEN_FETCH;
         final Runnable finishPhase = () -> moveToNextPhase(
             queryResults,
             reducedQueryPhase,

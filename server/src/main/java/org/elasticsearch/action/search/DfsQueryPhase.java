@@ -7,12 +7,17 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.vectors.ScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -30,6 +35,7 @@ final class DfsQueryPhase extends SearchPhase {
     private final QueryPhaseResultConsumer queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
+    private final DfsKnnResults knnResults;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
@@ -38,6 +44,7 @@ final class DfsQueryPhase extends SearchPhase {
     DfsQueryPhase(
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
+        DfsKnnResults knnResults,
         QueryPhaseResultConsumer queryResult,
         Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
@@ -47,6 +54,7 @@ final class DfsQueryPhase extends SearchPhase {
         this.queryResult = queryResult;
         this.searchResults = searchResults;
         this.dfs = dfs;
+        this.knnResults = knnResults;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
@@ -66,13 +74,17 @@ final class DfsQueryPhase extends SearchPhase {
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
             context
         );
+
         for (final DfsSearchResult dfsResult : searchResults) {
+            ShardSearchRequest shardRequest = dfsResult.getShardSearchRequest();
+            addKnnResultsToQuery(shardRequest.source());
+
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(dfsResult.getShardIndex()),
                 dfsResult.getContextId(),
-                dfsResult.getShardSearchRequest(),
+                shardRequest,
                 dfs
             );
             final int shardIndex = dfsResult.getShardIndex();
@@ -114,5 +126,19 @@ final class DfsQueryPhase extends SearchPhase {
                 }
             );
         }
+    }
+
+    private void addKnnResultsToQuery(SearchSourceBuilder source) {
+        if (source == null || source.knnSearch() == null) {
+            return;
+        }
+
+        ScoreDocQueryBuilder knnQueryBuilder = new ScoreDocQueryBuilder(knnResults.scoreDocs());
+        if (source.query() == null) {
+            source.query(knnQueryBuilder);
+        } else {
+            source.query(new BoolQueryBuilder().should(knnQueryBuilder).should(source.query()));
+        }
+        source.knnSearch(null);
     }
 }

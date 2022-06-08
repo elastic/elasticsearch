@@ -21,6 +21,7 @@ setup:
   - do:
       index:
         index: test
+        id: "1"
         body:
           name: cow.jpg
           vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
@@ -45,7 +46,58 @@ setup:
       indices.refresh: {}
 
 ---
-"Basic kNN search":
+"kNN search only":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+
+---
+"kNN search plus query":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
+  - do:
+      search:
+        index: test
+        search_type: dfs_query_then_fetch
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          query:
+            term:
+              name: cow.jpg
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+
+---
+"kNN search in _knn_search endpoint":
   - do:
       knn_search:
         index: test
@@ -64,7 +116,7 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
 ---
-"kNN search with filter":
+"kNN search with filter in _knn_search endpoint":
   - skip:
       version: ' - 8.1.99'
       reason: 'kNN with filtering added in 8.2'
@@ -106,9 +158,12 @@ setup:
 
 ---
 "Test nonexistent field":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
-      knn_search:
+      search:
         index: test
         body:
           fields: [ "name" ]

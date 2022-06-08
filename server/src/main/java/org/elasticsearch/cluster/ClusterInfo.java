@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,21 +37,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    final ImmutableOpenMap<String, Long> shardSizes;
-    final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
+    final Map<String, Long> shardSizes;
+    final Map<ShardId, Long> shardDataSetSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
-    final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
-    final ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<ShardRouting, String> routingToDataPath;
+    final Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     protected ClusterInfo() {
-        this(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -69,10 +61,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public ClusterInfo(
         Map<String, DiskUsage> leastAvailableSpaceUsage,
         Map<String, DiskUsage> mostAvailableSpaceUsage,
-        ImmutableOpenMap<String, Long> shardSizes,
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-        ImmutableOpenMap<ShardRouting, String> routingToDataPath,
-        ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<ShardRouting, String> routingToDataPath,
+        Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
@@ -83,35 +75,20 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
-        Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
-        Map<ShardId, Long> dataSetSizeMap;
+        this.leastAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
+        this.mostAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
+        this.shardSizes = in.readImmutableMap(StreamInput::readString, StreamInput::readLong);
         if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            dataSetSizeMap = in.readMap(ShardId::new, StreamInput::readLong);
+            this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
         } else {
-            dataSetSizeMap = Map.of();
+            this.shardDataSetSizes = Map.of();
         }
-        Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
-        Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
+        this.routingToDataPath = in.readImmutableMap(ShardRouting::new, StreamInput::readString);
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
+            this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         } else {
-            reservedSpaceMap = Map.of();
+            this.reservedSpace = Map.of();
         }
-
-        ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
-        this.leastAvailableSpaceUsage = leastBuilder.putAllFromMap(leastMap).build();
-        ImmutableOpenMap.Builder<String, DiskUsage> mostBuilder = ImmutableOpenMap.builder();
-        this.mostAvailableSpaceUsage = mostBuilder.putAllFromMap(mostMap).build();
-        ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
-        this.shardSizes = sizeBuilder.putAllFromMap(sizeMap).build();
-        ImmutableOpenMap.Builder<ShardId, Long> dataSetSizeBuilder = ImmutableOpenMap.builder();
-        this.shardDataSetSizes = dataSetSizeBuilder.putAllFromMap(dataSetSizeMap).build();
-        ImmutableOpenMap.Builder<ShardRouting, String> routingBuilder = ImmutableOpenMap.builder();
-        this.routingToDataPath = routingBuilder.putAllFromMap(routingMap).build();
-        ImmutableOpenMap.Builder<NodeAndPath, ReservedSpace> reservedSpaceBuilder = ImmutableOpenMap.builder();
-        this.reservedSpace = reservedSpaceBuilder.putAllFromMap(reservedSpaceMap).build();
     }
 
     @Override

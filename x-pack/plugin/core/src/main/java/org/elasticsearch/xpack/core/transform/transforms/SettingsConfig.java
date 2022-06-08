@@ -165,10 +165,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         } else {
             deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             numFailureRetries = in.readOptionalInt();
         } else {
-            numFailureRetries = DEFAULT_NUM_FAILURE_RETRIES;
+            numFailureRetries = null;
         }
     }
 
@@ -260,7 +260,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeOptionalInt(deduceMappings);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeOptionalInt(numFailureRetries);
         }
     }

@@ -304,7 +304,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "migrate_data_tiers_include_data_" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
-                        + "] data tiers because the indices are configured with allocation filter rules that are incompatible with the "
+                        + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
                         + "nodes in this tier. Remove ["
                         + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
                         + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then "

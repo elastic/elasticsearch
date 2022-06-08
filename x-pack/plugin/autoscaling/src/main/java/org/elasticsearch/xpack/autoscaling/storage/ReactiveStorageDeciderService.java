@@ -477,7 +477,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 metadataBuilder.put(updatedDataStream);
             }
 
-            public void applySize(ImmutableOpenMap.Builder<String, Long> builder, RoutingTable updatedRoutingTable) {
+            public void applySize(Map<String, Long> builder, RoutingTable updatedRoutingTable) {
                 for (Map.Entry<IndexMetadata, Long> entry : additionalIndices.entrySet()) {
                     List<ShardRouting> shardRoutings = updatedRoutingTable.allShards(entry.getKey().getIndex().getName());
                     long size = entry.getValue() / shardRoutings.size();
@@ -508,13 +508,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
             RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
-            ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
+            Map<String, Long> sizeBuilder = new HashMap<>();
             singleForecasts.forEach(p -> p.applyMetadata(metadataBuilder));
             singleForecasts.forEach(p -> p.applyRouting(routingTableBuilder));
             RoutingTable routingTable = routingTableBuilder.build();
             singleForecasts.forEach(p -> p.applySize(sizeBuilder, routingTable));
             ClusterState forecastClusterState = ClusterState.builder(state).metadata(metadataBuilder).routingTable(routingTable).build();
-            ClusterInfo forecastInfo = new ExtendedClusterInfo(sizeBuilder.build(), AllocationState.this.info);
+            ClusterInfo forecastInfo = new ExtendedClusterInfo(Collections.unmodifiableMap(sizeBuilder), AllocationState.this.info);
 
             return new AllocationState(
                 forecastClusterState,

@@ -33,7 +33,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -105,12 +104,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
         for (var node : discoveryNodes.getDataNodes().keySet()) {
-            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node), new LinkedHashMap<>()));
+            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node)));
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), new LinkedHashMap<>());
+        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k));
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);

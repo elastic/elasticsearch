@@ -90,14 +90,20 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
+    public static final String FIELD_LABEL_BOOLEAN = "label_boolean";
+    public static final String FIELD_LABEL_NUMERIC = "label_numeric";
+    public static final String FIELD_LABEL_KEYWORD = "label_keyword";
+    public static final String FIELD_LABEL_TEXT = "label_text";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
+    private static final int MAX_LABEL_VALUES = 5;
 
     private String sourceIndex, rollupIndex;
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
+    private List<String> labelValues;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -125,6 +131,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             dimensionValues.add(randomAlphaOfLength(6));
         }
 
+        labelValues = new ArrayList<>(MAX_LABEL_VALUES);
+        for (int j = 0; j < randomIntBetween(1, MAX_LABEL_VALUES); j++) {
+            labelValues.add(randomAlphaOfLength(10));
+        }
+
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
@@ -148,7 +159,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 FIELD_NUMERIC_1,
                 "type=long,time_series_metric=gauge",
                 FIELD_NUMERIC_2,
-                "type=double,time_series_metric=counter"
+                "type=double,time_series_metric=counter",
+                FIELD_LABEL_BOOLEAN,
+                "type=boolean",
+                FIELD_LABEL_NUMERIC,
+                "type=long",
+                FIELD_LABEL_KEYWORD,
+                "type=keyword",
+                FIELD_LABEL_TEXT,
+                "type=text"
             )
             .get();
     }
@@ -164,6 +183,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_NUMERIC, randomLong())
+                .field(FIELD_LABEL_KEYWORD, randomAlphaOfLength(5))
+                .field(FIELD_LABEL_TEXT, randomAlphaOfLength(20))
                 .endObject();
         };
         bulkIndex(sourceSupplier);

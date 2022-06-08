@@ -195,6 +195,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
             final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
             final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
+            final Map<String, FieldCapabilities> labelFieldCaps = new HashMap<>();
             for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
                 String field = e.getKey();
                 /*
@@ -210,10 +211,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
                 if (fieldCaps.isDimension()) {
                     dimensionFieldCaps.put(field, fieldCaps);
-                } else if (e.getValue().values().iterator().next().getMetricType() != null) {
-                    metricFieldCaps.put(field, fieldCaps);
                 } else {
-                    // TODO: Field is not a dimension or a metric. Treat it as a tag
+                    TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
+                    if (metricType != null) {
+                        metricFieldCaps.put(field, fieldCaps);
+                    } else if (isLabelField(field, fieldCaps, request.getRollupConfig().getTimestampField())) {
+                        labelFieldCaps.put(field, fieldCaps);
+                    }
                 }
             }
 
@@ -232,7 +236,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             final String mapping;
             try {
-                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps);
+                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps, labelFieldCaps);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -245,7 +249,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
                         request,
                         dimensionFieldCaps.keySet().toArray(new String[0]),
-                        metricFieldCaps.keySet().toArray(new String[0])
+                        metricFieldCaps.keySet().toArray(new String[0]),
+                        labelFieldCaps.keySet().toArray(new String[0])
                     );
                     rollupIndexerRequest.setParentTask(parentTask);
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
@@ -364,6 +369,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }, listener::onFailure));
     }
 
+    private boolean isLabelField(final String field, final FieldCapabilities fieldCaps, final String timestampField) {
+        return fieldCaps.isAggregatable()
+            && fieldCaps.isDimension() == false
+            && fieldCaps.isMetadataField() == false
+            && timestampField.equals(field) == false;
+    }
+
     @Override
     protected ClusterBlockException checkBlock(RollupAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
@@ -385,7 +397,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     public static String createRollupIndexMapping(
         final RollupActionConfig config,
         final Map<String, FieldCapabilities> dimensionFieldCaps,
-        final Map<String, FieldCapabilities> metricFieldCaps
+        final Map<String, FieldCapabilities> metricFieldCaps,
+        final Map<String, FieldCapabilities> labelFieldCaps
     ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
@@ -432,6 +445,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
                     .endObject();
             }
+        }
+
+        for (Map.Entry<String, FieldCapabilities> e : labelFieldCaps.entrySet()) {
+            builder.startObject(e.getKey()).field("type", e.getValue().getType()).endObject();
         }
 
         builder.endObject();

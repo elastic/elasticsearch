@@ -8,9 +8,11 @@
 
 package org.elasticsearch.logging;
 
+import java.util.function.Supplier;
+
 /**
  * Main interface for logging. Most operations are done through this interface.
- * This is interface heavily influenced by org.apache.logging.log4j2.Logger.
+ * This interface is heavily influenced by org.apache.logging.log4j2.Logger.
  * The most notable difference is lack of methods with Marker, LogBuilder and
  * the message supplier is {@code java.util.function.Supplier<String>}
  */
@@ -19,7 +21,7 @@ public interface Logger {
      * Logs a message String with the given level.
      *
      * @param level   the logging level
-     * @param message the message CharSequence to log.
+     * @param message the message to log.
      */
     void log(Level level, String message);
 
@@ -31,7 +33,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void log(Level level, java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void log(Level level, Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Gets the logger name.
@@ -107,7 +109,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void fatal(java.util.function.Supplier<String> messageSupplier);
+    void fatal(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -116,7 +118,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void fatal(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void fatal(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#FATAL FATAL} level.
@@ -134,69 +136,6 @@ public interface Logger {
     void fatal(String message, Throwable throwable);
 
     /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void fatal(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void fatal(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void fatal(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void fatal(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at fatal level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
-
-    /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#FATAL FATAL} level.
      *
      * @param message the message to log
@@ -212,7 +151,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void error(java.util.function.Supplier<String> messageSupplier);
+    void error(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -221,7 +160,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void error(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void error(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#ERROR ERROR} level.
@@ -239,69 +178,6 @@ public interface Logger {
     void error(String message, Throwable throwable);
 
     /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void error(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void error(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void error(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void error(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at error level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
-
-    /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#ERROR ERROR} level.
      *
      * @param message the message to log
@@ -317,7 +193,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void warn(java.util.function.Supplier<String> messageSupplier);
+    void warn(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -326,7 +202,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void warn(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void warn(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#WARN WARN} level.
@@ -344,69 +220,6 @@ public interface Logger {
     void warn(String message, Throwable throwable);
 
     /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void warn(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void warn(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void warn(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void warn(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at warn level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
-
-    /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#WARN WARN} level.
      *
      * @param message the message to log
@@ -422,7 +235,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void info(java.util.function.Supplier<String> messageSupplier);
+    void info(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -431,7 +244,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void info(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void info(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#INFO INFO} level.
@@ -449,69 +262,6 @@ public interface Logger {
     void info(String message, Throwable throwable);
 
     /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void info(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void info(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void info(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void info(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at info level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
-
-    /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#INFO INFO} level.
      *
      * @param message the message to log
@@ -527,7 +277,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void debug(java.util.function.Supplier<String> messageSupplier);
+    void debug(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -536,7 +286,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void debug(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void debug(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level.
@@ -554,69 +304,6 @@ public interface Logger {
     void debug(String message, Throwable throwable);
 
     /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void debug(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void debug(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void debug(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void debug(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at debug level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
-
-    /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level.
      *
      * @param message the message to log
@@ -632,7 +319,7 @@ public interface Logger {
      * that is the result produced by the given supplier function.
      * @param messageSupplier A function, which when called, produces the desired log String message;
      */
-    void trace(java.util.function.Supplier<String> messageSupplier);
+    void trace(Supplier<String> messageSupplier);
 
     /**
      * Logs a lazily supplied String message associated with a given throwable. If the logger is currently
@@ -641,7 +328,7 @@ public interface Logger {
      * @param messageSupplier A function, which when called, produces the desired log String message;
      * @param throwable       A Throwable associated with the log message.
      */
-    void trace(java.util.function.Supplier<String> messageSupplier, Throwable throwable);
+    void trace(Supplier<String> messageSupplier, Throwable throwable);
 
     /**
      * Logs a message at the {@link org.elasticsearch.logging.Level#TRACE TRACE} level.
@@ -657,69 +344,6 @@ public interface Logger {
      * @param throwable A Throwable associated with the log message.
      */
     void trace(String message, Throwable throwable);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     */
-    void trace(String message, Object p0);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     */
-    void trace(String message, Object p0, Object p1);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     */
-    void trace(String message, Object p0, Object p1, Object p2);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     */
-    void trace(String message, Object p0, Object p1, Object p2, Object p3);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     */
-    void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4);
-
-    /**
-     * Logs a message with parameters at trace level.
-     *
-     * @param message the message to log
-     * @param p0      parameter to the message.
-     * @param p1      parameter to the message.
-     * @param p2      parameter to the message.
-     * @param p3      parameter to the message.
-     * @param p4      parameter to the message.
-     * @param p5      parameter to the message.
-     */
-    void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5);
 
     /**
      * Logs a message with parameters at the {@link org.elasticsearch.logging.Level#TRACE TRACE} level.

@@ -97,36 +97,6 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void fatal(String message, Object p0) {
-        log4jLogger.fatal(message, p0);
-    }
-
-    @Override
-    public void fatal(String message, Object p0, Object p1) {
-        log4jLogger.fatal(message, p0, p1);
-    }
-
-    @Override
-    public void fatal(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.fatal(message, p0, p1, p2);
-    }
-
-    @Override
-    public void fatal(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.fatal(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.fatal(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void fatal(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.fatal(message, p0, p1, p2, p3, p4, p5);
-    }
-
-    @Override
     public void fatal(String message, Object... params) {
         log4jLogger.fatal(message, params);
     }
@@ -149,36 +119,6 @@ public final class LoggerImpl implements Logger {
     @Override
     public void error(String message, Throwable throwable) {
         log4jLogger.error(message, throwable);
-    }
-
-    @Override
-    public void error(String message, Object p0) {
-        log4jLogger.error(message, p0);
-    }
-
-    @Override
-    public void error(String message, Object p0, Object p1) {
-        log4jLogger.error(message, p0, p1);
-    }
-
-    @Override
-    public void error(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.error(message, p0, p1, p2);
-    }
-
-    @Override
-    public void error(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.error(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.error(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void error(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.error(message, p0, p1, p2, p3, p4, p5);
     }
 
     @Override
@@ -207,36 +147,6 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void warn(String message, Object p0) {
-        log4jLogger.warn(message, p0);
-    }
-
-    @Override
-    public void warn(String message, Object p0, Object p1) {
-        log4jLogger.warn(message, p0, p1);
-    }
-
-    @Override
-    public void warn(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.warn(message, p0, p1, p2);
-    }
-
-    @Override
-    public void warn(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.warn(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.warn(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void warn(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.warn(message, p0, p1, p2, p3, p4, p5);
-    }
-
-    @Override
     public void warn(String message, Object... params) {
         log4jLogger.warn(message, params);
     }
@@ -259,36 +169,6 @@ public final class LoggerImpl implements Logger {
     @Override
     public void info(String message, Throwable throwable) {
         log4jLogger.info(message, throwable);
-    }
-
-    @Override
-    public void info(String message, Object p0) {
-        log4jLogger.info(message, p0);
-    }
-
-    @Override
-    public void info(String message, Object p0, Object p1) {
-        log4jLogger.info(message, p0, p1);
-    }
-
-    @Override
-    public void info(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.info(message, p0, p1, p2);
-    }
-
-    @Override
-    public void info(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.info(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.info(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void info(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.info(message, p0, p1, p2, p3, p4, p5);
     }
 
     @Override
@@ -317,36 +197,6 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void debug(String message, Object p0) {
-        log4jLogger.debug(message, p0);
-    }
-
-    @Override
-    public void debug(String message, Object p0, Object p1) {
-        log4jLogger.debug(message, p0, p1);
-    }
-
-    @Override
-    public void debug(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.debug(message, p0, p1, p2);
-    }
-
-    @Override
-    public void debug(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.debug(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.debug(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void debug(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.debug(message, p0, p1, p2, p3, p4, p5);
-    }
-
-    @Override
     public void debug(String message, Object... params) {
         log4jLogger.debug(message, params);
     }
@@ -369,36 +219,6 @@ public final class LoggerImpl implements Logger {
     @Override
     public void trace(String message, Throwable throwable) {
         log4jLogger.trace(message, throwable);
-    }
-
-    @Override
-    public void trace(String message, Object p0) {
-        log4jLogger.trace(message, p0);
-    }
-
-    @Override
-    public void trace(String message, Object p0, Object p1) {
-        log4jLogger.trace(message, p0, p1);
-    }
-
-    @Override
-    public void trace(String message, Object p0, Object p1, Object p2) {
-        log4jLogger.trace(message, p0, p1, p2);
-    }
-
-    @Override
-    public void trace(String message, Object p0, Object p1, Object p2, Object p3) {
-        log4jLogger.trace(message, p0, p1, p2, p3);
-    }
-
-    @Override
-    public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4) {
-        log4jLogger.trace(message, p0, p1, p2, p3, p4);
-    }
-
-    @Override
-    public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
-        log4jLogger.trace(message, p0, p1, p2, p3, p4, p5);
     }
 
     @Override

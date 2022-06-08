@@ -11,7 +11,7 @@ package org.elasticsearch.logging.internal.spi;
 import org.elasticsearch.logging.Logger;
 
 /**
- * SPI for creating new loggers
+ * A static holder for LogManagerFactory
  */
 public abstract class LogManagerFactory {
 

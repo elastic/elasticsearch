@@ -42,7 +42,7 @@ public enum RestApiVersion {
     }
 
     public static RestApiVersion minimumSupported() {
-        return V_7;
+        return PREVIOUS;
     }
 
     public static Predicate<RestApiVersion> equalTo(RestApiVersion restApiVersion) {

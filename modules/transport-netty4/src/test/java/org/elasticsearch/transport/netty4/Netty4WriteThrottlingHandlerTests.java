@@ -51,6 +51,7 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
             capturingHandler,
             new Netty4WriteThrottlingHandler(new ThreadContext(Settings.EMPTY))
         );
+        // we assume that the channel outbound buffer is smaller than Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE
         final int writeableBytes = Math.toIntExact(embeddedChannel.bytesBeforeUnwritable());
         assertThat(writeableBytes, lessThan(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE));
         final int fullSizeChunks = randomIntBetween(2, 10);
@@ -77,8 +78,9 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
 
     public void testPassesSmallMessageDirectly() throws ExecutionException, InterruptedException {
         final List<ByteBuf> seen = new CopyOnWriteArrayList<>();
+        final CapturingHandler capturingHandler = new CapturingHandler(seen);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new CapturingHandler(seen),
+            capturingHandler,
             new Netty4WriteThrottlingHandler(new ThreadContext(Settings.EMPTY))
         );
         final int writeableBytes = Math.toIntExact(embeddedChannel.bytesBeforeUnwritable());
@@ -94,6 +96,7 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
         transportGroup.getLowLevelGroup().submit(embeddedChannel::flush).get();
         assertTrue(promise.isDone());
         assertThat(seen, hasSize(1));
+        assertFalse(capturingHandler.didWriteAfterThrottled);
     }
 
     public void testThrottlesOnUnwritable() throws ExecutionException, InterruptedException {

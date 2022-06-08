@@ -79,7 +79,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                 .map(
                     nodeName -> new DesiredNode(
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                        0.5f + randomIntBetween(1, 24),
+                        0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
                         Version.CURRENT

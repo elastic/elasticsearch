@@ -189,7 +189,12 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
 
         final var newDesiredNodes = createDesiredNodes(
             // Reuse the same nodes from the previous desired nodes or create new ones
-            desiredNodesInClusterState && randomBoolean() ? previousDesiredNodes.nodes() : randomList(1, 10, this::createPendingDesiredNode)
+            desiredNodesInClusterState && randomBoolean()
+                ? previousDesiredNodes.nodes()
+                    .stream()
+                    .map(dn -> new DesiredNodeWithStatus(dn.desiredNode(), DesiredNodeWithStatus.Status.defaultStatus()))
+                    .toList()
+                : randomList(1, 10, this::createPendingDesiredNode)
         );
 
         final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(clusterState, newDesiredNodes);

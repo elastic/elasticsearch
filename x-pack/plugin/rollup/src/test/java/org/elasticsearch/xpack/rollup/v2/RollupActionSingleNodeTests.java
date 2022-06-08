@@ -94,7 +94,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
 
-    private String sourceIndex, sourceIndexClone, rollupIndex;
+    private String sourceIndex, rollupIndex;
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
@@ -112,13 +112,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        sourceIndexClone = sourceIndex + "-clone";
-        rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        sourceIndex = getTestName().toLowerCase(Locale.ROOT) + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
         numOfShards = randomIntBetween(1, 4);
-        numOfReplicas = randomIntBetween(0, 3);
+        numOfReplicas = 0; // Since this is a single node, we cannot have replicas
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -169,6 +168,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
+        // Clone the source index before rollup deletes it
+        String sourceIndexClone = cloneSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
@@ -217,6 +218,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
+        // Clone the source index before rollup deletes it
+        String sourceIndexClone = cloneSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
@@ -238,14 +241,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
+        // Clone the source index before rollup deletes it
+        String sourceIndexClone = cloneSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
 
     public void testCannotRollupIndexWithNoMetrics() {
         // Create a source index that contains no metric fields in its mapping
-        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        sourceIndexClone = sourceIndex + "-clone";
+        String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
@@ -270,7 +274,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .get();
 
         RollupActionConfig config = new RollupActionConfig(randomInterval());
-        // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
         Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
@@ -325,10 +328,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(dataStreamName, sourceSupplier);
 
-        this.sourceIndex = rollover(dataStreamName).getOldIndex();
-        this.sourceIndexClone = sourceIndex + "-clone";
-        this.rollupIndex = ".rollup-" + sourceIndex;
+        String sourceIndex = rollover(dataStreamName).getOldIndex();
         prepareSourceIndex(sourceIndex);
+        // Clone the source index before rollup deletes it
+        String sourceIndexClone = cloneSourceIndex(sourceIndex);
+        String rollupIndex = "rollup-" + sourceIndex;
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
 
@@ -354,7 +358,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
     }
 
-    private void cloneSourceIndex(String sourceIndex, String sourceIndexClone) {
+    /**
+     * The source index is deleted at the end of the rollup process.
+     * We clone the source index, so that we validate rollup results against the
+     * source index clone.
+     *
+     * @return the name of the source index clone
+     */
+    private String cloneSourceIndex(String sourceIndex) {
+        String sourceIndexClone = "clone-" + sourceIndex;
         ResizeResponse r = client().admin()
             .indices()
             .prepareResizeIndex(sourceIndex, sourceIndexClone)
@@ -364,6 +376,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             )
             .get();
         assertTrue(r.isAcknowledged());
+        return sourceIndexClone;
     }
 
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
@@ -386,7 +399,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
                     // A duplicate event was created by random generator. We should not fail for this
                     // reason.
-                    logger.info("We tried to insert a duplicate: " + response.getFailureMessage());
+                    logger.debug("We tried to insert a duplicate: [{}]", response.getFailureMessage());
                     duplicates++;
                 } else {
                     fail("Failed to index data: " + bulkResponse.buildFailureMessage());
@@ -394,7 +407,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         }
         int docsIndexed = docCount - duplicates;
-        logger.info("Indexed [" + docsIndexed + "] documents");
+        logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
     }
 
@@ -406,11 +419,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
             .get();
         assertTrue(r.isAcknowledged());
-
-        // The source index is deleted at the end of the rollup process.
-        // We clone the source index, so that we validate rollup results against the
-        // source index clone.
-        cloneSourceIndex(sourceIndex, sourceIndexClone);
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {

@@ -23,7 +23,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * TODO: Add docs
+ * This Action is the Operator version of RestClusterUpdateSettingsAction
+ *
+ * It is used by the OperatorClusterStateController to update the persistent cluster settings.
+ * Since transient cluster settings are deprecated, this action doesn't support updating cluster settings.
  */
 public class OperatorClusterUpdateSettingsAction implements OperatorHandler<ClusterUpdateSettingsRequest> {
 

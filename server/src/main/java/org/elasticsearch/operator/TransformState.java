@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.ClusterState;
 import java.util.Set;
 
 /**
- * TODO: Add docs
+ * A ClusterState wrapper used by the OperatorClusterStateController to pass the
+ * current state as well as previous keys set by an OperatorHandler to each transform
+ * step of the cluster state update.
+ *
  */
 public record TransformState(ClusterState state, Set<String> keys) {}

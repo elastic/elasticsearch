@@ -1033,7 +1033,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                     matchesMap().entry(
                                         "query",
                                         "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
-                                    ).entry("segments_counted_in_constant_time", 0)
+                                    ).entry("segments_counted_in_constant_time", greaterThanOrEqualTo(1))
                                 )
                             )
                     )
@@ -1092,7 +1092,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                     matchesMap().entry(
                                         "query",
                                         "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
-                                    ).entry("segments_counted_in_constant_time", 0)
+                                    ).entry("segments_counted_in_constant_time", greaterThanOrEqualTo(1))
                                 )
                             )
                     )
@@ -1154,7 +1154,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                     matchesMap().entry(
                                         "query",
                                         "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
-                                    ).entry("segments_counted_in_constant_time", 0)
+                                    ).entry("segments_counted_in_constant_time", greaterThanOrEqualTo(1))
                                 )
                             )
                     )

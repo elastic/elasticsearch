@@ -878,7 +878,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                                 "filters",
                                                 matchesList().item(
                                                     matchesMap().entry("query", "FieldExistsQuery [field=f]")
-                                                        .entry("specialized_for", "docvalues_field_exists")
                                                         .entry("segments_counted_in_constant_time", greaterThan(0))
                                                 )
                                             )

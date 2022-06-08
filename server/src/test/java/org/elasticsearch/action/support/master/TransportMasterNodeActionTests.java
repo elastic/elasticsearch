@@ -14,12 +14,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -30,6 +32,8 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
+import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,6 +47,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -65,6 +70,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -251,6 +257,57 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return null; // default implementation, overridden in specific tests
+        }
+
+        @Override
+        protected Optional<String> operatorHandlerName() {
+            return Optional.of("test_operator");
+        }
+    }
+
+    class FakeClusterStateUpdateAction extends TransportMasterNodeAction<ClusterUpdateSettingsRequest, Response> {
+        FakeClusterStateUpdateAction(
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            String executor
+        ) {
+            super(
+                actionName,
+                transportService,
+                clusterService,
+                threadPool,
+                new ActionFilters(new HashSet<>()),
+                ClusterUpdateSettingsRequest::new,
+                TestIndexNameExpressionResolver.newInstance(),
+                Response::new,
+                executor
+            );
+        }
+
+        @Override
+        protected void masterOperation(
+            Task task,
+            ClusterUpdateSettingsRequest request,
+            ClusterState state,
+            ActionListener<Response> listener
+        ) {}
+
+        @Override
+        protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
+            return null;
+        }
+
+        @Override
+        protected Optional<String> operatorHandlerName() {
+            return Optional.of(OperatorClusterUpdateSettingsAction.KEY);
+        }
+
+        @Override
+        protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+            Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+            return allSettings.keySet();
         }
     }
 
@@ -686,7 +743,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                         indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
                     );
             }
-
         };
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -695,6 +751,50 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ExecutionException ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(MasterNotDiscoveredException.class));
         assertThat(ex.getCause().getCause(), instanceOf(ClusterBlockException.class));
+    }
+
+    public void testRejectOperatorConflictClusterStateUpdate() {
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.KEY).keys(Set.of("a", "b"))
+            .build();
+        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata.Builder(OperatorClusterUpdateSettingsAction.KEY).keys(
+            Set.of("e", "f")
+        ).build();
+
+        OperatorMetadata omOne = OperatorMetadata.builder("namespace_one").putHandler(hmOne).build();
+        OperatorMetadata omTwo = OperatorMetadata.builder("namespace_two").putHandler(hmThree).build();
+
+        Metadata metadata = Metadata.builder().putOperatorState(omOne).putOperatorState(omTwo).build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        Action noHandler = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+
+        // nothing should happen here, since the request doesn't touch any of the operator key
+        noHandler.validateForOperatorState(new Request(), clusterState);
+
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().put("a", "a value").build()
+        ).transientSettings(Settings.builder().put("e", "e value").build());
+
+        FakeClusterStateUpdateAction action = new FakeClusterStateUpdateAction(
+            "internal:testClusterSettings",
+            transportService,
+            clusterService,
+            threadPool,
+            ThreadPool.Names.SAME
+        );
+
+        assertTrue(
+            expectThrows(IllegalStateException.class, () -> action.validateForOperatorState(request, clusterState)).getMessage()
+                .contains("with errors: [a] set in operator mode by [namespace_one]\n" + "[e] set in operator mode by [namespace_two]")
+        );
+
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().put("m", "m value").build()
+        ).transientSettings(Settings.builder().put("n", "n value").build());
+
+        // this should just work, no conflicts
+        action.validateForOperatorState(okRequest, clusterState);
     }
 
     private Runnable blockAllThreads(String executorName) throws Exception {

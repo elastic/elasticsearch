@@ -48,33 +48,6 @@ types:
 When synthetic `_source` is enabled, retrieved documents undergo some
 modifications compared to the original JSON.
 
-[[synthetic-source-modifications-alphabetical]]
-====== Alphabetical sorting
-Synthetic `_source` fields are sorted alphabetically. For example:
-
-[source,console,id=synthetic-source-sorted-example]
-----
-PUT idx/_doc/1
-{
-  "foo": 1,
-  "bar": 2,
-  "baz": 3
-}
-----
-// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
-
-Will become:
-
-[source,console-result]
-----
-{
-  "bar": 2,
-  "baz": 3,
-  "foo": 1
-}
-----
-// TEST[s/^/{"_source":/ s/\n$/}/]
-
 [[synthetic-source-modifications-leaf-arrays]]
 ====== Arrays moved to leaf fields
 Synthetic `_source` arrays are moved to leaves. For example:
@@ -135,3 +108,12 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
+
+[[synthetic-source-modifications-alphabetical]]
+====== Alphabetical sorting
+Synthetic `_source` fields are sorted alphabetically. The
+https://www.rfc-editor.org/rfc/rfc7159.html[JSON RFC] defines objects as
+"an unordered collection of zero or more name/value pairs" so applications
+shouldn't care but without synthetic `_source` the original ordering is
+preserved and some applications may, counter to the spec, do something with
+that ordering.

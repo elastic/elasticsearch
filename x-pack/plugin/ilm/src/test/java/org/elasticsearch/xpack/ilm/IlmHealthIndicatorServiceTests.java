@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -38,14 +39,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     DATA,
                     GREEN,
                     "ILM is running",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -57,14 +60,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     DATA,
                     YELLOW,
                     "ILM is not running",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -76,14 +81,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     DATA,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -94,14 +101,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     DATA,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );

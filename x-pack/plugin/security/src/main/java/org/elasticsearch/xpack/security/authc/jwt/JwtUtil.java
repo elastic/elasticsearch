@@ -129,11 +129,9 @@ public class JwtUtil {
                     );
                 }
                 LOGGER.warn(
-                    "Setting ["
-                        + clientAuthenticationSharedSecretConfigKey
-                        + "] value ["
-                        + JwtRealmSettings.ClientAuthenticationType.NONE.value()
-                        + "] may not be secure. Unauthorized clients may be able to submit JWTs from the same issuer."
+                    "Setting [{}] value [{}] may not be secure. Unauthorized clients may be able to submit JWTs from the same issuer.",
+                    clientAuthenticationSharedSecretConfigKey,
+                    JwtRealmSettings.ClientAuthenticationType.NONE.value()
                 );
                 break;
         }
@@ -151,14 +149,14 @@ public class JwtUtil {
                 } else if (expectedSecret.equals(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret did not match.");
                 }
-                LOGGER.trace("Accepted client. Authentication type is [" + type + "] and secret matched.");
+                LOGGER.trace("Accepted client. Authentication type is [{}] and secret matched.", type);
                 break;
             case NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
-                    LOGGER.debug("Accepted client. Authentication type [" + type + "]. Secret is present but ignored.");
+                    LOGGER.debug("Accepted client. Authentication type [{}]. Secret is present but ignored.", type);
                 } else {
-                    LOGGER.trace("Accepted client. Authentication type [" + type + "].");
+                    LOGGER.trace("Accepted client. Authentication type [{}].", type);
                 }
                 break;
         }
@@ -181,7 +179,7 @@ public class JwtUtil {
             } else if (uriString.startsWith("http")) {
                 throw new SettingsException("Not allowed to use HTTP URI [" + uriString + "]. Only HTTPS is supported.");
             } else {
-                LOGGER.trace("Not a HTTPS URI [" + uriString + "].");
+                LOGGER.trace("Not a HTTPS URI [{}].", uriString);
             }
         }
         return null;

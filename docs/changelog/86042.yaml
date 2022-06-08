@@ -1,0 +1,5 @@
+pr: 86042
+summary: Fix `AdaptingAggregator` `toString` method
+area: Aggregations
+type: bug
+issues: []

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -175,7 +175,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     }
 
     @AwaitsFix(bugUrl = "Cannot be fixed until we move estimation to config and not rely on definition length only")
-    public void testMLAutoscalingForLargeModelAllocation() {
+    public void testMLAutoscalingForLargeModelAssignment() {
         String modelId = "really_big_model";
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(
@@ -223,7 +223,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
             "requesting scale up as number of jobs in queues exceeded configured limit "
-                + "or there is at least one trained model waiting for allocation "
+                + "or there is at least one trained model waiting for assignment "
                 + "and current capacity is not large enough for waiting jobs",
             expectedTierBytes,
             expectedNodeBytes

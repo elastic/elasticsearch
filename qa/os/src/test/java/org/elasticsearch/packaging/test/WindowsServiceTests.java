@@ -113,19 +113,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         sh.run(serviceScript + " remove");
     }
 
-    public void test13InstallMissingBundledJdk() throws IOException {
-        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            Result result = sh.runIgnoreExitCode(serviceScript + " install");
-            assertThat(result.exitCode(), equalTo(1));
-            assertThat(result.stderr(), containsString("could not find java in bundled JDK"));
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
-    }
-
     public void test14InstallBadJavaHome() throws IOException {
         sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
         Result result = sh.runIgnoreExitCode(serviceScript + " install");

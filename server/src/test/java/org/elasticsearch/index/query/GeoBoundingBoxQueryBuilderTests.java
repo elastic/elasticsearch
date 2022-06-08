@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -178,6 +179,35 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, right, bottom, left);
     }
 
+    public void testTopAndBottomCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double topBottom = builder.topLeft().getLat();
+        double left = builder.topLeft().getLon();
+        double right = builder.bottomRight().getLon();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(topBottom, left, topBottom, right);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(topBottom, left, topBottom, right);
+    }
+
+    public void testLeftAndRightCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double top = builder.topLeft().getLat();
+        double leftRight = builder.topLeft().getLon();
+        double bottom = builder.bottomRight().getLat();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, leftRight, bottom, leftRight);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(top, leftRight, bottom, leftRight);
+    }
+
+    public void testTopBottomAndLeftRightCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double topBottom = builder.topLeft().getLat();
+        double leftRight = builder.topLeft().getLon();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(topBottom, leftRight, topBottom, leftRight);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(topBottom, leftRight, topBottom, leftRight);
+    }
+
     public void testStrictnessDefault() {
         assertFalse(
             "Someone changed the default for coordinate validation - were the docs changed as well?",
@@ -195,27 +225,13 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertEquals(IndexOrDocValuesQuery.class, query.getClass());
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-            assertEquals(
-                LatLonPoint.newBoxQuery(
-                    expectedFieldName,
-                    queryBuilder.bottomRight().lat(),
-                    queryBuilder.topLeft().lat(),
-                    queryBuilder.topLeft().lon(),
-                    queryBuilder.bottomRight().lon()
-                ),
-                indexQuery
-            );
+            double qMinLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(queryBuilder.bottomRight().lat()));
+            double qMaxLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(queryBuilder.topLeft().lat()));
+            double qMinLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(queryBuilder.topLeft().lon()));
+            double qMaxLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(queryBuilder.bottomRight().lon()));
+            assertEquals(LatLonPoint.newBoxQuery(expectedFieldName, qMinLat, qMaxLat, qMinLon, qMaxLon), indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(
-                LatLonDocValuesField.newSlowBoxQuery(
-                    expectedFieldName,
-                    queryBuilder.bottomRight().lat(),
-                    queryBuilder.topLeft().lat(),
-                    queryBuilder.topLeft().lon(),
-                    queryBuilder.bottomRight().lon()
-                ),
-                dvQuery
-            );
+            assertEquals(LatLonDocValuesField.newSlowBoxQuery(expectedFieldName, qMinLat, qMaxLat, qMinLon, qMaxLon), dvQuery);
         } else {
             assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }

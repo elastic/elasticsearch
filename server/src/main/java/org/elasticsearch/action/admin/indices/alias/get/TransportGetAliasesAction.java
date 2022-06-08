@@ -192,7 +192,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             );
         }
         if (netNewSystemIndices.isEmpty() == false) {
-            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
+            throw SystemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
         }
     }
 }

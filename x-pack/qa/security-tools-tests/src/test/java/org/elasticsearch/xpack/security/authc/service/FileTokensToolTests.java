@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -33,7 +36,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
@@ -103,7 +105,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected CreateFileTokenCommand newCreateFileTokenCommand() {
                 return new CreateFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -113,7 +115,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected DeleteFileTokenCommand newDeleteFileTokenCommand() {
                 return new DeleteFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -123,7 +125,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected ListFileTokenCommand newListFileTokenCommand() {
                 return new ListFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };

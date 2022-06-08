@@ -2,6 +2,7 @@ default-scenarios = ["precommit_master", "precommit_branch"]
 
 precommit_master {
     title = "precommit (master)"
+    versions = ["@masterWrapper@"]
     cleanup-tasks = ["clean"]
     tasks = ["precommit"]
     gradle-args = ["--no-scan", "--no-build-cache"]
@@ -19,6 +20,7 @@ precommit_master {
 
 precommit_branch {
     title = "precommit (@testGitCommit@)"
+    versions = ["@branchWrapper@"]
     cleanup-tasks = ["clean"]
     tasks = ["precommit"]
     gradle-args = ["--no-scan", "--no-build-cache"]

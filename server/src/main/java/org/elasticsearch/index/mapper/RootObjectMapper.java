@@ -166,7 +166,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(
+        private static boolean processField(
             RootObjectMapper.Builder builder,
             String fieldName,
             Object fieldNode,

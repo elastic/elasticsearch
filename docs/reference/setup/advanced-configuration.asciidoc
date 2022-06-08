@@ -42,23 +42,23 @@ or a range of versions followed by a colon.
 +
 [source,text]
 -------------------------------------
-8:-Xmx2g
+17:-Xmx2g
 -------------------------------------
 
 * Apply a setting to a range of versions:
 +
 [source,text]
 -------------------------------------
-8-9:-Xmx2g
+17-18:-Xmx2g
 -------------------------------------
 +
 To apply a setting to a specific version and any later versions,
-omit the upper bound of the range. 
+omit the upper bound of the range.
 For example, this setting applies to Java 8 and later:
 +
 [source,text]
 -------------------------------------
-8-:-Xmx2g
+17-:-Xmx2g
 -------------------------------------
 
 Blank lines are ignored. Lines beginning with `#` are treated as comments
@@ -69,7 +69,7 @@ as valid JVM arguments are rejected and {es} will fail to start.
 ===== Use environment variables to set JVM options
 
 In production, use JVM options files to override the
-default settings. In testing and development environments, 
+default settings. In testing and development environments,
 you can also set JVM options through the `ES_JAVA_OPTS` environment variable.
 
 [source,sh]
@@ -90,8 +90,6 @@ By default, {es} automatically sets the JVM heap size based on a node's
 <<node-roles,roles>> and total memory.
 Using the default sizing is recommended for most production environments.
 
-NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
-a custom JRE location, a Java 14 or later JRE.
 
 To override the default heap size, set the minimum and maximum heap size
 settings, `Xms` and `Xmx`. The minimum and maximum values must be the same.
@@ -149,3 +147,28 @@ options. We do not recommend using `ES_JAVA_OPTS` in production.
 
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
+
+[[readiness-tcp-port]]
+===== Enable the Elasticsearch TCP readiness port
+
+preview::["This functionality is in technical preview and may be changed or removed in a future release.
+It is intended for internal, experimental use. Features in technical preview are not subject to the support
+SLA of official GA features."]
+
+If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
+ready when it has successfully joined a cluster. In a single node configuration, the node is
+said to be ready, when it's able to accept requests.
+
+To enable the readiness TCP port, use the `readiness.port` setting. The port is
+always bound to the loopback address, which defaults to the IPv4 loopback address `127.0.0.1`.
+To bind the readiness port to the IPv6 loopback address `::1`,
+add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
+
+If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
+for shutdown, the readiness port is immediately closed.
+
+A successful connection to the readiness TCP port signals that the {es} node is ready. When a client
+connects to the readiness port, the server simply terminates the socket connection. No data is sent back
+to the client. If a client cannot connect to the readiness port, the node is not ready.
+
+

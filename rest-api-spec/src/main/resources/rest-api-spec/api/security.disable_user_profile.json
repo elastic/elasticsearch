@@ -5,7 +5,8 @@
       "description":"Disables a user profile so it's not visible in user profile searches."
     },
     "stability":"experimental",
-    "visibility":"public",
+    "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -109,6 +109,7 @@ public class InternalRealmsTests extends ESTestCase {
         assertThat(registeredOrderKeys, Matchers.equalTo(configurableOrderKeys));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85407")
     public void testJwtRealmDependsOnBuildType() {
         // Whether the JWT realm is registered depends on the build type
         if (Build.CURRENT.isSnapshot()) {

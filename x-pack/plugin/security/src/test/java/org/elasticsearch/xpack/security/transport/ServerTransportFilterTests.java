@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -153,7 +154,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
         ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("test", "superuser"))
+            .realmRef(new RealmRef("test", "test", "node1"))
+            .build(false);
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(internalAction), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication)).when(authcService)
             .authenticate(eq(nodeOrShardAction), eq(request), eq(true), anyActionListener());

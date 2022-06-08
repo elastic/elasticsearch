@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -123,6 +124,11 @@ public final class FieldAliasMapper extends Mapper {
                 throw new MapperParsingException("The [path] property must be specified for field [" + name + "].");
             }
             return builder.path(path);
+        }
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
         }
     }
 

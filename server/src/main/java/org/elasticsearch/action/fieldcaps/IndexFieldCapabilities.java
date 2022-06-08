@@ -35,7 +35,7 @@ public class IndexFieldCapabilities implements Writeable {
     private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
-    public static IndexFieldCapabilities withMetadata(IndexFieldCapabilities input, boolean isMetadata) {
+    static IndexFieldCapabilities withMetadata(IndexFieldCapabilities input, boolean isMetadata) {
         return new IndexFieldCapabilities(
             input.getName(),
             input.getType(),

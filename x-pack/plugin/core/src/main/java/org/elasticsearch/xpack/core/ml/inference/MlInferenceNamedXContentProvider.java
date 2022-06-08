@@ -600,11 +600,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceConfigUpdate.class,
-                TextEmbeddingConfigUpdate.NAME,
-                TextClassificationConfigUpdate::new
-            )
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextEmbeddingConfigUpdate.NAME, TextEmbeddingConfigUpdate::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(

@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.geometry.Rectangle;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -116,7 +116,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         request.getX(),
                         request.getY(),
                         request.getExtent(),
-                        SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS
+                        request.getBuffer()
                     );
                     final InternalGeoGrid<?> grid = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(GRID_FIELD)
@@ -177,15 +177,12 @@ public class RestVectorTileAction extends BaseRestHandler {
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
         searchRequestBuilder.setTrackTotalHitsUpTo(request.getTrackTotalHitsUpTo());
-        searchRequestBuilder.addFetchField(
-            new FieldAndFormat(
-                request.getField(),
-                "mvt(" + request.getZ() + "/" + request.getX() + "/" + request.getY() + "@" + request.getExtent() + ")"
-            )
-        );
         for (FieldAndFormat field : request.getFieldAndFormats()) {
             searchRequestBuilder.addFetchField(field);
         }
+        // added last in case there is a wildcard, the last one is picked
+        String args = request.getZ() + "/" + request.getX() + "/" + request.getY() + "@" + request.getExtent() + ":" + request.getBuffer();
+        searchRequestBuilder.addFetchField(new FieldAndFormat(request.getField(), "mvt(" + args + ")"));
         searchRequestBuilder.setRuntimeMappings(request.getRuntimeMappings());
         // For Hex aggregation we might need to buffer the bounding box
         final Rectangle boxFilter = request.getGridAgg().bufferTile(request.getBoundingBox(), request.getZ(), request.getGridPrecision());
@@ -257,7 +254,6 @@ public class RestVectorTileAction extends BaseRestHandler {
     @SuppressWarnings("unchecked")
     private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request) throws IOException {
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());
-        final List<FieldAndFormat> fields = request.getFieldAndFormats();
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (SearchHit searchHit : hits) {
@@ -270,12 +266,10 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
-                if (fields != null) {
-                    for (FieldAndFormat field : fields) {
-                        final DocumentField documentField = searchHit.field(field.field);
-                        if (documentField != null) {
-                            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field.field, documentField.getValue());
-                        }
+                final Map<String, DocumentField> fields = searchHit.getDocumentFields();
+                for (String field : fields.keySet()) {
+                    if (request.getField().equals(field) == false) {
+                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field, fields.get(field).getValue());
                     }
                 }
                 hitsLayerBuilder.addFeatures(featureBuilder);

@@ -243,7 +243,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
-    private BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
+    private static BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
         try {
             return XContentHelper.toXContent((builder, params) -> {
                 IndexTemplateMetadata.Builder.toInnerXContentWithTypes(templateMetadata, builder, params);

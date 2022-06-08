@@ -112,7 +112,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
             statsRequestStats = in.readOptionalWriteable(StatsRequestStats::new);
         }
     }
@@ -287,7 +287,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
             out.writeOptionalWriteable(statsRequestStats);
         }
     }

@@ -216,7 +216,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+    private static QueryBuilder getApplicationNameQuery(Collection<String> applications) {
         if (applications.contains("*")) {
             return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
         }
@@ -248,7 +248,7 @@ public class NativePrivilegeStore {
         return boolQuery;
     }
 
-    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+    private static ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
         logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
         if (source == null) {
             return null;
@@ -307,7 +307,7 @@ public class NativePrivilegeStore {
     /**
      * Filter to get all privilege descriptors that have any of the given privilege names.
      */
-    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
+    private static Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
         Collection<ApplicationPrivilegeDescriptor> descriptors,
         Collection<String> privilegeNames
     ) {

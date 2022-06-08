@@ -8,7 +8,11 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.PointRangeQuery;
@@ -277,6 +281,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             if (fieldContext.fieldType() instanceof DateFieldType == false) {
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
+
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of
@@ -296,6 +301,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     // Check the search index for bounds
                     if (fieldContext.fieldType().isIndexed()) {
+                        log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
                          * search index (isSearchable) and the resolution which
@@ -310,8 +316,24 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         }
                     }
 
-                    // Check the query for bounds
-                    if (context.query() != null) {
+                    boolean isMultiValue = false;
+                    for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
+                        if (fieldContext.fieldType().isIndexed()) {
+                            PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
+                            if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
+                                isMultiValue = true;
+                            }
+                        } else if (fieldContext.fieldType().hasDocValues()) {
+                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                                isMultiValue = true;
+                            }
+                        }
+                    }
+
+                    // Check the query for bounds. If the field is multivalued, we can't apply query bounds, because a document that
+                    // matches the query might also have values outside the query, which would not be included in any range.
+                    if (context.query() != null && false == isMultiValue) {
+                        log.trace("Attempting to apply query bound rounding");
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
@@ -402,6 +424,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return DocValueFormat.BOOLEAN;
         }
     };
+
+    public static final Logger log = LogManager.getLogger(CoreValuesSourceType.class);
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

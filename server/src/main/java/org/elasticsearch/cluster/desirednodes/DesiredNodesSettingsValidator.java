@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.desirednodes;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,15 +22,9 @@ import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class DesiredNodesSettingsValidator {
-    private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {
-        public String externalId() {
-            return externalId == null ? "<missing>" : externalId;
-        }
-    }
+    private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
     private final ClusterSettings clusterSettings;
 
@@ -39,9 +32,8 @@ public class DesiredNodesSettingsValidator {
         this.clusterSettings = clusterSettings;
     }
 
-    public void validate(DesiredNodes desiredNodes) {
+    public void validate(List<DesiredNode> nodes) {
         final List<DesiredNodeValidationError> validationErrors = new ArrayList<>();
-        final List<DesiredNode> nodes = desiredNodes.nodes();
         for (int i = 0; i < nodes.size(); i++) {
             final DesiredNode node = nodes.get(i);
             try {
@@ -79,12 +71,6 @@ public class DesiredNodesSettingsValidator {
         if (node.version().before(Version.CURRENT)) {
             throw new IllegalArgumentException(
                 format(Locale.ROOT, "Illegal node version [%s]. Only [%s] or newer versions are supported", node.version(), Version.CURRENT)
-            );
-        }
-
-        if (node.externalId() == null) {
-            throw new IllegalArgumentException(
-                format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
             );
         }
 

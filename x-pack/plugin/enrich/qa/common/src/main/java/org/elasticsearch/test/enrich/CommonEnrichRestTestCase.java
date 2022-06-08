@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,8 +34,28 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
+    private List<String> cleanupPipelines = new ArrayList<>();
+
+    /**
+     * Registers a pipeline for subsequent post-test clean up (i.e. DELETE),
+     * see {@link CommonEnrichRestTestCase#deletePipelinesAndPolicies()}.
+     *
+     * @param pipeline the name of the pipeline to clean up
+     */
+    public void cleanupPipelineAfterTest(String pipeline) {
+        cleanupPipelines.add(pipeline);
+    }
+
     @After
-    public void deletePolicies() throws Exception {
+    public void deletePipelinesAndPolicies() throws Exception {
+        // delete pipelines
+        for (String pipeline : cleanupPipelines) {
+            String endpoint = "/_ingest/pipeline/" + pipeline;
+            assertOK(client().performRequest(new Request("DELETE", endpoint)));
+        }
+        cleanupPipelines.clear();
+
+        // delete all policies
         Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
         List<Map<?, ?>> policies = unsafeGetProperty(responseMap, "policies");
 
@@ -60,7 +81,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         return (Property) map.get(key);
     }
 
-    private void setupGenericLifecycleTest(boolean deletePipeilne, String field, String type, String value) throws Exception {
+    private void setupGenericLifecycleTest(String field, String type, String value) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");
 
@@ -114,6 +135,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
               "processors": [ { "enrich": { "policy_name": "my_policy", "field": "%s", "target_field": "entry" } } ]
             }""", field));
         assertOK(client().performRequest(putPipelineRequest));
+        cleanupPipelineAfterTest("my_pipeline");
 
         // Index document using pipeline with enrich processor:
         indexRequest = new Request("PUT", "/my-index/_doc/1");
@@ -132,45 +154,40 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         assertThat(entry.get("tldRank"), equalTo(7));
         Object originalMatchValue = ((Map<?, ?>) response.get("_source")).get(field);
         assertThat(originalMatchValue, equalTo(value));
-
-        if (deletePipeilne) {
-            // delete the pipeline so the policies can be deleted
-            client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
-        }
     }
 
     public void testBasicFlowKeyword() throws Exception {
-        setupGenericLifecycleTest(true, "host", "match", "elastic.co");
+        setupGenericLifecycleTest("host", "match", "elastic.co");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowDate() throws Exception {
-        setupGenericLifecycleTest(true, "date", "range", "2021-09-06");
+        setupGenericLifecycleTest("date", "range", "2021-09-06");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowInteger() throws Exception {
-        setupGenericLifecycleTest(true, "integer", "range", "41");
+        setupGenericLifecycleTest("integer", "range", "41");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowLong() throws Exception {
-        setupGenericLifecycleTest(true, "long", "range", "8411017");
+        setupGenericLifecycleTest("long", "range", "8411017");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowDouble() throws Exception {
-        setupGenericLifecycleTest(true, "double", "range", "15.15");
+        setupGenericLifecycleTest("double", "range", "15.15");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowFloat() throws Exception {
-        setupGenericLifecycleTest(true, "float", "range", "10000.66666");
+        setupGenericLifecycleTest("float", "range", "10000.66666");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowIp() throws Exception {
-        setupGenericLifecycleTest(true, "ip", "range", "100.120.140.160");
+        setupGenericLifecycleTest("ip", "range", "100.120.140.160");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
@@ -198,8 +215,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public void testDeleteExistingPipeline() throws Exception {
-        // lets not delete the pipeline at first, to test the failure
-        setupGenericLifecycleTest(false, "host", "match", "elastic.co");
+        setupGenericLifecycleTest("host", "match", "elastic.co");
 
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/another_pipeline");
         putPipelineRequest.setJsonEntity("""
@@ -207,6 +223,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
               "processors": [ { "enrich": { "policy_name": "my_policy", "field": "host", "target_field": "entry" } } ]
             }""");
         assertOK(client().performRequest(putPipelineRequest));
+        cleanupPipelineAfterTest("another_pipeline");
 
         ResponseException exc = expectThrows(
             ResponseException.class,
@@ -215,10 +232,6 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         assertTrue(exc.getMessage().contains("Could not delete policy [my_policy] because a pipeline is referencing it ["));
         assertTrue(exc.getMessage().contains("another_pipeline"));
         assertTrue(exc.getMessage().contains("my_pipeline"));
-
-        // delete the pipelines so the policies can be deleted
-        client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
-        client().performRequest(new Request("DELETE", "/_ingest/pipeline/another_pipeline"));
 
         // verify the delete did not happen
         Request getRequest = new Request("GET", "/_enrich/policy/my_policy");

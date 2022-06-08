@@ -129,7 +129,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         return factory.createAggregation(newBuckets);
     }
 
-    private int clamp(int index, List<Double> list) {
+    private static int clamp(int index, List<Double> list) {
         if (index < 0) {
             return 0;
         }

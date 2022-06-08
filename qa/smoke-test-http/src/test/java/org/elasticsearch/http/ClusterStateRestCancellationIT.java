@@ -16,7 +16,6 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,7 +44,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
     private void updateClusterState(ClusterService clusterService, UnaryOperator<ClusterState> updateOperator) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        clusterService.submitStateUpdateTask("update state", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("update state", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return updateOperator.apply(currentState);
@@ -60,7 +59,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         future.actionGet();
     }
 

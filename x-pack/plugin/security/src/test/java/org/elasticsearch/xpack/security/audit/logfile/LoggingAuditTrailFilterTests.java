@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -1007,7 +1009,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1051,7 +1053,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1219,6 +1221,20 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             allFilteredRealms.addAll(filteredRealms);
             settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.policy" + i + ".realms", filteredRealms);
         }
+        // For SystemUser
+        final boolean filterFallbackRealm = randomBoolean();
+        if (filterFallbackRealm) {
+            settingsBuilder.putList(
+                "xpack.security.audit.logfile.events.ignore_filters.policy42.realms",
+                AuthenticationField.FALLBACK_REALM_NAME
+            );
+        } else {
+            settingsBuilder.putList(
+                "xpack.security.audit.logfile.events.ignore_filters.policy42.realms",
+                AuthenticationField.ATTACH_REALM_NAME
+            );
+        }
+
         // a filter for a field consisting of an empty string ("") or an empty list([])
         // will match events that lack that field
         final boolean filterMissingRealm = randomBoolean();
@@ -1362,7 +1378,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, filteredRealm),
+            createSystemUserAuthentication(filterFallbackRealm),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1373,7 +1389,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, unfilteredRealm),
+            createSystemUserAuthentication(false == filterFallbackRealm),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1453,7 +1469,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, filteredRealm),
+            createSystemUserAuthentication(filterFallbackRealm),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1464,7 +1480,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, unfilteredRealm),
+            createSystemUserAuthentication(false == filterFallbackRealm),
             "internal:_action",
             request,
             authzInfo(new String[] { "role1" })
@@ -1822,7 +1838,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(unfilteredRoles)
@@ -1833,7 +1849,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(filteredRoles)
@@ -1865,7 +1881,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(unfilteredRoles)
@@ -1876,7 +1892,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             request,
             authzInfo(filteredRoles)
@@ -2239,7 +2255,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             noIndexRequest,
             authzInfo(new String[] { "role1" })
@@ -2258,7 +2274,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             new MockIndicesRequest(threadContext, unfilteredIndices),
             authzInfo(new String[] { "role1" })
@@ -2269,7 +2285,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             new MockIndicesRequest(threadContext, filteredIndices),
             authzInfo(new String[] { "role1" })
@@ -2312,7 +2328,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             noIndexRequest,
             authzInfo(new String[] { "role1" })
@@ -2331,7 +2347,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             new MockIndicesRequest(threadContext, unfilteredIndices),
             authzInfo(new String[] { "role1" })
@@ -2342,7 +2358,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessDenied(
             randomAlphaOfLength(8),
-            createAuthentication(SystemUser.INSTANCE, "effectiveRealmName"),
+            createSystemUserAuthentication(randomBoolean()),
             "internal:_action",
             new MockIndicesRequest(threadContext, filteredIndices),
             authzInfo(new String[] { "role1" })
@@ -2744,15 +2760,26 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         return ans;
     }
 
-    private static Authentication createAuthentication(User user, String effectiveRealmName) {
-        if (user.isRunAs()) {
-            return new Authentication(
-                user,
-                new RealmRef(UNFILTER_MARKER + randomAlphaOfLength(4), "test", "foo"),
-                new RealmRef(effectiveRealmName, "up", "by")
-            );
+    private static Authentication createSystemUserAuthentication(boolean isFallback) {
+        if (isFallback) {
+            return Authentication.newInternalFallbackAuthentication(SystemUser.INSTANCE, randomAlphaOfLengthBetween(3, 8));
         } else {
-            return new Authentication(user, new RealmRef(effectiveRealmName, "test", "foo"), null);
+            return Authentication.newInternalAuthentication(SystemUser.INSTANCE, Version.CURRENT, randomAlphaOfLengthBetween(3, 8));
+        }
+    }
+
+    private static Authentication createAuthentication(User user, String effectiveRealmName) {
+        assert false == User.isInternal(user);
+        if (user.isRunAs()) {
+            return AuthenticationTestHelper.builder()
+                .user(user.authenticatedUser())
+                .realmRef(new RealmRef(UNFILTER_MARKER + randomAlphaOfLength(4), "test", "foo"))
+                .runAs()
+                .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
+                .realmRef(new RealmRef(effectiveRealmName, "up", "by"))
+                .build();
+        } else {
+            return AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef(effectiveRealmName, "test", "foo")).build(false);
         }
     }
 

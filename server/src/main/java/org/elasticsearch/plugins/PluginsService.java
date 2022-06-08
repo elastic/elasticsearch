@@ -115,6 +115,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Version.CURRENT,
                 "1.8",
                 pluginClass.getName(),
+                null,
                 Collections.emptyList(),
                 false,
                 PluginType.ISOLATED,
@@ -726,7 +727,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Codec.reloadCodecs(loader);
     }
 
-    private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
+    private static Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (ClassNotFoundException e) {
@@ -734,7 +735,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    private static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -765,7 +766,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private String signatureMessage(final Class<? extends Plugin> clazz) {
+    private static String signatureMessage(final Class<? extends Plugin> clazz) {
         return String.format(
             Locale.ROOT,
             "no public constructor of correct signature for [%s]; must be [%s], [%s], or [%s]",

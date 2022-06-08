@@ -22,11 +22,10 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessProbeTests extends ESTestCase {
-    private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {
         long refreshInterval = randomNonNegativeLong();
-        ProcessInfo info = probe.processInfo(refreshInterval);
+        ProcessInfo info = ProcessProbe.processInfo(refreshInterval);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());
         assertEquals(jvmInfo().pid(), info.getId());
@@ -34,7 +33,7 @@ public class ProcessProbeTests extends ESTestCase {
     }
 
     public void testProcessStats() {
-        ProcessStats stats = probe.processStats();
+        ProcessStats stats = ProcessProbe.processStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
 

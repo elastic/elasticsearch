@@ -158,11 +158,11 @@ final class SettingsUpdater {
         );
     }
 
-    private void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
+    private static void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
         logger.warn("ignoring existing unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
     }
 
-    private void logInvalidSetting(
+    private static void logInvalidSetting(
         final String settingType,
         final Map.Entry<String, String> e,
         final IllegalArgumentException ex,

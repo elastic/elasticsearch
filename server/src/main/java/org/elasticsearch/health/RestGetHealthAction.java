@@ -28,12 +28,20 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/_health"));
+        return List.of(
+            new Route(GET, "/_internal/_health"),
+            new Route(GET, "/_internal/_health/{component}"),
+            new Route(GET, "/_internal/_health/{component}/{indicator}")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request();
+        String componentName = request.param("component");
+        String indicatorName = request.param("indicator");
+        GetHealthAction.Request getHealthRequest = componentName == null
+            ? new GetHealthAction.Request()
+            : new GetHealthAction.Request(componentName, indicatorName);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }
 }

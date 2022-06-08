@@ -26,5 +26,4 @@ interface Lookups {
 
     <T> Provider<T> getProvider(Key<T> key);
 
-    <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> type);
 }

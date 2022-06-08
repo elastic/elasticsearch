@@ -9,17 +9,41 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DesiredNodeTests extends ESTestCase {
+
+    public void testExternalIdIsRequired() {
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            final String key = randomBoolean() ? NODE_NAME_SETTING.getKey() : NODE_EXTERNAL_ID_SETTING.getKey();
+            if (randomBoolean()) {
+                settings.put(key, "   ");
+            } else {
+                settings.putNull(key);
+            }
+        }
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+        );
+        assertThat(exception.getMessage(), is(equalTo("[node.name] or [node.external_id] is missing or empty")));
+    }
+
     public void testExternalIdFallbacksToNodeName() {
         final String nodeName = randomAlphaOfLength(10);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build();
@@ -64,6 +88,24 @@ public class DesiredNodeTests extends ESTestCase {
 
             DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
             assertFalse(desiredNode.hasMasterRole());
+        }
+    }
+
+    public void testGetRoles() {
+        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10));
+
+        final var role = randomBoolean() ? null : randomValueOtherThan(VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()));
+        if (role != null) {
+            settings.put(NODE_ROLES_SETTING.getKey(), role.roleName());
+        }
+
+        final var desiredNode = new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+
+        if (role != null) {
+            assertThat(desiredNode.getRoles(), hasSize(1));
+            assertThat(desiredNode.getRoles(), contains(role));
+        } else {
+            assertThat(desiredNode.getRoles(), contains(NODE_ROLES_SETTING.get(Settings.EMPTY).toArray()));
         }
     }
 }

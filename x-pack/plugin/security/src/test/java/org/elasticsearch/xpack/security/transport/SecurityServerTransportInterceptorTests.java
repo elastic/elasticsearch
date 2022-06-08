@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -82,9 +83,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsync() throws Exception {
-        final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("test", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final User user = new User("test", randomRoles());
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -127,9 +130,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
-        final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("test", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final User user = new User("test", randomRoles());
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -218,8 +223,20 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
         final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("joe", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
+        final Authentication authentication;
+        if (authUser == null) {
+            authentication = AuthenticationTestHelper.builder()
+                .user(new User("joe", randomRoles()))
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false);
+        } else {
+            authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(authUser)
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false)
+                .runAs(new User("joe", randomRoles()), null);
+        }
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -264,16 +281,28 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-        assertEquals(user, securityContext.getUser());
+        assertEquals(authentication.getUser(), sendingUser.get());
+        assertEquals(authentication.getUser(), securityContext.getUser());
         assertEquals(Version.CURRENT, authRef.get().getVersion());
         assertEquals(Version.CURRENT, authentication.getVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
         final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("joe", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
+        final Authentication authentication;
+        if (authUser == null) {
+            authentication = AuthenticationTestHelper.builder()
+                .user(new User("joe", randomRoles()))
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false);
+        } else {
+            authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(authUser)
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false)
+                .runAs(new User("joe", randomRoles()), null);
+        }
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -318,8 +347,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-        assertEquals(user, securityContext.getUser());
+        assertEquals(authentication.getUser(), sendingUser.get());
+        assertEquals(authentication.getUser(), securityContext.getUser());
         assertEquals(connectionVersion, authRef.get().getVersion());
         assertEquals(Version.CURRENT, authentication.getVersion());
     }

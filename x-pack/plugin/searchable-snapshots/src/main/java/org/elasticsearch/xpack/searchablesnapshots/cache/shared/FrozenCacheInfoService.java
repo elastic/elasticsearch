@@ -109,7 +109,7 @@ public class FrozenCacheInfoService {
                     @Override
                     public void onResponse(FrozenCacheInfoResponse response) {
                         updateEntry(response.hasFrozenCache() ? NodeState.HAS_CACHE : NodeState.NO_CACHE);
-                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.wrap(() -> {}));
+                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.noop());
                     }
 
                     @Override

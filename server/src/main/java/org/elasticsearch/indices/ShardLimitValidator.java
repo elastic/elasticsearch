@@ -162,7 +162,7 @@ public class ShardLimitValidator {
         }
     }
 
-    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
+    private static int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
         IndexMetadata indexMetadata = currentState.metadata().index(index);
         int shardsInIndex = indexMetadata.getNumberOfShards();
         int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();

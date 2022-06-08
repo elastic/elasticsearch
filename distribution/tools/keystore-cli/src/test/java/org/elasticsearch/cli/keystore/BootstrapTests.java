@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -33,8 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class BootstrapTests extends ESTestCase {
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
-
-    private static final int MAX_PASSPHRASE_LENGTH = 10;
 
     @After
     public void closeMockFileSystems() throws IOException {
@@ -80,31 +78,20 @@ public class BootstrapTests extends ESTestCase {
         assertPassphraseRead("hello\r\nhi\r\n", "hello");
     }
 
-    public void testPassphraseTooLong() throws Exception {
-        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
-        try (InputStream stream = new ByteArrayInputStream(source)) {
-            expectThrows(
-                RuntimeException.class,
-                "Password exceeded maximum length of 10",
-                () -> BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
-            );
-        }
-    }
-
     public void testNoPassPhraseProvided() throws Exception {
         byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source)) {
             expectThrows(
                 RuntimeException.class,
                 "Keystore passphrase required but none provided.",
-                () -> BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+                () -> BootstrapUtil.readPassphrase(stream)
             );
         }
     }
 
     private void assertPassphraseRead(String source, String expected) {
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
-            SecureString result = BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            SecureString result = BootstrapUtil.readPassphrase(stream);
             assertThat(result, equalTo(expected));
         } catch (IOException e) {
             throw new RuntimeException(e);

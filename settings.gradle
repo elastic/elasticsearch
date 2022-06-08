@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.7.1"
+  id "com.gradle.enterprise" version "3.8.1"
 }
 
 includeBuild "build-conventions"
@@ -53,7 +53,8 @@ List projects = [
   'distribution:bwc:minor',
   'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
-  'distribution:tools:launchers',
+  'distribution:tools:cli-launcher',
+  'distribution:tools:server-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',

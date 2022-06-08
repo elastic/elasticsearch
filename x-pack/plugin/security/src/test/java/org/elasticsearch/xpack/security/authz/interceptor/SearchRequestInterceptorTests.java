@@ -119,9 +119,9 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         if (remoteIndices.length > 0) {
-            assertThat(interceptor.hasRemoteIndices(searchRequest), is(true));
+            assertThat(SearchRequestInterceptor.hasRemoteIndices(searchRequest), is(true));
         } else {
-            assertThat(interceptor.hasRemoteIndices(searchRequest), is(false));
+            assertThat(SearchRequestInterceptor.hasRemoteIndices(searchRequest), is(false));
         }
     }
 }

@@ -172,7 +172,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
         assert invariant();
     }
 
-    private void executeListener(final ActionListener<Long> listener, final Supplier<Long> result) {
+    private static void executeListener(final ActionListener<Long> listener, final Supplier<Long> result) {
         try {
             listener.onResponse(result.get());
         } catch (Exception e) {

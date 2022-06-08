@@ -176,7 +176,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     // pkg private for testing
-    boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
+    static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
             if (request instanceof UserRequest userRequest) {
@@ -388,7 +388,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+    private static boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
         final AuthorizationContext parent = requestInfo.getOriginatingAuthorizationContext();
         if (parent == null) {
             return false;
@@ -596,7 +596,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
+    static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
         logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing

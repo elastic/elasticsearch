@@ -81,13 +81,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> action.doExecute(null, fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
-                    @Override
-                    public void onResponse(FieldCapabilitiesResponse response) {}
-
-                    @Override
-                    public void onFailure(Exception e) {}
-                })
+                () -> action.doExecute(null, fieldCapsRequest, ActionListener.noop())
             );
 
             assertThat(

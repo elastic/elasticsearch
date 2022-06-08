@@ -21,9 +21,9 @@ public class ByteArrayIndexInput extends IndexInput {
 
     private int pos;
 
-    private int offset;
+    private final int offset;
 
-    private int length;
+    private final int length;
 
     public ByteArrayIndexInput(String resourceDesc, byte[] bytes) {
         this(resourceDesc, bytes, 0, bytes.length);

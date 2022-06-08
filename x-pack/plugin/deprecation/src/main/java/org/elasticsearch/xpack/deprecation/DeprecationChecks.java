@@ -41,6 +41,8 @@ public class DeprecationChecks {
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List
             .of(
+                NodeDeprecationChecks::checkMultipleDataPaths,
+                NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkSharedDataPathSetting,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                 NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,

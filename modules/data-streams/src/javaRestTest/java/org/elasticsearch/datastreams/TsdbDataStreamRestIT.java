@@ -86,7 +86,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 }
             },
             "data_stream": {
-                "index_mode": "time_series"
             }
         }""";
 
@@ -463,7 +462,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 e.getMessage(),
                 containsString(
                     "composable template [1] with index patterns [k8s*], priority [null],"
-                        + " index_mode [null] would cause tsdb data streams [k8s] to no longer match a data stream template"
+                        + " index.routing_path [] would cause tsdb data streams [k8s] to no longer match a data stream template"
                         + " with a time_series index_mode"
                 )
             );

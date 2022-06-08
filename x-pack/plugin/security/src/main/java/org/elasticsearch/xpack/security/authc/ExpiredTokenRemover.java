@@ -113,7 +113,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         }
     }
 
-    private void debugDbqResponse(BulkByScrollResponse response) {
+    private static void debugDbqResponse(BulkByScrollResponse response) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "delete by query of tokens finished with [{}] deletions, [{}] bulk failures, [{}] search failures",

@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClau
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -202,9 +203,16 @@ public class MatchQueryParser {
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
-            IllegalArgumentException iae = new IllegalArgumentException(
-                "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
-            );
+            IllegalArgumentException iae;
+            if (fieldType instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
+                iae = new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] in legacy index does not support match queries"
+                );
+            } else {
+                iae = new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
+                );
+            }
             if (lenient) {
                 return newLenientFieldQuery(fieldName, iae);
             }

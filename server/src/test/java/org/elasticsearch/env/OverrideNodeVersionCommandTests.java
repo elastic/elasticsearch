@@ -85,7 +85,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     public void testFailsOnEmptyPath() {
         final Path emptyPath = createTempDir();
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
             () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[] { emptyPath }, noOptions, environment)
@@ -97,7 +97,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     public void testFailsIfUnnecessary() throws IOException {
         final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id));
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
             () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)
@@ -116,8 +116,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     public void testWarnsIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
-        mockTerminal.addTextInput("n\n");
+        final MockTerminal mockTerminal = MockTerminal.create();
+        mockTerminal.addTextInput("n");
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
             () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)
@@ -142,7 +142,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     public void testWarnsIfTooNew() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
@@ -167,7 +167,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     public void testOverwritesIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
         new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment);
         assertThat(
@@ -190,7 +190,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     public void testOverwritesIfTooNew() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
         new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment);
         assertThat(

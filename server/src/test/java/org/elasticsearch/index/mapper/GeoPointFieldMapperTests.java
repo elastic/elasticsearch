@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -18,15 +20,17 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -295,6 +299,10 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field"), nullValue());
         assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
 
+        doc = mapper.parse(source(b -> b.startArray("field").value((String) null).endArray()));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
@@ -316,10 +324,17 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         // Shouldn't matter if we specify the value explicitly or use null value
         doc = mapper.parse(source(b -> b.field("field", "1, 2")));
-        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("field")));
+        assertThat(doc.rootDoc().getBinaryValue("field"), equalTo(defaultValue));
 
+        BytesRef threeFour = new LatLonPoint("f", 3, 4).binaryValue();
         doc = mapper.parse(source(b -> b.field("field", "3, 4")));
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("field"))));
+        assertThat(doc.rootDoc().getBinaryValue("field"), equalTo(threeFour));
+
+        doc = mapper.parse(source(b -> b.startArray("field").nullValue().value("3, 4").endArray()));
+        assertMap(
+            Arrays.stream(doc.rootDoc().getFields("field")).map(IndexableField::binaryValue).filter(v -> v != null).toList(),
+            matchesList().item(equalTo(defaultValue)).item(equalTo(threeFour))
+        );
     }
 
     /**

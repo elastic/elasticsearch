@@ -210,7 +210,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
-    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
+    private static Map<String, DocumentField> readFields(StreamInput in) throws IOException {
         Map<String, DocumentField> fields;
         int size = in.readVInt();
         if (size == 0) {
@@ -229,7 +229,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return fields;
     }
 
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
+    private static void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
         if (fields == null) {
             out.writeVInt(0);
         } else {
@@ -982,7 +982,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return Explanation.match(value, description, details);
     }
 
-    private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
+    private static void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.startObject();
         builder.field(Fields.VALUE, explanation.getValue());
         builder.field(Fields.DESCRIPTION, explanation.getDescription());

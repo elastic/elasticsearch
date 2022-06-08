@@ -24,9 +24,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -595,6 +595,18 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
             assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
         }
+    }
+
+    public void testSymlinkDataDirectory() throws Exception {
+        Path tempDir = createTempDir().toAbsolutePath();
+        Path dataPath = tempDir.resolve("data");
+        Files.createDirectories(dataPath);
+        Path symLinkPath = tempDir.resolve("data_symlink");
+        Files.createSymbolicLink(symLinkPath, dataPath);
+        NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
+
+        assertTrue(Files.exists(symLinkPath));
+        env.close();
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

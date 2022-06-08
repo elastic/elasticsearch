@@ -98,7 +98,7 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-    "allocation": {
+    "assignment": {
         "task_parameters": {
             "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
             "model_bytes": 265632637
@@ -109,7 +109,7 @@ The API returns the following results:
                 "reason": ""
             }
         },
-        "allocation_state": "started",
+        "assignment_state": "started",
         "start_time": "2021-11-02T11:50:34.766591Z"
     }
 }

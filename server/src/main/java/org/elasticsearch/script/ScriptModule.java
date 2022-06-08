@@ -108,7 +108,7 @@ public class ScriptModule {
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
+    public static void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

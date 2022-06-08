@@ -93,7 +93,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -568,7 +567,7 @@ public class OpenIdConnectAuthenticator {
                     )
                 );
             }
-            httpPost.setEntity(new UrlEncodedFormEntity(params));
+            httpPost.setEntity(new UrlEncodedFormEntity(params, (Charset) null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 
@@ -593,7 +592,7 @@ public class OpenIdConnectAuthenticator {
                 });
                 return null;
             });
-        } catch (AuthenticationException | UnsupportedEncodingException | JOSEException e) {
+        } catch (AuthenticationException | JOSEException e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
             );

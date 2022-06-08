@@ -8,7 +8,10 @@
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -17,7 +20,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,12 +31,10 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     @Override
     protected Command newCommand() {
         return new UpgradeKeyStoreCommand() {
-
             @Override
-            protected Environment createEnv(final Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return env;
             }
-
         };
     }
 

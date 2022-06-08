@@ -388,7 +388,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
-        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to more than one index"));
+        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to 2 indices, and does not have a designated write index"));
     }
 
     // this is a special condition that could lead to an NPE in earlier versions

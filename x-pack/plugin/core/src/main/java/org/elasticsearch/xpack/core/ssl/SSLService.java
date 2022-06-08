@@ -354,7 +354,7 @@ public class SSLService {
      *
      * @param sslConfiguration the configuration to check
      */
-    public boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
+    public static boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
         return sslConfiguration.keyConfig().hasKeyMaterial();
     }
@@ -362,7 +362,7 @@ public class SSLService {
     /**
      * Indicates whether client authentication is enabled for a particular configuration
      */
-    public boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
+    public static boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
         return sslConfiguration.clientAuth().enabled();
     }

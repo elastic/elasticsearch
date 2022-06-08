@@ -175,10 +175,12 @@ public class IpFieldMapper extends FieldMapper {
 
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated());
-    });
+    }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 

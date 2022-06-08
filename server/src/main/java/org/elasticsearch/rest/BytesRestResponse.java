@@ -134,8 +134,13 @@ public class BytesRestResponse extends RestResponse {
         return false;
     }
 
-    private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e)
-        throws IOException {
+    private static void build(
+        XContentBuilder builder,
+        ToXContent.Params params,
+        RestStatus status,
+        boolean detailedErrorsEnabled,
+        Exception e
+    ) throws IOException {
         builder.startObject();
         ElasticsearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());

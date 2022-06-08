@@ -228,4 +228,16 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    @Override
+    public void testIndexPointsFromLine() throws Exception {
+        super.testIndexPointsFromLine();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    @Override
+    public void testIndexPointsFromPolygon() throws Exception {
+        super.testIndexPointsFromPolygon();
+    }
 }

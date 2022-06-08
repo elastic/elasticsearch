@@ -851,7 +851,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
                     }
                 }
 
@@ -1013,7 +1013,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
-                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin()
@@ -1027,7 +1027,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                                 true
                                             )
                                         ),
-                                        noopListener()
+                                        ActionListener.noop()
                                     )
                             );
                         } else {
@@ -1371,10 +1371,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private static <T> void continueOrDie(StepListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
         listener.whenComplete(onResponse, e -> { throw new AssertionError(e); });
-    }
-
-    private static <T> ActionListener<T> noopListener() {
-        return ActionListener.wrap(() -> {});
     }
 
     public NodeClient client() {
@@ -2023,7 +2019,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService,
                         clusterService,
                         repositoriesService,
-                        snapshotsService,
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver

@@ -10,30 +10,20 @@ package org.elasticsearch.xpack.lucene.bwc.codecs;
 import org.apache.lucene.backward_codecs.lucene70.Lucene70Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.FieldsConsumer;
-import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.NormsFormat;
-import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsFormat;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -41,15 +31,8 @@ import java.util.List;
  */
 public abstract class BWCCodec extends Codec {
 
-    private final PostingsFormat postingsFormat = new EmptyPostingsFormat();
-
     protected BWCCodec(String name) {
         super(name);
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     @Override
@@ -70,62 +53,6 @@ public abstract class BWCCodec extends Codec {
     @Override
     public KnnVectorsFormat knnVectorsFormat() {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * In-memory postings format that shows no postings available.
-     * TODO: Remove once https://issues.apache.org/jira/browse/LUCENE-10291 is fixed.
-     */
-    static class EmptyPostingsFormat extends PostingsFormat {
-
-        protected EmptyPostingsFormat() {
-            super("EmptyPostingsFormat");
-        }
-
-        @Override
-        public FieldsConsumer fieldsConsumer(SegmentWriteState state) {
-            return new FieldsConsumer() {
-                @Override
-                public void write(Fields fields, NormsProducer norms) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void close() {
-
-                }
-            };
-        }
-
-        @Override
-        public FieldsProducer fieldsProducer(SegmentReadState state) {
-            return new FieldsProducer() {
-                @Override
-                public void close() {
-
-                }
-
-                @Override
-                public void checkIntegrity() {
-
-                }
-
-                @Override
-                public Iterator<String> iterator() {
-                    return null;
-                }
-
-                @Override
-                public Terms terms(String field) {
-                    return null;
-                }
-
-                @Override
-                public int size() {
-                    return 0;
-                }
-            };
-        }
     }
 
     protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
@@ -158,7 +85,7 @@ public abstract class BWCCodec extends Codec {
         };
     }
 
-    // mark all fields as having no postings, no term vectors, no norms, no payloads, no points, and no vectors.
+    // mark all fields as no term vectors, no norms, no payloads, no points, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {
@@ -167,9 +94,9 @@ public abstract class BWCCodec extends Codec {
                     fieldInfo.name,
                     fieldInfo.number,
                     false,
+                    true,
                     false,
-                    false,
-                    IndexOptions.NONE,
+                    fieldInfo.getIndexOptions(),
                     fieldInfo.getDocValuesType(),
                     fieldInfo.getDocValuesGen(),
                     fieldInfo.attributes(),

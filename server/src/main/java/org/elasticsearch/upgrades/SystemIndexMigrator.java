@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -360,7 +359,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }, this::markAsFailed));
     }
 
-    private boolean needsToBeMigrated(IndexMetadata indexMetadata) {
+    private static boolean needsToBeMigrated(IndexMetadata indexMetadata) {
         assert indexMetadata != null : "null IndexMetadata should be impossible, we're not consistently using the same cluster state";
         if (indexMetadata == null) {
             return false;
@@ -530,7 +529,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
 
-    private ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
+    private static ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
         String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
             ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())
             : "";
@@ -587,7 +586,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      * @param listener A listener that will be called upon successfully updating the cluster state.
      */
     private static void clearResults(ClusterService clusterService, ActionListener<ClusterState> listener) {
-        clusterService.submitStateUpdateTask("clear migration results", new ClusterStateUpdateTask() {
+        submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
@@ -608,13 +607,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 logger.error("failed to clear migration results when starting new migration", e);
                 listener.onFailure(e);
             }
-        }, newExecutor());
+        });
         logger.debug("submitted update task to clear migration results");
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private SystemIndexMigrationInfo currentMigrationInfo() {

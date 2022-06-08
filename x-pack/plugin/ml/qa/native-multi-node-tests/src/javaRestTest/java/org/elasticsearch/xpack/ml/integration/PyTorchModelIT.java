@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,7 +20,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -74,6 +75,8 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
+
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
@@ -121,7 +124,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
                 }}""");
@@ -135,7 +138,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
                     "logger.org.elasticsearch.xpack.ml.process.logging" : null
                 }}""");
@@ -290,25 +293,56 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelA);
         putModelDefinition(modelA);
         startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelA);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(0));
+
+            for (var node : nodes) {
+                // null before the model is used
+                assertThat(node.get("last_access"), nullValue());
+                assertThat(node.get("average_inference_time_ms"), nullValue());
+                assertThat(node.get("average_inference_time_ms_last_minute"), nullValue());
+            }
+        }
+
         infer("once", modelA);
         infer("twice", modelA);
-        Response response = getTrainedModelStats(modelA);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
-        assertThat(stats, hasSize(1));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "deployment_stats.nodes",
-            stats.get(0)
-        );
-        // 2 of the 3 nodes in the cluster are ML nodes
-        assertThat(nodes, hasSize(2));
-        int inferenceCount = sumInferenceCountOnNodes(nodes);
-        for (var node : nodes) {
-            assertThat(node.get("number_of_pending_requests"), notNullValue());
+        {
+            Response postInferStatsResponse = getTrainedModelStats(modelA);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
+            assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            // 2 of the 3 nodes in the cluster are ML nodes
+            assertThat(nodes, hasSize(2));
+            for (var node : nodes) {
+                assertThat(node.get("number_of_pending_requests"), notNullValue());
+            }
             // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
+            assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(2));
         }
-        assertThat(inferenceCount, equalTo(2));
+    }
+
+    private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
     }
 
     @SuppressWarnings("unchecked")
@@ -651,7 +685,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         deleteModel(modelId, true);
 
-        assertThatTrainedModelAllocationMetadataIsEmpty();
+        assertThatTrainedModelAssignmentMetadataIsEmpty();
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -771,15 +805,19 @@ public class PyTorchModelIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    private void assertThatTrainedModelAllocationMetadataIsEmpty() throws IOException {
-        Request getTrainedModelAllocationMetadataRequest = new Request(
+    private void assertThatTrainedModelAssignmentMetadataIsEmpty() throws IOException {
+        Request getTrainedModelAssignmentMetadataRequest = new Request(
             "GET",
-            "_cluster/state?filter_path=metadata.trained_model_allocation"
+            "_cluster/state?filter_path=metadata.trained_model_assignment"
         );
-        Response getTrainedModelAllocationMetadataResponse = client().performRequest(getTrainedModelAllocationMetadataRequest);
+        Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(
-            EntityUtils.toString(getTrainedModelAllocationMetadataResponse.getEntity()),
-            containsString("\"trained_model_allocation\":{}")
+            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
+            containsString("\"trained_model_assignment\":{}")
         );
+
+        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
+        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
     }
 }

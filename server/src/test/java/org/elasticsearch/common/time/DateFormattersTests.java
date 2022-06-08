@@ -92,16 +92,127 @@ public class DateFormattersTests extends ESTestCase {
             Instant instant = Instant.from(formatter.parse("12345"));
             assertThat(instant.getEpochSecond(), is(12L));
             assertThat(instant.getNano(), is(345_000_000));
+            assertThat(formatter.format(instant), is("12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
         {
             Instant instant = Instant.from(formatter.parse("0"));
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("0"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("0.1"));
+            assertThat(instant.getEpochSecond(), is(0L));
+            assertThat(instant.getNano(), is(100_000));
+            assertThat(formatter.format(instant), is("0.1"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
         {
             Instant instant = Instant.from(formatter.parse("123.123456"));
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(123123456));
+            assertThat(formatter.format(instant), is("123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-123.123456"));
+            assertThat(instant.getEpochSecond(), is(-1L));
+            assertThat(instant.getNano(), is(876876544));
+            assertThat(formatter.format(instant), is("-123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6789123.123456"));
+            assertThat(instant.getEpochSecond(), is(-6790L));
+            assertThat(instant.getNano(), is(876876544));
+            assertThat(formatter.format(instant), is("-6789123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("6789123.123456"));
+            assertThat(instant.getEpochSecond(), is(6789L));
+            assertThat(instant.getNano(), is(123123456));
+            assertThat(formatter.format(instant), is("6789123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.25"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(231750000));
+            assertThat(formatter.format(instant), is("-6250000430768.25"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.75"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(231250000));
+            assertThat(formatter.format(instant), is("-6250000430768.75"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.00"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(232000000));
+            assertThat(formatter.format(instant), is("-6250000430768")); // remove .00 precision
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.250000"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999750000));
+            assertThat(formatter.format(instant), is("-6250000431000.25"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.000001"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999999999));
+            assertThat(formatter.format(instant), is("-6250000431000.000001"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.75"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999250000));
+            assertThat(formatter.format(instant), is("-6250000431000.75"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.00"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-6250000431000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-6250000431000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(232000000));
+            assertThat(formatter.format(instant), is("-6250000430768"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("1680000430768"));
+            assertThat(instant.getEpochSecond(), is(1680000430L));
+            assertThat(instant.getNano(), is(768000000));
+            assertThat(formatter.format(instant), is("1680000430768"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-0.12345"));
+            assertThat(instant.getEpochSecond(), is(-1L));
+            assertThat(instant.getNano(), is(999876550));
+            assertThat(formatter.format(instant), is("-0.12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
     }
 
@@ -132,12 +243,68 @@ public class DateFormattersTests extends ESTestCase {
         TemporalAccessor accessor = formatter.parse("1234.1");
         Instant instant = DateFormatters.from(accessor).toInstant();
         assertThat(instant.getEpochSecond(), is(1234L));
-        assertThat(DateFormatters.from(accessor).toInstant().getNano(), is(100_000_000));
+        assertThat(instant.getNano(), is(100_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
 
         accessor = formatter.parse("1234");
         instant = DateFormatters.from(accessor).toInstant();
         assertThat(instant.getEpochSecond(), is(1234L));
         assertThat(instant.getNano(), is(0));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("1234.890");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(1234L));
+        assertThat(instant.getNano(), is(890_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("0.1");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(0L));
+        assertThat(instant.getNano(), is(100_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("0.890");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(0L));
+        assertThat(instant.getNano(), is(890_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("0");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(0L));
+        assertThat(instant.getNano(), is(0));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("-1234.1");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(-1235L));
+        assertThat(instant.getNano(), is(900_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("-1234");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(-1234L));
+        assertThat(instant.getNano(), is(0));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("-1234.890");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(-1235L));
+        assertThat(instant.getNano(), is(110_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("-0.1");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(-1L));
+        assertThat(instant.getNano(), is(900_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+
+        accessor = formatter.parse("-0.890");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(-1L));
+        assertThat(instant.getNano(), is(110_000_000));
+        assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("abc"));
         assertThat(e.getMessage(), is("failed to parse date field [abc] with format [epoch_second]"));
@@ -229,7 +396,7 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(formatter, instanceOf(JavaDateFormatter.class));
     }
 
-    public void testEpochFormatting() {
+    public void testEpochFormattingPositiveEpoch() {
         long seconds = randomLongBetween(0, 130L * 365 * 86400); // from 1970 epoch till around 2100
         long nanos = randomLongBetween(0, 999_999_999L);
         Instant instant = Instant.ofEpochSecond(seconds, nanos);
@@ -247,6 +414,62 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
 
         assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+    }
+
+    public void testEpochFormattingNegativeEpoch() {
+        long seconds = randomLongBetween(-130L * 365 * 86400, 0); // around 1840 till 1970 epoch
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+        String millis = millisFormatter.format(instant);
+        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+        assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(-42, 0)), is("-42000"));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(-42, 123456789L)), is("-41876.543211"));
+
+        DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
+        String formattedSeconds = secondsFormatter.format(instant);
+        Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
+        assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+
+        assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+    }
+
+    public void testEpochAndIso8601RoundTripNegative() {
+        long seconds = randomLongBetween(-130L * 365 * 86400, 0); // around 1840 till 1970 epoch
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        DateFormatter isoFormatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+        DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+        String millis = millisFormatter.format(instant);
+        String iso8601 = isoFormatter.format(instant);
+
+        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+        Instant isoInstant = Instant.from(isoFormatter.parse(iso8601));
+
+        assertThat(millisInstant.toEpochMilli(), is(isoInstant.toEpochMilli()));
+        assertThat(millisInstant.getEpochSecond(), is(isoInstant.getEpochSecond()));
+        assertThat(millisInstant.getNano(), is(isoInstant.getNano()));
+    }
+
+    public void testEpochAndIso8601RoundTripPositive() {
+        long seconds = randomLongBetween(0, 130L * 365 * 86400); // from 1970 epoch till around 2100
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        DateFormatter isoFormatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+        DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+        String millis = millisFormatter.format(instant);
+        String iso8601 = isoFormatter.format(instant);
+
+        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+        Instant isoInstant = Instant.from(isoFormatter.parse(iso8601));
+
+        assertThat(millisInstant.toEpochMilli(), is(isoInstant.toEpochMilli()));
+        assertThat(millisInstant.getEpochSecond(), is(isoInstant.getEpochSecond()));
+        assertThat(millisInstant.getNano(), is(isoInstant.getNano()));
     }
 
     public void testParsingStrictNanoDates() {

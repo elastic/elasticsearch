@@ -20,6 +20,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -42,14 +43,16 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     GREEN,
                     "No corrupted repositories.",
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size()))
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -64,7 +67,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -73,7 +76,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     "Detected [1] corrupted repositories: [corrupted-repo].",
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
-                    )
+                    ),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -84,8 +89,18 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
-            equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY))
+            service.calculate(false),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No repositories configured.",
+                    HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                )
+            )
         );
     }
 

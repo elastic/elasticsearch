@@ -15,38 +15,39 @@ dependencies {
   testImplementation project(':x-pack:plugin:vector-tile')
 }
 
-testClusters {
-  'local' {
+
+def remoteCluster = testClusters.register('remote') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def localCluster = testClusters.register('local') {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.other.seeds',
-      { "\"${testClusters.named('remote').get().getAllTransportPortURI().join(",")}\"" }
-  }
-  'remote' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-  }
+      { "\"${remoteCluster.get().getAllTransportPortURI().join(",")}\"" }
 }
 
-tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
-  useCluster testClusters.'remote'
+
+def startRemoteCluster = tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
+  useCluster remoteCluster
   doLast {
     "Starting remote cluster before integ tests and integTest cluster is started"
   }
 }
 
 tasks.named("integTest").configure {
-  dependsOn 'startRemoteCluster'
-  useCluster testClusters.'remote'
-  useCluster testClusters.'local'
+  dependsOn startRemoteCluster
+  useCluster remoteCluster
+  useCluster localCluster
   doFirst {
     nonInputProperties.systemProperty 'tests.local',
-    "${-> testClusters.named('local').get().getAllHttpSocketURI().get(0)}"
+    "${-> localCluster.get().getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'tests.remote',
-    "${-> testClusters.named('remote').get().getAllHttpSocketURI().get(0)}"
+    "${-> remoteCluster.get().getAllHttpSocketURI().get(0)}"
   }
 }

@@ -74,7 +74,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         listener.onResponse(new GetMappingsResponse(mappings));
     }
 
-    private void checkCancellation(Task task) {
+    private static void checkCancellation(Task task) {
         if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
             throw new CancellationException("Task cancelled");
         }

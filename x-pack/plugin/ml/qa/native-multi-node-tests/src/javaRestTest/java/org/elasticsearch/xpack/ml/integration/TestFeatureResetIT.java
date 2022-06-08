@@ -165,6 +165,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         assertThat(isResetMode(), is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
     public void testMLFeatureResetWithModelDeployment() throws Exception {
         createModelDeployment();
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();

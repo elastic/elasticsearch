@@ -820,4 +820,86 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNull(doc.dynamicMappingsUpdate());
     }
+
+    public void testArraysDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myarray").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.array("unmapped", "unknown1", "unknown2");
+            b.array("myarray", "array1", "array2");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(4));
+        assertThat(doc.rootDoc().getFields("unmapped"), arrayWithSize(0));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsRootDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "false",
+                b -> b.startObject("objects")
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.startArray("unmapped");
+            b.startObject().field("subfield", "unmapped").endObject();
+            b.endArray();
+        }));
+
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "true",
+                b -> b.startObject("objects")
+                    .field("dynamic", false)
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.field("myfield", 2);
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "dynamic":"true",
+                "properties":{
+                  "myfield":{
+                    "type":"long"
+                  }
+                }
+              }
+            }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
 }

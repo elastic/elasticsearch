@@ -83,6 +83,13 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
+tasks.named('forbiddenApisMain').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+tasks.named('forbiddenApisTest').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+
 tasks.named("testingConventions").configure {
     naming.clear()
     naming {

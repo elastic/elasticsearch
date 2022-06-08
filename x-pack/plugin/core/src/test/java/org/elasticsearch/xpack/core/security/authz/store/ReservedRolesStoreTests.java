@@ -162,8 +162,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -460,7 +460,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 Map.of(),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
@@ -469,7 +469,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             : new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
                 Map.of(),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
                 randomFrom(WriteRequest.RefreshPolicy.values())
@@ -477,8 +477,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(true));
         updateProfileDataRequest = new UpdateProfileDataRequest(
             randomAlphaOfLength(10),
-            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
-            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
             randomFrom(-1L, randomLong()),
             randomFrom(-1L, randomLong()),
             randomFrom(WriteRequest.RefreshPolicy.values())
@@ -487,7 +487,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of(randomAlphaOfLengthBetween(0, 6), mock(Object.class)),
+                Map.of(randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)), mock(Object.class)),
                 Map.of(),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
@@ -506,23 +506,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
                 Map.of(
-                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    "kibana" + randomAlphaOfLengthBetween(0, 4),
                     mock(Object.class),
-                    randomAlphaOfLengthBetween(0, 6),
+                    randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)),
                     mock(Object.class)
                 ),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 randomFrom(-1L, randomLong()),
                 randomFrom(-1L, randomLong()),
                 randomFrom(WriteRequest.RefreshPolicy.values())
             )
             : new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
-                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of("kibana" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
                 Map.of(
-                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    "kibana" + randomAlphaOfLengthBetween(0, 4),
                     mock(Object.class),
-                    randomAlphaOfLengthBetween(0, 6),
+                    randomValueOtherThan("kibana", () -> randomAlphaOfLengthBetween(0, 6)),
                     mock(Object.class)
                 ),
                 randomFrom(-1L, randomLong()),
@@ -612,7 +612,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only indices for APM telemetry
-        Arrays.asList("apm-*").forEach((index) -> {
+        Arrays.asList("apm-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -621,6 +621,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+        });
+
+        // read-only indices for APM telemetry under Fleet
+        Arrays.asList(
+            "traces-apm-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "traces-apm." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-apm." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "metrics-apm." + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
@@ -865,9 +884,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
 
-            // Endpoint diagnostic and sampled traces data streams also have an ILM policy with a delete action, all others should not.
+            // Endpoint diagnostic, APM and Synthetics data streams also have an ILM policy with a delete action, all others should not.
             final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
-                || indexName.startsWith("traces-apm.sampled-");
+                || indexName.startsWith("logs-apm-")
+                || indexName.startsWith("logs-apm.")
+                || indexName.startsWith("metrics-apm-")
+                || indexName.startsWith("metrics-apm.")
+                || indexName.startsWith("traces-apm-")
+                || indexName.startsWith("traces-apm.")
+                || indexName.startsWith("synthetics-http-*")
+                || indexName.startsWith("synthetics-tcp-*")
+                || indexName.startsWith("synthetics-icmp-*")
+                || indexName.startsWith("synthetics-browser-*")
+                || indexName.startsWith("synthetics-browser.network-*")
+                || indexName.startsWith("synthetics-browser.screenshot-*");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
@@ -927,29 +957,72 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
         });
 
-        // Ensure privileges necessary for ILM policies in APM & Endpoint packages
-        Arrays.asList(
-            "metrics-apm.app-" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.internal-" + randomAlphaOfLengthBetween(3, 8),
-            "metrics-apm.profiling-" + randomAlphaOfLengthBetween(3, 8),
-            "logs-apm.error_logs-" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm-" + randomAlphaOfLengthBetween(3, 8)
-        ).forEach(indexName -> {
-            logger.info("index name [{}]", indexName);
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-
+        // read-only datastream for csp indices
+        Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
+
+        Arrays.asList("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
+            .forEach(indexName -> {
+                logger.info("index name [{}]", indexName);
+                final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+                // Allow indexing
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+                // Allow create and delete index
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+
+                // Implied by the overall view_index_metadata and monitor privilege
+                assertViewIndexMetadata(kibanaRole, indexName);
+                assertThat(
+                    kibanaRole.indices()
+                        .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8))
+                        .test(indexAbstraction),
+                    is(true)
+                );
+            });
+
+        // Ensure privileges necessary for ILM policies in APM & Endpoint packages
         Arrays.asList(
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm.sampled-" + randomAlphaOfLengthBetween(3, 8)
+            "logs-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-http-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-icmp-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-tcp-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.network-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.screenshot-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
 
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
         });
     }
 
@@ -1630,7 +1703,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(true)
         );
         assertThat(superuserRole.cluster().check(GetProfileAction.NAME, mock(UpdateProfileDataRequest.class), authentication), is(true));
-        assertThat(superuserRole.cluster().check(SearchProfilesAction.NAME, mock(SearchProfilesRequest.class), authentication), is(true));
+        assertThat(superuserRole.cluster().check(SuggestProfilesAction.NAME, mock(SuggestProfilesRequest.class), authentication), is(true));
         assertThat(superuserRole.cluster().check(ActivateProfileAction.NAME, mock(ActivateProfileRequest.class), authentication), is(true));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();

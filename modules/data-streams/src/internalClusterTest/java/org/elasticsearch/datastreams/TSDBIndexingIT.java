@@ -10,15 +10,16 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -87,7 +88,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
                 null
             )
         );
@@ -103,9 +104,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             backingIndexName = indexResponse.getIndex();
         }
 
-        // fetch start and end time
+        // fetch end time
         var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndexName)).actionGet();
-        Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(getIndexResponse.getSettings().get(backingIndexName));
         Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(backingIndexName));
 
         // index another doc and verify index
@@ -165,6 +165,122 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexResponse = client().index(indexRequest).actionGet();
             assertThat(indexResponse.getIndex(), equalTo(backingIndexName));
         }
+    }
+
+    public void testTsdbTemplatesWithComponentTemplate() throws Exception {
+        var mappingTemplate = """
+            {
+              "_doc":{
+                "properties": {
+                  "metricset": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            }""";
+        var putComponentTemplateRequest = new PutComponentTemplateAction.Request("id");
+        putComponentTemplateRequest.componentTemplate(
+            new ComponentTemplate(
+                new Template(
+                    Settings.builder().put("index.routing_path", "metricset").build(),
+                    new CompressedXContent(mappingTemplate),
+                    null
+                ),
+                null,
+                null
+            )
+        );
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet()
+        );
+        // We can't know whether the index template that uses this component template has data streams enabled:
+        // (The generation of certain settings index.mode, index.time_series_start_time etc. only doesn't happen)
+        assertThat(e.getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
+    }
+
+    public void testInvalidTsdbTemplatesNoTimeSeriesDimensionAttribute() throws Exception {
+        var mappingTemplate = """
+            {
+              "_doc":{
+                "properties": {
+                  "metricset": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""";
+        var request = new PutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("k8s*"),
+                new Template(
+                    Settings.builder().put("index.routing_path", "metricset").build(),
+                    new CompressedXContent(mappingTemplate),
+                    null
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            )
+        );
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+        );
+        assertThat(
+            e.getCause().getCause().getMessage(),
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                    + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
+            )
+        );
+    }
+
+    public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
+        var mappingTemplate = """
+            {
+              "_doc":{
+                "properties": {
+                  "metricset": {
+                    "type": "long",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            }""";
+        var request = new PutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("k8s*"),
+                new Template(
+                    Settings.builder().put("index.routing_path", "metricset").build(),
+                    new CompressedXContent(mappingTemplate),
+                    null
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            )
+        );
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+        );
+        assertThat(
+            e.getCause().getCause().getMessage(),
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                    + "without the [script] parameter. [metricset] was [long]."
+            )
+        );
     }
 
     static String formatInstant(Instant instant) {

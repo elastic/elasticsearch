@@ -187,6 +187,21 @@ setup:
   - is_true: fields.misc\\.keyword
 
 ---
+"Exclude multifields but include runtime fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-multifield'
+        body:
+          runtime_mappings:
+            text.keyword:
+              type: keyword
+
+  - is_true: fields.text\\.keyword
+  - is_true: fields.misc\\.keyword
+
+---
 "Field type filters":
   - do:
       field_caps:

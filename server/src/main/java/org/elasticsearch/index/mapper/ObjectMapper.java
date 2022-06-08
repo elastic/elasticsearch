@@ -28,7 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -124,13 +123,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 int firstDotIndex = name.indexOf(".");
                 String childName = name.substring(0, firstDotIndex);
                 String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(childName, fullChildName, context);
+                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
                 childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
                 mappersBuilders.add(childBuilder);
             }
         }
 
-        private ObjectMapper.Builder findChild(String childName, String fullChildName, DocumentParserContext context) {
+        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {
@@ -142,10 +141,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
-        }
-
-        public Optional<Mapper.Builder> getBuilder(String name) {
-            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -171,6 +166,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
+        }
+
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
@@ -303,7 +304,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        this.fullPath = fullPath;
+        this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {

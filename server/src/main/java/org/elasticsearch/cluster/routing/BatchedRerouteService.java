@@ -15,7 +15,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -98,7 +97,7 @@ public class BatchedRerouteService implements RerouteService {
         }
         try {
             final String source = CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")";
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(priority) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -161,7 +160,7 @@ public class BatchedRerouteService implements RerouteService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
-            }, newExecutor());
+            });
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);
@@ -179,7 +178,7 @@ public class BatchedRerouteService implements RerouteService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

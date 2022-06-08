@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.stream.Stream;
-
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
     private final SecurityContext securityContext;
@@ -52,34 +50,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            final User user = authentication.getUser();
-            final boolean shouldAddAnonymousRoleNames = anonymousUser.enabled()
-                && false == anonymousUser.equals(user)
-                && false == authentication.isApiKey()
-                && false == authentication.isServiceAccount();
-            if (shouldAddAnonymousRoleNames) {
-                final String[] allRoleNames = Stream.concat(Stream.of(user.roles()), Stream.of(anonymousUser.roles()))
-                    .toArray(String[]::new);
-                listener.onResponse(
-                    new AuthenticateResponse(
-                        // TODO do not rebuild the authentication for display purposes, instead make the authentication service construct
-                        // the user so it includes the anonymous roles as well
-                        new Authentication(
-                            new User(
-                                new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
-                                user.authenticatedUser()
-                            ),
-                            authentication.getAuthenticatedBy(),
-                            authentication.getLookedUpBy(),
-                            authentication.getVersion(),
-                            authentication.getAuthenticationType(),
-                            authentication.getMetadata()
-                        )
-                    )
-                );
-            } else {
-                listener.onResponse(new AuthenticateResponse(authentication));
-            }
+            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
         }
     }
 }

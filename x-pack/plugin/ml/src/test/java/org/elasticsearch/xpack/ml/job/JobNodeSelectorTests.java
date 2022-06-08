@@ -639,7 +639,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id1", "_node_id1", JobState.fromString("failed"), tasksBuilder);
-        // This will make the allocation stale for job_id1
+        // This will make the assignment stale for job_id1
         tasksBuilder.reassignTask(
             MlTasks.jobTaskId("job_id1"),
             new PersistentTasksCustomMetadata.Assignment("_node_id1", "test assignment")
@@ -660,7 +660,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         Job job7 = BaseMlIntegTestCase.createFareQuoteJob("job_id7", JOB_MEMORY_REQUIREMENT).build(new Date());
 
-        // Allocation won't be possible if the stale failed job is treated as opening
+        // Assignment won't be possible if the stale failed job is treated as opening
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs,
             shuffled(cs.nodes()),

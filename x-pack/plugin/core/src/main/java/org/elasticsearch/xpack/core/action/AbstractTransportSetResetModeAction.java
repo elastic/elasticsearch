@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -103,29 +102,25 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             wrappedListener.onResponse(acknowledgedResponse);
         }, wrappedListener::onFailure);
 
-        clusterService.submitStateUpdateTask(
-            featureName() + "-set-reset-mode",
-            new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
+        submitUnbatchedTask(featureName() + "-set-reset-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.trace(() -> new ParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
-                    return AcknowledgedResponse.of(acknowledged);
-                }
+            @Override
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                logger.trace(() -> new ParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
+                return AcknowledgedResponse.of(acknowledged);
+            }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
-                    return setState(currentState, request);
-                }
-            },
-            newExecutor()
-        );
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
+                return setState(currentState, request);
+            }
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

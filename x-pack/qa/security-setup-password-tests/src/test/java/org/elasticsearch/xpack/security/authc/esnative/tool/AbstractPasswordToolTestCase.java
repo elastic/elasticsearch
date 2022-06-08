@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -81,5 +82,10 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
     void setSystemPropsForTool(Path configPath) {
         System.setProperty("es.path.conf", configPath.toString());
         System.setProperty("es.path.home", configPath.getParent().toString());
+    }
+
+    protected ProcessInfo getToolProcessInfo() {
+        var sysprops = Map.of("es.path.conf", System.getProperty("es.path.conf"), "es.path.home", System.getProperty("es.path.home"));
+        return new ProcessInfo(sysprops, Map.of(), createTempDir());
     }
 }

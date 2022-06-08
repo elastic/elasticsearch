@@ -75,9 +75,6 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class KeyStoreWrapper implements SecureSettings {
 
-    /** Arbitrarily chosen maximum passphrase length */
-    public static final int MAX_PASSPHRASE_LENGTH = 128;
-
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {
         STRING,
@@ -349,7 +346,7 @@ public class KeyStoreWrapper implements SecureSettings {
         return hasPassword;
     }
 
-    private Cipher createCipher(int opmode, char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException {
+    private static Cipher createCipher(int opmode, char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException {
         PBEKeySpec keySpec = new PBEKeySpec(password, salt, KDF_ITERS, CIPHER_KEY_BITS);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
         SecretKey secretKey;
@@ -434,7 +431,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    private byte[] readByteArray(DataInput input) throws IOException {
+    private static byte[] readByteArray(DataInput input) throws IOException {
         final int len = input.readInt();
         final byte[] b = new byte[len];
         input.readBytes(b, 0, len);

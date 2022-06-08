@@ -8,10 +8,10 @@
 
 package org.elasticsearch.xcontent.spi;
 
+import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.internal.ProviderLocator;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -72,6 +72,11 @@ public interface XContentProvider {
      * Returns the located provider instance.
      */
     static XContentProvider provider() {
-        return ProviderLocator.INSTANCE;
+        return Holder.INSTANCE;
+    }
+
+    /** A holder for the provider instance. */
+    class Holder {
+        private static final XContentProvider INSTANCE = (new ProviderLocator<>("x-content", XContentProvider.class)).get();
     }
 }

@@ -140,7 +140,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 () -> ClusterState.builder(currentState)
                     .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
                     .build(),
-                ActionListener.wrap(() -> {})
+                ActionListener.noop()
             );
 
         logger.info("--> waiting for listener to be called and cluster state being blocked");

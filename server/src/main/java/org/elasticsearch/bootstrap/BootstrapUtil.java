@@ -31,16 +31,11 @@ public class BootstrapUtil {
      * Read from an InputStream up to the first carriage return or newline,
      * returning no more than maxLength characters.
      */
-    public static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
+    public static SecureString readPassphrase(InputStream stream) throws IOException {
         SecureString passphrase;
 
         try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
-        } catch (RuntimeException e) {
-            if (e.getMessage().startsWith("Input exceeded maximum length")) {
-                throw new IllegalStateException("Password exceeded maximum length of " + maxLength, e);
-            }
-            throw e;
+            passphrase = new SecureString(Terminal.readLineToCharArray(reader));
         }
 
         if (passphrase.length() == 0) {
@@ -57,7 +52,7 @@ public class BootstrapUtil {
 
     public static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
         try {
-            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin));
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

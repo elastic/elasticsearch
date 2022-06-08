@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -20,9 +22,11 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
 
 /** testing for {@link org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper} */
 public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
@@ -30,6 +34,20 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected String getFieldName() {
         return "shape";
+    }
+
+    @Override
+    protected void assertXYPointField(IndexableField field, float x, float y) {
+        // TODO: ShapeField contains binary, perhaps we can decode the x/y from that
+        assertThat(field, isA(ShapeField.Triangle.class));
+    }
+
+    /** The GeoJSON parser used by 'geo_shape' has a more complex exception handling approach than for 'geo_point' or 'point' */
+    @Override
+    protected void assertGeoJSONParseException(MapperParsingException e, String missingField) {
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("Failed to build"));
+        assertThat(e.getCause().getCause().getMessage(), containsString(missingField + " not included"));
     }
 
     @Override

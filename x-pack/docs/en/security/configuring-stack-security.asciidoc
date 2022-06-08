@@ -68,16 +68,24 @@ curl --cacert config/certs/http_ca.crt -u elastic https://localhost:9200
 ----
 bin/kibana
 ----
-+
-This command generates a unique link to enroll your {kib} instance with {es}.
 
+. Enroll {kib} using either interactive or detached mode.
+
+  * *Interactive mode* (browser)
+  
   .. In your terminal, click the generated link to open {kib} in your browser.
-
   .. In your browser, paste the enrollment token that you copied and click the
-button to connect your {kib} instance with {es}.
+  button to connect your {kib} instance with {es}.
 
-  .. Log in to {kib} as the `elastic` user with the password that was generated
-when you started {es}.
+  * *Detached mode* (non-browser)
++
+Run the `kibana-setup` tool and pass the generated enrollment token with the 
+`--enrollment-token` parameter.
++  
+["source","sh",subs="attributes"]
+----
+bin/kibana-setup --enrollment-token <enrollment-token>
+----
 
 [discrete]
 [[stack-enroll-nodes]]

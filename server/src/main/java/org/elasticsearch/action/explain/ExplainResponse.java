@@ -198,7 +198,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         return builder;
     }
 
-    private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
+    private static void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.field(VALUE.getPreferredName(), explanation.getValue());
         builder.field(DESCRIPTION.getPreferredName(), explanation.getDescription());
         Explanation[] innerExps = explanation.getDetails();

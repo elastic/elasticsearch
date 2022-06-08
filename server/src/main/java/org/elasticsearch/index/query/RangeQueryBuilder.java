@@ -94,7 +94,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         }
     }
 
-    private boolean isRelationAllowed(ShapeRelation relation) {
+    private static boolean isRelationAllowed(ShapeRelation relation) {
         return relation == ShapeRelation.INTERSECTS || relation == ShapeRelation.CONTAINS || relation == ShapeRelation.WITHIN;
     }
 

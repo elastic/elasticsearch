@@ -136,7 +136,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     /**
@@ -218,7 +218,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, null, jwt, OutputStyle.BUILD_GRADLE);
+        this.printArtifacts(jwtIssuer, config, null, jwt);
     }
 
     /**
@@ -314,7 +314,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     /**
@@ -401,20 +401,19 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     private void printArtifacts(
         final JwtIssuer jwtIssuer,
         final RealmConfig config,
         final SecureString clientSecret,
-        final SecureString jwt,
-        final OutputStyle style
+        final SecureString jwt
     ) throws Exception {
         final SignedJWT signedJwt = SignedJWT.parse(jwt.toString());
         LOGGER.info(
             JwtRealmGenerateTests.printIssuerSettings(jwtIssuer)
-                + JwtRealmGenerateTests.printRealmSettings(config, style)
+                + JwtRealmGenerateTests.printRealmSettings(config)
                 + "\n===\nRequest Headers\n===\n"
                 + (Strings.hasText(clientSecret) ? JwtRealm.HEADER_CLIENT_AUTHENTICATION + ": " + clientSecret + "\n" : "")
                 + JwtRealm.HEADER_END_USER_AUTHENTICATION
@@ -449,24 +448,39 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         return sb.toString();
     }
 
-    private static String printRealmSettings(final RealmConfig config, OutputStyle style) {
-        final StringBuilder sb = new StringBuilder().append("\n===\nRealm settings: ").append(style.fileName()).append("\n===\n");
-        int numRegularSettings = 0;
-        for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
-            final String key = RealmSettings.getFullSettingKey(config, setting);
-            if (key.startsWith("xpack.") && config.hasSetting(setting)) {
-                final Object settingValue = config.getSetting(setting);
-                if (settingValue instanceof SecureString == false) {
-                    switch (style) {
-                        case ELASTICSEARCH_YML -> sb.append(key).append(": ").append(settingValue).append('\n');
-                        case BUILD_GRADLE -> sb.append("setting '").append(key).append("', '").append(settingValue).append("'\n");
+    private static String printRealmSettings(final RealmConfig config) {
+        final StringBuilder sb = new StringBuilder();
+        for (final OutputStyle style : OutputStyle.values()) {
+            final StringBuilder sb1 = new StringBuilder("\n===\nRealm settings [").append(style.fileName()).append("]\n===\n");
+            final StringBuilder sb2 = new StringBuilder("\n===\nRealm secure settings [").append(style.fileName()).append("]\n===\n");
+            int numRegularSettings = 0;
+            int numSecureSettings = 0;
+            for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
+                final String key = RealmSettings.getFullSettingKey(config, setting);
+                if (key.startsWith("xpack.") && config.hasSetting(setting)) {
+                    final Object settingValue = config.getSetting(setting);
+                    if (settingValue instanceof SecureString) {
+                        switch (style) {
+                            case YML -> sb2.append(key).append(": ").append(settingValue).append('\n');
+                            case BUILD_GRADLE -> sb2.append("keystore '").append(key).append("', '").append(settingValue).append("'\n");
+                        }
+                        numSecureSettings++;
+                    } else {
+                        switch (style) {
+                            case YML -> sb1.append(key).append(": ").append(settingValue).append('\n');
+                            case BUILD_GRADLE -> sb1.append("setting '").append(key).append("', '").append(settingValue).append("'\n");
+                        }
+                        numRegularSettings++;
                     }
-                    numRegularSettings++;
                 }
             }
-        }
-        if (numRegularSettings == 0) {
-            sb.append("Not found.\n");
+            if (numRegularSettings == 0) {
+                sb1.append("None\n");
+            }
+            if (numSecureSettings == 0) {
+                sb2.append("None\n");
+            }
+            sb.append(sb1).append(sb2);
         }
         sb.append("\n===\nRealm file contents\n===\n");
         if (config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
@@ -485,29 +499,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
                 sb.append("Failed to load local file [").append(pkcJwkSetPath).append("].\n").append(se).append('\n');
             }
         }
-        int numSecureSettings = 0;
-        sb.append("\n===\nRealm secure settings: elasticsearch-keystore\n===\n");
-        for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
-            final String key = RealmSettings.getFullSettingKey(config, setting);
-            if (key.startsWith("xpack.") && config.hasSetting(setting)) {
-                final Object settingValue = config.getSetting(setting);
-                if (settingValue instanceof SecureString) {
-                    switch (style) {
-                        case ELASTICSEARCH_YML -> sb.append(key).append(": ").append(settingValue).append('\n');
-                        case BUILD_GRADLE -> sb.append("keystore '").append(key).append("', '").append(settingValue).append("'\n");
-                    }
-                    numSecureSettings++;
-                }
-            }
-        }
-        if (numSecureSettings == 0) {
-            sb.append("Not found.\n");
-        }
         return sb.toString();
     }
 
     enum OutputStyle {
-        ELASTICSEARCH_YML,
+        YML,
         BUILD_GRADLE;
 
         public String fileName() {

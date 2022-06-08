@@ -30,7 +30,7 @@ either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
 
-TIP: The PKI, LDAP, Kerberos, OpenID Connect, and SAML realms support using
+TIP: The PKI, LDAP, Kerberos, OpenID Connect, JWT, and SAML realms support using
 <<authorization_realms,authorization realms>> as an alternative to role mapping.
 
 [[mapping-roles-api]]

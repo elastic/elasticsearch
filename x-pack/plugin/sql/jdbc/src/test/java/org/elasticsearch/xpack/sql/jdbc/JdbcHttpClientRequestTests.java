@@ -95,6 +95,14 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
             logger.info("Ignored SQLException", e);
         }
         assertValues(isBinary, xContentType);
+
+        prepareMockResponse();
+        try {
+            httpClient.queryClose("");
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertValues(isBinary, xContentType);
     }
 
     private void assertValues(boolean isBinary, XContentType xContentType) {

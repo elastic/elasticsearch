@@ -6,14 +6,18 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,6 +28,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -33,6 +38,7 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -173,14 +179,19 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
                     request.addAliasAction(AliasActions.add().index(index).alias("alias"));
                 }
             }
-            AcknowledgedResponse response = restClient.indices().updateAliases(request, RequestOptions.DEFAULT);
+            Request restRequest = new Request("POST", "/_aliases");
+            XContentBuilder builder = jsonBuilder();
+            request.toXContent(builder, null);
+            restRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+            Response restResponse = restClient.getLowLevelClient().performRequest(restRequest);
+            AcknowledgedResponse response = AcknowledgedResponse.fromXContent(responseAsParser(restResponse));
             assertThat(response.isAcknowledged(), is(true));
         }
 
         for (String index : indices) {
             restClient.index(new IndexRequest(index).source("field", "value"), RequestOptions.DEFAULT);
         }
-        restClient.indices().refresh(new RefreshRequest(indices), RequestOptions.DEFAULT);
+        refresh(restClient.getLowLevelClient(), String.join(",", indices));
     }
 
     private class TestRestHighLevelClient extends RestHighLevelClient {

@@ -82,13 +82,9 @@ public class JwtRealmSettings {
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
-    private static final String DEFAULT_JWT_VALIDATION_CACHE_HASH_ALGO = "ssha256";
-    private static final TimeValue DEFAULT_JWT_VALIDATION_CACHE_TTL = TimeValue.timeValueMinutes(20);
-    private static final int DEFAULT_JWT_VALIDATION_CACHE_MAX_USERS = 100_000;
-    private static final int MIN_JWT_VALIDATION_CACHE_MAX_USERS = 0;
-    private static final TimeValue DEFAULT_ROLES_LOOKUP_CACHE_TTL = TimeValue.timeValueMinutes(20);
-    private static final int DEFAULT_ROLES_LOOKUP_CACHE_MAX_USERS = 100_000;
-    private static final int MIN_ROLES_LOOKUP_CACHE_MAX_USERS = 0;
+    private static final TimeValue DEFAULT_JWT_CACHE_TTL = TimeValue.timeValueMinutes(20);
+    private static final int DEFAULT_JWT_CACHE_SIZE = 100_000;
+    private static final int MIN_JWT_CACHE_SIZE = 0;
     private static final TimeValue DEFAULT_HTTP_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(5);
     private static final TimeValue DEFAULT_HTTP_CONNECTION_READ_TIMEOUT = TimeValue.timeValueSeconds(5);
     private static final TimeValue DEFAULT_HTTP_SOCKET_TIMEOUT = TimeValue.timeValueSeconds(5);
@@ -140,6 +136,8 @@ public class JwtRealmSettings {
         );
         // JWT Client settings
         set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
+        // JWT Cache settings
+        set.addAll(List.of(JWT_CACHE_TTL, JWT_CACHE_SIZE));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(
             List.of(
@@ -236,6 +234,20 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
+    );
+
+    // Individual Cache settings
+
+    public static final Setting.AffixSetting<TimeValue> JWT_CACHE_TTL = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "jwt.cache.ttl",
+        key -> Setting.timeSetting(key, DEFAULT_JWT_CACHE_TTL, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Integer> JWT_CACHE_SIZE = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "jwt.cache.size",
+        key -> Setting.intSetting(key, DEFAULT_JWT_CACHE_SIZE, MIN_JWT_CACHE_SIZE, Setting.Property.NodeScope)
     );
 
     // Individual outgoing HTTP settings

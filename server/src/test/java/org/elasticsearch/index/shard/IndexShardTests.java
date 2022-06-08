@@ -1882,7 +1882,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), (primaryContext, listener) -> {
                     relocationStarted.countDown();
                     listener.onResponse(null);
-                }, ActionListener.wrap(() -> {}));
+                }, ActionListener.noop());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

@@ -28,7 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -388,7 +388,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return op;
     }
 
-    private boolean assertDocSoftDeleted(LeafReader leafReader, int segmentDocId) throws IOException {
+    private static boolean assertDocSoftDeleted(LeafReader leafReader, int segmentDocId) throws IOException {
         final NumericDocValues ndv = leafReader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
         if (ndv == null || ndv.advanceExact(segmentDocId) == false) {
             throw new IllegalStateException("DocValues for field [" + Lucene.SOFT_DELETES_FIELD + "] is not found");

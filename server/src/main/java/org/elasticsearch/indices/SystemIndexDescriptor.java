@@ -255,8 +255,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
+            if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
+                throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
+            }
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
-            ;
         } else {
             this.mappingVersion = null;
         }

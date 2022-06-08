@@ -62,7 +62,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private static Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
 
         boolean hasDataFrozenRole = false;
         boolean hasOtherDataRole = false;

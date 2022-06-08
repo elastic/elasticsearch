@@ -43,7 +43,8 @@ final class ElasticServiceAccounts {
                         "logs-workplace_search.content_events-default"
                     )
                     .privileges("manage", "read", "write")
-                    .build() },
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("search-*").privileges("read", "view_index_metadata").build() },
             null,
             null,
             null,

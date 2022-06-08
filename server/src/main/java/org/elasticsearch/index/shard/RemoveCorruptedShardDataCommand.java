@@ -71,9 +71,6 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     private final OptionSpec<Integer> shardIdOption;
     static final String TRUNCATE_CLEAN_TRANSLOG_FLAG = "truncate-clean-translog";
 
-    private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
-    private final TruncateTranslogAction truncateTranslogAction;
-
     public RemoveCorruptedShardDataCommand() {
         super("Removes corrupted shard files");
 
@@ -84,9 +81,6 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         shardIdOption = parser.accepts("shard-id", "Shard id").withRequiredArg().ofType(Integer.class);
 
         parser.accepts(TRUNCATE_CLEAN_TRANSLOG_FLAG, "Truncate the translog even if it is not corrupt");
-
-        removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
-        truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);
     }
 
     @Override
@@ -100,7 +94,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     }
 
     @SuppressForbidden(reason = "Necessary to use the path passed in")
-    protected Path getPath(String dirValue) {
+    protected static Path getPath(String dirValue) {
         return PathUtils.get(dirValue, "", "");
     }
 
@@ -195,7 +189,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         return found;
     }
 
-    protected void dropCorruptMarkerFiles(Terminal terminal, Path path, Directory directory, boolean clean) throws IOException {
+    protected static void dropCorruptMarkerFiles(Terminal terminal, Path path, Directory directory, boolean clean) throws IOException {
         if (clean) {
             confirm("""
                 This shard has been marked as corrupted but no corruption can now be detected.
@@ -230,7 +224,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void warnAboutIndexBackup(Terminal terminal) {
+    private static void warnAboutIndexBackup(Terminal terminal) {
         terminal.println("-----------------------------------------------------------------------");
         terminal.println("");
         terminal.println("  Please make a complete backup of your index before using this tool.");
@@ -276,7 +270,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                     terminal.println("Opening Lucene index at " + indexPath);
                     terminal.println("");
                     try {
-                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(
+                        indexCleanStatus = RemoveCorruptedLuceneSegmentsAction.getCleanStatus(
                             indexDir,
                             writeIndexLock,
                             printStream,
@@ -303,7 +297,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                         terminal.println("Opening translog at " + translogPath);
                         terminal.println("");
                         try {
-                            translogCleanStatus = truncateTranslogAction.getCleanStatus(shardPath, clusterState, indexDir);
+                            translogCleanStatus = TruncateTranslogAction.getCleanStatus(shardPath, clusterState, indexDir);
                         } catch (Exception e) {
                             terminal.println(e.getMessage());
                             throw e;
@@ -355,11 +349,11 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                     confirm("Continue and remove corrupted data from the shard ?", terminal);
 
                     if (indexStatus != CleanStatus.CLEAN) {
-                        removeCorruptedLuceneSegmentsAction.execute(terminal, indexDir, writeIndexLock, printStream, verbose);
+                        RemoveCorruptedLuceneSegmentsAction.execute(terminal, indexDir, writeIndexLock, printStream, verbose);
                     }
 
                     if (translogStatus != CleanStatus.CLEAN) {
-                        truncateTranslogAction.execute(terminal, shardPath, indexDir);
+                        TruncateTranslogAction.execute(terminal, shardPath, indexDir);
                     }
                 } catch (LockObtainFailedException lofe) {
                     final String msg = "Failed to lock shard's directory at [" + indexPath + "], is Elasticsearch still running?";
@@ -380,7 +374,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         });
     }
 
-    private Directory getDirectory(Path indexPath) {
+    private static Directory getDirectory(Path indexPath) {
         Directory directory;
         try {
             directory = FSDirectory.open(indexPath, NativeFSLockFactory.INSTANCE);
@@ -390,7 +384,8 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         return directory;
     }
 
-    protected void addNewHistoryCommit(Directory indexDirectory, Terminal terminal, boolean updateLocalCheckpoint) throws IOException {
+    protected static void addNewHistoryCommit(Directory indexDirectory, Terminal terminal, boolean updateLocalCheckpoint)
+        throws IOException {
         final String historyUUID = UUIDs.randomBase64UUID();
 
         terminal.println("Marking index with the new history uuid : " + historyUUID);
@@ -423,7 +418,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
+    private static void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
         final ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
             logger,
@@ -453,7 +448,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         printRerouteCommand(shardPath, terminal, true);
     }
 
-    private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
+    private static void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
         final Path nodePath = getNodePath(shardPath);
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
 
@@ -477,7 +472,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         terminal.println("");
     }
 
-    private Path getNodePath(ShardPath shardPath) {
+    private static Path getNodePath(ShardPath shardPath) {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
         if (Files.exists(nodePath) == false
             || Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {

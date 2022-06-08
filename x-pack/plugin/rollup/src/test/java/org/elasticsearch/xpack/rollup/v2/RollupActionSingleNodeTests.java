@@ -196,7 +196,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
-        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.wrap(() -> {}));
+        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.noop());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(index, rollupIndex, config)

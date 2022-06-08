@@ -17,6 +17,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Applies field type filters to field caps responses that come from earlier versions of ES
+ * that do not support filtering directly.
+ */
 final class ResponseRewriter {
 
     public static Map<String, IndexFieldCapabilities> rewriteOldResponses(
@@ -26,7 +30,7 @@ final class ResponseRewriter {
         String[] allowedTypes,
         Predicate<String> isMetadata
     ) {
-        if (version.onOrAfter(Version.V_8_1_0)) {
+        if (version.onOrAfter(Version.V_8_2_0)) {
             return input;   // nothing needs to be done
         }
         Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(

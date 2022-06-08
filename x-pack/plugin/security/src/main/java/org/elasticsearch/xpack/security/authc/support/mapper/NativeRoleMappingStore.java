@@ -85,18 +85,6 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
-    private static final ActionListener<Object> NO_OP_ACTION_LISTENER = new ActionListener<Object>() {
-        @Override
-        public void onResponse(Object o) {
-            // nothing
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            // nothing
-        }
-    };
-
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -110,12 +98,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         this.scriptService = scriptService;
     }
 
-    private String getNameFromId(String id) {
+    private static String getNameFromId(String id) {
         assert id.startsWith(ID_PREFIX);
         return id.substring(ID_PREFIX.length());
     }
 
-    private String getIdForName(String name) {
+    private static String getIdForName(String name) {
         return ID_PREFIX + name;
     }
 
@@ -169,7 +157,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    protected ExpressionRoleMapping buildMapping(String id, BytesReference source) {
+    protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()
@@ -344,7 +332,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    private void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
+    private static void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
         Map<String, Object> usageStats = new HashMap<>();
         usageStats.put("size", mappings.size());
         usageStats.put("enabled", mappings.stream().filter(ExpressionRoleMapping::isEnabled).count());
@@ -356,7 +344,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            refreshRealms(NO_OP_ACTION_LISTENER, null);
+            refreshRealms(ActionListener.noop(), null);
         }
     }
 

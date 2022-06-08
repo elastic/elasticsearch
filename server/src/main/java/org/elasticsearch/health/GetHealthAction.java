@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,6 +43,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final ClusterName clusterName;
+        @Nullable
         private final HealthStatus status;
         private final List<HealthComponentResult> components;
 
@@ -49,10 +51,14 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthComponentResult> components) {
-            this.clusterName = clusterName;
+        public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelStatus) {
             this.components = components;
-            this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
+            this.clusterName = clusterName;
+            if (showTopLevelStatus) {
+                this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
+            } else {
+                this.status = null;
+            }
         }
 
         public ClusterName getClusterName() {
@@ -82,7 +88,9 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", status.xContentValue());
+            if (status != null) {
+                builder.field("status", status.xContentValue());
+            }
             builder.field("cluster_name", clusterName.value());
             builder.startObject("components");
             for (HealthComponentResult component : components) {
@@ -116,6 +124,23 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     }
 
     public static class Request extends ActionRequest {
+        private final boolean computeDetails;
+        private final String componentName;
+        private final String indicatorName;
+
+        public Request() {
+            // We never compute details if no component name is given because of the runtime cost:
+            this.computeDetails = false;
+            this.componentName = null;
+            this.indicatorName = null;
+        }
+
+        public Request(String componentName, String indicatorName) {
+            assert componentName != null;
+            computeDetails = true;
+            this.componentName = componentName;
+            this.indicatorName = indicatorName;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -142,7 +167,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(new Response(clusterService.getClusterName(), healthService.getHealth()));
+            listener.onResponse(
+                new Response(
+                    clusterService.getClusterName(),
+                    healthService.getHealth(request.componentName, request.indicatorName, request.computeDetails),
+                    request.componentName == null
+                )
+            );
         }
     }
 }

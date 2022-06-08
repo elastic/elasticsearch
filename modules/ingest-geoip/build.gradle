@@ -22,12 +22,12 @@ esplugin {
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:2.13.1')
+  implementation('com.maxmind.geoip2:geoip2:3.0.0')
   // geoip2 dependencies:
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  api('com.maxmind.db:maxmind-db:1.3.1')
+  implementation("com.fasterxml.jackson.core:jackson-annotations:2.13.1")
+  implementation("com.fasterxml.jackson.core:jackson-databind:2.13.1")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-core:2.13.1")
+  implementation('com.maxmind.db:maxmind-db:2.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(path: ":modules:reindex")
@@ -59,24 +59,6 @@ tasks.named("internalClusterTest").configure {
   if (useFixture) {
     nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
   }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-    'org.apache.http.HttpEntity',
-    'org.apache.http.HttpResponse',
-    'org.apache.http.StatusLine',
-    'org.apache.http.client.config.RequestConfig$Builder',
-    'org.apache.http.client.config.RequestConfig',
-    'org.apache.http.client.methods.CloseableHttpResponse',
-    'org.apache.http.client.methods.HttpGet',
-    'org.apache.http.client.utils.URIBuilder',
-    'org.apache.http.impl.auth.BasicScheme',
-    'org.apache.http.impl.client.CloseableHttpClient',
-    'org.apache.http.impl.client.HttpClientBuilder',
-    'org.apache.http.util.EntityUtils'
-  )
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {

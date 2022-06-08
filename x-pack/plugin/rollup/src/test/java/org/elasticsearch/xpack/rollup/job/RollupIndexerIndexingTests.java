@@ -50,6 +50,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -707,9 +707,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        final Client client = Mockito.mock(Client.class);
+        final Client client = new NoOpClient(getTestName());
 
-        try {
+        try (dir; reader; client) {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 client,
@@ -722,8 +722,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-            reader.close();
-            dir.close();
         }
     }
 

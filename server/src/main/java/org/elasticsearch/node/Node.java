@@ -1046,8 +1046,7 @@ public class Node implements Closeable {
             .toList();
         return new HealthService(
             preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            clusterService
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices)
         );
     }
 

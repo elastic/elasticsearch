@@ -347,11 +347,11 @@ public class SystemIndexManagerTests extends ESTestCase {
         IndexMetadata.State state
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(
-            descriptor.getPrimaryIndex() == null ? descriptor.getIndexPattern() : descriptor.getPrimaryIndex()
+            descriptor.isAutomaticallyManaged() ? descriptor.getPrimaryIndex() : descriptor.getIndexPattern()
         );
 
         final Settings.Builder settingsBuilder = Settings.builder();
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+        if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             settingsBuilder.put(getSettings());
         } else {
             settingsBuilder.put(descriptor.getSettings());
@@ -359,7 +359,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         settingsBuilder.put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format);
         indexMetadata.settings(settingsBuilder.build());
 
-        if (descriptor.getAliasName() != null) {
+        if (descriptor.isAutomaticallyManaged() && descriptor.getAliasName() != null) {
             indexMetadata.putAlias(AliasMetadata.builder(descriptor.getAliasName()).build());
         }
         indexMetadata.state(state);

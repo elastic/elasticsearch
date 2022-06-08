@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -359,12 +358,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             ClearRealmCacheAction.INSTANCE,
             new ClearRealmCacheRequest().realms(realmNames),
             ActionListener.wrap(response -> {
-                logger.debug(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "Cleared cached in realms [{}] due to role mapping change",
-                        Arrays.toString(realmNames)
-                    )
-                );
+                logger.debug(() -> format("Cleared cached in realms [%s] due to role mapping change", Arrays.toString(realmNames)));
                 listener.onResponse(result);
             }, ex -> {
                 logger.warn(() -> "Failed to clear cache for realms [" + Arrays.toString(realmNames) + "]", ex);

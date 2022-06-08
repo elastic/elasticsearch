@@ -117,31 +117,6 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Would using index metadata like {@link IndexReader#docFreq}
-     * or {@link IndexReader#maxDoc} to count the number of matching documents
-     * produce the same answer as collecting the results with a sequence like
-     * {@code searcher.collect(counter); return counter.readAndReset();}?
-     */
-    protected static boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
-        if (live != null) {
-            /*
-             * We can only use metadata if all of the documents in the reader
-             * are visible. This is done by returning a null `live` bits. The
-             * name `live` is traditional because most of the time a non-null
-             * `live` bits means that there are deleted documents. But `live`
-             * might also be non-null if document level security is enabled.
-             */
-            return false;
-        }
-        /*
-         * We can only use metadata if we're not using the special docCount
-         * field. Otherwise we wouldn't know how many documents each lucene
-         * document represents.
-         */
-        return counter.docCount.alwaysOne();
-    }
-
-    /**
      * Make a filter that matches this filter and the provided query.
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}.

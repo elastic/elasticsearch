@@ -15,4 +15,5 @@ if (BuildParams.inFipsJvm){
 
 tasks.named('javaRestTestTestingConventions').configure {
   baseClass "org.elasticsearch.xpack.ml.integration.InferenceTestCase"
+  baseClass "org.elasticsearch.test.rest.ESRestTestCase"
 }

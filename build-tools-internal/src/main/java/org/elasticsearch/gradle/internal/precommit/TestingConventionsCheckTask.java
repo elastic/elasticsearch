@@ -15,7 +15,16 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.*;
+import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.SkipWhenEmpty;
+import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
@@ -62,7 +71,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     public abstract ListProperty<String> getBaseClasses();
 
     @Inject
-    abstract public WorkerExecutor getWorkerExecutor();
+    public abstract WorkerExecutor getWorkerExecutor();
 
     public void baseClass(String qualifiedClassname) {
         getBaseClasses().add(qualifiedClassname);
@@ -95,7 +104,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            List<String> testClassesCandidates = getParameters().getClassDirectories()
+            var testClassesCandidates = getParameters().getClassDirectories()
                 .getFiles()
                 .stream()
                 .filter(File::exists)
@@ -105,14 +114,14 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, String suffix) {
-            List<? extends Class<?>> testClassesCandidate = testClassesCandidates.stream()
+            var testClassesCandidate = testClassesCandidates.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .collect(Collectors.toCollection(ArrayList::new));
-            List<? extends Class<?>> baseClasses = baseClassNames.stream()
+            var baseClasses = baseClassNames.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .toList();
             testClassesCandidate.removeAll(baseClasses);
-            List<Class> matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClasses);
+            var matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClasses);
             assertMatchesSuffix(suffix, matchingBaseClass);
             testClassesCandidate.removeAll(matchingBaseClass);
             assertNoMissmatchingTest(testClassesCandidate);

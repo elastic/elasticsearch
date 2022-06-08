@@ -59,62 +59,26 @@ manually configure multiple realms that are backed by the same directory service
 Though it's possible to configure different <<roles,roles>> for the same user
 when authenticating with different realms, it is _not_ recommended.
 
-[[security-domain-warning]]
-[IMPORTANT]
-====
-Security domain is an advanced feature and must be used with care. It can lead
-to unexpected behaviours if incorrectly configured or misused.
-Here are a few things to watch out when working with security domain.
-
-Security domains must be configured consistently across all nodes. Since changing
-security domain requires node restart, this means they may not be fully functional
-during rolling restart. Inconsistent configuration could lead to issues such as:
-
-- Duplicated user profiles
-- Different ownership of resources depending on the authenticating node's configuration
-
-Therefore, it is best to avoid operations related to security domains before configuration
-changes are rolled out to all nodes. Alternatively, do *not* authenticate with newly added realms
-until changes are fully applied to all nodes.
-
-- Operations related to security domains are those creating and managing resources such as
-<<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, <<async-search,async search>>, etc.
-- An exception is adding a single realm to a newly created security domain. In this case, security domain
-related operations will work normally while changes are being rolled out.
-Please note that we do still recommend consistent configuration in any cases.
-
-Security domains are designed to be effective for grouping multiple realms. Splitting existing
-realms out of a security domain is more complex and can introduce unexpected behaviors.
-This means assigning realms under a domain works as expected (assuming they are configured
-consistently across all nodes), but removing realms from a domain must be
-performed with caution. Resources
-created before domain splitting can be owned by different users depending on resource types:
-
-- <<user-profile,User profiles>> will be owned by the user for whom it was last
-<<security-api-activate-user-profile,activated>>.
-If the owner user's realm is under a domain, the profile is shared across realms in that
-domain for the user. Other users that are no longer in the same domain as the owner user will get
-new profiles created the next time they call the Activate User Profile API.
-- Other resources, such as API keys, will be owned by the user who originally created them.
-If the owner user's realm is under a domain, the resource is shared across realms in that
-domain for the user.
-
-NOTE: The "same username" rule is always respected. That is, resource sharing across realms
-is only possible between users with the same username under all circumstances.
-====
 
 [[security-domain-configure]]
 ==== Configure a security domain
 
-You configure realms to be under a domain in `elasticsearch.yml`. The realms must
-be defined in `elasticsearch.yml` but do not need to be enabled.
+[[security-domain-warning]]
+[IMPORTANT]
+====
+Security domains are an advanced feature that requires careful configuration. 
+Misconfiguration or misuse can lead to unexpected behaviors. 
+====
 
-NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
-automatically enabled as `default_file` and `default_native`, respectively,
-without any explicit configuration. You can list these realms under domains even
-when they are not explicitly defined in `elasticsearch.yml`.
+Security domains must be configured consistently across all nodes in cluster. 
+Inconsistent configuration can lead to issues such as:
 
-. Add a security domain configuration to `elasticsearch.yml` under the
+- Duplicated user profiles
+- Different ownership of resources depending on the authenticating node's configuration
+
+To configure a security domain:
+
+. Add a security domain configuration to `elasticsearch.yml` in the
 `xpack.security.authc.domains` namespace:
 +
 [source, yaml]
@@ -128,9 +92,17 @@ xpack:
 ----
 <1> This configuration defines a security domain called `my_domain`, which
 contains two realms named `default_native` and `saml1`.
++
+The specified realms must be defined in `elasticsearch.yml`, 
+but do not need to be enabled.
++
+NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
+automatically enabled as `default_file` and `default_native`, respectively,
+without any explicit configuration. You can list these realms under domains even
+when they are not explicitly defined in `elasticsearch.yml`.
 
 . Restart {es}.
-
++
 [IMPORTANT]
 ====
 {es} can fail to start if the domain configuration is invalid, such as:
@@ -139,3 +111,27 @@ contains two realms named `default_native` and `saml1`.
 * Any undefined realm, synthetic realm, or the reserved realm is configured to
 be under a domain.
 ====
+
+. Apply the same configuration across all nodes in the cluster
+before performing operations related to security domains, 
+including creating and managing resources such as
+<<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, and <<async-search,async search>>.
++
+When adding realms to a security domain, avoid authenticating with a newly-added realm until changes are fully applied to all nodes. 
+
+[[security-domain-remove-realm]]
+==== Removing realms from a security domain
+
+Removing realms from a security domain can lead to unexpected behaviors
+and is not recommended.  
+Resources created before the removal can be owned by different users depending on the resource type:
+
+- <<user-profile,User profiles>> are owned by the user for whom the profile was last
+<<security-api-activate-user-profile,activated>>.
+If the owner user's realm is in a domain, the profile is shared across the realms in that domain. If the owner user's realm is removed from the domain, a new user profile
+is created for the user the next time the activate user profile API is called.
+- Resources such as API keys are owned by the user who originally created them.
+If the owner user's realm is in a domain, the resource is shared across realms in that
+domain. If the owner user's realm is removed from the domain, the user still owns the orginal resource.
+
+Under all circumstances, resource sharing across realms is only possible between users with the same username. 

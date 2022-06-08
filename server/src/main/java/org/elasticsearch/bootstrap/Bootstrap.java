@@ -280,12 +280,8 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-        final boolean foreground,
-        final Environment initialEnv,
-        SecureString keystorePassword,
-        Path pidFile
-    ) throws BootstrapException, NodeValidationException, UserException {
+    static void init(final boolean foreground, final Environment initialEnv, SecureString keystorePassword, Path pidFile)
+        throws BootstrapException, NodeValidationException, UserException {
 
         INSTANCE = new Bootstrap();
 

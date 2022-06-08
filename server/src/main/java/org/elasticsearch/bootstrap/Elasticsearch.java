@@ -40,7 +40,6 @@ class Elasticsearch {
      */
     public static void main(final String[] args) {
 
-
         PrintStream out = getStdout();
         PrintStream err = getStderr();
         try {

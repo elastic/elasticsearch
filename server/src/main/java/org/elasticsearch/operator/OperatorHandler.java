@@ -47,7 +47,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
      * the cluster state as it normally would in a REST handler. One difference is that the
      * transform method in an operator handler must perform all CRUD operations of the cluster
      * state in one go. For that reason, we supply a wrapper class to the cluster state called
-     * TransformState, which contains the current cluster state as well as any previous keys
+     * {@link TransformState}, which contains the current cluster state as well as any previous keys
      * set by this handler on prior invocation.
      *
      * @param source The parsed information specific to this handler from the combined cluster state content
@@ -100,7 +100,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
     }
 
     /**
-     * Convenience method that creates a XContentParser from a content map so that it can be passed to
+     * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
      * existing REST based code for input parsing.
      *
      * @param source the operator content as a map

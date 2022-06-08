@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -94,7 +95,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertFalse(fileSettingsService.watchedFileChanged(tmpFile));
 
         // we modify the timestamp of the file, it should trigger a change
-        Instant now = LocalDateTime.now().toInstant(ZoneOffset.ofHours(0));
+        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
         Files.setLastModifiedTime(tmpFile, FileTime.from(now));
 
         assertTrue(fileSettingsService.watchedFileChanged(tmpFile));

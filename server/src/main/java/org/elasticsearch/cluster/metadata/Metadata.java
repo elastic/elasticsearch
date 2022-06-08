@@ -2263,7 +2263,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         }
                     } else if ("operator".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.putOperatorState(OperatorMetadata.Builder.fromXContent(parser, parser.currentName()));
+                            builder.putOperatorState(OperatorMetadata.fromXContent(parser));
                         }
                     } else {
                         try {

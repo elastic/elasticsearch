@@ -24,24 +24,11 @@ import java.util.Set;
 
 /**
  * Metadata class to hold the operator set keys for each operator handler
- *
  */
-public class OperatorHandlerMetadata implements SimpleDiffable<OperatorHandlerMetadata>, ToXContentFragment {
-    private final String name;
-    private final Set<String> keys;
-
-    public OperatorHandlerMetadata(String name, Set<String> keys) {
-        this.name = name;
-        this.keys = keys;
-    }
-
-    public String name() {
-        return this.name;
-    }
-
-    public Set<String> keys() {
-        return this.keys;
-    }
+public record OperatorHandlerMetadata(String name, Set<String> keys)
+    implements
+        SimpleDiffable<OperatorHandlerMetadata>,
+        ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

@@ -24,37 +24,22 @@ import java.util.List;
 /**
  * Metadata class to hold error information about errors encountered
  * while applying a cluster state update for a given namespace.
- *
+ * <p>
  * This information is held by the OperatorMetadata class.
  */
-public class OperatorErrorMetadata implements SimpleDiffable<OperatorErrorMetadata>, ToXContentFragment {
-    private final Long version;
-    private final ErrorKind errorKind;
-    private final List<String> errors;
-
+public record OperatorErrorMetadata(
+    Long version,
+    org.elasticsearch.cluster.metadata.OperatorErrorMetadata.ErrorKind errorKind,
+    List<String> errors
+) implements SimpleDiffable<OperatorErrorMetadata>, ToXContentFragment {
     /**
      * Contructs an operator metadata
-     * @param version the metadata version which failed to apply
+     *
+     * @param version   the metadata version which failed to apply
      * @param errorKind the kind of error we encountered while processing
-     * @param errors the list of errors encountered during parsing and validation of the metadata
+     * @param errors    the list of errors encountered during parsing and validation of the metadata
      */
-    public OperatorErrorMetadata(Long version, ErrorKind errorKind, List<String> errors) {
-        this.version = version;
-        this.errors = errors;
-        this.errorKind = errorKind;
-    }
-
-    public Long version() {
-        return this.version;
-    }
-
-    public List<String> errors() {
-        return this.errors;
-    }
-
-    public ErrorKind errorKind() {
-        return errorKind;
-    }
+    public OperatorErrorMetadata {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

@@ -45,6 +45,23 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     public void testSimpleJsonFromAndTo() throws IOException {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
         IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
+
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
+        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata.Builder("two").keys(Set.of("c", "d")).build();
+
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
+            .errors(List.of("Test error 1", "Test error 2"))
+            .build();
+
+        OperatorMetadata operatorMetadata = OperatorMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .putHandler(hmOne)
+            .putHandler(hmTwo)
+            .build();
+
+        OperatorMetadata operatorMetadata1 = OperatorMetadata.builder("namespace_two").putHandler(hmTwo).build();
+
         Metadata metadata = Metadata.builder()
             .put(
                 IndexTemplateMetadata.builder("foo")
@@ -108,6 +125,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
+            .putOperatorState(operatorMetadata)
+            .putOperatorState(operatorMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -181,6 +200,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
+
+        // operator metadata
+        assertEquals(operatorMetadata, parsedMetadata.operatorState(operatorMetadata.namespace()));
+        assertEquals(operatorMetadata1, parsedMetadata.operatorState(operatorMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """

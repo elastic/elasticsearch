@@ -141,3 +141,7 @@ java.lang.String#formatted(java.lang.Object[]) @ Uses default locale - use Strin
 @defaultMessage Unbatched cluster state tasks are a source of performance and stability bugs. Implement the update logic in a executor which is reused across tasks instead.
 org.elasticsearch.cluster.service.MasterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
 org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
+
+@defaultMessage Reacting to the published cluster state is an obstruction to batching cluster state tasks which leads to performance and stability bugs. Use the variants that accept a Runnable instead.
+org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer)
+org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer, org.elasticsearch.cluster.ClusterStateAckListener)

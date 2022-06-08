@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -176,15 +177,13 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    /**
+     * It turns out that LegacyGeoShape has an issue indexing points with longitude=180,
+     * but since this is legacy, rather than fix that, we just skip it from tests.
+     * See https://github.com/elastic/elasticsearch/issues/86118
+     */
     @Override
-    public void testIndexPointsFromLine() throws Exception {
-        super.testIndexPointsFromLine();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
-    @Override
-    public void testIndexPointsFromPolygon() throws Exception {
-        super.testIndexPointsFromPolygon();
+    protected boolean ignoreLons(double[] lons) {
+        return Arrays.stream(lons).anyMatch(v -> v == 180);
     }
 }

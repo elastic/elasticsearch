@@ -103,8 +103,10 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"deduce_mappings\" : null}").getDeduceMappingsForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getDeduceMappingsForUpdate());
 
-        assertThat(fromString("{\"num_failure_retries\" : null}").getNumFailureRetries(), equalTo(-2));
+        assertNull(fromString("{\"num_failure_retries\" : null}").getNumFailureRetries());
+        assertThat(fromString("{\"num_failure_retries\" : null}").getNumFailureRetriesForUpdate(), equalTo(-2));
         assertNull(fromString("{}").getNumFailureRetries());
+        assertNull(fromString("{}").getNumFailureRetriesForUpdate());
     }
 
     public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {
@@ -223,7 +225,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertTrue(settingsAsMap.isEmpty());
 
         config = fromString("{\"num_failure_retries\" : null}");
-        assertThat(config.getNumFailureRetries(), equalTo(-2));
+        assertThat(config.getNumFailureRetries(), nullValue());
+        assertThat(config.getNumFailureRetriesForUpdate(), equalTo(-2));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -274,7 +277,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertTrue(settingsAsMap.isEmpty());
 
         config = new SettingsConfig.Builder().setNumFailureRetries(null).build();
-        assertThat(config.getNumFailureRetries(), equalTo(-2));
+        assertThat(config.getNumFailureRetries(), nullValue());
+        assertThat(config.getNumFailureRetriesForUpdate(), equalTo(-2));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());

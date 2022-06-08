@@ -213,6 +213,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     }
 
     public Integer getNumFailureRetries() {
+        return numFailureRetries != null ? (numFailureRetries == DEFAULT_NUM_FAILURE_RETRIES ? null : numFailureRetries) : null;
+    }
+
+    public Integer getNumFailureRetriesForUpdate() {
         return numFailureRetries;
     }
 
@@ -486,10 +490,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getDeduceMappingsForUpdate();
             }
-            if (update.getNumFailureRetries() != null) {
-                this.numFailureRetries = update.getNumFailureRetries().equals(DEFAULT_NUM_FAILURE_RETRIES)
+            if (update.getNumFailureRetriesForUpdate() != null) {
+                this.numFailureRetries = update.getNumFailureRetriesForUpdate().equals(DEFAULT_NUM_FAILURE_RETRIES)
                     ? null
-                    : update.getNumFailureRetries();
+                    : update.getNumFailureRetriesForUpdate();
             }
 
             return this;

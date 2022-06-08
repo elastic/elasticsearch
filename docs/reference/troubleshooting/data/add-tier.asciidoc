@@ -1,0 +1,12 @@
+[[add-tier]]
+== Add a missing tier to the system
+
+The allocation of data in an {es} deployment can be targeted towards <<data-tiers, data tiers>>.
+
+In order to allow data to be allocated follow these steps to add the <<data-tiers, data tier>>
+they target to your deployment:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/add-tier-widget.asciidoc[]
+
+
+

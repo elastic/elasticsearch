@@ -138,6 +138,16 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return nbIndices;
     }
 
+    private void createRepository(String name, String type) {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(name)
+                .setType(type)
+                .setSettings(Settings.builder().put("location", randomRepoPath()).build())
+        );
+    }
+
     private void createSnapshot(String repository, String snapshot, int nbIndices) {
         var snapshotInfo = client().admin()
             .cluster()
@@ -183,7 +193,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final int nbIndices = createIndices();
 
         final String repositoryName = "repository";
-        repository(repositoryName, FsRepository.TYPE);
+        createRepository(repositoryName, FsRepository.TYPE);
 
         final String snapshot = "snapshot";
         createSnapshot(repositoryName, snapshot, nbIndices);
@@ -268,7 +278,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         int nbIndices = createIndices();
 
         String repositoryName = "repository";
-        repository(repositoryName, "mock");
+        createRepository(repositoryName, "mock");
 
         String snapshotName = "snapshot";
         createSnapshot(repositoryName, snapshotName, nbIndices);
@@ -343,16 +353,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             );
             assertEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
         });
-    }
-
-    private void repository(String name, String type) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(type)
-                .setSettings(Settings.builder().put("location", randomRepoPath()).build())
-        );
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {

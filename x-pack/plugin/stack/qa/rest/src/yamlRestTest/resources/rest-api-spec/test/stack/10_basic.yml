@@ -133,7 +133,7 @@ setup:
   - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
   - match: { .$idx0name.mappings.properties.my.properties.counter.type: "long" }
   - match: { .$idx0name.mappings.properties.my.properties.counter.index: false }
-  - match: { .$idx0name.mappings.properties.my.properties.gauge.type: "double" }
+  - match: { .$idx0name.mappings.properties.my.properties.gauge.type: "float" }
   - match: { .$idx0name.mappings.properties.my.properties.gauge.index: false }
   - match: { .$idx0name.data_stream: "metrics-foo-bar" }
 

@@ -15,7 +15,7 @@
           "double_metrics": {
             "match_mapping_type": "double",
             "mapping": {
-              "type": "double",
+              "type": "float",
               "index": false
             }
           }

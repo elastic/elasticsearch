@@ -32,7 +32,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
-    protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip"));
+    protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

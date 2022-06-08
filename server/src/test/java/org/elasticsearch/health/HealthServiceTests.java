@@ -199,10 +199,7 @@ public class HealthServiceTests extends ESTestCase {
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
         assertThat(result.status(), is(equalTo(UNKNOWN)));
-        assertThat(
-            result.summary(),
-            is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED)
-        );
+        assertThat(result.summary(), is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED));
     }
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() {

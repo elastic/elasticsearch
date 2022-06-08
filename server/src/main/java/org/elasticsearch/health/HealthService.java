@@ -9,7 +9,6 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -100,8 +99,9 @@ public class HealthService {
         } else {
             // Mark remaining indicators as UNKNOWN
             HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);
-            filteredIndicatorResults = filteredIndicators
-                .map(service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails));
+            filteredIndicatorResults = filteredIndicators.map(
+                service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails)
+            );
         }
 
         // Filter the cluster indicator results by component name and indicator name if present
@@ -142,10 +142,7 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails healthUnknownReason(
-        List<HealthIndicatorResult> preflightResults,
-        boolean computeDetails
-    ) {
+    private HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
         assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {

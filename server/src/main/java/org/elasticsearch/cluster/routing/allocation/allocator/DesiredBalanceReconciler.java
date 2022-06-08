@@ -25,6 +25,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -188,6 +189,7 @@ public class DesiredBalanceReconciler {
                 final var shard = primary[i];
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
                 var isThrottled = false;
+                var noDecisions = new HashMap<String, Decision>();
                 if (assignment != null) {
                     for (final var desiredNodeId : assignment.nodeIds()) {
                         final var routingNode = routingNodes.node(desiredNodeId);
@@ -195,9 +197,8 @@ public class DesiredBalanceReconciler {
                             // desired node no longer exists
                             continue;
                         }
-
-                        final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                        switch (canAllocateDecision.type()) {
+                        final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                        switch (decision.type()) {
                             case YES -> {
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
@@ -221,12 +222,18 @@ public class DesiredBalanceReconciler {
                                 continue nextShard;
                             }
                             case THROTTLE -> isThrottled = true;
+                            case NO -> noDecisions.put(desiredNodeId, decision);
                         }
                     }
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
+                    logger.trace(
+                        "No eligible node found to assign shard [{}] using assignment [{}] with negative allocation decisions [{}]",
+                        shard,
+                        assignment,
+                        noDecisions
+                    );
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;

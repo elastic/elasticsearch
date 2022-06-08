@@ -270,7 +270,7 @@ public class DesiredBalanceService {
             if (logger.isTraceEnabled()) {
                 logChanges(desiredBalance, newDesiredBalance);
             }
-            logger.trace("desired balance changed : {}", newDesiredBalance);
+            logger.trace("desired balance changed: {}", newDesiredBalance);
             return true;
         } else {
             logger.trace("desired balance unchanged: {}", desiredBalance);

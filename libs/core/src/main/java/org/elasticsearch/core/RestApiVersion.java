@@ -23,6 +23,7 @@ public enum RestApiVersion {
     public final byte major;
 
     private static final RestApiVersion CURRENT = V_8;
+    private static final RestApiVersion PREVIOUS = V_7;
 
     RestApiVersion(int major) {
         this.major = (byte) major;
@@ -32,12 +33,16 @@ public enum RestApiVersion {
         return restApiVersionFunctions.test(this);
     }
 
-    public static RestApiVersion minimumSupported() {
-        return V_7;
-    }
-
     public static RestApiVersion current() {
         return CURRENT;
+    }
+
+    public static RestApiVersion previous() {
+        return PREVIOUS;
+    }
+
+    public static RestApiVersion minimumSupported() {
+        return V_7;
     }
 
     public static Predicate<RestApiVersion> equalTo(RestApiVersion restApiVersion) {

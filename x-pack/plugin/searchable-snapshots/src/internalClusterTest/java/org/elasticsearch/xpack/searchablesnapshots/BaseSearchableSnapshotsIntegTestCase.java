@@ -245,14 +245,22 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     indexExists,
                     translogExists
                 );
-                assertThat(snapshotDirectory, not(indexExists));
-                assertTrue(translogExists);
+                assertThat(
+                    snapshotDirectory ? "Snapshot directory doesn't exist" : "Snapshot directory shouldn't exist",
+                    snapshotDirectory,
+                    not(indexExists)
+                );
+                assertTrue("Translog doesn't exist", translogExists);
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {
-                        assertEquals(2L, translogFiles);
+                        assertEquals("There should be 2 translog files for a snapshot directory", 2L, translogFiles);
                     } else {
-                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                        assertThat(
+                            "There should be 2+ translog files non a non-snapshot directory",
+                            translogFiles,
+                            greaterThanOrEqualTo(2L)
+                        );
                     }
                 }
             }

@@ -423,7 +423,13 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) {
+            protected ServerProcess startServer(
+                Terminal terminal,
+                ProcessInfo processInfo,
+                ServerArgs args,
+                Path modulesDir,
+                Path pluginsDir
+            ) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }

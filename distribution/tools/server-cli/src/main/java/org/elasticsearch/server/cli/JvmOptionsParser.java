@@ -12,7 +12,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -78,8 +77,8 @@ final class JvmOptionsParser {
      * @throws IOException if there is a problem reading any of the files
      * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
      */
-    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
+    static List<String> determineJvmOptions(Path configDir, Path modulesDir, Path pluginsDir, Path tmpDir, String envOptions)
+        throws InterruptedException, IOException, UserException {
 
         final JvmOptionsParser parser = new JvmOptionsParser();
 
@@ -88,7 +87,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
+            return parser.jvmOptions(configDir, modulesDir, pluginsDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -117,17 +116,13 @@ final class JvmOptionsParser {
         }
     }
 
-    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws InterruptedException, IOException, JvmOptionsFileParserException {
-
-        final Path esHome = Path.of(System.getenv("ES_HOME"));
-        if (Files.notExists(esHome)) {
-            throw new RuntimeException("ES_HOME not set or doesn't exist");
-        }
-        Path modules = esHome.resolve("modules");
-        if (Files.notExists(modules) || Files.isDirectory(modules) == false) {
-            throw new RuntimeException("ES_HOME does not point to a valid installation - [modules] not found or not a directory");
-        }
+    private List<String> jvmOptions(
+        final Path config,
+        Path modules,
+        Path plugins,
+        final String esJavaOpts,
+        final Map<String, String> substitutions
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 

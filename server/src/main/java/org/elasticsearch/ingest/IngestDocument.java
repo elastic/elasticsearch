@@ -56,6 +56,8 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
+    private boolean doNoSelfReferencesCheck = false;
+
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
         // source + at max 5 extra fields
         this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
@@ -841,6 +843,26 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * @return Whether a self referencing check should be performed
+     */
+    public boolean doNoSelfReferencesCheck() {
+        return doNoSelfReferencesCheck;
+    }
+
+    /**
+     * Whether the ingest framework should perform a self referencing check after this ingest document
+     * has been processed by all pipelines. Doing this check adds an extra tax to ingest and should
+     * only be performed when really needed. Only if a processor is executed that could add self referencing
+     * maps or lists then this check must be performed. Most processors will not be able to do this, hence
+     * the default is <code>false</code>.
+     *
+     * @param doNoSelfReferencesCheck Whether a self referencing check should be performed
+     */
+    public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
+        this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
     }
 
     @Override

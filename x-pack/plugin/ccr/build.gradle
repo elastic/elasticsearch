@@ -28,6 +28,7 @@ tasks.named('internalClusterTest').configure {
 tasks.named('internalClusterTestTestingConventions').configure {
   baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
   baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'
+  baseClass 'org.elasticsearch.test.ESIntegTestCase'
 }
 
 addQaCheckDependencies(project)

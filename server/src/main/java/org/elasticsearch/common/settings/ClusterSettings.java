@@ -518,7 +518,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
-        FileSettingsService.OPERATOR_DIR_NAME
+        FileSettingsService.OPERATOR_DIRECTORY
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

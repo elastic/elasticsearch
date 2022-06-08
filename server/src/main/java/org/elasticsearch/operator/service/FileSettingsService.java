@@ -48,8 +48,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private volatile boolean active = false;
 
-    public static final Setting<String> OPERATOR_DIR_NAME = Setting.simpleString(
-        "path.config.operator_dir_name",
+    public static final Setting<String> OPERATOR_DIRECTORY = Setting.simpleString(
+        "path.config.operator_directory",
         "operator",
         Setting.Property.NodeScope
     );
@@ -63,7 +63,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // package private for testing
     Path operatorSettingsDir() {
-        String dirPath = OPERATOR_DIR_NAME.get(environment.settings());
+        String dirPath = OPERATOR_DIRECTORY.get(environment.settings());
         return environment.configFile().toAbsolutePath().resolve(dirPath);
     }
 

@@ -14,10 +14,8 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
@@ -316,20 +314,6 @@ final class Bootstrap {
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
-            if (PluginsManager.configExists(environment)) {
-                if (Build.CURRENT.type() == Build.Type.DOCKER) {
-                    try {
-                        PluginsManager.syncPlugins(environment);
-                    } catch (Exception e) {
-                        throw new BootstrapException(e);
-                    }
-                } else {
-                    throw new BootstrapException(
-                        new ElasticsearchException("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
-                    );
-                }
-            }
-
             INSTANCE.setup(true, environment, pidFile);
 
             try {
@@ -353,7 +337,7 @@ final class Bootstrap {
                     // guice: log the shortened exc to the log file
                     ByteArrayOutputStream os = new ByteArrayOutputStream();
                     PrintStream ps = new PrintStream(os, false, StandardCharsets.UTF_8);
-                    new StartupException(e).printStackTrace(ps);
+                    StartupException.printStackTrace(e, ps);
                     ps.flush();
                     logger.error("Guice Exception: {}", os.toString(StandardCharsets.UTF_8));
                 } else if (e instanceof NodeValidationException) {

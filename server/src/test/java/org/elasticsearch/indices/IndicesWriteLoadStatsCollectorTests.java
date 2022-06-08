@@ -414,7 +414,10 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
 
-        try (var firstDataStreamShardRef = createDataStreamShard(fakeClock); var rolledOverDataStreamShardRef = createDataStreamShard(fakeClock)) {
+        try (
+            var firstDataStreamShardRef = createDataStreamShard(fakeClock);
+            var rolledOverDataStreamShardRef = createDataStreamShard(fakeClock)
+        ) {
 
             final var firstDataStreamShard = firstDataStreamShardRef.shard();
             final var firstDataStreamIndex = firstDataStreamShard.shardId().getIndex();
@@ -553,9 +556,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        final var indexMetadata = IndexMetadata.builder(shardRouting.getIndexName())
-            .settings(indexSettings)
-            .primaryTerm(0, primaryTerm);
+        final var indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(indexSettings).primaryTerm(0, primaryTerm);
 
         if (createDataStream) {
             indexMetadata.putMapping("""

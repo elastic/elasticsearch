@@ -171,7 +171,10 @@ public class AutoscalingMemoryInfoService {
             .filter(Predicate.not(ephemeralIds::contains))
             .collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {
-            nodeToMemory = nodeToMemory.entrySet().stream().filter(n -> toRemove.contains(n.getKey()) == false).collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            nodeToMemory = nodeToMemory.entrySet()
+                .stream()
+                .filter(n -> toRemove.contains(n.getKey()) == false)
+                .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
     }
 

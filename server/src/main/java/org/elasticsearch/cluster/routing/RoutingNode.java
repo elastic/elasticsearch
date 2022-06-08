@@ -138,17 +138,19 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
         final ShardRouting existing = shards.putIfAbsent(shard.shardId(), shard);
         if (existing != null) {
-            throw new IllegalStateException(
+            final IllegalStateException e = new IllegalStateException(
                 "Trying to add a shard "
                     + shard.shardId()
                     + " to a node ["
                     + nodeId
                     + "] where it already exists. current ["
-                    + existing
+                    + shards.get(shard.shardId())
                     + "]. new ["
                     + shard
                     + "]"
             );
+            assert false : e;
+            throw e;
         }
 
         if (shard.initializing()) {

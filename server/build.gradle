@@ -90,6 +90,26 @@ tasks.named('forbiddenApisTest').configure {
   addSignatureFiles 'hppc-signatures'
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+}
+
+//tasks.named("testTestingConventions").configure {
+//    naming.clear()
+//    naming {
+//        Tests {
+//            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
+//        }
+//        IT {
+//            baseClass "org.elasticsearch.test.ESIntegTestCase"
+//            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+//        }
+//    }
+//}
+
+
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateModulesList = tasks.register("generateModulesList") {
     List<String> modules = project(':modules').subprojects.collect { it.name }

@@ -14,7 +14,6 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -32,7 +31,6 @@ import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.FileVisitResult;
@@ -51,7 +49,7 @@ import javax.inject.Inject;
 public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
     @Input
-    abstract Property<String> getSuffix();
+    abstract ListProperty<String> getSuffixes();
 
     @Internal
     abstract ConfigurableFileCollection getTestClassesDirs();
@@ -77,6 +75,10 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         getBaseClasses().add(qualifiedClassname);
     }
 
+    public void suffix(String suffix) {
+        getSuffixes().add(suffix);
+    }
+
     @TaskAction
     void validate() {
         WorkQueue workQueue = getWorkerExecutor().classLoaderIsolation(spec -> spec.getClasspath().from(getClasspath()));
@@ -84,7 +86,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             parameters.getClasspath().setFrom(getClasspath());
             parameters.getClassDirectories().setFrom(getTestClassesDirs());
             parameters.getBaseClassesNames().set(getBaseClasses().get());
-            parameters.getSuffix().set(getSuffix().get());
+            parameters.getSuffixes().set(getSuffixes().get());
         });
     }
 
@@ -94,7 +96,6 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         private static final Predicate<Class<?>> isAbstractClass = clazz -> Modifier.isAbstract(clazz.getModifiers());
         private static final Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
         private static final Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
-
         private static final Predicate<Class<?>> testClassDefaultPredicate = isAbstractClass.negate()
             .and(isPublicClass)
             .and(isStaticClass.negate());
@@ -110,10 +111,10 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .filter(File::exists)
                 .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
                 .collect(Collectors.toList());
-            checkTestClasses(testClassesCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffix().get());
+            checkTestClasses(testClassesCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffixes().get());
         }
 
-        private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, String suffix) {
+        private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, List<String> suffixes) {
             var testClassesCandidate = testClassesCandidates.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .collect(Collectors.toCollection(ArrayList::new));
@@ -122,7 +123,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .toList();
             testClassesCandidate.removeAll(baseClasses);
             var matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClasses);
-            assertMatchesSuffix(suffix, matchingBaseClass);
+            assertMatchesSuffix(suffixes, matchingBaseClass);
             testClassesCandidate.removeAll(matchingBaseClass);
             assertNoMissmatchingTest(testClassesCandidate);
         }
@@ -140,23 +141,22 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             }
         }
 
-        private void assertMatchesSuffix(String suffix, List<Class> matchingBaseClass) {
+        private void assertMatchesSuffix(List<String> suffixes, List<Class> matchingBaseClass) {
             // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
-                .filter(c -> c.getName().endsWith(suffix) == false)
+                .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
                 .collect(Collectors.toList());
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
                 throw new GradleException(
-                    "Following test classes do not match naming convention to use suffix '"
-                        + suffix
-                        + "':\n\t"
+                    "Following test classes do not match naming convention to use suffix "
+                        + suffixes.stream().map(s -> "'" + s + "'").collect(Collectors.joining(" or "))
+                        + ":\n\t"
                         + matchingBaseClassNotMatchingSuffix.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
                 );
             }
         }
 
         private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassesCandidate, List<? extends Class<?>> baseClasses) {
-
             Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
             return testClassesCandidate.stream()
                 .filter(testClassDefaultPredicate)
@@ -201,16 +201,15 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private static boolean matchesTestMethodNamingConvention(Method method) {
-            return method.getName().startsWith(JUNIT3_TEST_METHOD_PREFIX) && Modifier.isStatic(method.getModifiers()) == false;
+            return method.getName().startsWith(JUNIT3_TEST_METHOD_PREFIX)
+                && Modifier.isStatic(method.getModifiers()) == false
+                && method.getReturnType().equals(method.getReturnType().equals(Void.TYPE));
         }
 
         private static boolean isAnnotated(Method method, Class<?> annotation) {
-            for (Annotation presentAnnotation : method.getAnnotations()) {
-                if (annotation.isAssignableFrom(presentAnnotation.getClass())) {
-                    return true;
-                }
-            }
-            return false;
+            return List.of(method.getAnnotations())
+                .stream()
+                .anyMatch(presentAnnotation -> annotation.isAssignableFrom(presentAnnotation.getClass()));
         }
 
         private List<String> walkPathAndLoadClasses(File testRoot) {
@@ -278,7 +277,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
         ConfigurableFileCollection getClasspath();
 
-        Property<String> getSuffix();
+        ListProperty<String> getSuffixes();
 
         ListProperty<String> getBaseClassesNames();
     }

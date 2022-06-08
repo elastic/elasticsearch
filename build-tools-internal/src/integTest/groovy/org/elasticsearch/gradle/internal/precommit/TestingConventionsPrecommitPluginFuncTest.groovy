@@ -15,11 +15,11 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import spock.lang.Shared
+import spock.lang.Unroll
 
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
-
 
     @ClassRule
     @Shared
@@ -37,6 +37,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
                 "org.junit.Assert", "org.junit.Test"
         )
     }
+
     def setup() {
         repository.configureBuild(buildFile)
     }
@@ -77,7 +78,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
     }
 
-    def "testing convention plugin is configuration cache compliant"() {
+    def "testing convention plugin is configuration cache compatible"() {
         given:
         simpleJavaBuild()
         testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
@@ -228,8 +229,8 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
                > Following test classes do not extend any supported base class:
                  \torg.acme.valid.SomeOtherMatchingIT""".stripIndent()
         )
-
     }
+
     def "applies conventions on java-rest-test tests"() {
         given:
         clazz(dir('src/javaRestTest/java'), "org.elasticsearch.test.ESIntegTestCase")
@@ -268,6 +269,52 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
                > Following test classes do not match naming convention to use suffix 'IT':
                  \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
         )
+    }
+
+    @Unroll
+    def "applies conventions on #sourceSetName tests"() {
+        given:
+        clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
+        clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
+        buildFile << """
+        apply plugin:'$pluginName'
+        
+        dependencies {
+            ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
+            ${sourceSetName}Implementation "org.junit:junit:4.42"
+        }    
+        """
+
+        clazz(dir("src/${sourceSetName}/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.ESIntegTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        clazz(dir("src/${sourceSetName}/java"), "org.acme.valid.SomeNonMatchingTest", "org.elasticsearch.test.ESIntegTestCase") {
+            """
+            public void testMe() {
+            }
+            """
+        }
+
+        when:
+        def result = gradleRunner("testingConventions").buildAndFail()
+        then:
+        result.task(taskName).outcome == TaskOutcome.FAILED
+        assertOutputContains(result.getOutput(), """\
+            * What went wrong:
+            Execution failed for task '${taskName}'.
+            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
+               > Following test classes do not match naming convention to use suffix 'IT':
+                 \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
+        )
+
+        where:
+        pluginName                              | taskName                                | sourceSetName
+        "elasticsearch.internal-java-rest-test" | ":javaRestTestTestingConventions"       | "javaRestTest"
+        "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 
     private void simpleJavaBuild() {

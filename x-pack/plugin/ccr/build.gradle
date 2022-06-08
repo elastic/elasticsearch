@@ -25,6 +25,11 @@ tasks.named('internalClusterTest').configure {
   exclude noSecurityManagerITClasses
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
+  baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'
+}
+
 addQaCheckDependencies(project)
 
 dependencies {

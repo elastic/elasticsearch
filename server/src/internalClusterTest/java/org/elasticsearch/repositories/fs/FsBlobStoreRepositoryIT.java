@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.blobstore.ESFsBasedRepositoryIntegTestCase;
 
-public class FsBlobStoreRepositoryIntegTests extends ESFsBasedRepositoryIntegTestCase {
+public class FsBlobStoreRepositoryIT extends ESFsBasedRepositoryIntegTestCase {
 
     @Override
     protected Settings repositorySettings(String repositoryName) {

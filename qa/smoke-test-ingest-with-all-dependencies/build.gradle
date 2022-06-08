@@ -17,11 +17,11 @@ testClusters.configureEach {
   extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
 }
 
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/*.mmdb'
-}
-
 tasks.named("yamlRestTestTestingConventions").configure {
   baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
   baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
 }

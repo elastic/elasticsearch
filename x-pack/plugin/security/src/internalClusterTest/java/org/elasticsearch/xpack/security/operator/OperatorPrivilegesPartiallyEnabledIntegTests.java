@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 // This test is to ensure that an operator can always successfully perform operator-only actions
 // even when operator privileges are partially enabled for the cluster. This could happen
 // for a cluster with operator privileges disabled wanting to enable operator privileges with rolling upgrade.
-public class OperatorPrivilegesPartiallyEnabledIntegTestCase extends SecurityIntegTestCase {
+public class OperatorPrivilegesPartiallyEnabledIntegTests extends SecurityIntegTestCase {
 
     private static final String OPERATOR_USER_NAME = "test_operator";
     private static final String OPERATOR_AUTH_HEADER = "Basic "

@@ -31,7 +31,7 @@ setup:
 ---
 "Key exists, no missing values":
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.3.0"
       reason: "fixed in 8.4"
   - do:
       search:
@@ -55,7 +55,7 @@ setup:
 ---
 "Key exists, missing values, missing specified":
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.3.0"
       reason: "fixed in 8.4"
   - do:
       search:
@@ -80,7 +80,7 @@ setup:
 ---
 "Key exists, missing values, missing not specified":
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.3.0"
       reason: "fixed in 8.4"
   - do:
       search:
@@ -101,7 +101,7 @@ setup:
 ---
 "Key does not exist, missing specified":
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.3.0"
       reason: "fixed in 8.4"
   - do:
       search:
@@ -121,7 +121,7 @@ setup:
 ---
 "Key does not exist, missing not specified":
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.3.0"
       reason: "fixed in 8.4"
   - do:
       search:

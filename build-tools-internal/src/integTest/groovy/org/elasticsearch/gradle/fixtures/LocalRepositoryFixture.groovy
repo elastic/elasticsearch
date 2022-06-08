@@ -10,13 +10,15 @@ package org.elasticsearch.gradle.fixtures
 
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.DynamicType
+import org.junit.rules.ExternalResource
+import org.junit.rules.TemporaryFolder
 
-class LocalRepositoryFixture {
+class LocalRepositoryFixture extends ExternalResource{
 
-    private File rootProjectDir
+    private TemporaryFolder temporaryFolder
 
-    LocalRepositoryFixture(File rootProjectDir){
-        this.rootProjectDir = rootProjectDir
+    LocalRepositoryFixture(TemporaryFolder temporaryFolder){
+        this.temporaryFolder = temporaryFolder
     }
 
     void generateJar(String group, String module, String version, String... clazzNames){
@@ -37,13 +39,12 @@ class LocalRepositoryFixture {
         }
     }
 
-    void configureBuild() {
-        def buildFile = new File(rootProjectDir, 'build.gradle')
+    void configureBuild(File buildFile) {
         buildFile << """
         repositories {
           maven {
             name = "local-test"
-            url = file("local-repo")
+            url = "${getRepoDir()}"
             metadataSources {
               artifact()
             }
@@ -53,6 +54,6 @@ class LocalRepositoryFixture {
     }
 
     File getRepoDir() {
-        new File(rootProjectDir, 'local-repo')
+        new File(temporaryFolder.root, 'local-repo')
     }
 }

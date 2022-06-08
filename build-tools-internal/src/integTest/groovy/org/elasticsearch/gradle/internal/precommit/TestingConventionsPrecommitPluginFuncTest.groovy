@@ -12,21 +12,33 @@ import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.ClassRule
+import org.junit.rules.TemporaryFolder
+import spock.lang.Shared
 
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
-    LocalRepositoryFixture repository
 
-    def setup() {
-        repository = new LocalRepositoryFixture(projectDir)
-        repository.configureBuild()
+
+    @ClassRule
+    @Shared
+    public TemporaryFolder repoFolder = new TemporaryFolder()
+
+    @Shared
+    @ClassRule
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+
+    def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
-        "org.apache.lucene.tests.util.LuceneTestCase"
+                "org.apache.lucene.tests.util.LuceneTestCase"
         )
         repository.generateJar('org.junit', 'junit', "4.42",
                 "org.junit.Assert", "org.junit.Test"
         )
+    }
+    def setup() {
+        repository.configureBuild(buildFile)
     }
 
     def "skips convention check if no tests available"() {
@@ -34,9 +46,9 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         buildFile << """
         apply plugin:'java'
         """
-
         when:
         def result = gradleRunner("precommit").build()
+
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.NO_SOURCE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE

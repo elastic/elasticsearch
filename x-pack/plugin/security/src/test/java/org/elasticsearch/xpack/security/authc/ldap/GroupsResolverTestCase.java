@@ -19,7 +19,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +39,6 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
                 .put(settings)
                 .put("path.home", createTempDir())
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
                 .build();
         }
         return new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));

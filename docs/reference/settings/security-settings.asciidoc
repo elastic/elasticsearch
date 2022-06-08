@@ -207,7 +207,6 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-ifeval::["{release-state}"!="released"]
 [discrete]
 [[security-domain-settings]]
 ==== Security domain settings
@@ -229,7 +228,6 @@ xpack:
 <1> Specifies the name of the security domain
 <2> Specifies the realms that belong to the domain
 // end::security-domain-settings-description-tag[]
-endif::[]
 
 [discrete]
 [[realm-settings]]

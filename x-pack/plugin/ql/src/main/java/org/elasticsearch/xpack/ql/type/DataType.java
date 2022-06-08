@@ -65,12 +65,9 @@ public class DataType {
     }
 
     public ScriptSortBuilder.ScriptSortType scriptSortType() {
-        if (isNumeric()) {
-            return ScriptSortBuilder.ScriptSortType.NUMBER;
-        } else if (this == DataTypes.VERSION) {
-            return ScriptSortBuilder.ScriptSortType.VERSION;
-        }
-        return ScriptSortBuilder.ScriptSortType.STRING;
+        return isNumeric() ? ScriptSortBuilder.ScriptSortType.NUMBER
+            : this == DataTypes.VERSION ? ScriptSortBuilder.ScriptSortType.VERSION
+            : ScriptSortBuilder.ScriptSortType.STRING;
     }
 
     public boolean isInteger() {

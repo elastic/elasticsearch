@@ -274,9 +274,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
-        if (value instanceof org.elasticsearch.xpack.versionfield.Version) {
-            builder.value(value.toString());
-        } else if (value instanceof ZonedDateTime zdt) {
+        if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
             if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
@@ -286,6 +284,8 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         } else if (mode == CLI && value != null && value.getClass().getSuperclass().getSimpleName().equals(INTERVAL_CLASS_NAME)) {
             // use the SQL format for intervals when sending back the response for CLI
             // all other clients will receive ISO 8601 formatted intervals
+            builder.value(value.toString());
+        } else if (value instanceof org.elasticsearch.xpack.versionfield.Version) {
             builder.value(value.toString());
         } else {
             builder.value(value);

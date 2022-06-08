@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -394,9 +395,9 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     @Override
     public void triggered(TransformScheduler.Event event) {
-        logger.trace("[{}] triggered(event={}) ", getTransformId(), event);
+        logger.trace(() -> new ParameterizedMessage("[{}] triggered(event={}) ", getTransformId(), event));
         // Ignore if event is not for this job
-        if (event.getTransformId().equals(getTransformId()) == false) {
+        if (event.transformId().equals(getTransformId()) == false) {
             return;
         }
 
@@ -424,7 +425,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.debug("[{}] transform indexer schedule has triggered, state: [{}].", event.getTransformId(), indexerState);
+            logger.debug("[{}] transform indexer schedule has triggered, state: [{}].", getTransformId(), indexerState);
 
             // if it runs for the 1st time we just do it, if not we check for changes
             if (context.getCheckpoint() == 0) {

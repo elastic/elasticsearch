@@ -28,6 +28,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -35,6 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TransformSchedulerTests extends ESTestCase {
@@ -231,7 +233,7 @@ public class TransformSchedulerTests extends ESTestCase {
             @Override
             public void triggered(TransformScheduler.Event event) {
                 events.add(event);
-                assertThat(event.getTransformId(), is(equalTo(transformId)));
+                assertThat(event.transformId(), is(equalTo(transformId)));
                 if (firstTime) {
                     firstTime = false;
                 } else {
@@ -265,11 +267,11 @@ public class TransformSchedulerTests extends ESTestCase {
         assertBusy(() -> assertThat(events, hasSize(greaterThanOrEqualTo(3))), 20, TimeUnit.SECONDS);
 
         assertThat(events, hasSize(greaterThanOrEqualTo(3)));
-        assertThat(events.get(0).getTransformId(), is(equalTo(transformId)));
-        assertThat(events.get(1).getTransformId(), is(equalTo(transformId)));
-        assertThat(events.get(2).getTransformId(), is(equalTo(transformId)));
-        assertThat(events.get(1).getScheduledTime() - events.get(0).getTriggeredTime(), is(equalTo(frequency.millis())));
-        assertThat(events.get(2).getScheduledTime() - events.get(1).getTriggeredTime(), is(equalTo(frequency.millis())));
+        assertThat(events.get(0).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(1).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(2).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(1).scheduledTime() - events.get(0).triggeredTime(), is(equalTo(frequency.millis())));
+        assertThat(events.get(2).scheduledTime() - events.get(1).triggeredTime(), is(equalTo(frequency.millis())));
 
         transformScheduler.deregisterTransform(transformId);
         transformScheduler.stop();
@@ -298,10 +300,34 @@ public class TransformSchedulerTests extends ESTestCase {
         for (int failureCount = 0; failureCount < expectedDelayMillis.length; ++failureCount) {
             assertThat(
                 "failureCount = " + failureCount,
-                TransformScheduler.ScheduledTransformTask.calculateNextScheduledTimeAfterFailure(lastTriggeredTimeMillis, failureCount),
+                ScheduledTransformTask.calculateNextScheduledTimeAfterFailure(lastTriggeredTimeMillis, failureCount),
                 is(equalTo(lastTriggeredTimeMillis + expectedDelayMillis[failureCount]))
             );
         }
+    }
+
+    public void testScheduledTransformTaskEqualsAndHashCode() {
+        Supplier<TransformScheduler.Listener> listenerSupplier = () -> new TransformScheduler.Listener() {
+            @Override
+            public void triggered(TransformScheduler.Event event) {}
+
+            @Override
+            public boolean equals(Object o) {
+                return this == o;
+            }
+
+            @Override
+            public int hashCode() {
+                return 123;
+            }
+        };
+        TransformScheduler.Listener listener1 = listenerSupplier.get();
+        TransformScheduler.Listener listener2 = listenerSupplier.get();
+        ScheduledTransformTask task1 = new ScheduledTransformTask("transform-id", TimeValue.timeValueSeconds(10), 123L, 0, 50, listener1);
+        ScheduledTransformTask task2 = new ScheduledTransformTask("transform-id", TimeValue.timeValueSeconds(10), 123L, 0, 50, listener2);
+        // Verify the tasks are not equal. The equality check for listeners is performed using their identity.
+        assertThat(task1, is(not(equalTo(task2))));
+        assertThat(task1.hashCode(), is(not(equalTo(task2.hashCode()))));
     }
 
     private static class FakeClock extends Clock {

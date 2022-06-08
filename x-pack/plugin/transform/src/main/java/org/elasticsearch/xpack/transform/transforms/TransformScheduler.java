@@ -33,48 +33,9 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 public class TransformScheduler {
 
     /**
-     * {@link Event} class encapsulates data that might be useful to the listener when the listener is being triggered.
-     *
-     * This class is immutable.
+     * {@link Event} record encapsulates data that might be useful to the listener when the listener is being triggered.
      */
-    public static class Event {
-        private final String transformId;
-        private final long scheduledTime;
-        private final long triggeredTime;
-
-        public Event(String transformId, long scheduledTime, long triggeredTime) {
-            this.transformId = transformId;
-            this.scheduledTime = scheduledTime;
-            this.triggeredTime = triggeredTime;
-        }
-
-        public String getTransformId() {
-            return transformId;
-        }
-
-        public long getScheduledTime() {
-            return scheduledTime;
-        }
-
-        public long getTriggeredTime() {
-            return triggeredTime;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other == null || getClass() != other.getClass()) return false;
-            Event that = (Event) other;
-            return Objects.equals(this.transformId, that.transformId)
-                && this.scheduledTime == that.scheduledTime
-                && this.triggeredTime == that.triggeredTime;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(transformId, scheduledTime, triggeredTime);
-        }
-
+    public record Event(String transformId, long scheduledTime, long triggeredTime) {
         @Override
         public String toString() {
             return new StringBuilder("Event[").append("transformId=")
@@ -201,7 +162,15 @@ public class TransformScheduler {
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformId, frequency, lastTriggeredTimeMillis, failureCount, nextScheduledTimeMillis, listener);
+            // To ensure the "equals" and "hashCode" methods have the same view on equality, we use listener's system identity here.
+            return Objects.hash(
+                transformId,
+                frequency,
+                lastTriggeredTimeMillis,
+                failureCount,
+                nextScheduledTimeMillis,
+                System.identityHashCode(listener)
+            );
         }
 
         @Override
@@ -272,7 +241,12 @@ public class TransformScheduler {
             isProcessingActive.set(false);
         }
         Instant processingFinished = clock.instant();
-        logger.trace("Processing scheduled tasks finished, took {}ms", Duration.between(processingStarted, processingFinished).toMillis());
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "Processing scheduled tasks finished, took {}ms",
+                Duration.between(processingStarted, processingFinished).toMillis()
+            )
+        );
     }
 
     private void processScheduledTasksInternal() {
@@ -297,7 +271,7 @@ public class TransformScheduler {
         scheduledTasks.update(scheduledTask.getTransformId(), task -> {
             if (task.equals(scheduledTask) == false) {
                 logger.debug(
-                    new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] task object got modified while processing. Expected: {}, was: {}",
                         scheduledTask.getTransformId(),
                         scheduledTask,
@@ -323,14 +297,16 @@ public class TransformScheduler {
     }
 
     /**
-     * Registers the transform by adding it to the queue.
+     * Registers and triggers the transform.
+     * The transform is registered by adding it to the queue and then the transform is triggered immediately so that it does not have to
+     * wait until the next scheduled run.
      *
      * @param transformTaskParams structure containing transform's id and frequency
      * @param listener listener to be triggered
      */
     public void registerTransform(TransformTaskParams transformTaskParams, Listener listener) {
         String transformId = transformTaskParams.getId();
-        logger.trace(new ParameterizedMessage("[{}] register the transform", transformId));
+        logger.trace(() -> new ParameterizedMessage("[{}] register the transform", transformId));
         long currentTimeMillis = clock.millis();
         ScheduledTransformTask scheduledTransformTask = new ScheduledTransformTask(
             transformId,
@@ -353,7 +329,7 @@ public class TransformScheduler {
      * @param failureCount new value of transform task's failure count
      */
     public void handleTransformFailureCountChanged(String transformId, int failureCount) {
-        logger.trace(new ParameterizedMessage("[{}] handle transform failure count change to {}", transformId, failureCount));
+        logger.trace(() -> new ParameterizedMessage("[{}] handle transform failure count change to {}", transformId, failureCount));
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
@@ -374,7 +350,7 @@ public class TransformScheduler {
      */
     public void deregisterTransform(String transformId) {
         Objects.requireNonNull(transformId);
-        logger.trace(new ParameterizedMessage("[{}] de-register the transform", transformId));
+        logger.trace(() -> new ParameterizedMessage("[{}] de-register the transform", transformId));
         scheduledTasks.remove(transformId);
     }
 

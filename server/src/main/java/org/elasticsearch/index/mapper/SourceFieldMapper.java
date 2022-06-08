@@ -211,9 +211,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
-    public <T> SourceLoader newSourceLoader(RootObjectMapper root) {
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public <T> SourceLoader newSourceLoader(Mapping mapping) {
         if (synthetic) {
-            return new SourceLoader.Synthetic(root);
+            return new SourceLoader.Synthetic(mapping);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

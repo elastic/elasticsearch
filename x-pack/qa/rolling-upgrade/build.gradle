@@ -138,7 +138,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       toBlackList.addAll(['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'])
     }
 
@@ -196,7 +196,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       toBlackList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
     }
 
@@ -246,7 +246,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       toBlackList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
     }
 
@@ -304,7 +304,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       toBlackList.addAll(['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'])
     }
 

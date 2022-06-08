@@ -273,6 +273,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
         }
     }
 
@@ -323,6 +325,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
         }
     }
 

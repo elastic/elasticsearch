@@ -6,7 +6,7 @@
 This section provides a series of troubleshooting solutions aimed at helping users
 fix problems that an {es} deployment might encounter.
 
-Several troubleshooting issues can be diagnosed using the 
+Several troubleshooting issues can be diagnosed using the
 <<health-api,health API>>.
 
 If none of these solutions relate to your issue, you can still get help:
@@ -15,7 +15,7 @@ If none of these solutions relate to your issue, you can still get help:
 
 ** Go directly to the http://support.elastic.co[Support Portal]
 
-** From the {ess} Console, go to the 
+** From the {ess} Console, go to the
  https://cloud.elastic.co/support{ess-baymax}[Support page], or select the
  support icon that looks like a life preserver on any page.
 
@@ -29,7 +29,7 @@ registered email, you can also register a second email address with us. Just
 open a case to let us know the name and email address you want to add.
 ====
 
-* For users without an active subscription, visit the 
+* For users without an active subscription, visit the
 https://discuss.elastic.co/[Elastic community forums] and get answers from
 the experts in the community, including people from Elastic.
 --
@@ -45,6 +45,8 @@ include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
 include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
+
+include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 

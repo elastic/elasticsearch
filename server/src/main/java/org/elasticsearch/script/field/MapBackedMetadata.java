@@ -36,24 +36,20 @@ public class MapBackedMetadata {
         this.map = map;
     }
 
-    public MapBackedMetadata(int size) {
-        this.map = Maps.newMapWithExpectedSize(size);
-    }
-
     public String getIndex() {
         return getString(INDEX);
     }
 
-    public MapBackedMetadata setIndex(String index) {
-        return set(INDEX, index);
+    public void setIndex(String index) {
+        set(INDEX, index);
     }
 
     public String getId() {
         return getString(ID);
     }
 
-    public MapBackedMetadata setId(String id) {
-        return set(ID, id);
+    public void setId(String id) {
+        set(ID, id);
     }
 
     public Long getVersion() {
@@ -79,8 +75,8 @@ public class MapBackedMetadata {
         return map.get(VERSION);
     }
 
-    public MapBackedMetadata setVersion(Long version) {
-        return set(VERSION, version);
+    public void setVersion(Long version) {
+set(VERSION, version);
     }
 
     public void removeVersion() {
@@ -91,17 +87,16 @@ public class MapBackedMetadata {
         return getString(ROUTING);
     }
 
-    public MapBackedMetadata setRouting(String routing) {
-        return set(ROUTING, routing);
+    public void setRouting(String routing) {
+        set(ROUTING, routing);
     }
 
     public String getString(String key) {
         return Objects.toString(map.get(key), null);
     }
 
-    public MapBackedMetadata set(String key, Object value) {
+    public void set(String key, Object value) {
         map.put(key, value);
-        return this;
     }
 
     public Map<String, Object> getMap() {

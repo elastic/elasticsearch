@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 public class MapBackedMetadataTests extends ESTestCase {
     public void testString() {
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         String key = "myKey";
         String value = "myValue";
         assertNull(m.getString(key));
@@ -44,7 +45,7 @@ public class MapBackedMetadataTests extends ESTestCase {
 
     public void testIndex() {
         String index = "myIndex";
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         assertNull(m.getIndex());
         assertNull(m.getMap().get("_index"));
 
@@ -55,7 +56,7 @@ public class MapBackedMetadataTests extends ESTestCase {
 
     public void testId() {
         String id = "myId";
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         assertNull(m.getId());
         assertNull(m.getMap().get("_id"));
 
@@ -66,7 +67,7 @@ public class MapBackedMetadataTests extends ESTestCase {
 
     public void testRouting() {
         String routing = "myRouting";
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         assertNull(m.getRouting());
         assertNull(m.getMap().get("_routing"));
 
@@ -77,7 +78,7 @@ public class MapBackedMetadataTests extends ESTestCase {
 
     public void testVersion() {
         long version = 500;
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         assertNull(m.getVersion());
         assertNull(m.getMap().get("_version"));
 
@@ -108,7 +109,7 @@ public class MapBackedMetadataTests extends ESTestCase {
     }
 
     public void testSource() {
-        MapBackedMetadata m = new MapBackedMetadata(1);
+        MapBackedMetadata m = singleElementMetadata();
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
 
@@ -141,5 +142,9 @@ public class MapBackedMetadataTests extends ESTestCase {
         assertEquals(Long.valueOf(200), m.getVersion());
         assertEquals("myRouting", m.getRouting());
         assertEquals("bar", m.getSource().get("foo"));
+    }
+
+    private MapBackedMetadata singleElementMetadata() {
+        return new MapBackedMetadata(Maps.newMapWithExpectedSize(1));
     }
 }

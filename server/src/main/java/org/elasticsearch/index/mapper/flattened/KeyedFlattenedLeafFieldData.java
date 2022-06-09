@@ -210,6 +210,11 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
         }
 
         @Override
+        public long docValueCount() {
+            return delegate.docValueCount();
+        }
+
+        @Override
         public boolean advanceExact(int target) throws IOException {
             if (delegate.advanceExact(target)) {
                 while (true) {

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * A generic structure to encapsulate resource to privileges map.
@@ -69,7 +69,7 @@ public final class ResourcePrivileges {
 
     public static final class Builder {
         private final String resource;
-        private Map<String, Boolean> privileges = new HashMap<>();
+        private Map<String, Boolean> privileges = new TreeMap<>();
 
         private Builder(String resource) {
             this.resource = resource;

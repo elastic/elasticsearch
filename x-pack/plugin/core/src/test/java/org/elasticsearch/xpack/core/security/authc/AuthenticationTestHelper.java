@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -70,6 +71,14 @@ public class AuthenticationTestHelper {
         ServiceAccountSettings.REALM_TYPE
     );
 
+    private static final Set<User> INTERNAL_USERS = Set.of(
+        SystemUser.INSTANCE,
+        XPackUser.INSTANCE,
+        XPackSecurityUser.INSTANCE,
+        AsyncSearchUser.INSTANCE,
+        SecurityProfileUser.INSTANCE
+    );
+
     public static AuthenticationTestBuilder builder() {
         return new AuthenticationTestBuilder();
     }
@@ -97,6 +106,10 @@ public class AuthenticationTestHelper {
             )
         );
         return new RealmDomain(ESTestCase.randomAlphaOfLengthBetween(3, 8), domainRealms);
+    }
+
+    public static Authentication.RealmRef randomRealmRef() {
+        return randomRealmRef(ESTestCase.randomBoolean());
     }
 
     public static Authentication.RealmRef randomRealmRef(boolean underDomain) {
@@ -159,6 +172,27 @@ public class AuthenticationTestHelper {
         } else {
             return user;
         }
+    }
+
+    public static String randomInternalUsername() {
+        return builder().internal().build(false).getUser().principal();
+    }
+
+    /**
+     * @return non-empty collection of internal usernames
+     */
+    public static List<String> randomInternalUsernames() {
+        return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+    }
+
+    public static String randomInternalRoleName() {
+        return ESTestCase.randomFrom(
+            UsernamesField.SYSTEM_ROLE,
+            UsernamesField.XPACK_ROLE,
+            UsernamesField.ASYNC_SEARCH_ROLE,
+            UsernamesField.XPACK_SECURITY_ROLE,
+            UsernamesField.SECURITY_PROFILE_ROLE
+        );
     }
 
     public static class AuthenticationTestBuilder {
@@ -238,15 +272,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder internal() {
-            return internal(
-                ESTestCase.randomFrom(
-                    SystemUser.INSTANCE,
-                    XPackUser.INSTANCE,
-                    XPackSecurityUser.INSTANCE,
-                    SecurityProfileUser.INSTANCE,
-                    AsyncSearchUser.INSTANCE
-                )
-            );
+            return internal(ESTestCase.randomFrom(INTERNAL_USERS));
         }
 
         public AuthenticationTestBuilder internal(User user) {
@@ -423,13 +449,7 @@ public class AuthenticationTestHelper {
                     }
                     case INTERNAL -> {
                         if (user == null) {
-                            user = ESTestCase.randomFrom(
-                                SystemUser.INSTANCE,
-                                XPackUser.INSTANCE,
-                                XPackSecurityUser.INSTANCE,
-                                SecurityProfileUser.INSTANCE,
-                                AsyncSearchUser.INSTANCE
-                            );
+                            user = ESTestCase.randomFrom(INTERNAL_USERS);
                         }
                         assert User.isInternal(user) : "user must be internal for internal authentication";
                         assert realmRef == null : "cannot specify realm type for internal authentication";

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -373,7 +374,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                                     allocationId1R
                                 )
                             )
-                            .build()
                     )
             )
             .add(
@@ -401,7 +401,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                                     allocationId2R
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -580,8 +579,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        RoutingNode newNode = new RoutingNode("newNode", newNode("newNode", Version.CURRENT));
-        RoutingNode oldNode = new RoutingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
+        RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT));
+        RoutingNode oldNode = RoutingNodesHelper.routingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
 
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState clusterState = ClusterState.builder(clusterName)

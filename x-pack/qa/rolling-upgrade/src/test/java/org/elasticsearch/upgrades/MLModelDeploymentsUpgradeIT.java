@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -56,6 +58,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
+
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -83,6 +90,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
+                assertNewInfer(modelId);
                 stopDeployment(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -147,6 +155,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
     }
 
+    private void assertNewInfer(String modelId) throws IOException {
+        Response inference = newInfer("my words", modelId);
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
+    }
+
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
         request.setJsonEntity("""
@@ -200,6 +213,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 + waitForState
                 + "&inference_threads=1&model_threads=1"
         );
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
         return response;
@@ -236,7 +250,17 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+        var response = client().performRequest(request);
+        assertOK(response);
+        return response;
+    }
 
+    private Response newInfer(String input, String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

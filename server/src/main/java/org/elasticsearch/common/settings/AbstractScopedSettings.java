@@ -10,7 +10,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -154,7 +153,7 @@ public abstract class AbstractScopedSettings {
                 settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
-                logger.debug(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                logger.debug(() -> "failed to prepareCommit settings for [" + settingUpdater + "]", ex);
             }
         }
         // here we are exhaustive and record all settings that failed.
@@ -182,7 +181,7 @@ public abstract class AbstractScopedSettings {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
-                    logger.warn(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                    logger.warn(() -> "failed to prepareCommit settings for [" + settingUpdater + "]", ex);
                     throw ex;
                 }
             }

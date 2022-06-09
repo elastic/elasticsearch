@@ -1050,6 +1050,12 @@ post-processing is done to the inference output and the raw pooling layer
 results are returned to the caller.
 end::inference-config-pass-through[]
 
+tag::inference-config-nlp-question-answering[]
+Configures a question answering natural language processing (NLP) task. Question 
+answering is useful for extracting answers for certain questions from a large 
+corpus of text.
+end::inference-config-nlp-question-answering[]
+
 tag::inference-config-text-classification[]
 A text classification task. Text classification classifies a provided text
 sequence into previously known target classes. A specific example of this is

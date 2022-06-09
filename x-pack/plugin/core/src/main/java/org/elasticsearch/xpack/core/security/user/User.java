@@ -151,14 +151,6 @@ public class User implements ToXContentObject {
             || AsyncSearchUser.is(user);
     }
 
-    public static boolean isInternalUsername(String username) {
-        return SystemUser.NAME.equals(username)
-            || XPackUser.NAME.equals(username)
-            || XPackSecurityUser.NAME.equals(username)
-            || SecurityProfileUser.NAME.equals(username)
-            || AsyncSearchUser.NAME.equals(username);
-    }
-
     /** Write the given {@link User} */
     public static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user

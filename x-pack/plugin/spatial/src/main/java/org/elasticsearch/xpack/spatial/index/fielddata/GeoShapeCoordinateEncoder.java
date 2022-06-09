@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 
-// TODO make cartesian
 final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
 
     @Override

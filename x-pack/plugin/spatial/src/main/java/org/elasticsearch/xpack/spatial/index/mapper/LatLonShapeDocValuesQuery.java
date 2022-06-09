@@ -32,7 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/** Lucene geometry query for {@link org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField}. */
+/** Lucene geometry query for {@link BinaryShapeDocValuesField}. */
 class LatLonShapeDocValuesQuery extends Query {
 
     private final String field;

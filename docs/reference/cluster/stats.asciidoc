@@ -1382,7 +1382,7 @@ The API returns the following response:
         "total_field_count": 0,
         "total_deduplicated_field_count": 0,
         "total_deduplicated_mapping_size": "0b",
-        "total_deduplicated_mapping_size_in_bytes": "0b",
+        "total_deduplicated_mapping_size_in_bytes": 0,
         "field_types": [],
         "runtime_field_types": []
       },

@@ -57,7 +57,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
-import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -743,16 +742,7 @@ public class MachineLearning extends Plugin
     }
 
     private int getAllocatedProcessors() {
-        try {
-            return new OsService(settings).info().getAllocatedProcessors();
-        } catch (IOException e) {
-            // OsService may throw an IOException whilst reading the OS name.
-            // This should be an extremely rare error.
-            // It is preferrable we learn about allocated processors from OsService
-            // but if that fails for some reason we can repeat the logic here.
-            logger.debug("failed to read allocated processors from OsService", e);
-            return Math.min(EsExecutors.allocatedProcessors(settings), Runtime.getRuntime().availableProcessors());
-        }
+        return EsExecutors.allocatedProcessors(settings);
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {

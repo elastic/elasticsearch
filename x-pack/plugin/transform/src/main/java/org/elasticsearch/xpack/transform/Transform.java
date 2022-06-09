@@ -137,14 +137,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
-    // This cluster-level setting can be overriden by transform-level setting specified in individual transform's SettingsConfig.
+    // This cluster-level setting is deprecated, the users should be using transform-level setting instead.
+    // In order to ensure BWC, this cluster-level setting serves as a fallback in case the transform-level setting is not specified.
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
         "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
         0,
         SettingsConfig.MAX_NUM_FAILURE_RETRIES,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.DeprecatedWarning
     );
 
     public Transform(Settings settings) {

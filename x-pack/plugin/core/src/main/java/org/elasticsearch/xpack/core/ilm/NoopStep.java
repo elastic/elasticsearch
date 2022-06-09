@@ -10,7 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
 /**
- * Signals that an error was encountered during the execution of a policy on an index.
+ * This is a Noop step that can be used for backwards compatibility when removing some step in newer versions.
+ * It literally does nothing so that we can safely proceed to the nextStepKey without getting stuck.
  */
 public class NoopStep extends ClusterStateWaitStep {
     public static final String NAME = "NOOP";
@@ -21,13 +22,13 @@ public class NoopStep extends ClusterStateWaitStep {
 
     @Override
     public boolean isRetryable() {
-        // this is noop step we don't want to get stuck in, so we want it to be retryable
+        // As this is a noop step and we don't want to get stuck in, we want it to be retryable
         return true;
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        // we always want to move forward with this step so this should always be true
+        // We always want to move forward with this step so this should always be true
         return new Result(true, null);
     }
 }

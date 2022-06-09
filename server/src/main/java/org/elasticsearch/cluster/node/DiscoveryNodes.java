@@ -696,10 +696,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             return null;
         }
 
-        public Map<String, DiscoveryNode> getNodes() {
-            return nodes;
-        }
-
         public DiscoveryNodes build() {
             Version minNodeVersion = null;
             Version maxNodeVersion = null;

@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeVersionAssignment() {
-        DiscoveryNodes.Builder nodes = buildNodes(false, true, true, true, true);
+        DiscoveryNodes nodes = buildNodes(false, true, true, true, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -81,7 +81,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeAssignmentProblems() {
         // no data nodes
-        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
+        DiscoveryNodes nodes = buildNodes(false, false, false, false, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -177,7 +177,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeAssignmentProblemDueToNodeShutdown() {
-        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, true, false);
+        DiscoveryNodes nodes = buildNodes(false, false, false, true, false);
 
         final String targetNodeName = randomAlphaOfLengthBetween(10, 20);
         final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
@@ -284,7 +284,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         }
     }
 
-    private DiscoveryNodes.Builder buildNodes(
+    private DiscoveryNodes buildNodes(
         boolean dedicatedTransformNode,
         boolean pastDataNode,
         boolean transformRemoteNodes,
@@ -389,14 +389,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
         }
 
-        return nodes;
+        return nodes.build();
     }
 
-    private ClusterState buildClusterState(DiscoveryNodes.Builder nodes) {
+    private ClusterState buildClusterState(DiscoveryNodes nodes) {
         return buildClusterState(nodes, null);
     }
 
-    private ClusterState buildClusterState(DiscoveryNodes.Builder nodes, NodesShutdownMetadata nodesShutdownMetadata) {
+    private ClusterState buildClusterState(DiscoveryNodes nodes, NodesShutdownMetadata nodesShutdownMetadata) {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);

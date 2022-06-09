@@ -161,6 +161,16 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return builder;
     }
 
+    public static boolean isNodeShuttingDown(Metadata metadata, String nodeId) {
+        NodesShutdownMetadata nodesShutdownMetadata = metadata != null ? metadata.custom(NodesShutdownMetadata.TYPE) : null;
+        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap() == null) {
+            // There are no nodes in the process of shutting down, return null.
+            return false;
+        }
+
+        return nodesShutdownMetadata.getAllNodeMetadataMap().containsKey(nodeId);
+    }
+
     /**
      * Handles diffing and appling diffs for {@link NodesShutdownMetadata} as necessary for the cluster state infrastructure.
      */

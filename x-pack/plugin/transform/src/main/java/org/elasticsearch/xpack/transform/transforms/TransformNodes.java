@@ -249,7 +249,7 @@ public final class TransformNodes {
             return false;
         }
 
-        if (isNodeShuttingDown(metadata, node.getId())) {
+        if (NodesShutdownMetadata.isNodeShuttingDown(metadata, node.getId())) {
             if (explain != null) {
                 explain.put(node.getId(), "node is shutting down");
             }
@@ -258,15 +258,5 @@ public final class TransformNodes {
 
         // we found no reason that the transform can not run on this node
         return true;
-    }
-
-    private static boolean isNodeShuttingDown(Metadata metadata, String nodeId) {
-        NodesShutdownMetadata nodesShutdownMetadata = metadata != null ? metadata.custom(NodesShutdownMetadata.TYPE) : null;
-        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap() == null) {
-            // There are no nodes in the process of shutting down, return null.
-            return false;
-        }
-
-        return nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeId) != null;
     }
 }

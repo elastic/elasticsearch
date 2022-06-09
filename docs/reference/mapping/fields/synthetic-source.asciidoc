@@ -3,8 +3,8 @@
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
-send them, Elasticsearch can reconstruct source content on the fly. Enable this
-by setting `synthetic: true` in `_source`:
+send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
+Enable this by setting `synthetic: true` in `_source`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
@@ -23,7 +23,7 @@ While this on the fly reconstruction is *generally* slower than saving the sourc
 documents verbatim and loading them at query time, it saves a lot of storage
 space. There are a couple of restrictions to be aware of:
 
-* When you retrieve sythetic `_source` content it undergoes minor
+* When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
@@ -84,7 +84,8 @@ Will become:
 ====== Fields named as they are mapped
 Synthetic source names fields as they are named in the mapping. When used
 with <<dynamic,dynamic mapping>>, fields with dots (`.`) in their names are, by
-default, interpreted as multiple objects. For example:
+default, interpreted as multiple objects, while dots in field names are
+preserved within objects that have <<subobjects>> disabled. For example:
 
 [source,console,id=synthetic-source-objecty-example]
 ----

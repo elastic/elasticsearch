@@ -6,11 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
@@ -64,7 +60,6 @@ import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
  * An abstract implementation of {@link AsyncTwoPhaseIndexer} that builds a rollup index incrementally.
  */
 public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, RollupIndexerJobStats> {
-    private static final Logger logger = LogManager.getLogger(RollupIndexer.class);
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final Client client;
@@ -128,23 +123,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    @Override
-    protected void onFinish(ActionListener<Void> listener) {
-        final String rollupIndex = job.getConfig().getRollupIndex();
-        final RefreshRequest refreshRequest = new RefreshRequest(rollupIndex);
-        client.admin().indices().refresh(refreshRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(RefreshResponse refreshResponse) {
-                logger.info("refreshing rollup index {} successful", rollupIndex);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("refreshing rollup index {} failed with exception {}", rollupIndex, e);
-            }
-        });
     }
 
     protected SearchRequest buildSearchRequest() {

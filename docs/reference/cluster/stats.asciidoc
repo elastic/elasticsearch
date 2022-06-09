@@ -1379,6 +1379,10 @@ The API returns the following response:
          "file_sizes": {}
       },
       "mappings": {
+        "total_field_count": 0,
+        "total_deduplicated_field_count": 0,
+        "total_deduplicated_mapping_size": "0b",
+        "total_deduplicated_mapping_size_in_bytes": "0b",
         "field_types": [],
         "runtime_field_types": []
       },

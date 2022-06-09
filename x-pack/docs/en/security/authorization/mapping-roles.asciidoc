@@ -2,17 +2,34 @@
 [[mapping-roles]]
 === Mapping users and groups to roles
 
-If you authenticate users with the `native` or `file` realms, you can manage
-role assignment by using the <<managing-native-users,user management APIs>> or
-the <<users-command,users>> command-line tool respectively.
+Role mapping is supported by all realms except `native` and `file`. Those two realms
+assign roles directly to users, so they do not support other role lookup methods such
+as role mapping.
 
-For other types of realms, you must create _role-mappings_ that define which
-roles should be assigned to each user based on their username, groups, or
-other metadata.
+TIP: Native realms use <<managing-native-users,user management APIs>>.
+
+TIP: File realms use <<roles-management-file,File-based role management>>.
+
+The realms that support role mapping also support alternative role lookup methods.
+Pick the best method for each realm based on your requirements, and these constraints.
+
+TIP: The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms
+support using role mapping or <<authorization_realms,authorization realms>>.
+For delegated authorization, a constraint is they can only delegate to other realms
+of type Native, File, LDAP, and AD.
+Examples are SAML to Native, Kerberos to File, PKI to AD, or LDAP to LDAP.
+
+TIP: The PKI, LDAP, and AD realms support <<roles-management-file,File-based role management>>.
+
+If you configure role mapping for a realm, you must create _role-mappings_ that define
+which roles should be assigned to each user. Role mapping rules can based on
+realm name, realm type, username, groups, other user metadata, or combinations of
+those values.
 
 NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
 of the anonymous user are assigned to all the other users as well.
 
+There are two sources of role-mapping rules.
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
 These two sources of role-mapping are combined inside of the {es}
@@ -21,17 +38,17 @@ possible for a single user to have some roles that have been mapped through
 the API, and other roles that are mapped through files.
 
 NOTE: Users with no roles assigned will be unauthorized for any action.
+They may be able to authenticate, but they will not have any privileges
+to request any actions.
 
-When you use role-mappings, you assign existing roles to users.
+When you use role-mappings to assign roles to users, the roles must exist.
+There are two sources of roles.
 The available roles should either be added using the
 <<security-role-apis,role management APIs>> or defined in the
 <<roles-management-file,roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
-
-TIP: The PKI, LDAP, Kerberos, OpenID Connect, JWT, and SAML realms support using
-<<authorization_realms,authorization realms>> as an alternative to role mapping.
 
 [[mapping-roles-api]]
 ==== Using the role mapping API

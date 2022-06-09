@@ -96,6 +96,11 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * Troubleshooting Security</a> for information.
  */
 final class Security {
+
+    static {
+        prepopulateSecurityCaller();
+    }
+
     /** no instantiation */
     private Security() {}
 

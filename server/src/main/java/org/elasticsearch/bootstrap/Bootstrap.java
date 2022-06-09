@@ -39,7 +39,6 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -211,7 +210,7 @@ final class Bootstrap {
             // look for jar hell
             final Logger logger = LogManager.getLogger(JarHell.class);
             JarHell.checkJarHell(logger::debug);
-        } catch (IOException | URISyntaxException e) {
+        } catch (IOException e) {
             throw new BootstrapException(e);
         }
 
@@ -280,30 +279,13 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-        final boolean foreground,
-        final boolean quiet,
-        final Environment initialEnv,
-        SecureString keystorePassword,
-        Path pidFile
-    ) throws BootstrapException, NodeValidationException, UserException {
-        // force the class initializer for BootstrapInfo to run before
-        // the security manager is installed
-        BootstrapInfo.init();
+    static void init(final boolean foreground, final Environment initialEnv, SecureString keystorePassword, Path pidFile)
+        throws BootstrapException, NodeValidationException, UserException {
 
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv, keystorePassword);
         final Environment environment = createEnvironment(keystore, initialEnv.settings(), initialEnv.configFile());
-
-        BootstrapInfo.setConsole(getConsole(environment));
-
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
-        try {
-            LogConfigurator.configure(environment, quiet == false);
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
 
         try {
             // fail if somebody replaced the lucene jars
@@ -350,10 +332,6 @@ final class Bootstrap {
 
             throw e;
         }
-    }
-
-    private static ConsoleLoader.Console getConsole(Environment environment) {
-        return ConsoleLoader.loadConsole(environment);
     }
 
     private static void checkLucene() {

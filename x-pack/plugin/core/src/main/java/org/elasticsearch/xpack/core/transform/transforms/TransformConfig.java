@@ -623,7 +623,8 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     builder.getSettings().getDatesAsEpochMillis(),
                     builder.getSettings().getAlignCheckpoints(),
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries()
                 )
             );
         }
@@ -637,7 +638,8 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     true,
                     builder.getSettings().getAlignCheckpoints(),
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries()
                 )
             );
         }
@@ -651,7 +653,8 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,
                     builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings()
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries()
                 )
             );
         }

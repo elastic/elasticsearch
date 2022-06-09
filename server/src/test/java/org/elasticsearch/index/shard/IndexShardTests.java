@@ -2007,7 +2007,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRecoveringShardFailsIfStartedTooSoon() throws IOException {
-        final IndexShard shard = newShard(randomBoolean());
+        final IndexShard shard = newShard(false);
         final ShardRouting originalRouting = shard.routingEntry();
         final ShardRouting startedRouting = ShardRoutingHelper.moveToStarted(originalRouting);
         assertThat(

@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
@@ -132,6 +133,9 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
             // Unsigned longs can be returned either as such (for values exceeding long range) or as longs. Value conversion is needed
             // since its later processing will be type dependent. (ex.: negation of UL is only "safe" for 0 values)
             return convert(values, UNSIGNED_LONG);
+        }
+        if (dataType == VERSION) {
+            return convert(values, VERSION);
         }
 
         return null;

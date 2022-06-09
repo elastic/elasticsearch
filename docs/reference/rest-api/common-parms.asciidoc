@@ -1057,10 +1057,9 @@ The default value is `500`.
 end::transform-settings-max-page-search-size[]
 
 tag::transform-settings-num-failure-retries[]
-Defines the number of retries on a recoverable failure before giving up.
+Defines the number of retries on a recoverable failure before the {transform} task is marked as `failed`.
 The minimum value is `0` and the maximum is `100`.
-Additionally, a special value `-1` can be used to denote infinity, i.e.: the transform will never give up on retrying
-a recoverable failure.
+`-1` can be used to denote infinity. In this case, the {transform} never gives up on retrying a recoverable failure.
 The default value is the cluster-level setting `num_transform_failure_retries`.
 end::transform-settings-num-failure-retries[]
 

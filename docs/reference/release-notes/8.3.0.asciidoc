@@ -321,7 +321,5 @@ SQL::
 
 Search::
 * Update to public lucene 9.2.0 release {es-pull}87162[#87162]
-* Upgrade to Lucene 9.2 snapshot {es-pull}86227[#86227]
-* Upgrade to lucene snapshot 978eef5459c {es-pull}86852[#86852]
 
 

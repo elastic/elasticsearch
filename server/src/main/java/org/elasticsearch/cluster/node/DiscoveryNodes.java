@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -34,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -44,10 +44,10 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
-    private final ImmutableOpenMap<String, DiscoveryNode> nodes;
-    private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
-    private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
-    private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
+    private final Map<String, DiscoveryNode> nodes;
+    private final Map<String, DiscoveryNode> dataNodes;
+    private final Map<String, DiscoveryNode> masterNodes;
+    private final Map<String, DiscoveryNode> ingestNodes;
 
     @Nullable
     private final String masterNodeId;
@@ -62,10 +62,10 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final Version minNodeVersion;
 
     private DiscoveryNodes(
-        ImmutableOpenMap<String, DiscoveryNode> nodes,
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes,
-        ImmutableOpenMap<String, DiscoveryNode> masterNodes,
-        ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
+        Map<String, DiscoveryNode> nodes,
+        Map<String, DiscoveryNode> dataNodes,
+        Map<String, DiscoveryNode> masterNodes,
+        Map<String, DiscoveryNode> ingestNodes,
         @Nullable String masterNodeId,
         @Nullable String localNodeId,
         Version minNonClientNodeVersion,
@@ -157,9 +157,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * @return {@link Map} of the discovered master and data nodes arranged by their ids
      */
     public Map<String, DiscoveryNode> getMasterAndDataNodes() {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
-        nodes.putAllFromMap(masterNodes);
-        return nodes.build();
+        return filteredNodes(nodes, n -> n.canContainData() || n.isMasterNode());
     }
 
     /**
@@ -168,11 +166,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * @return {@link Map} of the coordinating only nodes arranged by their ids
      */
     public Map<String, DiscoveryNode> getCoordinatingOnlyNodes() {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
-        nodes.removeAllFromCollection(masterNodes.keySet());
-        nodes.removeAllFromCollection(dataNodes.keySet());
-        nodes.removeAllFromCollection(ingestNodes.keySet());
-        return nodes.build();
+        return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
     /**
@@ -703,22 +697,12 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         }
 
         public DiscoveryNodes build() {
-            ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
-            ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
-            ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
-                String nodeId = nodeEntry.getKey();
                 DiscoveryNode discoNode = nodeEntry.getValue();
-                if (discoNode.canContainData()) {
-                    dataNodesBuilder.put(nodeId, discoNode);
-                }
-                if (discoNode.isMasterNode()) {
-                    masterNodesBuilder.put(nodeId, discoNode);
-                }
                 final Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
                     if (minNonClientNodeVersion == null) {
@@ -729,18 +713,15 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                         maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
                     }
                 }
-                if (discoNode.isIngestNode()) {
-                    ingestNodesBuilder.put(nodeId, discoNode);
-                }
                 minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
                 maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
             }
 
             return new DiscoveryNodes(
-                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAllFromMap(nodes).build(),
-                dataNodesBuilder.build(),
-                masterNodesBuilder.build(),
-                ingestNodesBuilder.build(),
+                Map.copyOf(nodes),
+                filteredNodes(nodes, DiscoveryNode::canContainData),
+                filteredNodes(nodes, DiscoveryNode::isMasterNode),
+                filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
@@ -752,6 +733,13 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
         }
+    }
+
+    private static Map<String, DiscoveryNode> filteredNodes(Map<String, DiscoveryNode> nodes, Predicate<DiscoveryNode> predicate) {
+        return nodes.entrySet()
+            .stream()
+            .filter(e -> predicate.test(e.getValue()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public static void addCommaSeparatedNodesWithoutAttributes(Iterator<DiscoveryNode> iterator, StringBuilder stringBuilder) {

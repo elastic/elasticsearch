@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -62,6 +63,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -106,9 +109,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
-        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
-        long unassignedBytes = allocationState.storagePreventsAllocation();
-        long assignedBytes = allocationState.storagePreventsRemainOrMove();
+        AllocationState allocationState = allocationState(context);
+        var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove();
+        long assignedBytes = assignedBytesUnmovableShards.sizeInBytes();
+        var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation();
+        long unassignedBytes = unassignedBytesUnassignedShards.sizeInBytes();
         long maxShardSize = allocationState.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;
@@ -118,7 +123,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
             .node(maxShardSize, null)
             .build();
-        return new AutoscalingDeciderResult(requiredCapacity, new ReactiveReason(message, unassignedBytes, assignedBytes));
+        return new AutoscalingDeciderResult(
+            requiredCapacity,
+            new ReactiveReason(
+                message,
+                unassignedBytes,
+                unassignedBytesUnassignedShards.shardIds(),
+                assignedBytes,
+                assignedBytesUnmovableShards.shardIds()
+            )
+        );
+    }
+
+    AllocationState allocationState(AutoscalingDeciderContext context) {
+        return new AllocationState(context, diskThresholdSettings, allocationDeciders);
     }
 
     static String message(long unassignedBytes, long assignedBytes) {
@@ -214,16 +232,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.roles = roles;
         }
 
-        public long storagePreventsAllocation() {
+        public ShardsSize storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+            List<ShardRouting> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
-                .mapToLong(this::sizeOf)
-                .sum();
+                .toList();
+            return new ShardsSize(
+                unassignedShards.stream().mapToLong(this::sizeOf).sum(),
+                unassignedShards.stream().map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
+            );
         }
 
-        public long storagePreventsRemainOrMove() {
+        public ShardsSize storagePreventsRemainOrMove() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
 
             List<ShardRouting> candidates = new LinkedList<>();
@@ -249,13 +270,18 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(e -> unmovableSize(e.getKey(), e.getValue()))
                 .sum();
 
-            long unallocatableBytes = candidates.stream()
+            List<ShardRouting> unallocatedShards = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
                 .filter(s1 -> cannotAllocateDueToStorage(s1, allocation))
-                .mapToLong(this::sizeOf)
-                .sum();
+                .toList();
+            long unallocatableBytes = unallocatedShards.stream().mapToLong(this::sizeOf).sum();
 
-            return unallocatableBytes + unmovableBytes;
+            return new ShardsSize(
+                unallocatableBytes + unmovableBytes,
+                Stream.concat(unmovableShards.stream(), unallocatedShards.stream())
+                    .map(ShardRouting::shardId)
+                    .collect(Collectors.toCollection(TreeSet::new))
+            );
         }
 
         /**
@@ -450,7 +476,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 metadataBuilder.put(updatedDataStream);
             }
 
-            public void applySize(ImmutableOpenMap.Builder<String, Long> builder, RoutingTable updatedRoutingTable) {
+            public void applySize(Map<String, Long> builder, RoutingTable updatedRoutingTable) {
                 for (Map.Entry<IndexMetadata, Long> entry : additionalIndices.entrySet()) {
                     List<ShardRouting> shardRoutings = updatedRoutingTable.allShards(entry.getKey().getIndex().getName());
                     long size = entry.getValue() / shardRoutings.size();
@@ -481,13 +507,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
             RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
-            ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
+            Map<String, Long> sizeBuilder = new HashMap<>();
             singleForecasts.forEach(p -> p.applyMetadata(metadataBuilder));
             singleForecasts.forEach(p -> p.applyRouting(routingTableBuilder));
             RoutingTable routingTable = routingTableBuilder.build();
             singleForecasts.forEach(p -> p.applySize(sizeBuilder, routingTable));
             ClusterState forecastClusterState = ClusterState.builder(state).metadata(metadataBuilder).routingTable(routingTable).build();
-            ClusterInfo forecastInfo = new ExtendedClusterInfo(sizeBuilder.build(), AllocationState.this.info);
+            ClusterInfo forecastInfo = new ExtendedClusterInfo(Collections.unmodifiableMap(sizeBuilder), AllocationState.this.info);
 
             return new AllocationState(
                 forecastClusterState,
@@ -615,15 +641,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private static class ExtendedClusterInfo extends ClusterInfo {
             private final ClusterInfo delegate;
 
-            private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
-                super(
-                    info.getNodeLeastAvailableDiskUsages(),
-                    info.getNodeMostAvailableDiskUsages(),
-                    extraShardSizes,
-                    ImmutableOpenMap.of(),
-                    null,
-                    null
-                );
+            private ExtendedClusterInfo(Map<String, Long> extraShardSizes, ClusterInfo info) {
+                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, Map.of(), null, null);
                 this.delegate = info;
             }
 
@@ -675,20 +694,45 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
+
+        static final int MAX_AMOUNT_OF_SHARDS = 512;
+        private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
+
         private final String reason;
         private final long unassigned;
         private final long assigned;
+        private final SortedSet<ShardId> unassignedShardIds;
+        private final SortedSet<ShardId> assignedShardIds;
 
         public ReactiveReason(String reason, long unassigned, long assigned) {
+            this(reason, unassigned, Collections.emptySortedSet(), assigned, Collections.emptySortedSet());
+        }
+
+        ReactiveReason(
+            String reason,
+            long unassigned,
+            SortedSet<ShardId> unassignedShardIds,
+            long assigned,
+            SortedSet<ShardId> assignedShardIds
+        ) {
             this.reason = reason;
             this.unassigned = unassigned;
             this.assigned = assigned;
+            this.unassignedShardIds = unassignedShardIds;
+            this.assignedShardIds = assignedShardIds;
         }
 
         public ReactiveReason(StreamInput in) throws IOException {
             this.reason = in.readString();
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
+            if (in.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
+                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+            } else {
+                unassignedShardIds = Collections.emptySortedSet();
+                assignedShardIds = Collections.emptySortedSet();
+            }
         }
 
         @Override
@@ -704,6 +748,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return assigned;
         }
 
+        public SortedSet<ShardId> unassignedShardIds() {
+            return unassignedShardIds;
+        }
+
+        public SortedSet<ShardId> assignedShardIds() {
+            return assignedShardIds;
+        }
+
         @Override
         public String getWriteableName() {
             return ReactiveStorageDeciderService.NAME;
@@ -714,6 +766,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             out.writeString(reason);
             out.writeLong(unassigned);
             out.writeLong(assigned);
+            if (out.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
+                out.writeCollection(unassignedShardIds);
+                out.writeCollection(assignedShardIds);
+            }
         }
 
         @Override
@@ -721,7 +777,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.startObject();
             builder.field("reason", reason);
             builder.field("unassigned", unassigned);
+            builder.field("unassigned_shards", unassignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
+            builder.field("unassigned_shards_count", unassignedShardIds.size());
             builder.field("assigned", assigned);
+            builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
+            builder.field("assigned_shards_count", assignedShardIds.size());
             builder.endObject();
             return builder;
         }
@@ -731,12 +791,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ReactiveReason that = (ReactiveReason) o;
-            return unassigned == that.unassigned && assigned == that.assigned && reason.equals(that.reason);
+            return unassigned == that.unassigned
+                && assigned == that.assigned
+                && reason.equals(that.reason)
+                && unassignedShardIds.equals(that.unassignedShardIds)
+                && assignedShardIds.equals(that.assignedShardIds);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(reason, unassigned, assigned);
+            return Objects.hash(reason, unassigned, assigned, unassignedShardIds, assignedShardIds);
         }
     }
 }

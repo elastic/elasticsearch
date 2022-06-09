@@ -64,12 +64,8 @@ public class DesiredBalanceService {
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
-        if (routingNodes.size() == 0) {
-            final var clearDesiredBalance = currentDesiredBalance.assignments().size() != 0;
-            if (clearDesiredBalance) {
-                currentDesiredBalance = new DesiredBalance(desiredBalanceInput.index(), Map.of());
-            }
-            return clearDesiredBalance;
+        if (routingNodes.isEmpty()) {
+            return setCurrentDesiredBalance(new DesiredBalance(desiredBalanceInput.index(), Map.of()));
             // TODO test for this case
         }
 
@@ -262,20 +258,23 @@ public class DesiredBalanceService {
                 : "desired balance computation converged"
         );
 
-        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        final DesiredBalance newDesiredBalance = new DesiredBalance(lastConvergedIndex, assignments);
         assert desiredBalance == currentDesiredBalance;
-        currentDesiredBalance = newDesiredBalance;
-        if (DesiredBalance.areSame(newDesiredBalance, desiredBalance) == false) {
-            if (logger.isTraceEnabled()) {
-                logChanges(desiredBalance, newDesiredBalance);
+        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
+        return setCurrentDesiredBalance(new DesiredBalance(lastConvergedIndex, assignments));
+    }
+
+    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
+        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
+        if (logger.isTraceEnabled()) {
+            if (hasChanges) {
+                logChanges(currentDesiredBalance, newDesiredBalance);
+                logger.trace("desired balance changed : {}", newDesiredBalance);
+            } else {
+                logger.trace("desired balance unchanged: {}", newDesiredBalance);
             }
-            logger.trace("desired balance changed : {}", newDesiredBalance);
-            return true;
-        } else {
-            logger.trace("desired balance unchanged: {}", desiredBalance);
-            return false;
         }
+        currentDesiredBalance = newDesiredBalance;
+        return hasChanges;
     }
 
     private static void logChanges(DesiredBalance old, DesiredBalance updated) {

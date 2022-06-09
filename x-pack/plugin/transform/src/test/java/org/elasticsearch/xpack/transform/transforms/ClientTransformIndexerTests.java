@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,7 +133,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(TransformScheduler.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -231,7 +233,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(TransformScheduler.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -306,7 +308,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    mock(TransformScheduler.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -537,7 +539,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
-                mock(TransformScheduler.class)
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

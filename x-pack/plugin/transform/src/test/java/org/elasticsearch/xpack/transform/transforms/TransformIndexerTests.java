@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -444,7 +446,7 @@ public class TransformIndexerTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            mock(TransformScheduler.class)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

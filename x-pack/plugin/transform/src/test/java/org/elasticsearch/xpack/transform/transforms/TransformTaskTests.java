@@ -82,6 +82,7 @@ public class TransformTaskTests extends ESTestCase {
 
     // see https://github.com/elastic/elasticsearch/issues/48957
     public void testStopOnFailedTaskWithStoppedIndexer() {
+        Clock clock = Clock.systemUTC();
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
@@ -89,7 +90,7 @@ public class TransformTaskTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -99,7 +100,7 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            mock(TransformScheduler.class)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY)
         );
 
         TransformState transformState = new TransformState(
@@ -121,7 +122,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(TransformScheduler.class),
+            new TransformScheduler(clock, threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -199,7 +200,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(TransformScheduler.class),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()

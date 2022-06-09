@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -60,6 +61,7 @@ import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -126,7 +128,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    mock(TransformScheduler.class)
+                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
                 ),
                 checkpointProvider,
                 initialState,

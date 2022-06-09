@@ -400,8 +400,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             client,
             xContentRegistry()
         );
+        Clock clock = Clock.systemUTC();
+        ThreadPool threadPool = mock(ThreadPool.class);
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -411,7 +413,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             transformCheckpointService,
             mockAuditor,
-            mock(TransformScheduler.class)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
@@ -421,7 +423,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         return new TransformPersistentTasksExecutor(
             client,
             transformServices,
-            mock(ThreadPool.class),
+            threadPool,
             clusterService,
             Settings.EMPTY,
             TestIndexNameExpressionResolver.newInstance()

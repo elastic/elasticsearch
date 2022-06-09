@@ -30,7 +30,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
  * {@link TransformScheduler} class is responsible for scheduling transform tasks according to their configured frequency as well as
  * retrying policy.
  */
-public class TransformScheduler {
+public final class TransformScheduler {
 
     /**
      * {@link Event} record encapsulates data that might be useful to the listener when the listener is being triggered.

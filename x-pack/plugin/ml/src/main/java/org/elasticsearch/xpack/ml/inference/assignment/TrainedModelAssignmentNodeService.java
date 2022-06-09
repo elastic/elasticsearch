@@ -33,7 +33,9 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -242,37 +244,20 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
-        Optional<RoutingInfo> routingInfo = getRoutingInfo(task.getModelId());
-        if (routingInfo.isEmpty()) {
-            // Routing info has been removed, but it could be that the model is still around.
-            // So, we make sure to stop the deployment on the node.
-            deploymentManager.stopDeployment(task);
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        final RoutingInfo stoppedRoutingInfo = new RoutingInfo(
-            routingInfo.get().getCurrentAllocations(),
-            routingInfo.get().getTargetAllocations(),
-            RoutingState.STOPPED,
-            reason
+        final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
+            new RoutingStateAndReason(RoutingState.STOPPED, reason)
         );
 
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
-            _void -> updateStoredState(task.getModelId(), stoppedRoutingInfo, listener),
+            _void -> updateStoredState(task.getModelId(), updateToStopped, listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
                 logger.warn(() -> "[" + task.getModelId() + "] failed to stop due to error", failed);
-                updateStoredState(task.getModelId(), stoppedRoutingInfo, listener);
+                updateStoredState(task.getModelId(), updateToStopped, listener);
             }
         );
         updateStoredState(
             task.getModelId(),
-            new RoutingInfo(
-                routingInfo.get().getCurrentAllocations(),
-                routingInfo.get().getTargetAllocations(),
-                RoutingState.STOPPING,
-                reason
-            ),
+            RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPING, reason)),
             ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
@@ -442,12 +427,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     task.updateNumberOfAllocations(threadSettings.numAllocations());
                     updateStoredState(
                         assignment.getModelId(),
-                        new RoutingInfo(
-                            threadSettings.numAllocations(),
-                            routingInfo.getTargetAllocations(),
-                            routingInfo.getState(),
-                            routingInfo.getReason()
-                        ),
+                        RoutingInfoUpdate.updateNumberOfAllocations(threadSettings.numAllocations()),
                         ActionListener.noop()
                     );
                 },
@@ -506,15 +486,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
 
-        Optional<RoutingInfo> routingInfo = getRoutingInfo(modelId);
-
-        if (routingInfo.isEmpty()) {
-            return;
-        }
-
         updateStoredState(
             modelId,
-            new RoutingInfo(routingInfo.get().getCurrentAllocations(), routingInfo.get().getTargetAllocations(), RoutingState.STARTED, ""),
+            RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, "")),
             ActionListener.wrap(r -> logger.debug(() -> "[" + modelId + "] model loaded and accepting routes"), e -> {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -533,33 +507,17 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private Optional<RoutingInfo> getRoutingInfo(String modelId) {
-        TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
-        TrainedModelAssignment assignment = modelAssignmentMetadata.getModelAssignment(modelId);
-        if (assignment == null) {
-            logger.debug(() -> "[" + modelId + "] could not find model assignment");
-            return Optional.empty();
-        }
-
-        RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
-        if (routingInfo == null) {
-            logger.debug(() -> format("[%s] could not find routing info for node [%s]", modelId, nodeId));
-            return Optional.empty();
-        }
-        return Optional.of(routingInfo);
-    }
-
-    private void updateStoredState(String modelId, RoutingInfo routingInfo, ActionListener<AcknowledgedResponse> listener) {
+    private void updateStoredState(String modelId, RoutingInfoUpdate update, ActionListener<AcknowledgedResponse> listener) {
         if (stopped) {
             return;
         }
         trainedModelAssignmentService.updateModelAssignmentState(
-            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(nodeId, modelId, routingInfo),
+            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(nodeId, modelId, update),
             ActionListener.wrap(success -> {
-                logger.debug(() -> format("[%s] model routing info is [%s] and master notified", modelId, routingInfo));
+                logger.debug(() -> format("[%s] model routing info was updated with [%s] and master notified", modelId, update));
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }, error -> {
-                logger.warn(() -> format("[%s] model routing info is [%s] but failed to notify master", modelId, routingInfo), error);
+                logger.warn(() -> format("[%s] failed to update model routing info with [%s]", modelId, update), error);
                 listener.onFailure(error);
             })
         );
@@ -583,37 +541,19 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             "model failed to load; reason [" + ex.getMessage() + "]",
             ActionListener.noop()
         );
-        Optional<RoutingInfo> routingInfo = getRoutingInfo(task.getModelId());
-        if (routingInfo.isEmpty()) {
-            stopTask.run();
-        } else {
-            updateStoredState(
-                task.getModelId(),
-                new RoutingInfo(
-                    routingInfo.get().getCurrentAllocations(),
-                    routingInfo.get().getTargetAllocations(),
-                    RoutingState.FAILED,
-                    ExceptionsHelper.unwrapCause(ex).getMessage()
-                ),
-                ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
-            );
-        }
+        updateStoredState(
+            task.getModelId(),
+            RoutingInfoUpdate.updateStateAndReason(
+                new RoutingStateAndReason(RoutingState.FAILED, ExceptionsHelper.unwrapCause(ex).getMessage())
+            ),
+            ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
+        );
     }
 
     public void failAssignment(TrainedModelDeploymentTask task, String reason) {
-        Optional<RoutingInfo> routingInfo = getRoutingInfo(task.getModelId());
-        if (routingInfo.isEmpty()) {
-            return;
-        }
-
         updateStoredState(
             task.getModelId(),
-            new RoutingInfo(
-                routingInfo.get().getCurrentAllocations(),
-                routingInfo.get().getTargetAllocations(),
-                RoutingState.FAILED,
-                reason
-            ),
+            RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.FAILED, reason)),
             ActionListener.wrap(
                 r -> logger.debug(
                     () -> format(

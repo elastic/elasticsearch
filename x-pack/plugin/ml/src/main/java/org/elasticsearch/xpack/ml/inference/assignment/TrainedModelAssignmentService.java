@@ -61,7 +61,7 @@ public class TrainedModelAssignmentService {
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
-            logger.warn("[{}] no master known for assignment state update [{}]", request.getModelId(), request.getRoutingInfo().getState());
+            logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
             waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener, changePredicate);
             return;
         }
@@ -71,9 +71,9 @@ public class TrainedModelAssignmentService {
             ActionListener.wrap(listener::onResponse, failure -> {
                 if (isMasterChannelException(failure)) {
                     logger.info(
-                        "[{}] master channel exception will retry on new master node for assignment state update [{}]",
+                        "[{}] master channel exception will retry on new master node for assignment update [{}]",
                         request.getModelId(),
-                        request.getRoutingInfo().getState()
+                        request.getUpdate()
                     );
                     waitForNewMasterAndRetry(
                         observer,

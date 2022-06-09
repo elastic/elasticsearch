@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -149,22 +151,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             ResourceNotFoundException.class,
             () -> TrainedModelAssignmentClusterService.updateModelRoutingTable(
                 newState,
-                new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
-                    "missingNode",
-                    modelId,
-                    new RoutingInfo(1, 1, RoutingState.STARTED, "")
-                )
+                new UpdateTrainedModelAssignmentRoutingInfoAction.Request("missingNode", modelId, started())
             )
         );
         expectThrows(
             ResourceNotFoundException.class,
             () -> TrainedModelAssignmentClusterService.updateModelRoutingTable(
                 newState,
-                new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
-                    nodeId,
-                    "missingModel",
-                    new RoutingInfo(1, 1, RoutingState.STARTED, "")
-                )
+                new UpdateTrainedModelAssignmentRoutingInfoAction.Request(nodeId, "missingModel", started())
             )
         );
 
@@ -176,7 +170,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                 "missingNode",
                 modelId,
-                new RoutingInfo(1, 1, RoutingState.STOPPED, "")
+                RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPED, ""))
             )
         );
         TrainedModelAssignmentClusterService.updateModelRoutingTable(
@@ -184,13 +178,17 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
                 nodeId,
                 "missingModel",
-                new RoutingInfo(1, 1, RoutingState.STOPPED, "")
+                RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPED, ""))
             )
         );
 
         ClusterState updateState = TrainedModelAssignmentClusterService.updateModelRoutingTable(
             newState,
-            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(nodeId, modelId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
+            new UpdateTrainedModelAssignmentRoutingInfoAction.Request(
+                nodeId,
+                modelId,
+                RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPED, ""))
+            )
         );
         assertThat(
             TrainedModelAssignmentMetadata.fromState(updateState).getModelAssignment(modelId).getNodeRoutingTable(),
@@ -676,10 +674,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .addNewAssignment(
                 model1,
                 TrainedModelAssignment.Builder.empty(newParams(model1, 100))
-                    .addRoutingEntry(mlNode1.getId(), new RoutingInfo(1, 1, RoutingState.STARTING, ""))
-                    .updateExistingRoutingEntry(mlNode1.getId(), started())
-                    .addRoutingEntry(mlNode2.getId(), new RoutingInfo(1, 1, RoutingState.STARTING, ""))
-                    .updateExistingRoutingEntry(mlNode2.getId(), started())
+                    .addRoutingEntry(mlNode1.getId(), new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    .addRoutingEntry(mlNode2.getId(), new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .build();
 
@@ -936,8 +932,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
-    private static RoutingInfo started() {
-        return new RoutingInfo(1, 1, RoutingState.STARTED, "");
+    private static RoutingInfoUpdate started() {
+        return RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, ""));
     }
 
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {

@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -30,19 +30,19 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
     public static class Request extends MasterNodeRequest<Request> {
         private final String nodeId;
         private final String modelId;
-        private final RoutingInfo routingInfo;
+        private final RoutingInfoUpdate update;
 
-        public Request(String nodeId, String modelId, RoutingInfo routingInfo) {
+        public Request(String nodeId, String modelId, RoutingInfoUpdate update) {
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "node_id");
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
-            this.routingInfo = ExceptionsHelper.requireNonNull(routingInfo, "routing_info");
+            this.update = ExceptionsHelper.requireNonNull(update, "update");
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
             this.modelId = in.readString();
-            this.routingInfo = new RoutingInfo(in);
+            this.update = new RoutingInfoUpdate(in);
         }
 
         public String getNodeId() {
@@ -53,8 +53,8 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
             return modelId;
         }
 
-        public RoutingInfo getRoutingInfo() {
-            return routingInfo;
+        public RoutingInfoUpdate getUpdate() {
+            return update;
         }
 
         @Override
@@ -67,7 +67,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
             super.writeTo(out);
             out.writeString(nodeId);
             out.writeString(modelId);
-            routingInfo.writeTo(out);
+            update.writeTo(out);
         }
 
         @Override
@@ -77,17 +77,17 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
             Request request = (Request) o;
             return Objects.equals(nodeId, request.nodeId)
                 && Objects.equals(modelId, request.modelId)
-                && Objects.equals(routingInfo, request.routingInfo);
+                && Objects.equals(update, request.update);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, modelId, routingInfo);
+            return Objects.hash(nodeId, modelId, update);
         }
 
         @Override
         public String toString() {
-            return "Request{" + "nodeId='" + nodeId + '\'' + ", modelId='" + modelId + '\'' + ", routingInfo=" + routingInfo + '}';
+            return "Request{" + "nodeId='" + nodeId + '\'' + ", modelId='" + modelId + '\'' + ", update=" + update + '}';
         }
     }
 

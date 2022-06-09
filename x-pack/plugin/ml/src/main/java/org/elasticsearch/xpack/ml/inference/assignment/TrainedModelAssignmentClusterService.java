@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -388,7 +389,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment
-        if (request.getRoutingInfo().getState().equals(RoutingState.STOPPED)) {
+        if (request.getUpdate().getStateAndReason().isPresent()
+            && request.getUpdate().getStateAndReason().get().getState().equals(RoutingState.STOPPED)) {
             if (existingAssignment == null || existingAssignment.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
@@ -402,19 +404,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             logger.debug(
-                () -> format(
-                    "[%s] requested update from node [%s] to update route state to [%s]",
-                    modelId,
-                    nodeId,
-                    request.getRoutingInfo()
-                )
+                () -> format("[%s] requested update from node [%s] while stopping; update was [%s]", modelId, nodeId, request.getUpdate())
             );
             return currentState;
         }
         if (existingAssignment.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("assignment for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
-        builder.getAssignment(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingInfo()).calculateAndSetAssignmentState();
+        RoutingInfo routingInfo = existingAssignment.getNodeRoutingTable().get(nodeId);
+        builder.getAssignment(modelId)
+            .updateExistingRoutingEntry(nodeId, request.getUpdate().apply(routingInfo))
+            .calculateAndSetAssignmentState();
 
         return update(currentState, builder);
     }

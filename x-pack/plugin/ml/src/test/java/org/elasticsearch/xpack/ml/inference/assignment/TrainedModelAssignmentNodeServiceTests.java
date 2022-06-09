@@ -135,12 +135,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(taskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(taskCapture.getAllValues().get(1).getModelId(), equalTo(anotherModel));
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(anotherModel));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(1).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         // Since models are loaded, there shouldn't be any more loadings to occur
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherModel));
@@ -173,7 +173,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(startTaskCapture.getAllValues().get(2).getModelId(), equalTo(failedModelToLoad));
@@ -228,14 +228,14 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             assertThat(request.getNodeId(), equalTo(NODE_ID));
             if (request.getModelId().equals(stoppedModelToLoad)) {
                 if (seenStopping) {
-                    assertThat(request.getRoutingInfo().getState(), equalTo(RoutingState.STOPPED));
+                    assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPED));
                 } else {
-                    assertThat(request.getRoutingInfo().getState(), equalTo(RoutingState.STOPPING));
+                    assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPING));
                     seenStopping = true;
                 }
             } else {
                 assertThat(request.getModelId(), equalTo(modelToLoad));
-                assertThat(request.getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+                assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
             }
         }
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -276,12 +276,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(1).getRoutingInfo().getState(), equalTo(RoutingState.FAILED));
+        assertThat(requestCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.FAILED));
 
         assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
@@ -471,7 +471,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         event = new ClusterChangedEvent(
             "testClusterChanged",
@@ -570,10 +570,10 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(modelTwo));
         assertThat(updateCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
         assertThat(updateCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(updateCapture.getAllValues().get(0).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(updateCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
         assertThat(updateCapture.getAllValues().get(1).getModelId(), equalTo(modelTwo));
         assertThat(updateCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
-        assertThat(updateCapture.getAllValues().get(1).getRoutingInfo().getState(), equalTo(RoutingState.STARTED));
+        assertThat(updateCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }

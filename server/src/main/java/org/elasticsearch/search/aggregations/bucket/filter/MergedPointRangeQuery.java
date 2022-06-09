@@ -104,6 +104,19 @@ public class MergedPointRangeQuery extends Query {
             }
 
             @Override
+            public int count(LeafReaderContext context) throws IOException {
+                PointValues points = context.reader().getPointValues(field);
+                if (points == null) {
+                    return 0;
+                }
+                if (points.size() == points.getDocCount()) {
+                    // Each doc that has points has exactly one point.
+                    return singleValuedSegmentWeight().count(context);
+                }
+                return multiValuedSegmentWeight().count(context);
+            }
+
+            @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ScorerSupplier scorerSupplier = scorerSupplier(context);
                 if (scorerSupplier == null) {

@@ -280,3 +280,94 @@ teardown:
   - match: { _source.pipelines.0: "pipeline1" }
   - match: { _source.pipelines.1: "another_pipeline" }
   - match: { _source.pipelines.2: "another_pipeline2" }
+
+---
+"Test ignore_missing_pipeline parameter":
+  - do:
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors" : [
+              {
+                "pipeline" : {
+                  "name": "non_existing_pipeline",
+                  "ignore_missing_pipeline": false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_state_exception/
+      index:
+        index: test
+        id: "1"
+        pipeline: "my-pipeline"
+        body: {}
+  - match: { error.root_cause.0.type: "illegal_state_exception" }
+  - match: { error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [non_existing_pipeline]" }
+
+  - do:
+      ingest.simulate:
+        id: "my-pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - match: { docs.0.error.root_cause.0.type: "illegal_state_exception" }
+  - match: { docs.0.error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [non_existing_pipeline]" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors" : [
+              {
+                "pipeline" : {
+                  "name": "non_existing_pipeline",
+                  "ignore_missing_pipeline": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my-pipeline"
+        body: {}
+  - match: { _index: "test" }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
+  - match: { result: "created" }
+
+  - do:
+      ingest.simulate:
+        id: "my-pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - match: { docs.0.doc._index: "index" }
+  - match: { docs.0.doc._id: "id" }

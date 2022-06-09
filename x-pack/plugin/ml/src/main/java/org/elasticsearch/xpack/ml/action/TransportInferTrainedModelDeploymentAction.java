@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -25,11 +27,13 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
+import java.util.Optional;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
@@ -93,7 +97,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
+        Optional<String> selectedNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
+        if (selectedNode.isEmpty() && clusterService.state()
+            .nodes()
+            .getMinNodeVersion()
+            .before(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+            selectedNode = assignment.selectRandomStartedNodeVersionedBefore(
+                this::nodeIdToVersion,
+                TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_VERSION
+            );
+        }
+        selectedNode.ifPresentOrElse(node -> {
             request.setNodes(node);
             super.doExecute(task, request, listener);
         },
@@ -101,6 +115,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                 ExceptionsHelper.conflictStatusException("Trained model [" + deploymentId + "] is not allocated to any nodes")
             )
         );
+    }
+
+    private Optional<Version> nodeIdToVersion(String nodeId) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+        return node == null ? Optional.empty() : Optional.of(node.getVersion());
     }
 
     @Override

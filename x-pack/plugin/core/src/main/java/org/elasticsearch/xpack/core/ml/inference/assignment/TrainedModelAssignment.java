@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 
 // TODO implement better diffable logic so that whole diff does not need to be serialized if only one part changes
 /**
@@ -167,9 +169,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         }
 
         if (allocationSum == 0) {
-            // If we are in a mixed cluster where there are assignments prior to introducing allocation distribution
-            // we could have a zero-sum of allocations. We fall back to returning a random started node.
-            return nodeIds.isEmpty() ? Optional.empty() : Optional.of(nodeIds.get(Randomness.get().nextInt(nodeIds.size())));
+            return Optional.empty();
         }
 
         int randomInt = Randomness.get().ints(1, 1, allocationSum + 1).iterator().nextInt();
@@ -178,6 +178,19 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             nodeIndex = -nodeIndex - 1;
         }
         return Optional.of(nodeIds.get(nodeIndex));
+    }
+
+    public Optional<String> selectRandomStartedNodeVersionedBefore(
+        Function<String, Optional<Version>> nodeIdToVersionFunction,
+        Version version
+    ) {
+        List<String> nodeIds = nodeRoutingTable.entrySet()
+            .stream()
+            .filter(e -> e.getValue().getState() == RoutingState.STARTED)
+            .filter(e -> nodeIdToVersionFunction.apply(e.getKey()).orElse(version).before(version))
+            .map(Map.Entry::getKey)
+            .toList();
+        return nodeIds.isEmpty() ? Optional.empty() : Optional.of(nodeIds.get(Randomness.get().nextInt(nodeIds.size())));
     }
 
     public Optional<String> getReason() {

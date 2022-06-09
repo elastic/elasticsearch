@@ -146,7 +146,7 @@ abstract class MetricFieldProducer {
      * Metric implementation that computes the sum of all values of a field
      */
     static class Sum extends Metric {
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        private final CompensatedSum kahanSummation = new CompensatedSum();
 
         Sum() {
             super("sum");

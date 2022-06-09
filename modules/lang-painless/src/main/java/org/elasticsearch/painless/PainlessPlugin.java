@@ -89,7 +89,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             List<Whitelist> contextWhitelists = new ArrayList<>();
-            if (PainlessPlugin.class.getResourceAsStream("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
+            if (PainlessPlugin.class.getResource("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
                 contextWhitelists.add(
                     WhitelistLoader.loadFromResourceFiles(
                         PainlessPlugin.class,

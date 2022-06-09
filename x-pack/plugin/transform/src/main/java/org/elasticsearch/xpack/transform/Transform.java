@@ -145,8 +145,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         0,
         SettingsConfig.MAX_NUM_FAILURE_RETRIES,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.DeprecatedWarning
+        Setting.Property.Dynamic
     );
 
     public Transform(Settings settings) {

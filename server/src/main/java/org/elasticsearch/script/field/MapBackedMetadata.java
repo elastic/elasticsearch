@@ -74,7 +74,7 @@ public class MapBackedMetadata {
     }
 
     public void setVersion(Long version) {
-set(VERSION, version);
+        set(VERSION, version);
     }
 
     public void removeVersion() {

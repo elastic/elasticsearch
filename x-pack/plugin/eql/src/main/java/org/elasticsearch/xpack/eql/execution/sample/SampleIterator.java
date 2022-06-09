@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.eql.execution.sample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -54,12 +58,25 @@ public class SampleIterator implements Executable {
 
     private long startTime;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize) {
+    /**
+     * Memory calculation is expensive, so it cannot be done at each sample creation.
+     * It will be calculated every CB_SAMPLE_SIZE_PRECISION samples created.
+     */
+    protected static final int CB_SAMPLE_SIZE_PRECISION = 100;
+    private static final String CB_COMPLETED_LABEL = "sample_completed";
+    private static final String CB_INFLIGHT_LABEL = "sample_inflight";
+    private final CircuitBreaker circuitBreaker;
+    private long samplesRamBytesUsed = 0;
+    private long stackRamBytesUsed = 0;
+    private long totalRamBytesUsed = 0;
+
+    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, CircuitBreaker circuitBreaker) {
         this.client = client;
         this.criteria = criteria;
         this.maxCriteria = criteria.size();
         this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -69,6 +86,7 @@ public class SampleIterator implements Executable {
         advance(runAfter(listener, () -> {
             stack.clear();
             samples.clear();
+            clearCircuitBreaker();
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
     }
@@ -114,7 +132,7 @@ public class SampleIterator implements Executable {
             InternalComposite composite = (InternalComposite) a;
             log.trace("Found [{}] composite buckets", composite.getBuckets().size());
             Page nextPage = new Page(composite, request);
-            if (nextPage.size() > 0) {
+            if (nextPage.size > 0) {
                 stack.push(nextPage);
                 advance(listener);
             } else {
@@ -160,7 +178,6 @@ public class SampleIterator implements Executable {
 
         int initialSize = samples.size();
         client.multiQuery(searches, ActionListener.wrap(r -> {
-            List<List<SearchHit>> finalSamples = new ArrayList<>();
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();
             int docGroupsCounter = 1;
@@ -174,8 +191,7 @@ public class SampleIterator implements Executable {
                 if (docGroupsCounter == maxCriteria) {
                     List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
-                        finalSamples.add(match);
-                        samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        addSample(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                     }
                     docGroupsCounter = 1;
                     sample = new ArrayList<>(maxCriteria);
@@ -187,10 +203,27 @@ public class SampleIterator implements Executable {
             log.trace("Final step... found [{}] new Samples", samples.size() - initialSize);
             // if this final page is max_page_size in size it means: either it's the last page and it happens to have max_page_size elements
             // or it's just not the last page and we should advance
-            var next = page.size() == fetchSize ? page : stack.pop();
+            var next = page.size == fetchSize ? page : stack.pop();
             log.trace("Final step... getting next page of the " + (next == page ? "current" : "previous") + " page");
             nextPage(listener, next);
         }, listener::onFailure));
+    }
+
+    protected void addSample(Sample s) {
+        samples.add(s);
+        if (samples.size() % CB_SAMPLE_SIZE_PRECISION == 0) {
+            updateMemoryUsage();
+        }
+    }
+
+    private void updateMemoryUsage() {
+        long newSamplesRamSize = RamUsageEstimator.sizeOfCollection(samples);
+        addMemory(newSamplesRamSize - samplesRamBytesUsed, CB_COMPLETED_LABEL);
+        samplesRamBytesUsed = newSamplesRamSize;
+
+        long newStackRamSize = RamUsageEstimator.sizeOfCollection(stack);
+        addMemory(newStackRamSize - stackRamBytesUsed, CB_INFLIGHT_LABEL);
+        stackRamBytesUsed = newStackRamSize;
     }
 
     /*
@@ -198,9 +231,9 @@ public class SampleIterator implements Executable {
      * It can go back on previous page(s) until either there are no more results, or it finds a page with an after_key to use.
      */
     private void nextPage(ActionListener<Payload> listener, Page page) {
-        page.request().nextAfter(page.afterKey());
-        log.trace("Getting next page for page [{}] with afterkey [{}]", page, page.afterKey());
-        queryForCompositeAggPage(listener, page.request());
+        page.request.nextAfter(page.afterKey);
+        log.trace("Getting next page for page [{}] with afterkey [{}]", page, page.afterKey);
+        queryForCompositeAggPage(listener, page.request);
     }
 
     /*
@@ -288,19 +321,55 @@ public class SampleIterator implements Executable {
         return false;
     }
 
+    private void addMemory(long bytes, String label) {
+        totalRamBytesUsed += bytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+    }
+
+    private void clearCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        stackRamBytesUsed = 0;
+        samplesRamBytesUsed = 0;
+        totalRamBytesUsed = 0;
+    }
+
     private TimeValue timeTook() {
         return new TimeValue(System.currentTimeMillis() - startTime);
     }
 
-    private record Page(
-        List<InternalComposite.InternalBucket> hits,
-        int size,
-        Map<String, Object> afterKey,
-        List<String> keys,
-        SampleQueryRequest request
-    ) {
-        Page(InternalComposite compositeAgg, SampleQueryRequest request) {
-            this(compositeAgg.getBuckets(), compositeAgg.getBuckets().size(), compositeAgg.afterKey(), request.keys(), request);
+    protected class Page implements Accountable {
+        final List<InternalComposite.InternalBucket> hits;
+        final int size;
+        final Map<String, Object> afterKey;
+        final List<String> keys;
+        final SampleQueryRequest request;
+
+        long ramBytesUsed = 0;
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Page.class);
+
+        protected Page(InternalComposite compositeAgg, SampleQueryRequest request) {
+            hits = compositeAgg.getBuckets();
+            size = compositeAgg.getBuckets().size();
+            afterKey = compositeAgg.afterKey();
+            keys = request.keys();
+            this.request = request;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            if (ramBytesUsed == 0) {
+                ramBytesUsed = SHALLOW_SIZE;
+                ramBytesUsed += RamUsageEstimator.sizeOfCollection(hits);
+                ramBytesUsed += RamUsageEstimator.sizeOfCollection(keys);
+                ramBytesUsed += RamUsageEstimator.sizeOfMap(afterKey);
+            }
+            return ramBytesUsed;
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Accountable.super.getChildResources();
         }
     }
 }

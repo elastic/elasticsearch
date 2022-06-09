@@ -331,11 +331,12 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
                     .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
                     .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
-                    .filter(s -> s.state() == ShardRoutingState.STARTED)
+                    .filter(s -> s.state() == ShardRoutingState.INITIALIZING)
                     .count(),
                 equalTo((long) indicesToBeMounted.size())
             );
         });
+        mockRepository.unblock();
 
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {

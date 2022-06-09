@@ -27,7 +27,9 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RelativePath;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -39,6 +41,8 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
 
@@ -57,6 +61,14 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
     private static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
     private static final String SOURCE_SET_NAME = "yamlRestTestV" + COMPATIBLE_VERSION + "Compat";
+    private ProjectLayout projectLayout;
+    private FileOperations fileOperations;
+
+    @Inject
+    public YamlRestCompatTestPlugin(ProjectLayout projectLayout, FileOperations fileOperations) {
+        this.projectLayout = projectLayout;
+        this.fileOperations = fileOperations;
+    }
 
     @Override
     public void apply(Project project) {
@@ -85,13 +97,14 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
+        String projectPath = project.getPath();
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
                 task.setConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getInclude().set(extension.getRestApi().getInclude());
-                task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(compatSpecsDir.toString()));
+                task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatSpecsDir.toString()));
                 task.setSourceResourceDir(
                     yamlCompatTestSourceSet.getResources()
                         .getSrcDirs()
@@ -102,13 +115,13 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 );
                 task.setSkipHasRestTestCheck(true);
                 task.setConfigToFileTree(
-                    config -> project.fileTree(
+                    config -> fileOperations.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
                     )
                 );
                 task.setAdditionalConfigToFileTree(
-                    config -> project.fileTree(
-                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                    config -> fileOperations.fileTree(
+                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
                             .resolve(RELATIVE_API_PATH)
                     )
                 );
@@ -124,20 +137,20 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
+                task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
                 task.setCoreConfigToFileTree(
-                    config -> project.fileTree(
+                    config -> fileOperations.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
                     )
                 );
                 task.setXpackConfigToFileTree(
-                    config -> project.fileTree(
+                    config -> fileOperations.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
                     )
                 );
                 task.setAdditionalConfigToFileTree(
-                    config -> project.fileTree(
-                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                    config -> fileOperations.fileTree(
+                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
                             .resolve(RELATIVE_TEST_PATH)
                     )
                 );
@@ -147,7 +160,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy both local source set apis and compat apis to a single location to be exported as an artifact
         TaskProvider<Sync> bundleRestCompatApis = project.getTasks().register("bundleRestCompatApis", Sync.class, task -> {
-            task.setDestinationDir(project.getLayout().getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
+            task.setDestinationDir(projectLayout.getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
             task.setIncludeEmptyDirs(false);
             task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
             task.from(yamlCompatTestSourceSet.getProcessResourcesTaskName(), s -> {
@@ -241,7 +254,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     }
 
     // TODO: implement custom extension that allows us move around of the projects between major versions and still find them
-    private Path getCompatProjectPath(Project project, Path checkoutDir) {
-        return checkoutDir.resolve(project.getPath().replaceFirst(":", "").replace(":", File.separator));
+    private Path getCompatProjectPath(String projectPath, Path checkoutDir) {
+        return checkoutDir.resolve(projectPath.replaceFirst(":", "").replace(":", File.separator));
     }
 }

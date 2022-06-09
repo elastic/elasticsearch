@@ -15,7 +15,7 @@ import org.elasticsearch.logging.internal.spi.LoggerFactory;
 public class LoggerFactoryImpl extends LoggerFactory {
     @Override
     public Logger getLogger(String name) {
-        // TODO PG logger impl instance caching
+        // TODO PG logger impl instance caching https://github.com/elastic/elasticsearch/issues/87511
         return new LoggerImpl(LogManager.getLogger(name));
     }
 

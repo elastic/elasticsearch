@@ -115,7 +115,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if (targetNodeName != null && type != Type.REPLACE) {
             throw new IllegalArgumentException(
                 format(
-                    "target node name is only valid for REPLACE type shutdowns, " + "but was given type [%s] and target node name [%s]",
+                    "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
                     type,
                     targetNodeName
                 )

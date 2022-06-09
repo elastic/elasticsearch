@@ -157,7 +157,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError(
                     format(
-                        "target node name is only valid for REPLACE type shutdowns, " + "but was given type [%s] and target node name [%s]",
+                        "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
                         type,
                         targetNodeName
                     )

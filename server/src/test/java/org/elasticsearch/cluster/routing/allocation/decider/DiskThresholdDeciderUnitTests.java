@@ -481,9 +481,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     }
 
     public void testTakesIntoAccountExpectedSizeForInitializingSearchableSnapshots() {
+        String mainIndexName = "test";
+        Index index = new Index(mainIndexName, "1234");
+        String anotherIndexName = "another_index";
+        Index anotherIndex = new Index(anotherIndexName, "5678");
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder("test")
+                IndexMetadata.builder(mainIndexName)
                     .settings(
                         settings(Version.CURRENT).put("index.uuid", "1234")
                             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
@@ -491,22 +495,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                     .numberOfShards(3)
                     .numberOfReplicas(1)
             )
+            .put(
+                IndexMetadata.builder(anotherIndexName)
+                    .settings(settings(Version.CURRENT).put("index.uuid", "5678"))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
             .build();
-
-        Index index = new Index("test", "1234");
         String nodeId = "node1";
         List<ShardRouting> shards = new ArrayList<>();
         for (int i = 1; i <= 3; i++) {
             int expectedSize = 10 * i;
-            var unassigned = ShardRouting.newUnassigned(
-                new ShardId(index, i),
-                false,
-                PeerRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-            );
-            var initialized = ShardRoutingHelper.initialize(unassigned, nodeId, expectedSize);
-            var started = ShardRoutingHelper.moveToStarted(initialized, expectedSize);
-            shards.add(started);
+            shards.add(createShard(index, nodeId, i, expectedSize));
+            // randomly add shard for non-searchable snapshot index
+            if (randomBoolean()) {
+                shards.add(createShard(anotherIndex, "another_node", i, expectedSize));
+            }
         }
 
         long sizeOfRelocatingShards = sizeOfUnaccountedShards(
@@ -514,7 +518,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 null,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                     .metadata(metadata)
-                    .routingTable(RoutingTable.builder().addAsNew(metadata.index(index.getName())).build())
+                    .routingTable(
+                        RoutingTable.builder().addAsNew(metadata.index(index.getName())).addAsNew(metadata.index(anotherIndex)).build()
+                    )
                     .build(),
                 new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
                 null,
@@ -529,6 +535,18 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             "/dev/null"
         );
         assertEquals(60L, sizeOfRelocatingShards);
+    }
+
+    private ShardRouting createShard(Index index, String nodeId, int i, int expectedSize) {
+        var unassigned = ShardRouting.newUnassigned(
+            new ShardId(index, i),
+            false,
+            PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+        );
+        var initialized = ShardRoutingHelper.initialize(unassigned, nodeId, expectedSize);
+        var started = ShardRoutingHelper.moveToStarted(initialized, expectedSize);
+        return started;
     }
 
     public long sizeOfUnaccountedShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {

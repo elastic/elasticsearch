@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  * The GraalVM spawns extra threads, which causes our thread leak
  * detection to fail. Filter these threads out since we can't clean them up.
  */
-public class GraalVMThreadsFilter implements ThreadFilter {
+public class ClientsGraalVMThreadsFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
         return t.getName().startsWith("Libgraal");

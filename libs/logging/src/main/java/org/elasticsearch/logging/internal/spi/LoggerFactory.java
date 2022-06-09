@@ -11,13 +11,13 @@ package org.elasticsearch.logging.internal.spi;
 import org.elasticsearch.logging.Logger;
 
 /**
- * A provider used by LogManager to create loggers.
+ * A factory used by LogManager to create loggers.
  */
-public abstract class LogManagerFactory {
+public abstract class LoggerFactory {
 
-    private static volatile LogManagerFactory INSTANCE;
+    private static volatile LoggerFactory INSTANCE;
 
-    public static LogManagerFactory provider() {
+    public static LoggerFactory provider() {
         return INSTANCE;
     }
 
@@ -25,7 +25,7 @@ public abstract class LogManagerFactory {
 
     public abstract Logger getLogger(Class<?> clazz);
 
-    public static void setInstance(LogManagerFactory INSTANCE) {
-        LogManagerFactory.INSTANCE = INSTANCE;
+    public static void setInstance(LoggerFactory INSTANCE) {
+        LoggerFactory.INSTANCE = INSTANCE;
     }
 }

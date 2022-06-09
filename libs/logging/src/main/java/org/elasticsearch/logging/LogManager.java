@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.internal.spi.LogManagerFactory;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
 /**
  * A Manager of {@code Loggers}. This class consists of factory methods for creating and retrieving Loggers.
@@ -22,7 +22,7 @@ public final class LogManager {
      * @return The Logger.
      */
     public static Logger getLogger(final String name) {
-        return LogManagerFactory.provider().getLogger(name);
+        return LoggerFactory.provider().getLogger(name);
     }
 
     /**
@@ -32,7 +32,7 @@ public final class LogManager {
      * @return The Logger.
      */
     public static Logger getLogger(final Class<?> clazz) {
-        return LogManagerFactory.provider().getLogger(clazz);
+        return LoggerFactory.provider().getLogger(clazz);
     }
 
     private LogManager() {}

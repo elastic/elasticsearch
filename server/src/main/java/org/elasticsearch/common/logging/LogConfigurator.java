@@ -33,11 +33,11 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.logging.internal.LogManagerFactoryImpl;
+import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.internal.spi.LogManagerFactory;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -129,7 +129,7 @@ public class LogConfigurator {
     }
 
     private static void configureESLogging() {
-        LogManagerFactory.setInstance(new LogManagerFactoryImpl());
+        LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 
     /**

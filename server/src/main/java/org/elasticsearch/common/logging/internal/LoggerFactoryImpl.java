@@ -10,9 +10,9 @@ package org.elasticsearch.common.logging.internal;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.spi.LogManagerFactory;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
-public class LogManagerFactoryImpl extends LogManagerFactory {
+public class LoggerFactoryImpl extends LoggerFactory {
     @Override
     public Logger getLogger(String name) {
         // TODO PG logger impl instance caching

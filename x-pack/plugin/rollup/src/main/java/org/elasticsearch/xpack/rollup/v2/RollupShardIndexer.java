@@ -129,7 +129,7 @@ class RollupShardIndexer {
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
-            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
+            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(), Integer.MAX_VALUE);
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);

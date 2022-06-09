@@ -88,7 +88,8 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         );
         TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(
             searcher,
-            List.of(() -> { throw new TaskCancelledException("Cancel"); })
+            List.of(() -> { throw new TaskCancelledException("Cancel"); }),
+            Integer.MAX_VALUE
         );
         CountingBucketCollector bc = new CountingBucketCollector();
         expectThrows(TaskCancelledException.class, () -> timeSeriesIndexSearcher.search(new MatchAllDocsQuery(), bc));

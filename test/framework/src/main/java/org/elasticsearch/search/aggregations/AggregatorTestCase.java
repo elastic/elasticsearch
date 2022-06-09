@@ -259,7 +259,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
             DEFAULT_MAX_BUCKETS,
-            false,
+            -1,
             fieldTypes
         );
     }
@@ -277,7 +277,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService,
         long bytesToPreallocate,
         int maxBucket,
-        boolean isInSortOrderExecutionRequired,
+        int isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
     ) throws IOException {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -549,7 +549,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             randomBoolean() ? 0 : builder.bytesToPreallocate(),
             maxBucket,
-            builder.isInSortOrderExecutionRequired(),
+            builder.numberOfDocumentsInSortOrderExecution(),
             fieldTypes
         );
         C root = createAggregator(builder, context);
@@ -569,7 +569,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 C a = createAggregator(builder, context);
                 a.preCollection();
                 if (context.isInSortOrderExecutionRequired()) {
-                    new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                    new TimeSeriesIndexSearcher(subSearcher, List.of(), context.numberOfDocumentsInSortOrderExecution()).search(
+                        rewritten,
+                        a
+                    );
                 } else {
                     Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                     subSearcher.search(weight, a);
@@ -580,7 +583,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } else {
             root.preCollection();
             if (context.isInSortOrderExecutionRequired()) {
-                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                new TimeSeriesIndexSearcher(searcher, List.of(), context.numberOfDocumentsInSortOrderExecution()).search(
+                    rewritten,
+                    MultiBucketCollector.wrap(true, List.of(root))
+                );
             } else {
                 searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
             }
@@ -651,7 +657,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
+        boolean timeSeries = aggregationBuilder.numberOfDocumentsInSortOrderExecution() != -1;
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (timeSeries) {
@@ -746,7 +752,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             builder.bytesToPreallocate(),
             DEFAULT_MAX_BUCKETS,
-            builder.isInSortOrderExecutionRequired(),
+            builder.numberOfDocumentsInSortOrderExecution(),
             fieldTypes
         );
         Aggregator aggregator = createAggregator(builder, context);

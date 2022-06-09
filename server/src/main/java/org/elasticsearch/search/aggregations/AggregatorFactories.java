@@ -322,15 +322,17 @@ public class AggregatorFactories {
         }
 
         /**
-         * Return true if any of the factories can build a time-series aggregation that requires an in-order execution
+         * Return a positive number if any of the child aggregations is a time series aggregation otherwise returns -1.
+         *
+         * If the aggregation requires to visit all documents, it should return Integer.MAX_VALUE, otherwise returns the number
+         * of documents required to be visited per tsid.
          */
-        public boolean isInSortOrderExecutionRequired() {
+        public int numberOfDocumentsInSortOrderExecution() {
+            int numDocs = -1;
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.isInSortOrderExecutionRequired()) {
-                    return true;
-                }
+                numDocs = Math.max(numDocs, builder.numberOfDocumentsInSortOrderExecution());
             }
-            return false;
+            return numDocs;
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

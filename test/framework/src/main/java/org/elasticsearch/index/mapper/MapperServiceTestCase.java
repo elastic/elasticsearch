@@ -534,6 +534,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public int numberOfDocumentsInSortOrderExecution() {
+                return -1;
+            }
+
+            @Override
             public Set<String> sourcePath(String fullName) {
                 return Set.of(fullName);
             }

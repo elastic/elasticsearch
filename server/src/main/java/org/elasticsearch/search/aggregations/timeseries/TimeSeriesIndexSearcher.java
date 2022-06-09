@@ -50,7 +50,9 @@ public class TimeSeriesIndexSearcher {
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
-    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
+    private final int numDocsPerTSID;
+
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations, int numDocsPerTSID) {
         this.searcher = searcher;
         this.cancellations = cancellations;
 
@@ -59,6 +61,8 @@ public class TimeSeriesIndexSearcher {
         assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        assert numDocsPerTSID > 0;
+        this.numDocsPerTSID = numDocsPerTSID;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
@@ -103,13 +107,19 @@ public class TimeSeriesIndexSearcher {
         // we refill it with walkers positioned on the next TSID. Within the queue
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
+            int count = 0;
             do {
                 if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                     checkCancelled();
                 }
                 LeafWalker walker = queue.top();
                 walker.collectCurrent();
-                if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
+                if (++count == numDocsPerTSID) {
+                    for (LeafWalker leafWalker : queue) {
+                        leafWalker.nextTsid();
+                    }
+                    queue.clear();
+                } else if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
                     queue.pop();
                 } else {
                     queue.updateTop();
@@ -226,6 +236,28 @@ public class TimeSeriesIndexSearcher {
                 return true;
             } else {
                 return false;
+            }
+        }
+
+        // advance all the internal iterators to the next Tsid
+        void nextTsid() throws IOException {
+            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                return;
+            }
+            do {
+                // if we could know efficiently the docId for the next Tsid, we could
+                // speed up this process enormously instead of manually advance the iterator
+                // until we find the position we want.
+                docId = tsids.advance(++docId);
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && tsidOrd == tsids.ordValue());
+            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                docId = iterator.advance(docId);
+                while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId)) {
+                    docId = iterator.nextDoc();
+                }
+            }
+            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                timestamp = timestamps.nextValue();
             }
         }
     }

@@ -30,9 +30,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<TimeSeriesAggregationBuilder> {
     public static final String NAME = "time_series";
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final InstantiatingObjectParser<TimeSeriesAggregationBuilder, String> PARSER;
 
     private boolean keyed;
+    private int size;
 
     static {
         InstantiatingObjectParser.Builder<TimeSeriesAggregationBuilder, String> parser = InstantiatingObjectParser.builder(
@@ -41,17 +43,22 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
             TimeSeriesAggregationBuilder.class
         );
         parser.declareBoolean(optionalConstructorArg(), KEYED_FIELD);
+        parser.declareInt(optionalConstructorArg(), SIZE_FIELD);
         PARSER = parser.build();
     }
 
     public TimeSeriesAggregationBuilder(String name) {
-        this(name, true);
+        this(name, true, Integer.MAX_VALUE);
     }
 
     @ParserConstructor
-    public TimeSeriesAggregationBuilder(String name, Boolean keyed) {
+    public TimeSeriesAggregationBuilder(String name, Boolean keyed, Integer size) {
         super(name);
         this.keyed = keyed != null ? keyed : true;
+        this.size = size != null ? size : Integer.MAX_VALUE;
+        if (this.size <= 0) {
+            throw new IllegalArgumentException("Expect size > 0, got [" + size + "]");
+        }
     }
 
     protected TimeSeriesAggregationBuilder(
@@ -61,16 +68,19 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     ) {
         super(clone, factoriesBuilder, metadata);
         this.keyed = clone.keyed;
+        this.size = clone.size;
     }
 
     public TimeSeriesAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
+        size = in.readInt();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
+        out.writeInt(size);
     }
 
     @Override
@@ -86,6 +96,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(KEYED_FIELD.getPreferredName(), keyed);
+        builder.field(SIZE_FIELD.getPreferredName(), size);
         builder.endObject();
         return builder;
     }
@@ -106,8 +117,8 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     }
 
     @Override
-    public boolean isInSortOrderExecutionRequired() {
-        return true;
+    public int numberOfDocumentsInSortOrderExecution() {
+        return size;
     }
 
     public boolean isKeyed() {
@@ -124,12 +135,12 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         TimeSeriesAggregationBuilder that = (TimeSeriesAggregationBuilder) o;
-        return keyed == that.keyed;
+        return keyed == that.keyed && size == that.size;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), keyed);
+        return Objects.hash(super.hashCode(), keyed, size);
     }
 
     @Override

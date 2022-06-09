@@ -136,8 +136,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     void add(ShardRouting shard) {
         assert invariant();
-        if (shards.containsKey(shard.shardId())) {
-            throw new IllegalStateException(
+        final ShardRouting existing = shards.putIfAbsent(shard.shardId(), shard);
+        if (existing != null) {
+            final IllegalStateException e = new IllegalStateException(
                 "Trying to add a shard "
                     + shard.shardId()
                     + " to a node ["
@@ -148,8 +149,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
                     + shard
                     + "]"
             );
+            assert false : e;
+            throw e;
         }
-        shards.put(shard.shardId(), shard);
 
         if (shard.initializing()) {
             initializingShards.add(shard);

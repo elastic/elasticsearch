@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -34,11 +33,6 @@ class MatchNoneQueryToFilterAdapter extends QueryToFilterAdapter<MatchNoDocsQuer
     @Override
     IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
         return l -> false;
-    }
-
-    @Override
-    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        return 0;
     }
 
     @Override

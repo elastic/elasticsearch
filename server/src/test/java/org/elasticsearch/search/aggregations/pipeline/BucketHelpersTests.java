@@ -172,17 +172,6 @@ public class BucketHelpersTests extends ESTestCase {
             }
         };
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
-            () -> BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.SKIP)
-        );
-
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "buckets_path must reference either a number value or a single value numeric "
-                    + "metric aggregation, but [foo] contains multiple values. Please specify which to use."
-            )
-        );
+        assertEquals(Double.valueOf(0.0), BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.INSERT_ZEROS));
     }
 }

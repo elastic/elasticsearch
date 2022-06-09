@@ -205,6 +205,7 @@ Infra/Core::
 * Faster GET _cluster/settings API {es-pull}86405[#86405] (issue: {es-issue}82342[#82342])
 * Faster string writes by saving stream flushes {es-pull}86114[#86114]
 * Fleet: Add `start_time` and `minimum_execution_duration` attributes to actions {es-pull}86167[#86167]
+* Force property expansion for security policy {es-pull}87396[#87396]
 * Refactor array part into a `BytesRefArray` which can be serialized and … {es-pull}85826[#85826]
 * Speed up ip v4 parser {es-pull}86253[#86253]
 * Use varhandles for primitive type conversion in more places {es-pull}85577[#85577] (issue: {es-issue}78823[#78823])
@@ -319,7 +320,6 @@ SQL::
 * Update dependency - JLine - to v 3.21.0 {es-pull}83767[#83767] (issue: {es-issue}83575[#83575])
 
 Search::
-* Upgrade to Lucene 9.2 snapshot {es-pull}86227[#86227]
-* Upgrade to lucene snapshot 978eef5459c {es-pull}86852[#86852]
+* Update to public lucene 9.2.0 release {es-pull}87162[#87162]
 
 

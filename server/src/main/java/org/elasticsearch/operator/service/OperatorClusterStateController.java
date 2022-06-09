@@ -28,8 +28,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Controller class for applying file based settings to ClusterState.
@@ -85,9 +88,11 @@ public class OperatorClusterStateController {
      *
      * @param namespace the namespace under which we'll store the operator keys in the cluster state metadata
      * @param parser the XContentParser to process
-     * @throws IllegalStateException if the content has errors and the cluster state cannot be correctly applied
+     * @param errorListener a consumer called with IllegalStateException if the content has errors and the
+     *        cluster state cannot be correctly applied, IncompatibleVersionException if the content is stale or
+     *        incompatible with this node {@link Version}, null if successful.
      */
-    public void process(String namespace, XContentParser parser) {
+    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
         SettingsFile operatorStateFileContent;
 
         try {
@@ -97,7 +102,8 @@ public class OperatorClusterStateController {
             recordErrorState(new OperatorErrorState(namespace, -1L, errors, OperatorErrorMetadata.ErrorKind.PARSING));
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            throw new IllegalStateException("Error processing state change request for " + namespace, e);
+            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            return;
         }
 
         Map<String, Object> operatorState = operatorStateFileContent.state;
@@ -113,12 +119,13 @@ public class OperatorClusterStateController {
             );
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            throw new IllegalStateException("Error processing state change request for " + namespace, e);
+            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            return;
         }
 
         ClusterState state = clusterService.state();
         OperatorMetadata existingMetadata = state.metadata().operatorState(namespace);
-        if (checkMetadataVersion(existingMetadata, stateVersionMetadata) == false) {
+        if (checkMetadataVersion(existingMetadata, stateVersionMetadata, errorListener) == false) {
             return;
         }
 
@@ -135,11 +142,13 @@ public class OperatorClusterStateController {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {
                         logger.info("Successfully applied new cluster state for namespace [{}]", namespace);
+                        errorListener.accept(null);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         logger.error("Failed to apply operator cluster state", e);
+                        errorListener.accept(e);
                     }
                 }
             ),
@@ -149,20 +158,32 @@ public class OperatorClusterStateController {
     }
 
     // package private for testing
-    static boolean checkMetadataVersion(OperatorMetadata existingMetadata, OperatorStateVersionMetadata stateVersionMetadata) {
+    static boolean checkMetadataVersion(
+        OperatorMetadata existingMetadata,
+        OperatorStateVersionMetadata stateVersionMetadata,
+        Consumer<Exception> errorListener
+    ) {
         if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
-            logger.info(
-                "Cluster state version [{}] is not compatible with this Elasticsearch node",
-                stateVersionMetadata.minCompatibleVersion()
+            errorListener.accept(
+                new IncompatibleVersionException(
+                    format(
+                        "Cluster state version [%s] is not compatible with this Elasticsearch node",
+                        stateVersionMetadata.minCompatibleVersion()
+                    )
+                )
             );
             return false;
         }
 
         if (existingMetadata != null && existingMetadata.version() >= stateVersionMetadata.version()) {
-            logger.info(
-                "Not updating cluster state because version [{}] is less or equal to the current metadata version [{}]",
-                stateVersionMetadata.version(),
-                existingMetadata.version()
+            errorListener.accept(
+                new IncompatibleVersionException(
+                    format(
+                        "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
+                        stateVersionMetadata.version(),
+                        existingMetadata.version()
+                    )
+                )
             );
             return false;
         }
@@ -235,5 +256,16 @@ public class OperatorClusterStateController {
 
         visited.remove(key);
         ordered.add(key);
+    }
+
+    /**
+     * {@link IncompatibleVersionException} is thrown when we try to update the cluster state
+     * without changing the update version id, or if we try to update cluster state on
+     * an incompatible Elasticsearch version in mixed cluster mode.
+     */
+    public static class IncompatibleVersionException extends RuntimeException {
+        public IncompatibleVersionException(String message) {
+            super(message);
+        }
     }
 }

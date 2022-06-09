@@ -196,7 +196,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             if (watchedFileChanged(path)) {
                                 processFileSettings(path);
                             }
-                        } catch (IOException e) {
+                        } catch (Exception e) {
                             logger.warn("unable to watch or read operator settings file", e);
                         }
                     } else {
@@ -205,7 +205,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     }
                 }
             } catch (Exception e) {
-                logger.debug("encountered exception watching, shutting down watcher thread.", e);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("encountered exception watching", e);
+                }
+                logger.info("shutting down watcher thread");
             } finally {
                 watcherThreadLatch.countDown();
             }
@@ -243,7 +246,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         try (
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
         ) {
-            controller.process(NAMESPACE, parser);
+            controller.process(NAMESPACE, parser, (e) -> {
+                if (e != null) {
+                    if (e instanceof OperatorClusterStateController.IncompatibleVersionException) {
+                        logger.info(e.getMessage());
+                    } else {
+                        logger.error("Error processing operator settings json file", e);
+                    }
+                }
+            });
         } catch (Exception e) {
             logger.error("Error processing operator settings json file", e);
         }

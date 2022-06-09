@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -77,11 +78,13 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
             }
             """;
 
+        AtomicReference<Exception> x = new AtomicReference<>();
+
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            assertEquals(
-                "Error processing state change request for operator",
-                expectThrows(IllegalStateException.class, () -> controller.process("operator", parser)).getMessage()
-            );
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals("Error processing state change request for operator", x.get().getMessage());
         }
 
         testJSON = """
@@ -108,7 +111,11 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser);
+            controller.process("operator", parser, (e) -> {
+                if (e != null) {
+                    fail("Should not fail");
+                }
+            });
         }
     }
 
@@ -243,19 +250,36 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
         OperatorMetadata operatorMetadata = OperatorMetadata.builder("test").version(123L).build();
 
         assertTrue(
-            OperatorClusterStateController.checkMetadataVersion(operatorMetadata, new OperatorStateVersionMetadata(124L, Version.CURRENT))
+            OperatorClusterStateController.checkMetadataVersion(
+                operatorMetadata,
+                new OperatorStateVersionMetadata(124L, Version.CURRENT),
+                (e) -> {}
+            )
         );
 
-        assertFalse(
-            OperatorClusterStateController.checkMetadataVersion(operatorMetadata, new OperatorStateVersionMetadata(123L, Version.CURRENT))
-        );
+        AtomicReference<Exception> x = new AtomicReference<>();
 
         assertFalse(
             OperatorClusterStateController.checkMetadataVersion(
                 operatorMetadata,
-                new OperatorStateVersionMetadata(124L, Version.fromId(Version.CURRENT.id + 1))
+                new OperatorStateVersionMetadata(123L, Version.CURRENT),
+                (e) -> x.set(e)
             )
         );
+
+        assertTrue(x.get() instanceof OperatorClusterStateController.IncompatibleVersionException);
+        assertTrue(x.get().getMessage().contains("is less or equal to the current metadata version"));
+
+        assertFalse(
+            OperatorClusterStateController.checkMetadataVersion(
+                operatorMetadata,
+                new OperatorStateVersionMetadata(124L, Version.fromId(Version.CURRENT.id + 1)),
+                (e) -> x.set(e)
+            )
+        );
+
+        assertEquals(OperatorClusterStateController.IncompatibleVersionException.class, x.get().getClass());
+        assertTrue(x.get().getMessage().contains("is not compatible with this Elasticsearch node"));
     }
 
     public void testHandlerOrdering() {

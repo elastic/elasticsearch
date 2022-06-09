@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
@@ -267,11 +268,13 @@ public class OperatorILMControllerTests extends ESTestCase {
                  }
             }""";
 
+        AtomicReference<Exception> x = new AtomicReference<>();
+
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            assertEquals(
-                "Error processing state change request for operator",
-                expectThrows(IllegalStateException.class, () -> controller.process("operator", parser)).getMessage()
-            );
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals("Error processing state change request for operator", x.get().getMessage());
         }
 
         Client client = mock(Client.class);
@@ -287,7 +290,11 @@ public class OperatorILMControllerTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser);
+            controller.process("operator", parser, (e) -> {
+                if (e != null) {
+                    fail("Should not fail");
+                }
+            });
         }
     }
 }

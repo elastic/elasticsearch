@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.jna.IntegerType;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -19,6 +20,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -40,6 +42,7 @@ import java.time.Duration;
  * The way that pipes are managed in this class, e.g. using the mkfifo shell command, is
  * not suitable for production, but adequate for this test.
  */
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();

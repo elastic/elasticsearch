@@ -14,7 +14,7 @@ import org.elasticsearch.index.Index;
  * It literally does nothing so that we can safely proceed to the nextStepKey without getting stuck.
  */
 public class NoopStep extends ClusterStateWaitStep {
-    public static final String NAME = "NOOP";
+    public static final String NAME = "noop";
 
     public NoopStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);

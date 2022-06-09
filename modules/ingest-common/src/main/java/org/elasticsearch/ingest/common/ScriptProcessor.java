@@ -70,6 +70,7 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public IngestDocument execute(IngestDocument document) {
+        document.doNoSelfReferencesCheck(true);
         IngestScript.Factory factory = precompiledIngestScriptFactory;
         if (factory == null) {
             factory = scriptService.compile(script, IngestScript.CONTEXT);

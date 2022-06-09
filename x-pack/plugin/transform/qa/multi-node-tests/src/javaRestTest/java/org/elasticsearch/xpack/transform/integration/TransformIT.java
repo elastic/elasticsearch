@@ -134,7 +134,7 @@ public class TransformIT extends TransformRestTestCase {
             indexName
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig(null, null, null, false, null, null))
+            .setSettings(new SettingsConfig(null, null, null, false, null, null, null))
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
@@ -353,7 +353,7 @@ public class TransformIT extends TransformRestTestCase {
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             // set requests per second and page size low enough to fail the test if update does not succeed,
-            .setSettings(new SettingsConfig(10, 1F, null, false, null, null))
+            .setSettings(new SettingsConfig(10, 1F, null, false, null, null, null))
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);

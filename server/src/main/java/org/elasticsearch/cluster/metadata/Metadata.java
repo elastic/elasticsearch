@@ -1752,17 +1752,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
-            final Set<String> allIndices = indicesMap.keySet();
 
             int oldestIndexVersionId = Version.CURRENT.id;
+            int totalNumberOfShards = 0;
+            int totalOpenIndexShards = 0;
 
             for (IndexMetadata indexMetadata : indicesMap.values()) {
+                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 final String name = indexMetadata.getIndex().getName();
                 final boolean visible = indexMetadata.isHidden() == false;
                 if (visible) {
                     visibleIndices.add(name);
                 }
                 if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
                     allOpenIndices.add(name);
                     if (visible) {
                         visibleOpenIndices.add(name);
@@ -1788,7 +1791,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indicesLookup = previousIndicesLookup;
             } else {
                 // we have changes to the the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata());
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
@@ -1800,21 +1803,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
+            String[] allIndicesArray = indicesMap.keySet().toArray(Strings.EMPTY_ARRAY);
             String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
-            int totalNumberOfShards = 0;
-            int totalOpenIndexShards = 0;
-            for (IndexMetadata indexMetadata : indicesMap.values()) {
-                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
-                if (IndexMetadata.State.OPEN.equals(indexMetadata.getState())) {
-                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
-                }
-            }
 
             return new Metadata(
                 clusterUUID,
@@ -1846,60 +1840,43 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
-            Set<String> allIndices,
             DataStreamMetadata dataStreamMetadata
         ) {
             final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>();
-            for (String alias : indexAliases) {
-                if (allIndices.contains(alias)) {
-                    aliasDuplicatesWithIndices.add(alias);
-                }
-            }
-
             final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
-            final Set<String> allDataStreams;
-            if (dataStreamMetadata != null) {
-                allDataStreams = dataStreamMetadata.dataStreams().keySet();
-                // Adding data stream aliases:
-                for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
-                    if (indexAliases.contains(dataStreamAlias)) {
-                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
-                    }
-                    if (allIndices.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithIndices.add(dataStreamAlias);
-                    }
-                    if (allDataStreams.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithDataStreams.add(dataStreamAlias);
-                    }
+            final Set<String> allDataStreams = dataStreamMetadata.dataStreams().keySet();
+            // Adding data stream aliases:
+            for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+                if (indexAliases.contains(dataStreamAlias)) {
+                    duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
                 }
-            } else {
-                allDataStreams = Set.of();
+                if (indicesMap.containsKey(dataStreamAlias)) {
+                    aliasDuplicatesWithIndices.add(dataStreamAlias);
+                }
+                if (allDataStreams.contains(dataStreamAlias)) {
+                    aliasDuplicatesWithDataStreams.add(dataStreamAlias);
+                }
             }
-
-            if (aliasDuplicatesWithIndices.isEmpty() == false) {
-                collectAliasDuplicates(indicesMap, aliasDuplicatesWithIndices, duplicates);
-            }
-
             for (String alias : indexAliases) {
                 if (allDataStreams.contains(alias)) {
                     aliasDuplicatesWithDataStreams.add(alias);
                 }
+                if (indicesMap.containsKey(alias)) {
+                    aliasDuplicatesWithIndices.add(alias);
+                }
+            }
+            for (String ds : allDataStreams) {
+                if (indicesMap.containsKey(ds)) {
+                    duplicates.add("data stream [" + ds + "] conflicts with index");
+                }
+            }
+            if (aliasDuplicatesWithIndices.isEmpty() == false) {
+                collectAliasDuplicates(indicesMap, aliasDuplicatesWithIndices, duplicates);
             }
             if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
-
-            final Set<String> dataStreamDuplicatesWithIndices = new HashSet<>();
-            for (String ds : allDataStreams) {
-                if (allIndices.contains(ds)) {
-                    dataStreamDuplicatesWithIndices.add(ds);
-                }
-            }
-            for (String dataStream : dataStreamDuplicatesWithIndices) {
-                duplicates.add("data stream [" + dataStream + "] conflicts with index");
-            }
-
             if (duplicates.isEmpty() == false) {
                 throw new IllegalStateException(
                     "index, alias, and data stream names need to be unique, but the following duplicates "

@@ -51,7 +51,26 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.geometry.S2Projections',
     'com.google.common.geometry.S2Point',
     'com.google.common.geometry.S2$Metric',
-    'com.google.common.geometry.S2LatLng'
+    'com.google.common.geometry.S2LatLng',
+
+    // from lucene-spatial3d
+    'org.apache.lucene.spatial3d.geom.GeoArea',
+    'org.apache.lucene.spatial3d.geom.GeoAreaFactory',
+    'org.apache.lucene.spatial3d.geom.GeoAreaShape',
+    'org.apache.lucene.spatial3d.geom.GeoBBox',
+    'org.apache.lucene.spatial3d.geom.GeoBBoxFactory',
+    'org.apache.lucene.spatial3d.geom.GeoCircle',
+    'org.apache.lucene.spatial3d.geom.GeoCircleFactory',
+    'org.apache.lucene.spatial3d.geom.GeoCompositeAreaShape',
+    'org.apache.lucene.spatial3d.geom.GeoPathFactory',
+    'org.apache.lucene.spatial3d.geom.GeoPoint',
+    'org.apache.lucene.spatial3d.geom.GeoPointShape',
+    'org.apache.lucene.spatial3d.geom.GeoPointShapeFactory',
+    'org.apache.lucene.spatial3d.geom.GeoPolygonFactory',
+    'org.apache.lucene.spatial3d.geom.GeoS2ShapeFactory',
+    'org.apache.lucene.spatial3d.geom.LatLonBounds',
+    'org.apache.lucene.spatial3d.geom.PlanetModel',
+    'org.apache.lucene.spatial3d.geom.SerializableObject'
   )
 }
 

@@ -221,7 +221,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         try {
             Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings), pidFile);
-        } catch (IOException | NoSuchAlgorithmException e) {
+        } catch (IOException e) {
             throw new BootstrapException(e);
         }
 

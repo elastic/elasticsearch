@@ -114,7 +114,7 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException, NoSuchAlgorithmException {
+    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());

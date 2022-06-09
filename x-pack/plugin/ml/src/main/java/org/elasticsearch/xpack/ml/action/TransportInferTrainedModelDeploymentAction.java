@@ -98,10 +98,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             return;
         }
         Optional<String> selectedNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
-        if (selectedNode.isEmpty() && clusterService.state()
-            .nodes()
-            .getMinNodeVersion()
-            .before(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (selectedNode.isEmpty()
+            && clusterService.state()
+                .nodes()
+                .getMinNodeVersion()
+                .before(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
             selectedNode = assignment.selectRandomStartedNodeVersionedBefore(
                 this::nodeIdToVersion,
                 TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_VERSION

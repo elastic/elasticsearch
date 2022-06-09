@@ -58,7 +58,11 @@ public class PendingListenersQueue {
         executeListeners(completedIndex, true);
     }
 
-    boolean isPaused() {
+    public long getCompletedIndex() {
+        return completedIndex;
+    }
+
+    public boolean isPaused() {
         return paused;
     }
 

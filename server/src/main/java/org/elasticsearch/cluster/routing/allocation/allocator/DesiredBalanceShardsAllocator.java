@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -24,9 +23,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -57,16 +53,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     };
 
     private final ShardsAllocator delegateAllocator;
-    private final ThreadPool threadPool;
-    private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final DesiredBalanceService desiredBalanceService;
-
-    private record DesiredBalancesListener(long index, ActionListener<Void> listener) {}
-
+    private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
+    private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
-    private final Queue<DesiredBalancesListener> pendingListeners = new LinkedList<>();
-    private volatile long lastConvergedIndex = -1;
-    private volatile boolean allocating = false;
 
     public static DesiredBalanceShardsAllocator create(
         ShardsAllocator delegateAllocator,
@@ -85,7 +75,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.delegateAllocator = delegateAllocator;
-        this.threadPool = threadPool;
         this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -109,9 +98,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 if (isFresh) {
                     if (shouldReroute) {
                         rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                    } else if (allocating == false) {
+                    } else {
                         logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                        executeListeners(lastConvergedIndex, desiredBalanceInput.routingAllocation().nodes().isLocalNodeElectedMaster());
+                        queue.complete(lastConvergedIndex);
                     }
                 }
             }
@@ -121,6 +110,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
             }
         };
+        this.queue = new PendingListenersQueue(threadPool);
     }
 
     @Override
@@ -138,13 +128,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
-        allocating = true;
+        queue.pause();
 
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
-        synchronized (pendingListeners) {
-            pendingListeners.add(new DesiredBalancesListener(index, listener));
-        }
+        queue.add(index, listener);
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
@@ -155,51 +143,24 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
         new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
 
-        lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
+        queue.complete(currentDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {
             logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
             // Execute listeners after cluster state is applied
         } else {
-            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
-            executeListeners(lastConvergedIndex, allocation.nodes().isLocalNodeElectedMaster());
-            allocating = false;
+            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
+            queue.resume();
         }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().isLocalNodeElectedMaster()) {
-            logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
-            executeListeners(lastConvergedIndex, true);
+            logger.trace("Executing listeners up to [{}] after cluster state was committed", queue.getCompletedIndex());
+            queue.resume();
         } else {
-            lastConvergedIndex = -1;
-            executeListeners(Long.MAX_VALUE, false);
+            queue.completeAllAsNotMaster();
         }
-        allocating = false;
-    }
-
-    private void executeListeners(long convergedIndex, boolean isMaster) {
-        var listeners = pollListeners(convergedIndex);
-        if (listeners.isEmpty() == false) {
-            threadPool.generic().execute(() -> {
-                if (isMaster) {
-                    ActionListener.onResponse(listeners, null);
-                } else {
-                    ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
-                }
-            });
-        }
-    }
-
-    private Collection<ActionListener<Void>> pollListeners(long maxIndex) {
-        var listeners = new ArrayList<ActionListener<Void>>();
-        DesiredBalancesListener listener;
-        synchronized (pendingListeners) {
-            while ((listener = pendingListeners.peek()) != null && listener.index <= maxIndex) {
-                listeners.add(pendingListeners.poll().listener);
-            }
-        }
-        return listeners;
     }
 
     @Override

@@ -76,6 +76,8 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         keyed = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             size = in.readInt();
+        } else {
+            size = Integer.MAX_VALUE;
         }
     }
 

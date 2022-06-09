@@ -74,13 +74,17 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     public TimeSeriesAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
-        size = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            size = in.readInt();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeInt(size);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeInt(size);
+        }
     }
 
     @Override

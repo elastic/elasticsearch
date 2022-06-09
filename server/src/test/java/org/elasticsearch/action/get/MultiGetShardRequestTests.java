@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MultiGetShardRequestTests extends ESTestCase {
@@ -26,7 +26,11 @@ public class MultiGetShardRequestTests extends ESTestCase {
         MultiGetShardRequest multiGetShardRequest = createTestInstance(randomBoolean());
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion(random()));
+        Version minVersion = Version.CURRENT.minimumCompatibilityVersion();
+        if (multiGetShardRequest.isForceSyntheticSource()) {
+            minVersion = Version.V_8_4_0;
+        }
+        out.setVersion(randomVersionBetween(random(), minVersion, Version.CURRENT));
         multiGetShardRequest.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();

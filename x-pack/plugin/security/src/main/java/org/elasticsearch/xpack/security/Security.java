@@ -1182,7 +1182,7 @@ public class Security extends Plugin
             return Arrays.asList(usageAction, infoAction);
         }
 
-        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = Arrays.asList(
+        return Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1197,7 +1197,6 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1232,24 +1231,15 @@ public class Security extends Plugin
             new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
+            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
+            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
+            new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             usageAction,
             infoAction
         );
-
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return Stream.concat(
-                actionHandlers.stream(),
-                Stream.of(
-                    new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
-                    new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-                    new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
-                    new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
-                    new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class)
-                )
-            ).toList();
-        } else {
-            return actionHandlers;
-        }
     }
 
     @Override
@@ -1273,7 +1263,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        final List<RestHandler> restHandlers = Arrays.asList(
+        return Arrays.asList(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1289,7 +1279,6 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1321,24 +1310,15 @@ public class Security extends Plugin
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState())
+            new RestNodeEnrollmentAction(settings, getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestGetProfileAction(settings, getLicenseState()),
+            new RestActivateProfileAction(settings, getLicenseState()),
+            new RestUpdateProfileDataAction(settings, getLicenseState()),
+            new RestSuggestProfilesAction(settings, getLicenseState()),
+            new RestEnableProfileAction(settings, getLicenseState()),
+            new RestDisableProfileAction(settings, getLicenseState())
         );
-
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return Stream.concat(
-                restHandlers.stream(),
-                Stream.of(
-                    new RestGetProfileAction(settings, getLicenseState()),
-                    new RestActivateProfileAction(settings, getLicenseState()),
-                    new RestUpdateProfileDataAction(settings, getLicenseState()),
-                    new RestSuggestProfilesAction(settings, getLicenseState()),
-                    new RestEnableProfileAction(settings, getLicenseState()),
-                    new RestDisableProfileAction(settings, getLicenseState())
-                )
-            ).toList();
-        } else {
-            return restHandlers;
-        }
     }
 
     @Override
@@ -1417,12 +1397,23 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
         final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);

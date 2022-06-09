@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.common.util.Maps;
-
 import java.util.Map;
 import java.util.Objects;
 

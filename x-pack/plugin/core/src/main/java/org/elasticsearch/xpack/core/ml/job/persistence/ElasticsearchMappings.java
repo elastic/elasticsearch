@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -101,7 +99,7 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata()
+        Map<String, MappingMetadata> currentMapping = state.metadata()
             .findMappings(concreteIndices, MapperPlugin.NOOP_FIELD_FILTER, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
         for (String index : concreteIndices) {
@@ -133,7 +131,7 @@ public class ElasticsearchMappings {
                         continue;
                     }
                 } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    logger.error(() -> "Failed to retrieve mapping version for [" + index + "], recreating", e);
                     indicesToUpdate.add(index);
                     continue;
                 }

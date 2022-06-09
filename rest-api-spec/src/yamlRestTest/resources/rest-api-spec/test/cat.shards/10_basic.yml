@@ -220,6 +220,10 @@
 
 ---
 "Test cat shards with hidden indices":
+  - skip:
+      version: " - 8.2.99"
+      reason:  hidden indices were misreported in versions before 8.3.0
+
   - do:
       indices.create:
         index: foo

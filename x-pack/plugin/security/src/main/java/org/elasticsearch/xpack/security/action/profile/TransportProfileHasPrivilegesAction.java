@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+// TODO javadoc
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportProfileHasPrivilegesAction.class);
@@ -89,14 +89,12 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                             request.privilegesToCheck(),
                             applicationPrivilegeDescriptors,
                             ActionListener.runAfter(ActionListener.wrap(privilegesCheckResult -> {
-                                if (privilegesCheckResult.allMatch()) {
+                                assert privilegesCheckResult.getDetails() == null;
+                                if (privilegesCheckResult.allChecksSuccess()) {
                                     hasPrivilegeProfiles.add(profileUid);
                                 }
                             }, checkPrivilegesException -> {
-                                logger.debug(
-                                    new ParameterizedMessage("Failed to check privileges for profile [{}]", profileUid),
-                                    checkPrivilegesException
-                                );
+                                logger.debug(() -> "Failed to check privileges for profile [" + profileUid + "]", checkPrivilegesException);
                                 errorProfiles.add(profileUid);
                             }), () -> {
                                 if (counter.decrementAndGet() == 0) {

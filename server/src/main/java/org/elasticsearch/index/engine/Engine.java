@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -85,6 +84,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -188,7 +188,7 @@ public abstract class Engine implements Closeable {
             try {
                 sizeInBytes += info.sizeInBytes();
             } catch (IOException e) {
-                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
@@ -854,12 +854,9 @@ public abstract class Engine implements Closeable {
                         long fileLength = segmentReader.directory().fileLength(fileName);
                         files.put(fileExtension, new SegmentsStats.FileStats(fileExtension, fileLength, 1L, fileLength, fileLength));
                     } catch (IOException ioe) {
-                        logger.warn(() -> new ParameterizedMessage("Error when retrieving file length for [{}]", fileName), ioe);
+                        logger.warn(() -> "Error when retrieving file length for [" + fileName + "]", ioe);
                     } catch (AlreadyClosedException ace) {
-                        logger.warn(
-                            () -> new ParameterizedMessage("Error when retrieving file length for [{}], directory is closed", fileName),
-                            ace
-                        );
+                        logger.warn(() -> "Error when retrieving file length for [" + fileName + "], directory is closed", ace);
                         return ImmutableOpenMap.of();
                     }
                 }
@@ -867,8 +864,8 @@ public abstract class Engine implements Closeable {
             return files.build();
         } catch (IOException e) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Error when listing files for segment reader [{}] and segment info [{}]",
+                () -> format(
+                    "Error when listing files for segment reader [%s] and segment info [%s]",
                     segmentReader,
                     segmentReader.getSegmentInfo()
                 ),
@@ -921,7 +918,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
                     }
                     segment.segmentSort = info.info.getIndexSort();
                     segment.attributes = info.info.getAttributes();
@@ -949,7 +946,7 @@ public abstract class Engine implements Closeable {
         try {
             segment.sizeInBytes = info.sizeInBytes();
         } catch (IOException e) {
-            logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
         segment.attributes = info.info.getAttributes();
@@ -1114,10 +1111,7 @@ public abstract class Engine implements Closeable {
         if (failEngineLock.tryLock()) {
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason),
-                        failure
-                    );
+                    logger.warn(() -> "tried to fail engine but engine is already failed. ignoring. [" + reason + "]", failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -1127,7 +1121,7 @@ public abstract class Engine implements Closeable {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
-                    logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn(() -> "failed engine [" + reason + "]", failure);
                     // we must set a failure exception, generate one if not supplied
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
@@ -1146,10 +1140,7 @@ public abstract class Engine implements Closeable {
                             }
                         } else {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "tried to mark store as corrupted but store is already closed. [{}]",
-                                    reason
-                                ),
+                                () -> format("tried to mark store as corrupted but store is already closed. [%s]", reason),
                                 failure
                             );
                         }
@@ -1163,10 +1154,7 @@ public abstract class Engine implements Closeable {
             }
         } else {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "tried to fail engine but could not acquire lock - engine should " + "be failed by now [{}]",
-                    reason
-                ),
+                () -> format("tried to fail engine but could not acquire lock - engine should " + "be failed by now [%s]", reason),
                 failure
             );
         }

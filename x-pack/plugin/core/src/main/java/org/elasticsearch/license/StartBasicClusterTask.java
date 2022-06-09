@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -102,7 +101,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
 
     @Override
     public void onFailure(@Nullable Exception e) {
-        logger.error(new ParameterizedMessage("unexpected failure during [{}]", description), e);
+        logger.error(() -> "unexpected failure during [" + description + "]", e);
         listener.onFailure(e);
     }
 

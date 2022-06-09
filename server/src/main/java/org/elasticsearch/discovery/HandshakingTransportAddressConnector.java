@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
@@ -32,6 +31,7 @@ import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 
 public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
@@ -148,8 +148,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
                                             // publish address.
                                             logger.warn(
-                                                new ParameterizedMessage(
-                                                    "completed handshake with [{}] at [{}] but followup connection to [{}] failed",
+                                                () -> format(
+                                                    "completed handshake with [%s] at [%s] but followup connection to [%s] failed",
                                                     remoteNode.descriptionWithoutAttributes(),
                                                     transportAddress,
                                                     remoteNode.getAddress()
@@ -170,7 +170,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                             // we opened a connection and successfully performed a low-level handshake, so we were definitely
                             // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
                             // mismatched configurations (e.g. cluster name) that the user should address
-                            logger.warn(new ParameterizedMessage("handshake to [{}] failed", transportAddress), e);
+                            logger.warn(() -> "handshake to [" + transportAddress + "] failed", e);
                             IOUtils.closeWhileHandlingException(connection);
                             listener.onFailure(e);
                         }

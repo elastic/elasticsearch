@@ -7,10 +7,17 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Assert;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -22,10 +29,11 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
 
-        final SecureString jwt = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
+        final SecureString jwt = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm); // bespoke JWT, not tied to any JWT realm
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 
-        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(jwt, clientSharedSecret);
+        final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", randomAlphaOfLength(4));
+        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(principalClaimNames, jwt, clientSharedSecret);
         final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
         final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
 
@@ -47,5 +55,41 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         assertThat(jwtAuthenticationToken.credentials(), is(nullValue()));
         assertThat(jwtAuthenticationToken.getEndUserSignedJwt(), is(nullValue()));
         assertThat(jwtAuthenticationToken.getClientAuthenticationSharedSecret(), is(nullValue()));
+    }
+
+    public void testPrincipalForJwtWithoutSub() throws Exception {
+        final String issuer = randomAlphaOfLengthBetween(8, 24);
+        final String audience = randomAlphaOfLengthBetween(6, 12);
+
+        final String principalClaimName = randomValueOtherThan("sub", () -> randomAlphaOfLength(3));
+        final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
+
+        final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+
+        final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            null, // type
+            signatureAlgorithm,
+            null, // jwtID
+            issuer,
+            List.of(audience),
+            null, // sub claim value
+            principalClaimName, // principal claim name
+            principalClaimValue, // principal claim value
+            null, // groups claim
+            List.of(), // groups
+            Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
+            Date.from(now), // iat
+            Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
+            Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
+            null, // nonce
+            Map.of() // other claims
+        );
+        final SecureString jwt = JwtValidateUtil.signJwt(jwk, unsignedJwt);
+
+        final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", principalClaimName);
+        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(principalClaimNames, jwt, null);
+        Assert.assertEquals(issuer + "/" + audience + "/" + principalClaimValue, jwtAuthenticationToken.principal());
     }
 }

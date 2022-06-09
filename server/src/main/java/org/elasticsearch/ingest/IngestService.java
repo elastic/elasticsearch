@@ -116,7 +116,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 final var task = taskContext.getTask();
                 currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }
@@ -916,7 +916,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
                 }
                 try {
-                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                    boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
+                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.

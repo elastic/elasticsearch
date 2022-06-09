@@ -46,25 +46,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final Map<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
 
-    public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
-        this(nodeId, node, buildShardRoutingMap(shards));
-    }
-
-    RoutingNode(String nodeId, @Nullable DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
+    RoutingNode(String nodeId, @Nullable DiscoveryNode node) {
         this.nodeId = nodeId;
         this.node = node;
-        this.shards = shards;
+        this.shards = new LinkedHashMap<>();
         this.relocatingShards = new LinkedHashSet<>();
         this.initializingShards = new LinkedHashSet<>();
         this.shardsByIndex = new LinkedHashMap<>();
-        for (ShardRouting shardRouting : shards.values()) {
-            if (shardRouting.initializing()) {
-                initializingShards.add(shardRouting);
-            } else if (shardRouting.relocating()) {
-                relocatingShards.add(shardRouting);
-            }
-            shardsByIndex.computeIfAbsent(shardRouting.index(), k -> new LinkedHashSet<>()).add(shardRouting);
-        }
         assert invariant();
     }
 
@@ -83,19 +71,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     RoutingNode copy() {
         return new RoutingNode(this);
-    }
-
-    private static LinkedHashMap<ShardId, ShardRouting> buildShardRoutingMap(ShardRouting... shardRoutings) {
-        final LinkedHashMap<ShardId, ShardRouting> shards = new LinkedHashMap<>();
-        for (ShardRouting shardRouting : shardRoutings) {
-            ShardRouting previousValue = shards.put(shardRouting.shardId(), shardRouting);
-            if (previousValue != null) {
-                throw new IllegalArgumentException(
-                    "Cannot have two different shards with same shard id " + shardRouting.shardId() + " on same node "
-                );
-            }
-        }
-        return shards;
     }
 
     @Override

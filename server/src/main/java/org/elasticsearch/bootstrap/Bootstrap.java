@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -220,7 +219,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         try {
             Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings), pidFile);
-        } catch (IOException | NoSuchAlgorithmException e) {
+        } catch (IOException e) {
             throw new BootstrapException(e);
         }
 

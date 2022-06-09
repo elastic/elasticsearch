@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 
 public class NodeLoadDetector {
+
+    private static final Logger logger = LogManager.getLogger(NodeLoadDetector.class);
 
     private final MlMemoryTracker mlMemoryTracker;
 
@@ -101,7 +105,9 @@ public class NodeLoadDetector {
             .setMaxJobs(maxNumberOfOpenJobs)
             .setUseMemory(true);
         if (errors.isEmpty() == false) {
-            return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
+            String errorMsg = Strings.collectionToCommaDelimitedString(errors);
+            logger.warn("error detecting load for node [{}]: {}", node.getId(), errorMsg);
+            return nodeLoad.setError(errorMsg).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
         updateLoadGivenModelAssignments(nodeLoad, assignmentMetadata);
@@ -137,7 +143,7 @@ public class NodeLoadDetector {
                     .map(RoutingInfo::getState)
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
-                    nodeLoad.incNumAssignedNativeInferenceJobs();
+                    nodeLoad.incNumAssignedNativeInferenceModels();
                     nodeLoad.incAssignedNativeInferenceMemory(assignment.getTaskParams().estimateMemoryUsageBytes());
                 }
             }

@@ -144,28 +144,28 @@ public class NodeLoadDetectorTests extends ESTestCase {
         NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id1"), 10, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
         assertThat(load.getNumAllocatingJobs(), equalTo(2));
-        assertThat(load.getNumAssignedJobs(), equalTo(2));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id2"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(1));
-        assertThat(load.getNumAssignedJobs(), equalTo(1));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(1));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id3"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0));
-        assertThat(load.getNumAssignedJobs(), equalTo(0));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(0));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id4"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(398458880L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0));
-        assertThat(load.getNumAssignedJobs(), equalTo(2));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }

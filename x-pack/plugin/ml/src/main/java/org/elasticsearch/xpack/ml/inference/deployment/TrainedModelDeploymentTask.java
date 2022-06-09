@@ -29,13 +29,14 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
-    private final TaskParams params;
+    private volatile TaskParams params;
     private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
     private volatile boolean failed;
@@ -56,7 +57,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         LicensedFeature.Persistent licensedFeature
     ) {
         super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
-        this.params = taskParams;
+        this.params = Objects.requireNonNull(taskParams);
         this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAssignmentNodeService,
             "trainedModelAssignmentNodeService"
@@ -69,6 +70,16 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
             licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
         }
+    }
+
+    public void updateNumberOfAllocations(int numberOfAllocations) {
+        params = new TaskParams(
+            params.getModelId(),
+            params.getModelBytes(),
+            numberOfAllocations,
+            params.getThreadsPerAllocation(),
+            params.getQueueCapacity()
+        );
     }
 
     public String getModelId() {

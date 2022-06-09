@@ -462,7 +462,7 @@ public class MachineLearning extends Plugin
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
-    public static final String PYTORCH_COMMS_THREAD_POOL_NAME = NAME + "_pytorch_comms";
+    public static final String NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME = NAME + "_native_inference_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
@@ -1384,19 +1384,19 @@ public class MachineLearning extends Plugin
             "xpack.ml.job_comms_thread_pool"
         );
 
-        // 3 threads per pytorch process: for input, c++ logger output, and result processing.
+        // 3 threads per native inference process: for input, c++ logger output, and result processing.
         // As we cannot assign more models than the number of allocated processors, this thread pool's
         // size is limited by the number of allocated processors on this node.
-        // Only use this thread pool for the main long-running process associated with a pytorch model deployment.
+        // Only use this thread pool for the main long-running process associated with a native inference model deployment.
         // (Using it for some other purpose could mean that an unrelated pytorch model assignment fails to start
         // or that whatever needed the thread for another purpose has to queue for a very long time.)
         ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
-            PYTORCH_COMMS_THREAD_POOL_NAME,
+            NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
             3,
             getAllocatedProcessors() * 3,
             TimeValue.timeValueMinutes(1),
             false,
-            "xpack.ml.pytorch_comms_thread_pool"
+            "xpack.ml.native_inference_comms_thread_pool"
         );
 
         // This pool is used by renormalization, data frame analytics memory estimation, plus some other parts

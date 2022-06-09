@@ -155,12 +155,12 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     }
 
     public Optional<String> selectRandomStartedNodeWeighedOnAllocations() {
-        List<String> nodes = new ArrayList<>(nodeRoutingTable.size());
+        List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
             if (RoutingState.STARTED.equals(routingEntry.getValue().getState())) {
-                nodes.add(routingEntry.getKey());
+                nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();
                 cumulativeAllocations.add(allocationSum);
             }
@@ -169,7 +169,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         if (allocationSum == 0) {
             // If we are in a mixed cluster where there are assignments prior to introducing allocation distribution
             // we could have a zero-sum of allocations. We fall back to returning a random started node.
-            return nodes.isEmpty() ? Optional.empty() : Optional.of(nodes.get(Randomness.get().nextInt(nodes.size())));
+            return nodeIds.isEmpty() ? Optional.empty() : Optional.of(nodeIds.get(Randomness.get().nextInt(nodeIds.size())));
         }
 
         int randomInt = Randomness.get().ints(1, 1, allocationSum + 1).iterator().nextInt();
@@ -177,7 +177,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         if (nodeIndex < 0) {
             nodeIndex = -nodeIndex - 1;
         }
-        return Optional.of(nodes.get(nodeIndex));
+        return Optional.of(nodeIds.get(nodeIndex));
     }
 
     public Optional<String> getReason() {
@@ -292,15 +292,15 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         }
 
         public Builder updateExistingRoutingEntry(String nodeId, RoutingInfo routingInfo) {
-            RoutingInfo existinRoutingInfo = nodeRoutingTable.get(nodeId);
-            if (existinRoutingInfo == null) {
+            RoutingInfo existingRoutingInfo = nodeRoutingTable.get(nodeId);
+            if (existingRoutingInfo == null) {
                 throw new ResourceNotFoundException(
                     "routing entry for node [{}] for model [{}] does not exist",
                     nodeId,
                     taskParams.getModelId()
                 );
             }
-            if (existinRoutingInfo.equals(routingInfo)) {
+            if (existingRoutingInfo.equals(routingInfo)) {
                 return this;
             }
             nodeRoutingTable.put(nodeId, routingInfo);

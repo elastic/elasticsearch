@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTas
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
-import java.util.Optional;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
@@ -94,14 +93,14 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        Optional<String> randomRunningNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
-        if (randomRunningNode.isEmpty()) {
-            String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-            return;
-        }
-        request.setNodes(randomRunningNode.get());
-        super.doExecute(task, request, listener);
+        assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
+            request.setNodes(node);
+            super.doExecute(task, request, listener);
+        },
+            () -> listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model [" + deploymentId + "] is not allocated to any nodes")
+            )
+        );
     }
 
     @Override

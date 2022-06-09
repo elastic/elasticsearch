@@ -235,23 +235,23 @@ class TrainedModelAssignmentRebalancer {
         AssignmentPlan.Model model
     ) {
         if (Strings.isNullOrEmpty(load.getError()) == false) {
-            logger.warn("[{}] failed to calculate current node load with error [{}]", model.id(), load.getNodeId());
             return Optional.of(load.getError());
         }
 
-        int nodeProcessors = getNodeAllocatedProcessors(node).orElse(0);
-
-        // If any ML processes are running on a node we require some space to load the shared libraries.
-        // So if none are currently running then this per-node overhead must be added to the requirement.
-        boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobs() > 0
-            && assignmentPlan.getRemainingNodeCores(load.getNodeId()) < nodeProcessors;
-        long requiredMemory = model.memoryBytes() + (isPerNodeOverheadAccountedFor
-            ? 0
-            : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
-        long nodeFreeMemory = assignmentPlan.getRemainingNodeMemory(node.getId()) + (isPerNodeOverheadAccountedFor
-            ? 0
-            : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
         if (model.memoryBytes() > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+            // If any ML processes are running on a node we require some space to load the shared libraries.
+            // So if none are currently running then this per-node overhead must be added to the requirement.
+            // From node load we know if we had any jobs or models assigned before the rebalance.
+            // But we should also check if we managed to assign a model during the rebalance for which
+            // we check if the node has used up any of its allocated processors.
+            boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobsAndModels() > 0
+                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < getNodeAllocatedProcessors(node).orElse(0);
+            long requiredMemory = model.memoryBytes() + (isPerNodeOverheadAccountedFor
+                ? 0
+                : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
+            long nodeFreeMemory = assignmentPlan.getRemainingNodeMemory(node.getId()) + (isPerNodeOverheadAccountedFor
+                ? 0
+                : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
             return Optional.of(
                 ParameterizedMessage.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "
@@ -273,7 +273,10 @@ class TrainedModelAssignmentRebalancer {
                 ParameterizedMessage.format(
                     "This node has insufficient allocated processors. Available processors [{}], free processors [{}], "
                         + "processors required for each allocation of this model [{}]",
-                    new Object[] { nodeProcessors, assignmentPlan.getRemainingNodeCores(node.getId()), model.threadsPerAllocation() }
+                    new Object[] {
+                        getNodeAllocatedProcessors(node).orElse(0),
+                        assignmentPlan.getRemainingNodeCores(node.getId()),
+                        model.threadsPerAllocation() }
                 )
             );
         }

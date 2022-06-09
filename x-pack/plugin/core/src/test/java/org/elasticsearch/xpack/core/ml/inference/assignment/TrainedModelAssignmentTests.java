@@ -218,10 +218,10 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         assertThat(selectedNodes, contains("node-1", "node-2", "node-3"));
     }
 
-    private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double percent) {
+    private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double tolerance) {
         double expected = totalCount * ratio;
-        double lowerBound = (1.0 - percent) * expected;
-        double upperBound = (1.0 + percent) * expected;
+        double lowerBound = (1.0 - tolerance) * expected;
+        double upperBound = (1.0 + tolerance) * expected;
         logger.info("Checked that: {} <= {} <= {}", lowerBound, value, upperBound);
         assertThat((double) value, greaterThanOrEqualTo(lowerBound));
         assertThat((double) value, lessThanOrEqualTo(upperBound));

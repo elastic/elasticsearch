@@ -452,11 +452,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingInfo>> nodesAndRouting = trainedModelAssignment.getNodeRoutingTable().entrySet();
+            final Set<Map.Entry<String, RoutingInfo>> nodeIdsAndRouting = trainedModelAssignment.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();
-            for (Map.Entry<String, RoutingInfo> nodeIdAndRouting : nodesAndRouting) {
+            for (Map.Entry<String, RoutingInfo> nodeIdAndRouting : nodeIdsAndRouting) {
                 if (RoutingState.FAILED.equals(nodeIdAndRouting.getValue().getState())) {
                     nodeFailuresAndReasons.put(nodeIdAndRouting.getKey(), nodeIdAndRouting.getValue().getReason());
                 }
@@ -482,7 +482,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
-            if (nodesAndRouting.isEmpty()
+            if (nodeIdsAndRouting.isEmpty()
                 // We cannot scale horizontally
                 && maxLazyMLNodes <= nodes.size()
                 // We cannot scale vertically

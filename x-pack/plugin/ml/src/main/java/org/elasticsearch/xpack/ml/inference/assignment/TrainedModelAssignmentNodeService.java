@@ -64,6 +64,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
     private static final String ASSIGNMENT_NO_LONGER_EXISTS = "model assignment no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
+    private static final TimeValue UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentNodeService.class);
     private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final ClusterService clusterService;
@@ -243,6 +244,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         Optional<RoutingInfo> routingInfo = getRoutingInfo(task.getModelId());
         if (routingInfo.isEmpty()) {
+            // Routing info has been removed, but it could be that the model is still around.
+            // So, we make sure to stop the deployment on the node.
+            deploymentManager.stopDeployment(task);
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
@@ -431,9 +436,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             deploymentManager.updateNumAllocations(
                 task,
                 assignment.getNodeRoutingTable().get(nodeId).getTargetAllocations(),
-                TimeValue.timeValueSeconds(60),
+                UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT,
                 ActionListener.wrap(threadSettings -> {
                     logger.debug("[{}] Updated number of allocations to [{}]", assignment.getModelId(), threadSettings.numAllocations());
+                    task.updateNumberOfAllocations(threadSettings.numAllocations());
                     updateStoredState(
                         assignment.getModelId(),
                         new RoutingInfo(

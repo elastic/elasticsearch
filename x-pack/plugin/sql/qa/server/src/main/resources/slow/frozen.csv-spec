@@ -7,8 +7,7 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
- catalog          |       name        | type  |  kind
-javaRestTest      |apps               |TABLE  |INDEX
+ catalog       |       name        | type  |  kind
 javaRestTest      |empty_mapping      |TABLE  |INDEX
 javaRestTest      |frozen_emp         |TABLE  |FROZEN INDEX
 javaRestTest      |logs               |TABLE  |INDEX

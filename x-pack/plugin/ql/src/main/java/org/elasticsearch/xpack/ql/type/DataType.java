@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.search.sort.ScriptSortBuilder;
-
 import java.util.Locale;
 import java.util.Objects;
 
@@ -62,12 +60,6 @@ public class DataType {
 
     public String esType() {
         return esType;
-    }
-
-    public ScriptSortBuilder.ScriptSortType scriptSortType() {
-        return isNumeric() ? ScriptSortBuilder.ScriptSortType.NUMBER
-            : this == DataTypes.VERSION ? ScriptSortBuilder.ScriptSortType.VERSION
-            : ScriptSortBuilder.ScriptSortType.STRING;
     }
 
     public boolean isInteger() {

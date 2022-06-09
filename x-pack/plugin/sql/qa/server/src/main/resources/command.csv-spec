@@ -232,7 +232,6 @@ showTables
 SHOW TABLES;
 
 catalog    |       name        |  type |  kind
-javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX
@@ -284,7 +283,6 @@ showTablesLocalCatalog
 SHOW TABLES CATALOG 'javaRestTest';
 
 catalog    |       name        |  type |  kind
-javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX

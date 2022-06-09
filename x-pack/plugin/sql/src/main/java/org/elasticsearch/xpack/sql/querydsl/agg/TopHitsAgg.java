@@ -60,7 +60,9 @@ public class TopHitsAgg extends LeafAgg {
                 sortBuilderList.add(
                     new ScriptSortBuilder(
                         Scripts.nullSafeSort(sortSource.script()).toPainless(),
-                        source().script().outputType().scriptSortType()
+                        sortSource.script().outputType().isNumeric()
+                            ? ScriptSortBuilder.ScriptSortType.NUMBER
+                            : ScriptSortBuilder.ScriptSortType.STRING
                     ).order(sortOrder)
                 );
             }
@@ -72,8 +74,12 @@ public class TopHitsAgg extends LeafAgg {
             );
         } else {
             sortBuilderList.add(
-                new ScriptSortBuilder(Scripts.nullSafeSort(source().script()).toPainless(), source().script().outputType().scriptSortType())
-                    .order(sortOrder)
+                new ScriptSortBuilder(
+                    Scripts.nullSafeSort(source().script()).toPainless(),
+                    source().script().outputType().isNumeric()
+                        ? ScriptSortBuilder.ScriptSortType.NUMBER
+                        : ScriptSortBuilder.ScriptSortType.STRING
+                ).order(sortOrder)
             );
         }
 

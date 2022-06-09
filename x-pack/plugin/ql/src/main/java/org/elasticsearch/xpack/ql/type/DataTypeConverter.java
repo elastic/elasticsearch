@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -35,7 +34,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
@@ -172,9 +170,6 @@ public final class DataTypeConverter {
         if (to == IP) {
             return conversionToIp(from);
         }
-        if (to == VERSION) {
-            return conversionToVersion(from);
-        }
         return null;
     }
 
@@ -188,13 +183,6 @@ public final class DataTypeConverter {
     private static Converter conversionToIp(DataType from) {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_IP;
-        }
-        return null;
-    }
-
-    private static Converter conversionToVersion(DataType from) {
-        if (isString(from)) {
-            return DefaultConverter.STRING_TO_VERSION;
         }
         return null;
     }
@@ -549,8 +537,7 @@ public final class DataTypeConverter {
                 throw new QlIllegalArgumentException("[" + o + "] is not a valid IPv4 or IPv6 address");
             }
             return o;
-        }),
-        STRING_TO_VERSION(o -> new Version(o.toString()));
+        });
 
         public static final String NAME = "dtc-def";
 

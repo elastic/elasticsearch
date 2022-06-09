@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -55,6 +56,14 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private boolean forceSyntheticSource = false;
+
     public GetRequest() {}
 
     GetRequest(StreamInput in) throws IOException {
@@ -72,6 +81,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
     @Override
@@ -90,6 +104,13 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeByte(versionType.getValue());
         out.writeLong(version);
         out.writeOptionalWriteable(fetchSourceContext);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     /**
@@ -240,6 +261,26 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
     }
 
     @Override

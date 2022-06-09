@@ -335,7 +335,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
              * to prove that we unwrapped the IndexOrDocValuesQuery that the date
              * field mapper adds
              */
-            QueryToFilterAdapter<?> filter = ((FiltersAggregator) aggregator).filters().get(0);
+            QueryToFilterAdapter filter = ((FiltersAggregator) aggregator).filters().get(0);
             assertThat(filter.query(), equalTo(((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery()));
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
@@ -541,7 +541,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry("query", "*:*")
-                                        .entry("specialized_for", "match_all")
                                         .entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
@@ -579,7 +578,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry("query", "*:*")
-                                        .entry("specialized_for", "match_all")
                                         .entry("segments_counted_in_constant_time", 0)
                                 )
                             )
@@ -702,7 +700,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             "filters",
                             matchesList().item(
                                 matchesMap().entry("query", "*:*")
-                                    .entry("specialized_for", "match_all")
                                     .entry("segments_counted_in_constant_time", 1)
                             )
                         )
@@ -856,7 +853,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("specialized_for", "match_none")
                                         .entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
@@ -894,7 +890,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry("query", "MatchNoDocsQuery(\"User requested \"match_none\" query.\")")
-                                        .entry("specialized_for", "match_none")
                                         .entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )

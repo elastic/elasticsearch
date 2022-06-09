@@ -699,7 +699,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                         matchesList().item(
                                             matchesMap().entry("query", "*:*")
                                                 .entry("segments_counted_in_constant_time", 0)
-                                                .entry("specialized_for", "match_all")
                                         )
                                     )
                             )

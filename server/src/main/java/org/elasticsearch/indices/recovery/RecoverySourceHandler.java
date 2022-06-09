@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -90,6 +89,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -475,7 +475,7 @@ public class RecoverySourceHandler {
                 closeable.close();
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(new ParameterizedMessage("Exception while closing [{}]", closeable), e);
+                logger.warn(() -> format("Exception while closing [%s]", closeable), e);
             }
         });
     }
@@ -828,16 +828,13 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "cancelled while recovering file [{}] from snapshot",
-                                    snapshotFileToRecover.metadata()
-                                ),
+                                () -> format("cancelled while recovering file [%s] from snapshot", snapshotFileToRecover.metadata()),
                                 e
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "failed to recover file [{}] from snapshot{}",
+                                () -> format(
+                                    "failed to recover file [%s] from snapshot%s",
                                     snapshotFileToRecover.metadata(),
                                     shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
                                 ),
@@ -1475,8 +1472,8 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                    () -> format(
+                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
                         shardId,
                         request.targetNode(),
                         mds

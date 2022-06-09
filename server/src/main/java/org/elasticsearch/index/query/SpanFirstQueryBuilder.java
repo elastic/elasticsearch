@@ -87,7 +87,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         builder.field(MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
         builder.field(END_FIELD.getPreferredName(), end);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

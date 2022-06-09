@@ -55,6 +55,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
+    public GetRequest() {}
+
     GetRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
@@ -72,7 +74,23 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
     }
 
-    public GetRequest() {}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
+        out.writeString(id);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+
+        out.writeBoolean(refresh);
+        out.writeOptionalStringArray(storedFields);
+        out.writeBoolean(realtime);
+        out.writeByte(versionType.getValue());
+        out.writeLong(version);
+        out.writeOptionalWriteable(fetchSourceContext);
+    }
 
     /**
      * Constructs a new get request against the specified index. The {@link #id(String)} must also be set.
@@ -222,24 +240,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
-        out.writeString(id);
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-
-        out.writeBoolean(refresh);
-        out.writeOptionalStringArray(storedFields);
-        out.writeBoolean(realtime);
-        out.writeByte(versionType.getValue());
-        out.writeLong(version);
-        out.writeOptionalWriteable(fetchSourceContext);
     }
 
     @Override

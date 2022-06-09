@@ -86,7 +86,10 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        ServerArgs args = createArgs(options, env, keystorePassword);
+        // install/remove plugins from elasticsearch-plugins.yml
+        syncPlugins(terminal, env, processInfo);
+
+        ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
@@ -95,7 +98,10 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // we are running in the foreground, so wait for the server to exit
-        server.waitFor();
+        int exitCode = server.waitFor();
+        if (exitCode != ExitCodes.OK) {
+            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+        }
     }
 
     private void printVersion(Terminal terminal) {
@@ -168,6 +174,15 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
+    private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+        String pluginCliLibs = "lib/tools/plugin-cli";
+        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        assert cmd instanceof EnvironmentAwareCommand;
+        @SuppressWarnings("raw")
+        var syncPlugins = (EnvironmentAwareCommand) cmd;
+        syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
+    }
+
     private void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
@@ -178,12 +193,16 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+        throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
         if (options.has(pidfileOption)) {
             pidFile = options.valueOf(pidfileOption);
+            if (pidFile.isAbsolute() == false) {
+                pidFile = processInfo.workingDir().resolve(pidFile.toString()).toAbsolutePath();
+            }
             validatePidFile(pidFile);
         }
         return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());

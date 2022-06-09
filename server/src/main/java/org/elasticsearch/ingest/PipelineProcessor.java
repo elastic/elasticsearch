@@ -18,11 +18,19 @@ public class PipelineProcessor extends AbstractProcessor {
     public static final String TYPE = "pipeline";
 
     private final TemplateScript.Factory pipelineTemplate;
+    private final boolean ignoreMissingPipeline;
     private final IngestService ingestService;
 
-    PipelineProcessor(String tag, String description, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
+    PipelineProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory pipelineTemplate,
+        boolean ignoreMissingPipeline,
+        IngestService ingestService
+    ) {
         super(tag, description);
         this.pipelineTemplate = pipelineTemplate;
+        this.ignoreMissingPipeline = ignoreMissingPipeline;
         this.ingestService = ingestService;
     }
 
@@ -33,10 +41,14 @@ public class PipelineProcessor extends AbstractProcessor {
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
         } else {
-            handler.accept(
-                null,
-                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']')
-            );
+            if (ignoreMissingPipeline) {
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(
+                    null,
+                    new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']')
+                );
+            }
         }
     }
 
@@ -85,7 +97,14 @@ public class PipelineProcessor extends AbstractProcessor {
                 "name",
                 ingestService.getScriptService()
             );
-            return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
+            boolean ignoreMissingPipeline = ConfigurationUtils.readBooleanProperty(
+                TYPE,
+                processorTag,
+                config,
+                "ignore_missing_pipeline",
+                false
+            );
+            return new PipelineProcessor(processorTag, description, pipelineTemplate, ignoreMissingPipeline, ingestService);
         }
     }
 }

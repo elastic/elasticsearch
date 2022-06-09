@@ -17,6 +17,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -73,7 +74,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        SearchRequest searchRequest = createSearchRequest();
+        return createShardSearchReqest(createSearchRequest());
+    }
+
+    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
@@ -216,7 +220,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            Version version = request.isForceSyntheticSource()
+                ? VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.CURRENT)
+                : VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = Version.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
@@ -235,5 +241,15 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         };
         shardSearchRequest.cacheKey(differentiator);
         assertThat(invoked.get(), is(true));
+    }
+
+    public void testForceSyntheticUnsupported() throws IOException {
+        SearchRequest request = createSearchRequest();
+        request.setForceSyntheticSource(true);
+        ShardSearchRequest shardRequest = createShardSearchReqest(request);
+        StreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

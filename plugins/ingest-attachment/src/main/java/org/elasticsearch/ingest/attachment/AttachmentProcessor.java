@@ -9,7 +9,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.LanguageIdentifier;
+import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -109,7 +109,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         Metadata metadata = new Metadata();
         if (resourceNameInput != null) {
-            metadata.set(Metadata.RESOURCE_NAME_KEY, resourceNameInput);
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, resourceNameInput);
         }
         String parsedContent = "";
         try {
@@ -135,8 +135,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
         addAdditionalField(additionalFields, Property.TITLE, metadata.get(TikaCoreProperties.TITLE));
+        // These two were supposedly removed in tika 2, but some parsers seem to still generate them:
         addAdditionalField(additionalFields, Property.AUTHOR, metadata.get("Author"));
         addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get(TikaCoreProperties.SUBJECT));
         addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
 
         if (properties.contains(Property.CONTENT_LENGTH)) {

@@ -54,6 +54,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -247,7 +248,7 @@ public class RealmsTests extends ESTestCase {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
-        List<String> domains = randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3));
+        Collection<String> domains = new HashSet<>(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 3)));
         domains.add(null); // not all realms ought to have a domain
         Map<Integer, Integer> orderToIndex = new HashMap<>();
         Map<Integer, String> indexToDomain = new HashMap<>();

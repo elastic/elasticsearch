@@ -21,6 +21,15 @@ public class MapBackedMetadata {
     public static final String ROUTING = "_routing";
     public static final String SOURCE = "_source";
 
+    /**
+     * The backing map has the metadata keys from above.  For backwards compatibility this map is exposed to
+     * scripts and they can modify any number of keys.
+     *
+     * Metadata keys are protected via getters and setters in this class but may be modified externally.
+     *
+     * Users of the class may add additional metadata keys and helpers by using the {@link #set(String, Object)},
+     * {@link #getString(String)} or accessing the underlying map directly.
+     */
     protected Map<String, Object> map;
 
     public MapBackedMetadata(Map<String, Object> map) {

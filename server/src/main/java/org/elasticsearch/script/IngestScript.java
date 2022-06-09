@@ -49,11 +49,13 @@ public abstract class IngestScript {
         return params;
     }
 
+    /** Provides backwards compatibility access to ctx */
     public Map<String, Object> getCtx() {
         return metadata != null ? metadata.store.getMap() : null;
     }
 
-    public Metadata meta() {
+    /** Return the ingest metadata object */
+    public Metadata metadata() {
         return metadata;
     }
 

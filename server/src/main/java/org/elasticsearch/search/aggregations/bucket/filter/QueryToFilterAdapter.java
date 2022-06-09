@@ -8,14 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -24,7 +22,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,12 +57,6 @@ public class QueryToFilterAdapter<Q extends Query> {
              */
             query = ((ConstantScoreQuery) query).getQuery();
         }
-        if (query instanceof TermQuery) {
-            return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
-        }
-        if (query instanceof DocValuesFieldExistsQuery) {
-            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
-        }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
         }
@@ -83,6 +74,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * {@link #weight()} to build it when needed.
      */
     private Weight weight;
+    protected int segmentsCountedInConstantTime;
 
     QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
         this.searcher = searcher;
@@ -122,31 +114,6 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     protected final IndexSearcher searcher() {
         return searcher;
-    }
-
-    /**
-     * Would using index metadata like {@link IndexReader#docFreq}
-     * or {@link IndexReader#maxDoc} to count the number of matching documents
-     * produce the same answer as collecting the results with a sequence like
-     * {@code searcher.collect(counter); return counter.readAndReset();}?
-     */
-    protected static boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
-        if (live != null) {
-            /*
-             * We can only use metadata if all of the documents in the reader
-             * are visible. This is done by returning a null `live` bits. The
-             * name `live` is traditional because most of the time a non-null
-             * `live` bits means that there are deleted documents. But `live`
-             * might also be non-null if document level security is enabled.
-             */
-            return false;
-        }
-        /*
-         * We can only use metadata if we're not using the special docCount
-         * field. Otherwise we wouldn't know how many documents each lucene
-         * document represents.
-         */
-        return counter.docCount.alwaysOne();
     }
 
     /**
@@ -223,6 +190,24 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Count the number of documents that match this filter in a leaf.
      */
     long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
+        /*
+         * weight().count will return the count of matches for ctx if it can do
+         * so in constant time, otherwise -1. The Weight is responsible for
+         * all of the cases where it can't return an accurate count *except*
+         * the doc_count field. That thing is ours, not Lucene's.
+         *
+         * For example, TermQuery will return -1 if there are deleted docs,
+         * otherwise it'll return number of documents with the term from the
+         * term statistics. MatchAllDocs will call `ctx.reader().numdocs()`
+         * to get the number of live docs.
+         */
+        if (counter.docCount.alwaysOne()) {
+            int count = weight().count(ctx);
+            if (count != -1) {
+                segmentsCountedInConstantTime++;
+                return count;
+            }
+        }
         BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
@@ -257,6 +242,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("query", query.toString());
+        add.accept("segments_counted_in_constant_time", segmentsCountedInConstantTime);
     }
 
     private Weight weight() throws IOException {

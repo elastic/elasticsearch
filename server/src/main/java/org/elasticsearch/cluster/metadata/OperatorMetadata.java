@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Metadata class that contains information about cluster settings/entities set
@@ -184,8 +185,9 @@ public record OperatorMetadata(
             builder.startObject(operatorMetadata.namespace());
             builder.field(VERSION, operatorMetadata.version());
             builder.startObject(HANDLERS);
-            for (OperatorHandlerMetadata handlerMetadata : operatorMetadata.handlers().values()) {
-                OperatorHandlerMetadata.Builder.toXContent(handlerMetadata, builder, params);
+            var sortedKeys = new TreeSet<>(operatorMetadata.handlers.keySet());
+            for (var key : sortedKeys) {
+                OperatorHandlerMetadata.Builder.toXContent(operatorMetadata.handlers.get(key), builder, params);
             }
             builder.endObject();
             builder.field(ERRORS_METADATA, operatorMetadata.errorMetadata);

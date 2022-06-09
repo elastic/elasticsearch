@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Metadata class to hold the operator set keys for each operator handler
@@ -81,7 +82,7 @@ public record OperatorHandlerMetadata(String name, Set<String> keys)
         public static void toXContent(OperatorHandlerMetadata metadata, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
             builder.startObject(metadata.name());
-            builder.stringListField(HANDLER_KEYS, metadata.keys);
+            builder.stringListField(HANDLER_KEYS, new TreeSet<>(metadata.keys));
             builder.endObject();
         }
 

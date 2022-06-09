@@ -779,14 +779,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "handlers" : {
                       "one" : {
                         "keys" : [
-                          "b",
-                          "a"
+                          "a",
+                          "b"
                         ]
                       },
                       "two" : {
                         "keys" : [
-                          "d",
-                          "c"
+                          "c",
+                          "d"
                         ]
                       }
                     },
@@ -804,8 +804,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "handlers" : {
                       "three" : {
                         "keys" : [
-                          "f",
-                          "e"
+                          "e",
+                          "f"
                         ]
                       }
                     },

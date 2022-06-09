@@ -12,12 +12,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.IndicesWriteLoadStatsCollector;
-import org.elasticsearch.indices.IndicesWriteLoadStatsService;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,9 +27,10 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
-public class IndicesWriteLoadDistributionStoragePlugin extends Plugin {
+public class IndicesWriteLoadDistributionStoragePlugin extends Plugin implements SystemIndexPlugin {
     private final SetOnce<IndicesWriteLoadStatsCollector> indicesWriteLoadsStatsCollectorRef = new SetOnce<>();
     private final SetOnce<IndicesWriteLoadStatsService> indicesWriteLoadStatsServiceRef = new SetOnce<>();
 
@@ -71,6 +73,20 @@ public class IndicesWriteLoadDistributionStoragePlugin extends Plugin {
     }
 
     @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(
+            IndicesWriteLoadStatsService.ENABLED_SETTING,
+            IndicesWriteLoadStatsService.SAMPLING_FREQUENCY_SETTING,
+            IndicesWriteLoadStatsService.STORE_FREQUENCY_SETTING,
+            IndicesWriteLoadStore.ENABLED_SETTING,
+            IndicesWriteLoadStore.MAX_RETRIES_SETTING,
+            IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING,
+            IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING,
+            IndicesWriteLoadStore.MAX_CONCURRENT_REQUESTS_SETTING
+        );
+    }
+
+    @Override
     public void onIndexModule(IndexModule indexModule) {
         assert indicesWriteLoadsStatsCollectorRef.get() != null;
         indexModule.addIndexEventListener(indicesWriteLoadsStatsCollectorRef.get());
@@ -79,5 +95,20 @@ public class IndicesWriteLoadDistributionStoragePlugin extends Plugin {
     @Override
     public void close() {
         indicesWriteLoadStatsServiceRef.get().close();
+    }
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return List.of(IndicesWriteLoadStore.INDICES_WRITE_LOAD_DATA_STREAM_DESCRIPTOR);
+    }
+
+    @Override
+    public String getFeatureName() {
+        return IndicesWriteLoadStore.INDICES_WRITE_LOAD_FEATURE_NAME;
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores indices write load information";
     }
 }

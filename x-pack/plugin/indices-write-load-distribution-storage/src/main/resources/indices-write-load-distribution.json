@@ -1,0 +1,100 @@
+{
+  "index_patterns": [
+    ".indices-write-load-distribution"
+  ],
+  "data_stream": {
+    "hidden": true
+  },
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.auto_expand_replicas": "0-1",
+      "index.lifecycle.name": ".indices-write-load-distribution-ilm-policy"
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "data_stream": {
+          "type": "keyword"
+        },
+        "index_name": {
+          "type": "keyword"
+        },
+        "index_uuid": {
+          "type": "keyword"
+        },
+        "shard": {
+          "type": "integer"
+        },
+        "primary": {
+          "type": "boolean"
+        },
+        "indexing_load_distribution": {
+          "properties": {
+            "50": {
+              "type": "double"
+            },
+            "90": {
+              "type": "double"
+            },
+            "95": {
+              "type": "double"
+            },
+            "99": {
+              "type": "double"
+            },
+            "max": {
+              "type": "double"
+            }
+          }
+        },
+        "merge_load_distribution": {
+          "properties": {
+            "50": {
+              "type": "double"
+            },
+            "90": {
+              "type": "double"
+            },
+            "95": {
+              "type": "double"
+            },
+            "99": {
+              "type": "double"
+            },
+            "max": {
+              "type": "double"
+            }
+          }
+        },
+        "refresh_load_distribution": {
+          "properties": {
+            "50": {
+              "type": "double"
+            },
+            "90": {
+              "type": "double"
+            },
+            "95": {
+              "type": "double"
+            },
+            "99": {
+              "type": "double"
+            },
+            "max": {
+              "type": "double"
+            }
+          }
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 200,
+  "version": 1
+}

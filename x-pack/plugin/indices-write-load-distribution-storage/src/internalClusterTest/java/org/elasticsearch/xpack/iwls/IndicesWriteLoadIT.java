@@ -27,13 +27,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesWriteLoadStatsService;
-import org.elasticsearch.indices.IndicesWriteLoadStore;
-import org.elasticsearch.indices.ShardWriteLoadDistribution;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,12 +45,11 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -60,8 +57,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.indices.IndicesWriteLoadStore.INDICES_WRITE_LOAD_DATA_STREAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.iwls.IndicesWriteLoadStore.INDICES_WRITE_LOAD_DATA_STREAM;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -472,13 +469,17 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
         if (dataStreams.size() > 0) {
             queryFilter.filter(QueryBuilders.termsQuery("data_stream", dataStreams));
         }
-        final var searchResponse = client().prepareSearch(INDICES_WRITE_LOAD_DATA_STREAM).setQuery(queryFilter).setSize(50).get();
+        final var searchResponse = client().prepareSearch(INDICES_WRITE_LOAD_DATA_STREAM)
+            .setQuery(queryFilter)
+            .addSort("@timestamp", SortOrder.ASC)
+            .setSize(50)
+            .get();
 
         if (searchResponse.getHits().getTotalHits().value == 0) {
             return Collections.emptySet();
         }
 
-        final var shardWriteLoadDistributions = new TreeSet<>(Comparator.comparing(ShardWriteLoadDistribution::timestamp));
+        final Set<ShardWriteLoadDistribution> shardWriteLoadDistributions = new HashSet<>();
         for (final var hit : searchResponse.getHits().getHits()) {
             final var source = hit.getSourceRef();
             assertThat(source, is(notNullValue()));

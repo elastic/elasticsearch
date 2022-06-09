@@ -50,8 +50,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.indices.IndicesWriteLoadStore.INDICES_WRITE_LOAD_DATA_STREAM_DESCRIPTOR;
-import static org.elasticsearch.indices.IndicesWriteLoadStore.INDICES_WRITE_LOAD_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -111,13 +109,7 @@ public class SystemIndices {
      * This is the source for non-plugin system features.
      */
     private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
-        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
-        new Feature(
-            INDICES_WRITE_LOAD_FEATURE_NAME,
-            "Stores indices write load distribution",
-            List.of(),
-            List.of(INDICES_WRITE_LOAD_DATA_STREAM_DESCRIPTOR)
-        )
+        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     /**

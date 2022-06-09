@@ -75,8 +75,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.IndicesWriteLoadStatsService;
-import org.elasticsearch.indices.IndicesWriteLoadStore;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -518,15 +516,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
         StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
-        ReadinessService.PORT,
-        IndicesWriteLoadStatsService.ENABLED_SETTING,
-        IndicesWriteLoadStatsService.SAMPLING_FREQUENCY_SETTING,
-        IndicesWriteLoadStatsService.STORE_FREQUENCY_SETTING,
-        IndicesWriteLoadStore.ENABLED_SETTING,
-        IndicesWriteLoadStore.MAX_RETRIES_SETTING,
-        IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING,
-        IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING,
-        IndicesWriteLoadStore.MAX_CONCURRENT_REQUESTS_SETTING
+        ReadinessService.PORT
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
@@ -49,6 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -609,7 +611,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -714,7 +716,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -819,7 +821,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);

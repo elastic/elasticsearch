@@ -897,13 +897,13 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             context
         );
 
-        for (int i = 0; i <= expectedEffectiveNumFailureRetries; ++i) {
+        for (int i = 0; i < expectedEffectiveNumFailureRetries; ++i) {
             indexer.handleFailure(new Exception("exception no. " + (i + 1)));
             assertFalse(failIndexerCalled.get());
             assertThat(failureMessage.get(), is(nullValue()));
             assertThat(context.getFailureCount(), is(equalTo(i + 1)));
         }
-        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 2)));
+        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 1)));
         assertTrue(failIndexerCalled.get());
         assertThat(
             failureMessage.get(),
@@ -912,11 +912,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     "task encountered more than "
                         + expectedEffectiveNumFailureRetries
                         + " failures; latest failure: exception no. "
-                        + (expectedEffectiveNumFailureRetries + 2)
+                        + (expectedEffectiveNumFailureRetries + 1)
                 )
             )
         );
-        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 2)));
+        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 1)));
 
         auditor.assertAllExpectationsMatched();
     }

@@ -498,21 +498,15 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         List<ShardRouting> shards = new ArrayList<>();
         for (int i = 1; i <= 3; i++) {
             int expectedSize = 10 * i;
-            shards.add(
-                ShardRoutingHelper.moveToStarted(
-                    ShardRoutingHelper.initialize(
-                        ShardRouting.newUnassigned(
-                            new ShardId(index, i),
-                            false,
-                            PeerRecoverySource.INSTANCE,
-                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
-                        ),
-                        nodeId,
-                        expectedSize
-                    ),
-                    expectedSize
-                )
+            var unassigned = ShardRouting.newUnassigned(
+                new ShardId(index, i),
+                false,
+                PeerRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
             );
+            var initialized = ShardRoutingHelper.initialize(unassigned, nodeId, expectedSize);
+            var started = ShardRoutingHelper.moveToStarted(initialized, expectedSize);
+            shards.add(started);
         }
 
         long sizeOfRelocatingShards = sizeOfUnaccountedShards(

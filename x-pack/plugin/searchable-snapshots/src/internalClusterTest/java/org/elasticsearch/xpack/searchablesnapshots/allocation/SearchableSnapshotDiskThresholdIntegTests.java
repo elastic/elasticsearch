@@ -341,17 +341,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
-            assertThat(
-                state.routingTable()
-                    .allShards()
-                    .stream()
-                    .filter(s -> indexToSkip.equals(s.shardId().getIndexName().replace(prefix, "")))
-                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
-                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
-                    .filter(s -> s.state() == ShardRoutingState.STARTED)
-                    .count(),
-                equalTo(0L)
-            );
+            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.STARTED).size(), equalTo(0));
             assertEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
         });
     }

@@ -8,8 +8,10 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
@@ -21,37 +23,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MultiGetShardRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        if (randomBoolean()) {
-            multiGetRequest.preference(randomAlphaOfLength(randomIntBetween(1, 10)));
-        }
-        if (randomBoolean()) {
-            multiGetRequest.realtime(false);
-        }
-        if (randomBoolean()) {
-            multiGetRequest.refresh(true);
-        }
-        MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
-        int numItems = iterations(10, 30);
-        for (int i = 0; i < numItems; i++) {
-            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)), "id-" + i);
-            if (randomBoolean()) {
-                int numFields = randomIntBetween(1, 5);
-                String[] fields = new String[numFields];
-                for (int j = 0; j < fields.length; j++) {
-                    fields[j] = randomAlphaOfLength(randomIntBetween(1, 10));
-                }
-                item.storedFields(fields);
-            }
-            if (randomBoolean()) {
-                item.version(randomIntBetween(1, Integer.MAX_VALUE));
-                item.versionType(randomFrom(VersionType.values()));
-            }
-            if (randomBoolean()) {
-                item.fetchSourceContext(FetchSourceContext.of(randomBoolean()));
-            }
-            multiGetShardRequest.add(0, item);
-        }
+        MultiGetShardRequest multiGetShardRequest = createTestInstance(randomBoolean());
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(randomVersion(random()));
@@ -78,4 +50,51 @@ public class MultiGetShardRequestTests extends ESTestCase {
         assertThat(multiGetShardRequest2.indices(), equalTo(multiGetShardRequest.indices()));
         assertThat(multiGetShardRequest2.indicesOptions(), equalTo(multiGetShardRequest.indicesOptions()));
     }
+
+    public void testForceSyntheticUnsupported() {
+        MultiGetShardRequest request = createTestInstance(true);
+        StreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
+    }
+
+    private MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        if (randomBoolean()) {
+            multiGetRequest.preference(randomAlphaOfLength(randomIntBetween(1, 10)));
+        }
+        if (randomBoolean()) {
+            multiGetRequest.realtime(false);
+        }
+        if (randomBoolean()) {
+            multiGetRequest.refresh(true);
+        }
+        if (forceSyntheticSource) {
+            multiGetRequest.setForceSyntheticSource(true);
+        }
+        MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
+        int numItems = iterations(10, 30);
+        for (int i = 0; i < numItems; i++) {
+            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)), "id-" + i);
+            if (randomBoolean()) {
+                int numFields = randomIntBetween(1, 5);
+                String[] fields = new String[numFields];
+                for (int j = 0; j < fields.length; j++) {
+                    fields[j] = randomAlphaOfLength(randomIntBetween(1, 10));
+                }
+                item.storedFields(fields);
+            }
+            if (randomBoolean()) {
+                item.version(randomIntBetween(1, Integer.MAX_VALUE));
+                item.versionType(randomFrom(VersionType.values()));
+            }
+            if (randomBoolean()) {
+                item.fetchSourceContext(FetchSourceContext.of(randomBoolean()));
+            }
+            multiGetShardRequest.add(0, item);
+        }
+        return multiGetShardRequest;
+    }
+
 }

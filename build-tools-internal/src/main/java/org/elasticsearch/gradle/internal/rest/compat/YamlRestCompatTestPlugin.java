@@ -30,6 +30,7 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.FileOperations;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -98,6 +99,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         String projectPath = project.getPath();
+        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
@@ -125,7 +127,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                             .resolve(RELATIVE_API_PATH)
                     )
                 );
-                task.onlyIf(t -> isEnabled(project));
+                task.onlyIf(t -> isEnabled(extraProperties));
             });
 
         // copy compatible rest tests
@@ -155,7 +157,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.onlyIf(t -> isEnabled(project));
+                task.onlyIf(t -> isEnabled(extraProperties));
             });
 
         // copy both local source set apis and compat apis to a single location to be exported as an artifact
@@ -179,7 +181,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
-                task.onlyIf(t -> isEnabled(project));
+                task.onlyIf(t -> isEnabled(extraProperties));
             });
 
         // Register compat rest resources with source set
@@ -226,7 +228,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
-            testTask.onlyIf(t -> isEnabled(project));
+            testTask.onlyIf(t -> isEnabled(extraProperties));
         });
 
         setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet);
@@ -248,8 +250,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
     }
 
-    private boolean isEnabled(Project project) {
-        Object bwcEnabled = project.getExtensions().getExtraProperties().getProperties().get("bwc_tests_enabled");
+    private boolean isEnabled(ExtraPropertiesExtension extraProperties) {
+        Object bwcEnabled = extraProperties.getProperties().get("bwc_tests_enabled");
         return bwcEnabled == null || (Boolean) bwcEnabled;
     }
 

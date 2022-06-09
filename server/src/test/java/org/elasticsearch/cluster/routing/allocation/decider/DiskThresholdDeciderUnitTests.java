@@ -526,7 +526,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 null,
                 0
             ),
-            new RoutingNode(
+            RoutingNodesHelper.routingNode(
                 nodeId,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 shards.toArray(ShardRouting[]::new)

@@ -66,11 +66,11 @@ when authenticating with different realms, it is _not_ recommended.
 [[security-domain-warning]]
 [IMPORTANT]
 ====
-Security domains are an advanced feature that requires careful configuration. 
-Misconfiguration or misuse can lead to unexpected behaviors. 
+Security domains are an advanced feature that requires careful configuration.
+Misconfiguration or misuse can lead to unexpected behaviors.
 ====
 
-Security domains must be configured consistently across all nodes in cluster. 
+Security domains must be configured consistently across all nodes in cluster.
 Inconsistent configuration can lead to issues such as:
 
 - Duplicated user profiles
@@ -93,7 +93,7 @@ xpack:
 <1> This configuration defines a security domain called `my_domain`, which
 contains two realms named `default_native` and `saml1`.
 +
-The specified realms must be defined in `elasticsearch.yml`, 
+The specified realms must be defined in `elasticsearch.yml`,
 but do not need to be enabled.
 +
 NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
@@ -107,31 +107,30 @@ when they are not explicitly defined in `elasticsearch.yml`.
 ====
 {es} can fail to start if the domain configuration is invalid, such as:
 
-* A single realm is configured under multiple domains.
+* The same realm is configured under multiple domains.
 * Any undefined realm, synthetic realm, or the reserved realm is configured to
 be under a domain.
 ====
 
 . Apply the same configuration across all nodes in the cluster
-before performing operations related to security domains, 
+before performing operations related to security domains,
 including creating and managing resources such as
 <<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, and <<async-search,async search>>.
 +
-When adding realms to a security domain, avoid authenticating with a newly-added realm until changes are fully applied to all nodes. 
+When adding realms to a security domain, avoid authenticating with a newly-added realm until changes are fully applied to all nodes.
 
 [[security-domain-remove-realm]]
 ==== Removing realms from a security domain
 
 Removing realms from a security domain can lead to unexpected behaviors
-and is not recommended.  
+and is not recommended.
 Resources created before the removal can be owned by different users depending on the resource type:
 
 - <<user-profile,User profiles>> are owned by the user for whom the profile was last
 <<security-api-activate-user-profile,activated>>.
-If the owner user's realm is in a domain, the profile is shared across the realms in that domain. If the owner user's realm is removed from the domain, a new user profile
-is created for the user the next time the activate user profile API is called.
+For users whose realms are no longer in the same domain as the owner user, a new user profile
+will be created for them next time the activate user profile API is called.
 - Resources such as API keys are owned by the user who originally created them.
-If the owner user's realm is in a domain, the resource is shared across realms in that
-domain. If the owner user's realm is removed from the domain, the user still owns the orginal resource.
 
-Under all circumstances, resource sharing across realms is only possible between users with the same username. 
+Instead of removing realms, consider disabling them and keeping them as part of the security domain.
+Under all circumstances, resource sharing across realms is only possible between users with the same username.

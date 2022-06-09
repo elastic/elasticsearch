@@ -385,7 +385,7 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
         int remainingSamples = numberOfSamples;
         while (remainingSamples > 0) {
             final int batchSamples = randomIntBetween(1, remainingSamples);
-            final var shardWriteLoadDistributions = new ArrayList<ShardWriteLoadDistribution>(batchSamples);
+            final var shardWriteLoadDistributions = new ArrayList<ShardWriteLoadHistogramSnapshot>(batchSamples);
             for (int i = 0; i < batchSamples; i++) {
                 shardWriteLoadDistributions.add(getRandomWriteLoadDistribution());
             }
@@ -401,8 +401,8 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
         }
     }
 
-    private ShardWriteLoadDistribution getRandomWriteLoadDistribution() {
-        return new ShardWriteLoadDistribution(
+    private ShardWriteLoadHistogramSnapshot getRandomWriteLoadDistribution() {
+        return new ShardWriteLoadHistogramSnapshot(
             System.currentTimeMillis(),
             "parent",
             new ShardId("index", "uuid", 0),
@@ -413,8 +413,8 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
         );
     }
 
-    private LoadDistribution randomLoadDistribution() {
-        return new LoadDistribution(
+    private HistogramSnapshot randomLoadDistribution() {
+        return new HistogramSnapshot(
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),

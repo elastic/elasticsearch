@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.iwls.IndicesWriteLoadDistributionStoragePlugin.WRITE_LOAD_COLLECTOR_THREAD_POOL;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,7 +162,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void putAsync(List<ShardWriteLoadDistribution> shardWriteLoadDistributions) {
+        public void putAsync(List<ShardWriteLoadHistogramSnapshot> shardWriteLoadHistogramSnapshots) {
             putAsyncCalls.incrementAndGet();
             if (randomBoolean()) {
                 throw new RuntimeException("Failed storing write load");
@@ -186,7 +187,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<ShardWriteLoadDistribution> getWriteLoadDistributionAndReset() {
+        public List<ShardWriteLoadHistogramSnapshot> getWriteLoadDistributionAndReset() {
             getAndResetCalls.incrementAndGet();
             return Collections.emptyList();
         }
@@ -202,7 +203,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
 
         @Override
         public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-            assertThat(executor, is(equalTo(Names.WRITE_LOAD_COLLECTOR)));
+            assertThat(executor, is(equalTo(WRITE_LOAD_COLLECTOR_THREAD_POOL)));
             var scheduledTask = new ScheduledTask(command, delay);
             scheduledTasks.add(scheduledTask);
             return scheduledTask;

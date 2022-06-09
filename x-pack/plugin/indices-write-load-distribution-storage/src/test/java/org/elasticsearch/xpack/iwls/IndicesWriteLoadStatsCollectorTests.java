@@ -117,7 +117,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
             assertThat(shardWriteLoadDistribution.shardId(), is(equalTo(shard.shardId())));
 
-            final var indexingLoadDistribution = shardWriteLoadDistribution.indexingLoadDistribution();
+            final var indexingLoadDistribution = shardWriteLoadDistribution.indexingHistogramSnapshot();
             assertThat(indexingLoadDistribution.p50(), is(equalTo(0.0)));
             assertThat(indexingLoadDistribution.p90(), is(equalTo(0.0)));
             assertThat(indexingLoadDistribution.max(), is(equalTo(0.0)));
@@ -207,7 +207,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 assertThat(shardLoadDistributions, hasSize(1));
                 final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
-                final var indexingLoadDistribution = shardWriteLoadDistribution.indexingLoadDistribution();
+                final var indexingLoadDistribution = shardWriteLoadDistribution.indexingHistogramSnapshot();
                 assertThat(indexingLoadDistribution.max(), is(closeTo(maxCPUsUsed, 0.5)));
                 assertThat(indexingLoadDistribution.p90(), is(lessThanOrEqualTo(indexingLoadDistribution.max())));
                 assertThat(indexingLoadDistribution.p50(), is(lessThanOrEqualTo(indexingLoadDistribution.p90())));
@@ -219,7 +219,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 assertThat(shardLoadDistributions, hasSize(1));
                 final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
-                final var indexingLoadDistribution = shardWriteLoadDistribution.indexingLoadDistribution();
+                final var indexingLoadDistribution = shardWriteLoadDistribution.indexingHistogramSnapshot();
                 assertThat(indexingLoadDistribution.max(), is(equalTo(0.0)));
                 assertThat(indexingLoadDistribution.p90(), is(equalTo(0.0)));
                 assertThat(indexingLoadDistribution.p50(), is(equalTo(0.0)));
@@ -273,16 +273,16 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardLoadDistributions, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexingLoadDistribution().max(), is(greaterThan(0.0)));
+            assertThat(shardWriteLoadDistribution.indexingHistogramSnapshot().max(), is(greaterThan(0.0)));
 
-            assertThat(shardWriteLoadDistribution.refreshLoadDistribution().max(), is(closeTo(1.0, 0.5)));
+            assertThat(shardWriteLoadDistribution.refreshHistogramSnapshot().max(), is(closeTo(1.0, 0.5)));
             assertThat(
-                shardWriteLoadDistribution.refreshLoadDistribution().p90(),
-                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshLoadDistribution().max()))
+                shardWriteLoadDistribution.refreshHistogramSnapshot().p90(),
+                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshHistogramSnapshot().max()))
             );
             assertThat(
-                shardWriteLoadDistribution.refreshLoadDistribution().p50(),
-                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshLoadDistribution().p90()))
+                shardWriteLoadDistribution.refreshHistogramSnapshot().p50(),
+                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshHistogramSnapshot().p90()))
             );
         }
     }
@@ -327,9 +327,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardLoadDistributions, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexingLoadDistribution().max(), is(greaterThan(0.0)));
+            assertThat(shardWriteLoadDistribution.indexingHistogramSnapshot().max(), is(greaterThan(0.0)));
 
-            assertThat(shardWriteLoadDistribution.mergingLoadDistribution().max(), is(closeTo(120.0, 0.5)));
+            assertThat(shardWriteLoadDistribution.mergingHistogramSnapshot().max(), is(closeTo(120.0, 0.5)));
         }
     }
 
@@ -369,7 +369,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardLoadDistributions, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexingLoadDistribution().max(), is(greaterThan(0.0)));
+            assertThat(shardWriteLoadDistribution.indexingHistogramSnapshot().max(), is(greaterThan(0.0)));
         }
     }
 

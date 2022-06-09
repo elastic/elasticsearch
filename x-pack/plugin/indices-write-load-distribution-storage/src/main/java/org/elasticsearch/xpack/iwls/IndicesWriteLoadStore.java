@@ -99,7 +99,7 @@ public class IndicesWriteLoadStore implements Closeable {
                 composableIndexTemplate,
                 Map.of(),
                 Collections.emptyList(),
-                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -164,14 +164,14 @@ public class IndicesWriteLoadStore implements Closeable {
             .build();
     }
 
-    public void putAsync(List<ShardWriteLoadDistribution> shardWriteLoadDistributions) {
+    public void putAsync(List<ShardWriteLoadHistogramSnapshot> shardWriteLoadHistogramSnapshots) {
         if (enabled == false) {
             return;
         }
 
-        for (ShardWriteLoadDistribution shardWriteLoadDistribution : shardWriteLoadDistributions) {
+        for (ShardWriteLoadHistogramSnapshot shardWriteLoadHistogramSnapshot : shardWriteLoadHistogramSnapshots) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                shardWriteLoadDistribution.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                shardWriteLoadHistogramSnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 final var request = new IndexRequest(INDICES_WRITE_LOAD_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
                 bulkProcessor.add(request);
             } catch (IOException exception) {
@@ -179,7 +179,7 @@ public class IndicesWriteLoadStore implements Closeable {
                     new ParameterizedMessage(
                         "failed to queue indices write load distribution item in index [{}]: [{}]",
                         INDICES_WRITE_LOAD_DATA_STREAM,
-                        shardWriteLoadDistribution
+                        shardWriteLoadHistogramSnapshot
                     ),
                     exception
                 );
@@ -192,7 +192,7 @@ public class IndicesWriteLoadStore implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         try {
             bulkProcessor.awaitClose(10, TimeUnit.SECONDS);
         } catch (Exception e) {

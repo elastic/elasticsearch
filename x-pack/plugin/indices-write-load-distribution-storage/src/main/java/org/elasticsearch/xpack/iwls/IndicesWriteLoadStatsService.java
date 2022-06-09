@@ -22,6 +22,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.iwls.IndicesWriteLoadDistributionStoragePlugin.WRITE_LOAD_COLLECTOR_THREAD_POOL;
+
 public class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "indices.write_load.collect.enabled",
@@ -187,7 +189,7 @@ public class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
             return;
         }
 
-        scheduledSampling = threadPool.schedule(this::collectWriteLoadSamples, samplingFrequency, ThreadPool.Names.WRITE_LOAD_COLLECTOR);
+        scheduledSampling = threadPool.schedule(this::collectWriteLoadSamples, samplingFrequency, WRITE_LOAD_COLLECTOR_THREAD_POOL);
     }
 
     private void maybeScheduleStore() {
@@ -195,6 +197,6 @@ public class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
             return;
         }
 
-        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, ThreadPool.Names.WRITE_LOAD_COLLECTOR);
+        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, WRITE_LOAD_COLLECTOR_THREAD_POOL);
     }
 }

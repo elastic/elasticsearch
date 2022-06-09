@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record LoadDistribution(double p50, double p90, double p95, double p99, double max) implements ToXContentObject, Writeable {
+public record HistogramSnapshot(double p50, double p90, double p95, double p99, double max) implements ToXContentObject, Writeable {
 
     private static final ParseField P50_FIELD = new ParseField("50");
     private static final ParseField P90_FIELD = new ParseField("90");
@@ -27,10 +27,10 @@ public record LoadDistribution(double p50, double p90, double p95, double p99, d
     private static final ParseField P99_FIELD = new ParseField("99");
     private static final ParseField MAX_FIELD = new ParseField("max");
 
-    public static final ConstructingObjectParser<LoadDistribution, Void> PARSER = new ConstructingObjectParser<>(
-        "distribution",
+    public static final ConstructingObjectParser<HistogramSnapshot, Void> PARSER = new ConstructingObjectParser<>(
+        "histogram_snapshot",
         false,
-        (args, unused) -> new LoadDistribution((double) args[0], (double) args[1], (double) args[2], (double) args[3], (double) args[4])
+        (args, unused) -> new HistogramSnapshot((double) args[0], (double) args[1], (double) args[2], (double) args[3], (double) args[4])
     );
 
     static {
@@ -41,7 +41,7 @@ public record LoadDistribution(double p50, double p90, double p95, double p99, d
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MAX_FIELD);
     }
 
-    public static LoadDistribution fromXContent(XContentParser parser) throws IOException {
+    public static HistogramSnapshot fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -57,7 +57,7 @@ public record LoadDistribution(double p50, double p90, double p95, double p99, d
         return builder;
     }
 
-    LoadDistribution(StreamInput in) throws IOException {
+    HistogramSnapshot(StreamInput in) throws IOException {
         this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble());
     }
 
@@ -70,8 +70,8 @@ public record LoadDistribution(double p50, double p90, double p95, double p99, d
         out.writeDouble(max);
     }
 
-    public static LoadDistribution fromHistogram(DoubleHistogram histogram) {
-        return new LoadDistribution(
+    public static HistogramSnapshot fromHistogram(DoubleHistogram histogram) {
+        return new HistogramSnapshot(
             histogram.getValueAtPercentile(50),
             histogram.getValueAtPercentile(90),
             histogram.getValueAtPercentile(95),

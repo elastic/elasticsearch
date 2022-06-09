@@ -15,21 +15,21 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ShardWriteLoadDistributionSerializationTests extends AbstractSerializingTestCase<ShardWriteLoadDistribution> {
+public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractSerializingTestCase<ShardWriteLoadHistogramSnapshot> {
 
     @Override
-    protected ShardWriteLoadDistribution doParseInstance(XContentParser parser) throws IOException {
-        return ShardWriteLoadDistribution.fromXContent(parser);
+    protected ShardWriteLoadHistogramSnapshot doParseInstance(XContentParser parser) throws IOException {
+        return ShardWriteLoadHistogramSnapshot.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<ShardWriteLoadDistribution> instanceReader() {
-        return ShardWriteLoadDistribution::new;
+    protected Writeable.Reader<ShardWriteLoadHistogramSnapshot> instanceReader() {
+        return ShardWriteLoadHistogramSnapshot::new;
     }
 
     @Override
-    protected ShardWriteLoadDistribution createTestInstance() {
-        return new ShardWriteLoadDistribution(
+    protected ShardWriteLoadHistogramSnapshot createTestInstance() {
+        return new ShardWriteLoadHistogramSnapshot(
             randomNonNegativeLong(),
             randomAlphaOfLength(10),
             new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
@@ -41,8 +41,8 @@ public class ShardWriteLoadDistributionSerializationTests extends AbstractSerial
     }
 
     @Override
-    protected ShardWriteLoadDistribution mutateInstance(ShardWriteLoadDistribution instance) throws IOException {
-        return new ShardWriteLoadDistribution(
+    protected ShardWriteLoadHistogramSnapshot mutateInstance(ShardWriteLoadHistogramSnapshot instance) throws IOException {
+        return new ShardWriteLoadHistogramSnapshot(
             instance.timestamp(),
             instance.dataStream(),
             new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
@@ -53,8 +53,8 @@ public class ShardWriteLoadDistributionSerializationTests extends AbstractSerial
         );
     }
 
-    private LoadDistribution randomLoadDistribution() {
-        return new LoadDistribution(
+    private HistogramSnapshot randomLoadDistribution() {
+        return new HistogramSnapshot(
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),

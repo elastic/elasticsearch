@@ -58,7 +58,7 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
         return parentDataStream != null && index.equals(parentDataStream.getWriteIndex());
     }
 
-    public List<ShardWriteLoadDistribution> getWriteLoadDistributionAndReset() {
+    public List<ShardWriteLoadHistogramSnapshot> getWriteLoadDistributionAndReset() {
         final var shardWriteLoadDistributions = histograms.values()
             .stream()
             .map(ShardWriteLoadHistogram::getWriteLoadDistributionAndReset)
@@ -69,7 +69,7 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
         return shardWriteLoadDistributions;
     }
 
-    public List<ShardWriteLoadDistribution> getShardLoadDistributions() {
+    public List<ShardWriteLoadHistogramSnapshot> getShardLoadDistributions() {
         return histograms.values().stream().map(ShardWriteLoadHistogram::getWriteLoadDistribution).toList();
     }
 
@@ -102,7 +102,6 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
     }
 
     private static class ShardWriteLoadHistogram {
-        @Nullable
         private final Supplier<String> parentDataStreamName;
         private final IndexShard indexShard;
         private final boolean primary;
@@ -142,6 +141,9 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             long sampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
             long samplingTimeInNanos = sampleRelativeTimeInNanos - lastSampleRelativeTimeInNanos;
+            if (samplingTimeInNanos <= 0) {
+                return;
+            }
             lastSampleRelativeTimeInNanos = sampleRelativeTimeInNanos;
 
             long indexingTimeDeltaInNanos = totalIndexingTimeInNanosSample - lastTotalIndexingTimeSample;
@@ -151,11 +153,11 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
             long mergeTimeDeltaInNanos = totalMergeTimeInNanosSample - lastTotalMergeTimeSample;
             lastTotalMergeTimeSample = totalMergeTimeInMillisSample;
 
-            long refreshTimeDeltaInNanos = Math.max(0, totalRefreshTimeInNanos - lastTotalRefreshTimeSample);
+            long refreshTimeDeltaInNanos = totalRefreshTimeInNanos - lastTotalRefreshTimeSample;
             lastTotalRefreshTimeSample = totalRefreshTimeInNanos;
 
-            // Don't take a sample if the clock doesn't provide enough granularity between samples, or we're taking the first sample.
-            if (samplingTimeInNanos <= 0 || indexingTimeDeltaInNanos == totalIndexingTimeInNanosSample) {
+            // Don't record the if we're taking the first sample.
+            if (indexingTimeDeltaInNanos == totalIndexingTimeInNanosSample) {
                 return;
             }
 
@@ -170,9 +172,9 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
             }
         }
 
-        ShardWriteLoadDistribution getWriteLoadDistributionAndReset() {
+        ShardWriteLoadHistogramSnapshot getWriteLoadDistributionAndReset() {
             synchronized (histogramsLock) {
-                ShardWriteLoadDistribution indexLoadSummary = getWriteLoadDistribution();
+                ShardWriteLoadHistogramSnapshot indexLoadSummary = getWriteLoadDistribution();
                 indexingTimeHistogram = createHistogram();
                 mergeTimeHistogram = createHistogram();
                 refreshTimeHistogram = createHistogram();
@@ -180,16 +182,16 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener {
             }
         }
 
-        ShardWriteLoadDistribution getWriteLoadDistribution() {
+        ShardWriteLoadHistogramSnapshot getWriteLoadDistribution() {
             synchronized (histogramsLock) {
-                return new ShardWriteLoadDistribution(
+                return new ShardWriteLoadHistogramSnapshot(
                     System.currentTimeMillis(),
                     parentDataStreamName.get(),
                     indexShard.shardId(),
                     primary,
-                    LoadDistribution.fromHistogram(indexingTimeHistogram),
-                    LoadDistribution.fromHistogram(mergeTimeHistogram),
-                    LoadDistribution.fromHistogram(refreshTimeHistogram)
+                    HistogramSnapshot.fromHistogram(indexingTimeHistogram),
+                    HistogramSnapshot.fromHistogram(mergeTimeHistogram),
+                    HistogramSnapshot.fromHistogram(refreshTimeHistogram)
                 );
             }
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -21,6 +22,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,6 +34,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class IndicesWriteLoadDistributionStoragePlugin extends Plugin implements SystemIndexPlugin {
+    public static final String WRITE_LOAD_COLLECTOR_THREAD_POOL = "write_load_collector";
+
     private final SetOnce<IndicesWriteLoadStatsCollector> indicesWriteLoadsStatsCollectorRef = new SetOnce<>();
     private final SetOnce<IndicesWriteLoadStatsService> indicesWriteLoadStatsServiceRef = new SetOnce<>();
 
@@ -90,6 +95,13 @@ public class IndicesWriteLoadDistributionStoragePlugin extends Plugin implements
     public void onIndexModule(IndexModule indexModule) {
         assert indicesWriteLoadsStatsCollectorRef.get() != null;
         indexModule.addIndexEventListener(indicesWriteLoadsStatsCollectorRef.get());
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.singletonList(
+            new FixedExecutorBuilder(settings, WRITE_LOAD_COLLECTOR_THREAD_POOL, 1, 100, "xpack.indices_write_load_distribution", false)
+        );
     }
 
     @Override

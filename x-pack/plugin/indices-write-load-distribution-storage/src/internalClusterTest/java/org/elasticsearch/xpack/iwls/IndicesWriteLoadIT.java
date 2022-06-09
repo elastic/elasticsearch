@@ -175,7 +175,9 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                 timestampAfterDataStreamsCreation,
                 dataStreams
             );
-            List<String> collectedDataStreams = shardWriteLoadDistributions.stream().map(ShardWriteLoadDistribution::dataStream).toList();
+            List<String> collectedDataStreams = shardWriteLoadDistributions.stream()
+                .map(ShardWriteLoadHistogramSnapshot::dataStream)
+                .toList();
             for (String dataStream : dataStreams) {
                 assertThat(dataStream, is(in(collectedDataStreams)));
             }
@@ -199,7 +201,7 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
             final var shardWriteLoadDistributions = getShardWriteLoadDistributions(timestampAfterDataStreamCreation);
 
             final var storedDataStreamInfo = shardWriteLoadDistributions.stream()
-                .map(ShardWriteLoadDistribution::dataStream)
+                .map(ShardWriteLoadHistogramSnapshot::dataStream)
                 .collect(Collectors.toSet());
             for (String dataStreamName : dataStreamNames) {
                 assertThat(dataStreamName, is(in(storedDataStreamInfo)));
@@ -210,8 +212,10 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
         final var timestampAfterDataStreamDeletion = System.currentTimeMillis();
 
         assertBusy(() -> {
-            Set<ShardWriteLoadDistribution> shardWriteLoadDistributions = getShardWriteLoadDistributions(timestampAfterDataStreamDeletion);
-            assertTrue(shardWriteLoadDistributions.stream().noneMatch(s -> s.dataStream().equals(dataStreamNames.get(0))));
+            Set<ShardWriteLoadHistogramSnapshot> shardWriteLoadHistogramSnapshots = getShardWriteLoadDistributions(
+                timestampAfterDataStreamDeletion
+            );
+            assertTrue(shardWriteLoadHistogramSnapshots.stream().noneMatch(s -> s.dataStream().equals(dataStreamNames.get(0))));
         });
     }
 
@@ -245,10 +249,10 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
             // therefore we should search from that point onwards to ensure that we only store samples for the new
             // write index
             timestampAfterDataStreamRollover.set(System.currentTimeMillis());
-            for (ShardWriteLoadDistribution shardWriteLoadDistribution : shardWriteLoadDistributions) {
+            for (ShardWriteLoadHistogramSnapshot shardWriteLoadHistogramSnapshot : shardWriteLoadDistributions) {
                 assertThat(
-                    shardWriteLoadDistributions.stream().map(ShardWriteLoadDistribution::shardId).toList().toString(),
-                    shardWriteLoadDistribution.shardId().getIndex().getName(),
+                    shardWriteLoadDistributions.stream().map(ShardWriteLoadHistogramSnapshot::shardId).toList().toString(),
+                    shardWriteLoadHistogramSnapshot.shardId().getIndex().getName(),
                     is(endsWith("000002"))
                 );
             }
@@ -292,7 +296,7 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                 dataStream
             );
             final var storedDataStreamInfo = shardWriteLoadDistributions.stream()
-                .map(ShardWriteLoadDistribution::dataStream)
+                .map(ShardWriteLoadHistogramSnapshot::dataStream)
                 .collect(Collectors.toSet());
             assertThat(dataStream, is(in(storedDataStreamInfo)));
         });
@@ -338,16 +342,16 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                 List.of(dataStream)
             );
             assertThat(shardWriteLoadDistributionsForDataStreams, is(not(empty())));
-            for (ShardWriteLoadDistribution shardWriteLoadDistribution : shardWriteLoadDistributionsForDataStreams) {
-                assertThat(shardWriteLoadDistribution.dataStream(), is(equalTo(dataStream)));
+            for (ShardWriteLoadHistogramSnapshot shardWriteLoadHistogramSnapshot : shardWriteLoadDistributionsForDataStreams) {
+                assertThat(shardWriteLoadHistogramSnapshot.dataStream(), is(equalTo(dataStream)));
                 assertThat(
-                    Strings.toString(shardWriteLoadDistribution, true, true),
-                    shardWriteLoadDistribution.indexingLoadDistribution().max(),
+                    Strings.toString(shardWriteLoadHistogramSnapshot, true, true),
+                    shardWriteLoadHistogramSnapshot.indexingHistogramSnapshot().max(),
                     is(closeTo(1.0, 0.5))
                 );
                 assertThat(
-                    Strings.toString(shardWriteLoadDistribution, true, true),
-                    shardWriteLoadDistribution.refreshLoadDistribution().max(),
+                    Strings.toString(shardWriteLoadHistogramSnapshot, true, true),
+                    shardWriteLoadHistogramSnapshot.refreshHistogramSnapshot().max(),
                     is(greaterThanOrEqualTo(0.0))
                 );
             }
@@ -445,21 +449,21 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
         }
     }
 
-    private Set<ShardWriteLoadDistribution> getShardWriteLoadDistributions(long fromTimestamp) throws IOException {
+    private Set<ShardWriteLoadHistogramSnapshot> getShardWriteLoadDistributions(long fromTimestamp) throws IOException {
         return getShardWriteLoadDistributionsForDataStreams(fromTimestamp, Collections.emptyList());
     }
 
-    private Set<ShardWriteLoadDistribution> getShardWriteLoadDistributionsForDataStreams(long fromTimestamp, String dataStream)
+    private Set<ShardWriteLoadHistogramSnapshot> getShardWriteLoadDistributionsForDataStreams(long fromTimestamp, String dataStream)
         throws IOException {
         return getShardWriteLoadDistributionsForDataStreams(fromTimestamp, List.of(dataStream));
     }
 
-    private Set<ShardWriteLoadDistribution> getShardWriteLoadDistributionsForDataStreams(long fromTimestamp, List<String> dataStreams)
+    private Set<ShardWriteLoadHistogramSnapshot> getShardWriteLoadDistributionsForDataStreams(long fromTimestamp, List<String> dataStreams)
         throws IOException {
         return getShardWriteLoadDistributionsForDataStreams(fromTimestamp, "now", dataStreams);
     }
 
-    private Set<ShardWriteLoadDistribution> getShardWriteLoadDistributionsForDataStreams(
+    private Set<ShardWriteLoadHistogramSnapshot> getShardWriteLoadDistributionsForDataStreams(
         long fromTimestamp,
         Object toTimestamp,
         List<String> dataStreams
@@ -479,7 +483,7 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
             return Collections.emptySet();
         }
 
-        final Set<ShardWriteLoadDistribution> shardWriteLoadDistributions = new HashSet<>();
+        final Set<ShardWriteLoadHistogramSnapshot> shardWriteLoadHistogramSnapshots = new HashSet<>();
         for (final var hit : searchResponse.getHits().getHits()) {
             final var source = hit.getSourceRef();
             assertThat(source, is(notNullValue()));
@@ -487,10 +491,10 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, source.streamInput())
             ) {
-                shardWriteLoadDistributions.add(ShardWriteLoadDistribution.fromXContent(parser));
+                shardWriteLoadHistogramSnapshots.add(ShardWriteLoadHistogramSnapshot.fromXContent(parser));
             }
         }
-        return shardWriteLoadDistributions;
+        return shardWriteLoadHistogramSnapshots;
     }
 
 }

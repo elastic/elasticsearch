@@ -20,14 +20,14 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record ShardWriteLoadDistribution(
+public record ShardWriteLoadHistogramSnapshot(
     long timestamp,
     String dataStream,
     ShardId shardId,
     boolean primary,
-    LoadDistribution indexingLoadDistribution,
-    LoadDistribution mergingLoadDistribution,
-    LoadDistribution refreshLoadDistribution
+    HistogramSnapshot indexingHistogramSnapshot,
+    HistogramSnapshot mergingHistogramSnapshot,
+    HistogramSnapshot refreshHistogramSnapshot
 ) implements Writeable, ToXContentObject {
 
     private static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
@@ -41,17 +41,17 @@ public record ShardWriteLoadDistribution(
     private static final ParseField MERGING_LOAD_DISTRIBUTION_FIELD = new ParseField("merge_load_distribution");
     private static final ParseField REFRESH_LOAD_DISTRIBUTION_FIELD = new ParseField("refresh_load_distribution");
 
-    public static final ConstructingObjectParser<ShardWriteLoadDistribution, String> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ShardWriteLoadHistogramSnapshot, String> PARSER = new ConstructingObjectParser<>(
         "shard_write_load_distribution",
         false,
-        (args, name) -> new ShardWriteLoadDistribution(
+        (args, name) -> new ShardWriteLoadHistogramSnapshot(
             (long) args[0],
             (String) args[1],
             new ShardId(new Index((String) args[2], (String) args[3]), (int) args[4]),
             (boolean) args[5],
-            (LoadDistribution) args[6],
-            (LoadDistribution) args[7],
-            (LoadDistribution) args[8]
+            (HistogramSnapshot) args[6],
+            (HistogramSnapshot) args[7],
+            (HistogramSnapshot) args[8]
         )
     );
 
@@ -64,30 +64,30 @@ public record ShardWriteLoadDistribution(
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), PRIMARY_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> LoadDistribution.fromXContent(p),
+            (p, c) -> HistogramSnapshot.fromXContent(p),
             INDEXING_LOAD_DISTRIBUTION_FIELD
         );
         PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> LoadDistribution.fromXContent(p),
+            (p, c) -> HistogramSnapshot.fromXContent(p),
             MERGING_LOAD_DISTRIBUTION_FIELD
         );
         PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> LoadDistribution.fromXContent(p),
+            (p, c) -> HistogramSnapshot.fromXContent(p),
             REFRESH_LOAD_DISTRIBUTION_FIELD
         );
     }
 
-    public ShardWriteLoadDistribution(StreamInput in) throws IOException {
+    public ShardWriteLoadHistogramSnapshot(StreamInput in) throws IOException {
         this(
             in.readLong(),
             in.readString(),
             new ShardId(in),
             in.readBoolean(),
-            new LoadDistribution(in),
-            new LoadDistribution(in),
-            new LoadDistribution(in)
+            new HistogramSnapshot(in),
+            new HistogramSnapshot(in),
+            new HistogramSnapshot(in)
         );
     }
 
@@ -97,9 +97,9 @@ public record ShardWriteLoadDistribution(
         out.writeString(dataStream);
         shardId.writeTo(out);
         out.writeBoolean(primary);
-        indexingLoadDistribution.writeTo(out);
-        mergingLoadDistribution.writeTo(out);
-        refreshLoadDistribution.writeTo(out);
+        indexingHistogramSnapshot.writeTo(out);
+        mergingHistogramSnapshot.writeTo(out);
+        refreshHistogramSnapshot.writeTo(out);
     }
 
     @Override
@@ -111,15 +111,15 @@ public record ShardWriteLoadDistribution(
         builder.field(INDEX_UUID_FIELD.getPreferredName(), shardId.getIndex().getUUID());
         builder.field(SHARD_FIELD.getPreferredName(), shardId.getId());
         builder.field(PRIMARY_FIELD.getPreferredName(), primary);
-        builder.field(INDEXING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), indexingLoadDistribution);
-        builder.field(MERGING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), mergingLoadDistribution);
-        builder.field(REFRESH_LOAD_DISTRIBUTION_FIELD.getPreferredName(), refreshLoadDistribution);
+        builder.field(INDEXING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), indexingHistogramSnapshot);
+        builder.field(MERGING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), mergingHistogramSnapshot);
+        builder.field(REFRESH_LOAD_DISTRIBUTION_FIELD.getPreferredName(), refreshHistogramSnapshot);
         builder.endObject();
 
         return builder;
     }
 
-    public static ShardWriteLoadDistribution fromXContent(XContentParser parser) throws IOException {
+    public static ShardWriteLoadHistogramSnapshot fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

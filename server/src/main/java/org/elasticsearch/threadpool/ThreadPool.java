@@ -78,7 +78,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_WRITE = "system_write";
         public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
-        public static final String WRITE_LOAD_COLLECTOR = "write_load_collector";
     }
 
     public enum ThreadPoolType {
@@ -130,8 +129,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED),
-        entry(Names.WRITE_LOAD_COLLECTOR, ThreadPoolType.FIXED)
+        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED)
     );
 
     private final Map<String, ExecutorHolder> executors;
@@ -239,7 +237,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.SYSTEM_CRITICAL_WRITE,
             new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, false)
         );
-        builders.put(Names.WRITE_LOAD_COLLECTOR, new FixedExecutorBuilder(settings, Names.WRITE_LOAD_COLLECTOR, 1, 100, false));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

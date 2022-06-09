@@ -28,7 +28,7 @@ public class CountValuesFunction implements AggregatorFunction<TimePoint, Map<Lo
     @Override
     public void collect(TimePoint value) {
         long val = java.lang.Double.doubleToLongBits(value.getValue());
-        AtomicInteger count = valueCount.get(value);
+        AtomicInteger count = valueCount.get(val);
         if (count == null) {
             count = new AtomicInteger(0);
             valueCount.put(val, count);

@@ -108,6 +108,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+            // we should not try to rebalance assignments while there may be nodes running on a version
+            // prior to introducing distributed model allocation.
+            return;
+        }
+
         if (event.localNodeMaster() && shouldAllocateModels(event)) {
             // TODO this has a weird side-effect for allocating to nodes
             // If the event indicates there were nodes added/removed, this method only looks at the current state and has

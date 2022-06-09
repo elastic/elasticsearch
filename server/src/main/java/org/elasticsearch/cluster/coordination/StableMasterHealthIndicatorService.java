@@ -444,14 +444,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private HealthIndicatorResult calculateOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
         final HealthIndicatorResult result;
-        if (masterEligibleNodes.isEmpty()) {
+        boolean leaderHasBeenElected = coordinator.getPeerFinder().getLeader().isPresent();
+        if (masterEligibleNodes.isEmpty() && leaderHasBeenElected == false) {
             result = calculateOnNoMasterEligibleNodes(localMasterHistory, explain);
+        } else if (leaderHasBeenElected) {
+            DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
+            result = calculateOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else {
-            PeerFinder peerFinder = coordinator.getPeerFinder();
-            Optional<DiscoveryNode> currentMaster = peerFinder.getLeader();
-            if (currentMaster.isPresent()) {
-                result = calculateOnCannotJoinLeader(localMasterHistory, currentMaster.get(), explain);
-            } else {
                 // NOTE: The logic in this block will be implemented in a future PR
                 result = createIndicator(
                     HealthStatus.RED,
@@ -460,7 +459,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     UNSTABLE_MASTER_IMPACTS,
                     getContactSupportUserActions(explain)
                 );
-            }
         }
         return result;
     }
@@ -504,10 +502,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return true if this node has seen a master node within the last few seconds, false otherwise
      */
     private boolean hasSeenMasterInHasMasterLookupTimeframe() {
-        // If there is currently a master, there's no point in looking at the history:
-        if (clusterService.state().nodes().getMasterNode() != null) {
-            return true;
-        }
         return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) nodeHasMasterLookupTimeframe.seconds());
     }
 

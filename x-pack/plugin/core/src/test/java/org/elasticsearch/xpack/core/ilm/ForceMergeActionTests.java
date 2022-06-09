@@ -77,12 +77,16 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             firstStep.getKey(),
             equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
         );
+
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
         assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+
         assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
-        assertThat(thirdStep.getNextStepKey(), equalTo(fifthStep.getKey()));
+        assertThat(thirdStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+
         assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(fourthStep.getNextStepKey(), equalTo(fifthStep.getKey()));
+        assertThat(fourthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+
         assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
         assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
     }

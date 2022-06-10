@@ -173,6 +173,46 @@ Dimension fields have the following constraints:
 ====
 --
 
+ifeval::["{release-state}"=="unreleased"]
+[[keyword-synthetic-source]]
+==== Synthetic source
+`keyword` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<ignore-above,`ignore_above`>>, a <<normalizer,`normalizer`>>,
+<<copy-to,`copy_to`>>, or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `keyword` fields and removes duplicates. For
+example:
+[source,console,id=synthetic-source-keyword-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "synthetic": true },
+    "properties": {
+      "kwd": { "type": "keyword" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["bar", "baz", "foo"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+endif::[]
+
 include::constant-keyword.asciidoc[]
 
 include::wildcard.asciidoc[]

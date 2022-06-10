@@ -1,0 +1,23 @@
+{
+  "phases": {
+    "hot": {
+      "min_age": "0ms",
+      "actions": {
+        "rollover": {
+          "max_size": "50gb",
+          "max_age": "1d"
+        }
+      }
+    },
+    "delete": {
+      "min_age": "7d",
+      "actions": {
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "default policy for indices write load",
+    "managed": true
+  }
+}

@@ -25,8 +25,6 @@ import java.io.IOException;
 
 public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) implements Writeable, ToXContentObject {
 
-    public static final String INCLUDE_STATUS_XCONTENT_PARAM = "include_status";
-
     private static final Version STATUS_TRACKING_SUPPORT_VERSION = Version.V_8_4_0;
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
@@ -92,11 +90,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
         final var context = params.param(DesiredNodes.CONTEXT_MODE_PARAM, DesiredNodes.CONTEXT_MODE_CLUSTER_STATE);
         builder.startObject();
         desiredNode.toInnerXContent(builder, params);
-        if (DesiredNodes.CONTEXT_MODE_API.equals(context)) {
-            if (params.paramAsBoolean(INCLUDE_STATUS_XCONTENT_PARAM, false)) {
-                builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            }
-        } else {
+        if (DesiredNodes.CONTEXT_MODE_CLUSTER_STATE.equals(context)) {
             builder.field(STATUS_FIELD.getPreferredName(), status.value);
         }
         builder.endObject();

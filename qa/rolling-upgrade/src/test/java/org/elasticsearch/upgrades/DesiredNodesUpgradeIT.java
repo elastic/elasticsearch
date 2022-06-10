@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesReq
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,19 +51,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                     assertThat(statusCode, is(equalTo(400)));
                 }
             }
-            case UPGRADED -> {
-                addClusterNodesToDesiredNodesWithFloatProcessorsOrProcessorRanges(4);
-                final var getDesiredNodesRequest = new Request("GET", "/_internal/desired_nodes/_latest");
-                getDesiredNodesRequest.addParameter(DesiredNodeWithStatus.INCLUDE_STATUS_XCONTENT_PARAM, "true");
-                final var response = client().performRequest(getDesiredNodesRequest);
-                assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
-
-                final Map<String, Object> responseMap = responseAsMap(response);
-                final List<Map<String, Object>> latestDesiredNodes = extractValue(responseMap, "nodes");
-                for (Map<String, Object> desiredNode : latestDesiredNodes) {
-                    assertThat(extractValue(desiredNode, "status"), is(equalTo(DesiredNodeWithStatus.Status.ACTUALIZED.toString())));
-                }
-            }
+            case UPGRADED -> addClusterNodesToDesiredNodesWithFloatProcessorsOrProcessorRanges(4);
         }
 
         final var getDesiredNodesRequest = new Request("GET", "/_internal/desired_nodes/_latest");

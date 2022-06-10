@@ -10,10 +10,8 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -28,15 +26,12 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -166,6 +161,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
+        private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+            r -> logger.trace("reroute after desired nodes update completed"),
+            e -> logger.debug("reroute after desired nodes update failed", e)
+        );
+
         private final RerouteService rerouteService;
 
         UpdateDesiredNodesExecutor(RerouteService rerouteService) {
@@ -175,7 +175,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
             var desiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
-            final List<PendingTask> pendingTasks = new ArrayList<>();
             for (final var taskContext : taskContexts) {
 
                 final var previousDesiredNodes = desiredNodes;
@@ -187,74 +186,17 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 }
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
-                pendingTasks.add(new PendingTask(taskContext, replacedExistingHistoryId));
+                taskContext.success(
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
+                );
             }
 
-            final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState, desiredNodes);
-            if (updatedClusterState == currentState) {
-                for (final var pendingTaskListener : pendingTasks) {
-                    pendingTaskListener.runOnPublicationSuccess(pendingTaskListener::notifySuccessfulUpdateToListener);
-                }
-                return currentState;
-            } else {
-                // Trigger a reroute once the desired nodes updates have been published
-                final GroupedActionListener<Void> publicationListener = new GroupedActionListener<>(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Collection<Void> unused) {
-                        rerouteService.reroute("upgraded desired nodes", Priority.URGENT, new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                pendingTasks.forEach(PendingTask::notifySuccessfulUpdateToListener);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (MasterService.isPublishFailureException(e)) {
-                                    pendingTasks.forEach(PendingTask::notifySuccessfulUpdateToListener);
-                                } else {
-                                    pendingTasks.forEach(
-                                        pendingTask -> pendingTask.notifyFailureToUpdateListener(
-                                            new ElasticsearchException("reroute after update desired nodes failed", e)
-                                        )
-                                    );
-                                }
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        pendingTasks.forEach(pendingTask -> pendingTask.notifyFailureToUpdateListener(e));
-                    }
-                }, pendingTasks.size());
-
-                for (final var pendingTaskListener : pendingTasks) {
-                    pendingTaskListener.runOnPublicationSuccess(() -> publicationListener.onResponse(null));
-                }
-                return updatedClusterState;
-            }
+            return DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState, desiredNodes);
         }
 
-        record PendingTask(ClusterStateTaskExecutor.TaskContext<UpdateDesiredNodesTask> taskContext, boolean replacedExistingHistoryId) {
-            void runOnPublicationSuccess(Runnable runnable) {
-                taskContext.success(runnable);
-            }
-
-            void notifySuccessfulUpdateToListener() {
-                try {
-                    taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
-                } catch (Exception e) {
-                    logger.error("Exception thrown by a listener while notifying successful desired nodes update", e);
-                }
-            }
-
-            void notifyFailureToUpdateListener(Exception failure) {
-                try {
-                    taskContext.getTask().listener().onFailure(failure);
-                } catch (Exception e) {
-                    logger.error("Exception thrown by a listener while notifying an error during desired nodes update", e);
-                }
-            }
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            rerouteService.reroute("desired nodes updated", Priority.URGENT, REROUTE_LISTENER);
         }
     }
 }

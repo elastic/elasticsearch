@@ -1,0 +1,5 @@
+pr: 87587
+summary: Resolve typo referencing incorrect unit type for max_size attribute
+area: ILM Rollover Documentation
+type: bug
+issues: []

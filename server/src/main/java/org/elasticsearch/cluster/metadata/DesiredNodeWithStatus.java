@@ -42,7 +42,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
                 (ByteSizeValue) args[4],
                 (Version) args[5]
             ),
-            args[6] == null ? Status.defaultStatus() : (Status) args[6]
+            args[6] == null ? Status.PENDING : (Status) args[6]
         )
     );
 
@@ -74,7 +74,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
         if (in.getVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
             status = Status.fromValue(in.readShort());
         } else {
-            status = Status.defaultStatus();
+            status = Status.PENDING;
         }
         return new DesiredNodeWithStatus(desiredNode, status);
     }
@@ -115,10 +115,6 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
 
         Status(short value) {
             this.value = value;
-        }
-
-        static Status defaultStatus() {
-            return PENDING;
         }
 
         static Status fromValue(short value) {

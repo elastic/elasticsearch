@@ -192,7 +192,7 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
             desiredNodesInClusterState && randomBoolean()
                 ? previousDesiredNodes.nodes()
                     .stream()
-                    .map(dn -> new DesiredNodeWithStatus(dn.desiredNode(), DesiredNodeWithStatus.Status.defaultStatus()))
+                    .map(dn -> new DesiredNodeWithStatus(dn.desiredNode(), DesiredNodeWithStatus.Status.PENDING))
                     .toList()
                 : randomList(1, 10, this::createPendingDesiredNode)
         );

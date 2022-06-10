@@ -119,9 +119,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
             return create(
                 historyId,
                 version,
-                nodes.stream()
-                    .map(desiredNode -> new DesiredNodeWithStatus(desiredNode, DesiredNodeWithStatus.Status.defaultStatus()))
-                    .toList()
+                nodes.stream().map(desiredNode -> new DesiredNodeWithStatus(desiredNode, DesiredNodeWithStatus.Status.PENDING)).toList()
             );
         }
 
@@ -238,7 +236,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
             if (desiredNodeWithStatus != null) {
                 desiredNodesWithStatus.add(new DesiredNodeWithStatus(desiredNode, desiredNodeWithStatus.status()));
             } else {
-                desiredNodesWithStatus.add(new DesiredNodeWithStatus(desiredNode, DesiredNodeWithStatus.Status.defaultStatus()));
+                desiredNodesWithStatus.add(new DesiredNodeWithStatus(desiredNode, DesiredNodeWithStatus.Status.PENDING));
             }
         }
         return Collections.unmodifiableList(desiredNodesWithStatus);
@@ -254,30 +252,28 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     public static ClusterState updateDesiredNodesStatusIfNeeded(ClusterState clusterState, DesiredNodes desiredNodes) {
-        if (desiredNodes == null) {
-            return clusterState;
-        }
+        assert desiredNodes != null;
 
-        final Map<String, DesiredNodeWithStatus> updatedStateDesiredNodes = new HashMap<>(desiredNodes.nodes);
-
-        boolean statusModified = false;
+        Map<String, DesiredNodeWithStatus> desiredNodesWithUpdatedStatus = null;
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {
             final var desiredNode = desiredNodes.find(discoveryNode.getExternalId());
             if (desiredNode != null && desiredNode.pending()) {
-                updatedStateDesiredNodes.put(
+                if (desiredNodesWithUpdatedStatus == null) {
+                    desiredNodesWithUpdatedStatus = new HashMap<>(desiredNodes.nodes);
+                }
+                desiredNodesWithUpdatedStatus.put(
                     desiredNode.externalId(),
                     new DesiredNodeWithStatus(desiredNode.desiredNode(), DesiredNodeWithStatus.Status.ACTUALIZED)
                 );
-                statusModified = true;
             }
         }
 
-        if (statusModified || desiredNodes != latestFromClusterState(clusterState)) {
+        if (desiredNodesWithUpdatedStatus != null || desiredNodes != latestFromClusterState(clusterState)) {
+            final var updatedDesiredNodes = desiredNodesWithUpdatedStatus == null
+                ? desiredNodes
+                : new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesWithUpdatedStatus);
             return clusterState.copyAndUpdateMetadata(
-                metadata -> metadata.putCustom(
-                    DesiredNodesMetadata.TYPE,
-                    new DesiredNodesMetadata(new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), updatedStateDesiredNodes))
-                )
+                metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
             );
         } else {
             return clusterState;

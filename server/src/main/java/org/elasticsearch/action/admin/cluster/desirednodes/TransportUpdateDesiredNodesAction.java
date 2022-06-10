@@ -191,6 +191,10 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 );
             }
 
+            if (desiredNodes == null) {
+                return currentState;
+            }
+
             return DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState, desiredNodes);
         }
 

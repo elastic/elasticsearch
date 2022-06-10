@@ -604,7 +604,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-actions-results-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy",
-            ".indices-write-load-distribution-ilm-policy"
+            ".indices-write-load-ilm-policy"
         );
     }
 

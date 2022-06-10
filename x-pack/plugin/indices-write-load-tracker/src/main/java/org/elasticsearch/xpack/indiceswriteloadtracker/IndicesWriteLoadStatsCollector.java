@@ -195,7 +195,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         }
 
         static DoubleHistogram createHistogram() {
-            return new DoubleHistogram(5);
+            return new DoubleHistogram(1);
         }
     }
 }

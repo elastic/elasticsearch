@@ -76,7 +76,7 @@ tasks.register("updateCIBwcVersions") {
     }
   }
   doLast {
-    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.indexCompatible)
+    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
   }
 }
@@ -105,7 +105,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.indexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date

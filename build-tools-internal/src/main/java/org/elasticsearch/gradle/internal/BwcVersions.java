@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -67,6 +68,7 @@ public class BwcVersions {
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
     private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
+    private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final VersionPair currentVersion;
     private final List<VersionPair> versions;
@@ -229,10 +231,21 @@ public class BwcVersions {
         return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
+    /**
+     * Return versions of Elasticsearch which are index compatible with the current version, and also work on the local machine.
+     */
     public List<Version> getIndexCompatible() {
-        return filterSupportedVersions(
-            versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList()
-        );
+        return filterSupportedVersions(getAllIndexCompatible());
+    }
+
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
+    public List<Version> getAllIndexCompatible() {
+        return versions.stream()
+            .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
+            .map(v -> v.elasticsearch)
+            .toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
@@ -296,5 +309,27 @@ public class BwcVersions {
             // For ordering purposes, sort by Elasticsearch version
             return this.elasticsearch.compareTo(o.elasticsearch);
         }
+    }
+
+    /**
+     * Determine whether the given version of Elasticsearch is compatible with ML features on the host system.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/86877">https://github.com/elastic/elasticsearch/issues/86877</a>
+     */
+    public static boolean isMlCompatible(Version version) {
+        Version glibcVersion = Optional.ofNullable(System.getenv(GLIBC_VERSION_ENV_VAR))
+            .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+            .orElse(null);
+
+        // glibc version 2.35 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
+        if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.35", Version.Mode.RELAXED))) {
+            if (version.before(Version.fromString("7.17.5"))) {
+                return false;
+            } else if (version.getMajor() > 7 && version.before(Version.fromString("8.2.2"))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

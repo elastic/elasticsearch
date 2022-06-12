@@ -33,7 +33,6 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
-import org.elasticsearch.health.node.selection.HealthNodeSelector;
 import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -56,7 +55,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -432,11 +430,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testDanglingIndicesWithLaterVersion() throws Exception {
         final String indexNameLater = "test-idxnewer";
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        assertBusy(() -> {
-            PersistentTasksCustomMetadata tasks = clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertNotNull(tasks);
-            assertTrue(tasks.tasks().stream().anyMatch(t -> HealthNodeSelector.TASK_NAME.equals(t.getTaskName())));
-        });
         final ClusterState originalState = clusterService.state();
 
         // import an index with minor version incremented by one over cluster master version, it should be ignored

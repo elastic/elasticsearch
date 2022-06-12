@@ -63,7 +63,7 @@ public class DateFormatTests extends ESTestCase {
 
     public void testParseJavaDefaultYear() {
         String format = randomFrom("8dd/MM", "dd/MM");
-        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        ZoneId timezone = DateUtils.ZoneIdOf("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
         int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
         ZonedDateTime dateTime = javaFunction.apply("12/06");
@@ -72,7 +72,7 @@ public class DateFormatTests extends ESTestCase {
 
     public void testParseWeekBasedYearAndWeek() {
         String format = "YYYY-ww";
-        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        ZoneId timezone = DateUtils.ZoneIdOf("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
         ZonedDateTime dateTime = javaFunction.apply("2020-33");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 8, 10, 0, 0, 0, 0, timezone)));
@@ -80,7 +80,7 @@ public class DateFormatTests extends ESTestCase {
 
     public void testParseWeekBasedYear() {
         String format = "YYYY";
-        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        ZoneId timezone = DateUtils.ZoneIdOf("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
         ZonedDateTime dateTime = javaFunction.apply("2019");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2018, 12, 31, 0, 0, 0, 0, timezone)));
@@ -88,7 +88,7 @@ public class DateFormatTests extends ESTestCase {
 
     public void testParseWeekBasedWithLocale() {
         String format = "YYYY-ww";
-        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        ZoneId timezone = DateUtils.ZoneIdOf("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.US);
         ZonedDateTime dateTime = javaFunction.apply("2020-33");
         // 33rd week of 2020 starts on 9th August 2020 as per US locale

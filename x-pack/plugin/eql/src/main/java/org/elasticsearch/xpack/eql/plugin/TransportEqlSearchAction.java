@@ -181,7 +181,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
-        ZoneId zoneId = DateUtils.of("Z");
+        ZoneId zoneId = DateUtils.ZoneIdOf("Z");
         QueryBuilder filter = request.filter();
         List<FieldAndFormat> fetchFields = request.fetchFields();
         TimeValue timeout = TimeValue.timeValueSeconds(30);

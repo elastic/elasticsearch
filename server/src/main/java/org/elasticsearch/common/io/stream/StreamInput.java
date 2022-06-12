@@ -866,7 +866,7 @@ public abstract class StreamInput extends InputStream {
      */
     public ZoneId readOptionalZoneId() throws IOException {
         if (readBoolean()) {
-            return DateUtils.of(readString());
+            return DateUtils.ZoneIdOf(readString());
         }
         return null;
     }

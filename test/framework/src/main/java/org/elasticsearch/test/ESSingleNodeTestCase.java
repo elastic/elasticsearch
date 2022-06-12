@@ -10,7 +10,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
@@ -45,7 +44,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -70,7 +68,6 @@ import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * A test that keep a singleton node started for all tests that can be used to get
@@ -102,18 +99,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
-        // Ensure that the health node selector has been assigned, so it will not interfere with expected cluster state changes in the tests
-        assertBusy(() -> {
-            TaskInfo healthNodeSelectorTask = client().admin()
-                .cluster()
-                .listTasks(new ListTasksRequest().setDescriptions("id=health-node-selector").setDetailed(true))
-                .actionGet()
-                .getTasks()
-                .stream()
-                .findFirst()
-                .orElse(null);
-            assertThat(healthNodeSelectorTask, notNullValue());
-        });
     }
 
     private static void stopNode() throws IOException, InterruptedException {

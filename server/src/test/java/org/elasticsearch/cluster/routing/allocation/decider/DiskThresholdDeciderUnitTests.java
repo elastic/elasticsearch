@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -119,10 +120,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
+        Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.YES, decision.type());
         assertThat(((Decision.Single) decision).getExplanation(), containsString("enough disk for shard on node"));
-        decision = decider.canAllocate(test_0, new RoutingNode("node_1", node_1), allocation);
+        decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.NO, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
@@ -197,7 +198,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
+        Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
         assertThat(
@@ -319,13 +320,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        Decision decision = decider.canRemain(test_0, new RoutingNode("node_0", node_0), allocation);
+        Decision decision = decider.canRemain(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString("there is enough disk on this node for the shard to remain, free: [10b]")
         );
-        decision = decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(test_1, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
@@ -336,26 +337,26 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
         );
         try {
-            decider.canRemain(test_0, new RoutingNode("node_1", node_1), allocation);
+            decider.canRemain(test_0, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
             fail("not allocated on this node");
         } catch (IllegalArgumentException ex) {
             // not allocated on that node
         }
         try {
-            decider.canRemain(test_1, new RoutingNode("node_0", node_0), allocation);
+            decider.canRemain(test_1, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
             fail("not allocated on this node");
         } catch (IllegalArgumentException ex) {
             // not allocated on that node
         }
 
-        decision = decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals("can stay since allocated on a different path with enough space", Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString("this shard is not allocated on the most utilized disk and can remain")
         );
 
-        decision = decider.canRemain(test_2, new RoutingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals("can stay since we don't have information about this shard", Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
@@ -426,7 +427,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(100L, getExpectedShardSize(test_1, 0L, allocation));
         assertEquals(10L, getExpectedShardSize(test_0, 0L, allocation));
 
-        RoutingNode node = new RoutingNode(
+        RoutingNode node = RoutingNodesHelper.routingNode(
             "node1",
             new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             test_0,
@@ -458,7 +459,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         other_0 = ShardRoutingHelper.moveToStarted(other_0);
         other_0 = ShardRoutingHelper.relocate(other_0, "node1");
 
-        node = new RoutingNode(
+        node = RoutingNodesHelper.routingNode(
             "node1",
             new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             test_0,
@@ -757,7 +758,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        final RoutingNode routingNode = new RoutingNode("node_0", node_0);
+        final RoutingNode routingNode = RoutingNodesHelper.routingNode("node_0", node_0);
         Decision decision = decider.canAllocate(test_0, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
@@ -824,7 +825,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        Decision decision = decider.canForceAllocateDuringReplace(test_0, new RoutingNode("node_0", node_0), allocation);
+        Decision decision = decider.canForceAllocateDuringReplace(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
         assertThat(

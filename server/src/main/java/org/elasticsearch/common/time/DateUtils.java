@@ -174,7 +174,7 @@ public class DateUtils {
             );
             return ZoneId.of(deprecatedId);
         }
-        return ZoneId.of(zoneId).normalized();
+        return ZoneId.of(zoneId);
     }
 
     /**

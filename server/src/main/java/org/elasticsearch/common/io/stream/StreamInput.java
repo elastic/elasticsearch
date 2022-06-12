@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
@@ -865,7 +866,7 @@ public abstract class StreamInput extends InputStream {
      */
     public ZoneId readOptionalZoneId() throws IOException {
         if (readBoolean()) {
-            return ZoneId.of(readString());
+            return DateUtils.of(readString());
         }
         return null;
     }

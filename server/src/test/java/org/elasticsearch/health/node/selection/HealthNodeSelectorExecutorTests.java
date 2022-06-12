@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -49,6 +50,8 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     private ClusterService clusterService;
     private PersistentTasksService persistentTasksService;
     private String localNodeId;
+    private ClusterSettings clusterSettings;
+    private Settings settings;
 
     @BeforeClass
     public static void setUpThreadPool() {
@@ -61,6 +64,8 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
+        settings = Settings.builder().build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
     @AfterClass
@@ -75,7 +80,12 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService);
+        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
         executor.startTask(new ClusterChangedEvent("", initialState(), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, times(1)).sendStartRequest(
             eq("health-node-selector"),
@@ -86,7 +96,12 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService);
+        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node-selector"),
@@ -97,7 +112,12 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testDoNothingIfAlreadyShutdown() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService);
+        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
         HealthNodeSelector task = mock(HealthNodeSelector.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
@@ -107,7 +127,12 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnShutdown() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService);
+        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
         HealthNodeSelector task = mock(HealthNodeSelector.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);

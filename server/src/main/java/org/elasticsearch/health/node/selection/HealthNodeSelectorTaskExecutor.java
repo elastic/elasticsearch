@@ -20,6 +20,9 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -46,18 +49,50 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     private static final Logger logger = LogManager.getLogger(HealthNodeSelector.class);
 
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "health.node.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final AtomicReference<HealthNodeSelector> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
+    private final ClusterStateListener shutdownListener;
+    private boolean enabled;
 
-    public HealthNodeSelectorTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService) {
+    public HealthNodeSelectorTaskExecutor(
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
-        clusterService.addListener(taskStarter);
-        clusterService.addListener(this::abortTaskIfApplicable);
+        this.shutdownListener = this::abortTaskIfApplicable;
+        this.enabled = ENABLED_SETTING.get(settings);
+        if (enabled) {
+            clusterService.addListener(taskStarter);
+            clusterService.addListener(shutdownListener);
+        }
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+    }
+
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (enabled) {
+            if (HealthNodeSelector.findTask(clusterService.state()) == null) {
+                clusterService.addListener(taskStarter);
+            }
+            clusterService.addListener(shutdownListener);
+        } else {
+            clusterService.removeListener(taskStarter);
+            clusterService.removeListener(shutdownListener);
+        }
     }
 
     @Override

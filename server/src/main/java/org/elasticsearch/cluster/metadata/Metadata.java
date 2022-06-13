@@ -1845,7 +1845,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>();
             final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
-            final Set<String> allDataStreams = dataStreamMetadata.dataStreams().keySet();
+            final var allDataStreams = dataStreamMetadata.dataStreams();
             // Adding data stream aliases:
             for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
                 if (indexAliases.contains(dataStreamAlias)) {
@@ -1854,23 +1854,23 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 if (indicesMap.containsKey(dataStreamAlias)) {
                     aliasDuplicatesWithIndices.add(dataStreamAlias);
                 }
-                if (allDataStreams.contains(dataStreamAlias)) {
+                if (allDataStreams.containsKey(dataStreamAlias)) {
                     aliasDuplicatesWithDataStreams.add(dataStreamAlias);
                 }
             }
             for (String alias : indexAliases) {
-                if (allDataStreams.contains(alias)) {
+                if (allDataStreams.containsKey(alias)) {
                     aliasDuplicatesWithDataStreams.add(alias);
                 }
                 if (indicesMap.containsKey(alias)) {
                     aliasDuplicatesWithIndices.add(alias);
                 }
             }
-            for (String ds : allDataStreams) {
-                if (indicesMap.containsKey(ds)) {
-                    duplicates.add("data stream [" + ds + "] conflicts with index");
+            allDataStreams.forEach((key, value) -> {
+                if (indicesMap.containsKey(key)) {
+                    duplicates.add("data stream [" + key + "] conflicts with index");
                 }
-            }
+            });
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, aliasDuplicatesWithIndices, duplicates);
             }

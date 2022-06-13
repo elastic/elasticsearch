@@ -77,10 +77,6 @@ public class MapBackedMetadata {
         set(VERSION, version);
     }
 
-    public void removeVersion() {
-        map.remove(VERSION);
-    }
-
     public String getRouting() {
         return getString(ROUTING);
     }

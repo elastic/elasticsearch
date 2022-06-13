@@ -102,14 +102,6 @@ public abstract class IngestScript {
             store.setRouting(routing);
         }
 
-        public boolean hasVersion() {
-            return store.getRawVersion() != null;
-        }
-
-        public void removeVersion() {
-            store.removeVersion();
-        }
-
         public long getVersion() {
             Long version = store.getVersion();
             if (version == null) {

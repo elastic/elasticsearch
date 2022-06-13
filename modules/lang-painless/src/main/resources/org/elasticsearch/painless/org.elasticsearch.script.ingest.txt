@@ -31,8 +31,6 @@ class org.elasticsearch.script.IngestScript$Metadata @alias[class="Metadata"] {
 
     long getVersion()
     void setVersion(long)
-    void removeVersion()
-    boolean hasVersion()
 
     String getVersionType()
     void setVersionType(String)

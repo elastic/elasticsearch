@@ -33,15 +33,4 @@ public class IngestScriptMetadataTests extends ESTestCase {
         m.setVersionType(null);
         assertNull(m.getVersionType());
     }
-
-    public void testVersion() {
-        Map<String, Object> ctx = new HashMap<>();
-        IngestScript.Metadata m = new IngestScript.Metadata(ctx, null);
-        assertEquals(Long.MIN_VALUE, m.getVersion());
-        assertFalse(m.hasVersion());
-        assertFalse(m.hasVersion());
-        ctx.put("_version", 5);
-        assertTrue(m.hasVersion());
-        assertEquals(5, m.getVersion());
-    }
 }

@@ -86,9 +86,6 @@ public class MapBackedMetadataTests extends ESTestCase {
         assertEquals(Long.valueOf(version), m.getVersion());
         assertEquals(version, m.getRawVersion());
         assertEquals(version, m.getMap().get("_version"));
-        m.removeVersion();
-        assertNull(m.getMap().get("_version"));
-        assertNull(m.getVersion());
 
         String badVersion = "badVersion";
         m.set("_version", badVersion);

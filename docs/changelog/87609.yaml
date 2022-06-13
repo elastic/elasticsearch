@@ -1,0 +1,6 @@
+pr: 87609
+summary: Handle JWTRealm Rotating JWKS and align docs
+area: Security
+type: bug
+issues:
+ - 87608

@@ -1,7 +1,6 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
 
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::[\{release-state}\"!=\"unreleased\"]
@@ -17,8 +16,6 @@ Other versions:
 
 // The notable-highlights tag marks entries that
 // should be featured in the Stack Installation and Upgrade Guide:
-
-// tag::notable-highlights[]
 [discrete]
 [[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
 === Integrate filtering support for approximate nearest neighbor search
@@ -27,6 +24,7 @@ The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option
 that allows to return only the nearest documents that satisfy the provided
 filter.
 
+// tag::notable-highlights[]
 [discrete]
 [[nlp-latency-throughput-stats]]
 === NLP latency and throughput stats

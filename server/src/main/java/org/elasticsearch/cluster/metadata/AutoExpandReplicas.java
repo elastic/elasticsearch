@@ -112,7 +112,7 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         return calculateDesiredNumberOfReplicas(numMatchingDataNodes);
     }
 
-    // Package private only for testing purposes!
+    // package private for testing
     int calculateDesiredNumberOfReplicas(int numMatchingDataNodes) {
         final int min = minReplicas();
         final int max = getMaxReplicas(numMatchingDataNodes);

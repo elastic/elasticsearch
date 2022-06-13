@@ -84,11 +84,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
+        protected Parameter<?>[] getParameters() {
             if (IndexSettings.isTimeSeriesModeEnabled()) {
-                return List.of(enabled, synthetic, includes, excludes);
+                return new Parameter<?>[] { enabled, synthetic, includes, excludes };
             }
-            return List.of(enabled, includes, excludes);
+            return new Parameter<?>[] { enabled, includes, excludes };
         }
 
         @Override
@@ -98,6 +98,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 && includes.getValue().isEmpty()
                 && excludes.getValue().isEmpty()) {
                 return DEFAULT;
+            }
+            if (enabled.getValue() == false && synthetic.getValue()) {
+                throw new IllegalArgumentException("_source may not be disabled when setting [synthetic: true]");
             }
             return new SourceFieldMapper(
                 enabled.getValue(),
@@ -208,9 +211,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
-    public <T> SourceLoader newSourceLoader(RootObjectMapper root) {
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public <T> SourceLoader newSourceLoader(Mapping mapping) {
         if (synthetic) {
-            return new SourceLoader.Synthetic(root);
+            return new SourceLoader.Synthetic(mapping);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -63,10 +62,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -102,6 +103,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
@@ -178,6 +180,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final SystemIndices systemIndices;
 
+    private final IndicesService indicesService;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -188,7 +192,8 @@ public class RestoreService implements ClusterStateApplier {
         MetadataDeleteIndexService metadataDeleteIndexService,
         IndexMetadataVerifier indexMetadataVerifier,
         ShardLimitValidator shardLimitValidator,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IndicesService indicesService
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -202,6 +207,7 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
         this.systemIndices = systemIndices;
+        this.indicesService = indicesService;
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
@@ -330,21 +336,20 @@ public class RestoreService implements ClusterStateApplier {
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
 
-        final Map<String, SystemIndices.Feature> featureSet = systemIndices.getFeatures();
         final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
-            if (featureSet.containsKey(featureName)) {
+            if (systemIndices.getFeatureNames().contains(featureName)) {
                 return true;
             }
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
+                () -> format(
+                    "Restoring snapshot[%s] skipping feature [%s] because it is not available in this cluster",
                     snapshotInfo.snapshotId(),
                     featureName
                 )
             );
             return false;
         })
-            .map(name -> systemIndices.getFeatures().get(name))
+            .map(systemIndices::getFeature)
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .collect(Collectors.toSet());
@@ -394,10 +399,10 @@ public class RestoreService implements ClusterStateApplier {
 
             if (explicitlyRequestedSystemIndices.size() > 0) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "requested system indices {}, but system indices can only be restored as part of a feature state",
+                    format(
+                        "requested system indices %s, but system indices can only be restored as part of a feature state",
                         explicitlyRequestedSystemIndices
-                    ).getFormattedMessage()
+                    )
                 );
             }
 
@@ -457,7 +462,6 @@ public class RestoreService implements ClusterStateApplier {
                 metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
                 dataStreamsToRestore.values(),
                 updater,
-                repository.getMetadata(),
                 listener
             )
         );
@@ -567,10 +571,10 @@ public class RestoreService implements ClusterStateApplier {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
-                        new ParameterizedMessage(
-                            "requested system data stream [{}], but system data streams can only be restored as part of a feature state",
+                        format(
+                            "requested system data stream [%s], but system data streams can only be restored as part of a feature state",
                             requestedDataStream
-                        ).getFormattedMessage()
+                        )
                     );
                 } else if (featureStateDataStreams.contains(requestedDataStream)) {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);
@@ -648,7 +652,7 @@ public class RestoreService implements ClusterStateApplier {
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet()
             .stream()
-            .filter(featureName -> systemIndices.getFeatures().containsKey(featureName) == false)
+            .filter(s -> systemIndices.getFeatureNames().contains(s) == false)
             .toList();
         if (featuresNotOnThisNode.isEmpty() == false) {
             throw new SnapshotRestoreException(
@@ -676,7 +680,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         return featureStatesToRestore.stream()
-            .map(featureName -> systemIndices.getFeatures().get(featureName))
+            .map(systemIndices::getFeature)
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
@@ -1215,8 +1219,6 @@ public class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
-        private final RepositoryMetadata repositoryMetadata;
-
         private final ActionListener<RestoreCompletionResponse> listener;
 
         @Nullable
@@ -1231,7 +1233,6 @@ public class RestoreService implements ClusterStateApplier {
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
             BiConsumer<ClusterState, Metadata.Builder> updater,
-            RepositoryMetadata repositoryMetadata,
             ActionListener<RestoreCompletionResponse> listener
         ) {
             super(request.masterNodeTimeout());
@@ -1243,7 +1244,6 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
-            this.repositoryMetadata = repositoryMetadata;
             this.listener = listener;
         }
 
@@ -1283,7 +1283,7 @@ public class RestoreService implements ClusterStateApplier {
                 );
                 if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
-                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indexMetadataVerifier);
+                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
                 }
                 try {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
@@ -1576,7 +1576,7 @@ public class RestoreService implements ClusterStateApplier {
     private static IndexMetadata convertLegacyIndex(
         IndexMetadata snapshotIndexMetadata,
         ClusterState clusterState,
-        IndexMetadataVerifier indexMetadataVerifier
+        IndicesService indicesService
     ) {
         if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
             throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
@@ -1665,7 +1665,12 @@ public class RestoreService implements ClusterStateApplier {
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
             try {
-                Mapping mapping = indexMetadataVerifier.createAndValidateMapping(convertedIndexMetadata);
+                Mapping mapping;
+                try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(convertedIndexMetadata)) {
+                    // create and validate in-memory mapping
+                    mapperService.merge(convertedIndexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                    mapping = mapperService.documentMapper().mapping();
+                }
                 if (mapping != null) {
                     convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
                     // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.categorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -19,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Creates Grok patterns that will match all the examples in a given category_definition.
@@ -124,13 +125,7 @@ public final class GrokPatternCreator {
                 // case we will have appended an ellipsis to indicate truncation.
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
                 if (example.endsWith("...")) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Pattern [{}] did not match truncated example",
-                            jobId,
-                            exampleProcessor.pattern()
-                        )
-                    );
+                    logger.trace(() -> format("[%s] Pattern [%s] did not match truncated example", jobId, exampleProcessor.pattern()));
                 } else {
                     logger.warn("[{}] Pattern [{}] did not match non-truncated example [{}]", jobId, exampleProcessor.pattern(), example);
                 }

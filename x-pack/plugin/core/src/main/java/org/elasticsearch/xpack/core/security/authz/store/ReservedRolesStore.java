@@ -748,7 +748,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
                 // Endpoint events. Kibana reads endpoint alert lineage for building and sending telemetry
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.events.*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*").privileges("read").build(),
                 // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

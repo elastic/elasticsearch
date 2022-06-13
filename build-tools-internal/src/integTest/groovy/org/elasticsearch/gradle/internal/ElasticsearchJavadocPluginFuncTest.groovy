@@ -180,6 +180,74 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false
     }
 
+    def "ensures module dependency in javadoc of projects"() {
+        given:
+        subProject("foo-app") {
+            buildFile << """
+                plugins {
+                    id 'java'
+                    id 'elasticsearch.java-module'
+                    id 'elasticsearch.java-doc'
+                }
+                group = 'org.example.foo'
+                dependencies {
+                    implementation project(':bar-lib')
+                }
+                """
+            classFile('module-info') << """
+                /** The foo app module. */
+                module foo.app {
+                  requires bar.lib;
+                }
+                """
+            classFile('org.example.foo.Foo') << """
+                package org.example.foo;
+
+                /** The Foo app. */
+                public class Foo {
+                    /** The Foo method for calculating sums. */
+                    public int calculateSum(int v1, int v2) {
+                        return org.example.bar.BarMathUtils.sum(v1, v2);
+                    }
+                }
+                """
+        }
+        subProject("bar-lib") {
+            buildFile << """
+                plugins {
+                    id 'java'
+                    id 'elasticsearch.java-doc'
+                    id 'elasticsearch.java-module'
+
+                }
+                group = 'org.example.bar'
+                """
+            classFile('module-info') << """
+                /** The bar lib module. */
+                module bar.lib {
+                    exports org.example.bar;
+                }
+                """
+            classFile('org.example.bar.BarMathUtils') << """
+                package org.example.bar;
+
+                /** The Bar Math Utilities. */
+                public final class BarMathUtils<T, R> {
+                    /** Returns the sum of the given values. */
+                    public static int sum(int x, int y) { return x + y; }
+                }
+                """
+        }
+        when:
+        def result = gradleRunner(':foo-app:javadoc').build()
+        then:
+        result.task(":foo-app:javadoc").outcome == TaskOutcome.SUCCESS
+        result.task(":bar-lib:javadoc").outcome == TaskOutcome.SUCCESS
+
+        def options = normalized(file('foo-app/build/tmp/javadoc/javadoc.options').text)
+        options.contains('--module-path')
+    }
+
     String normalized(String input) {
         return super.normalized(input.replace("\\\\", "/"))
     }

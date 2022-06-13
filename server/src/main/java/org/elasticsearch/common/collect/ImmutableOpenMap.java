@@ -12,8 +12,10 @@ import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractCollection;
+import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -22,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -29,10 +32,10 @@ import java.util.function.Predicate;
 /**
  * An immutable map implementation based on open hash map.
  * <p>
- * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
+ * Can be constructed using a {@link #builder()}, or using {@link #builder(Map)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
+public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VType> {
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -160,7 +163,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(key, value);
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
         }
     }
 
@@ -309,6 +312,11 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         };
     }
 
+    @Override
+    public void forEach(BiConsumer<? super KType, ? super VType> action) {
+        map.forEach((ObjectObjectProcedure<KType, VType>) action::accept);
+    }
+
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<>() {
@@ -334,24 +342,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return map.toString();
     }
 
-    @Override
-    @SuppressWarnings("rawtypes")
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ImmutableOpenMap that = (ImmutableOpenMap) o;
-
-        if (map.equals(that.map) == false) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return map.hashCode();
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
@@ -368,8 +358,13 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return new Builder<>(size);
     }
 
-    public static <KType, VType> Builder<KType, VType> builder(ImmutableOpenMap<KType, VType> map) {
-        return new Builder<>(map);
+    public static <KType, VType> Builder<KType, VType> builder(Map<KType, VType> map) {
+        if (map instanceof ImmutableOpenMap<KType, VType> iom) {
+            return new Builder<>(iom);
+        }
+        Builder<KType, VType> builder = new Builder<>(map.size());
+        builder.putAllFromMap(map);
+        return builder;
     }
 
     public static class Builder<KType, VType> {
@@ -504,13 +499,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return mutableMap.removeAll(predicate::test);
         }
 
-        public void removeAllFromCollection(Collection<KType> collection) {
-            maybeCloneMap();
-            for (var k : collection) {
-                mutableMap.remove(k);
-            }
-        }
-
         public void clear() {
             maybeCloneMap();
             mutableMap.clear();
@@ -541,29 +529,10 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return mutableMap.indexExists(index);
         }
 
-        public VType indexGet(int index) {
-            maybeCloneMap();
-            return mutableMap.indexGet(index);
-        }
-
-        public VType indexReplace(int index, VType newValue) {
-            maybeCloneMap();
-            return mutableMap.indexReplace(index, newValue);
-        }
-
-        public void indexInsert(int index, KType key, VType value) {
-            maybeCloneMap();
-            mutableMap.indexInsert(index, key, value);
-        }
-
         public void release() {
             maybeCloneMap();
             mutableMap.release();
         }
 
-        public String visualizeKeyDistribution(int characters) {
-            maybeCloneMap();
-            return mutableMap.visualizeKeyDistribution(characters);
-        }
     }
 }

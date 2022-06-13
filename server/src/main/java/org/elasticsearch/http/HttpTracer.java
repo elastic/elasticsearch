@@ -10,7 +10,6 @@ package org.elasticsearch.http;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +20,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
@@ -55,8 +56,8 @@ class HttpTracer {
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
-                new ParameterizedMessage(
-                    "[{}][{}][{}][{}] received request from [{}]",
+                () -> format(
+                    "[%s][%s][%s][%s] received request from [%s]",
                     restRequest.getRequestId(),
                     restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
@@ -89,8 +90,8 @@ class HttpTracer {
         boolean success
     ) {
         logger.trace(
-            new ParameterizedMessage(
-                "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
+            () -> format(
+                "[%s][%s][%s][%s][%s] sent response to [%s] success [%s]",
                 requestId,
                 opaqueHeader,
                 restResponse.status(),

@@ -197,6 +197,18 @@ public class GeoPoint implements ToXContentFragment {
         return Geohash.stringEncode(lon, lat);
     }
 
+    /** Return the point in Lucene encoded format used to stored points as doc values */
+    public long getEncoded() {
+        final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.lat);
+        final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.lon);
+        return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+    }
+
+    /** reset the point using Lucene encoded format used to stored points as doc values */
+    public GeoPoint resetFromEncoded(long encoded) {
+        return reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

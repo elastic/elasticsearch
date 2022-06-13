@@ -327,7 +327,7 @@ teardown:
               {
                 "script" : {
                   "lang": "painless",
-                  "source" : "Metadata m = metadata(); m.index += '2'; m.id += 'extra'; m.routing = 'myRouting'; m.versionType = VersionType.EXTERNAL; m.version = 5"
+                  "source" : "Metadata m = metadata(); m.index += '2'; m.id += 'extra'; m.routing = 'myRouting'; m.versionType = 'external'; m.version = 5"
                 }
               }
             ]

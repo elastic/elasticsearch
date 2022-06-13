@@ -61,7 +61,9 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         AutoscalingCapacity.AutoscalingResources total = randomNullValueAutoscalingResources();
         return new AutoscalingCapacity(
             total,
-            randomBoolean() ? randomNullValueAutoscalingResources(total.storage() != null, total.memory() != null) : null
+            randomBoolean()
+                ? randomNullValueAutoscalingResources(total.storage() != null, total.memory() != null, total.processors().isPresent())
+                : null
         );
     }
 
@@ -70,20 +72,26 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
-        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue());
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), randomInt(128));
     }
 
     private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
-        return randomNullValueAutoscalingResources(true, true);
+        return randomNullValueAutoscalingResources(true, true, true);
     }
 
-    public static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources(boolean allowStorage, boolean allowMemory) {
+    public static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources(
+        boolean allowStorage,
+        boolean allowMemory,
+        boolean allowProcessors
+    ) {
         assert allowMemory || allowStorage;
-        boolean addStorage = (allowStorage && randomBoolean()) || allowMemory == false;
-        boolean addMemory = (allowMemory && randomBoolean()) || addStorage == false;
+        boolean addStorage = (allowStorage && randomBoolean()) || (allowMemory == false && allowProcessors == false);
+        boolean addMemory = (allowMemory && randomBoolean()) || (addStorage == false && allowProcessors == false);
+        boolean addProcessors = (allowMemory && randomBoolean()) || (addStorage == false && addMemory == false);
         return new AutoscalingCapacity.AutoscalingResources(
             addStorage ? randomByteSizeValue() : null,
-            addMemory ? randomByteSizeValue() : null
+            addMemory ? randomByteSizeValue() : null,
+            addProcessors ? randomInt(128) : null
         );
     }
 

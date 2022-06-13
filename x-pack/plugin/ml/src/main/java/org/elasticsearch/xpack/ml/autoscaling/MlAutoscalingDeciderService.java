@@ -724,11 +724,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         AutoscalingCapacity newCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.total().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes())),
+                1
             ),
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.node().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes())),
+                1
             )
         );
         if (scaleDownResult.node().memory().getBytes() - newCapacity.node().memory().getBytes() > ACCEPTABLE_DIFFERENCE

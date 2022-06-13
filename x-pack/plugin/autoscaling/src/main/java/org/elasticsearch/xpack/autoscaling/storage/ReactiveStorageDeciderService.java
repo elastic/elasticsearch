@@ -120,8 +120,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
-            .node(maxShardSize, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .node(maxShardSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,

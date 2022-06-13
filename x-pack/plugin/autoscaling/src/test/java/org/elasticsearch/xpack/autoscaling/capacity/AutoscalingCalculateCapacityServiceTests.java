@@ -150,16 +150,18 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     private AutoscalingCapacity calculateFixedDeciderCapacity(Settings configuration) {
         ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
         ByteSizeValue memory = configuration.getAsBytesSize(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
+        Integer processors = configuration.getAsInt(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
         int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
         ByteSizeValue totalStorage = storage != null ? new ByteSizeValue(storage.getBytes() * nodes) : null;
         ByteSizeValue totalMemory = memory != null ? new ByteSizeValue(memory.getBytes() * nodes) : null;
+        Integer totalProcessors = memory != null ? processors * nodes : null;
 
         if (totalStorage == null && totalMemory == null) {
             return null;
         } else {
             return new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory),
-                new AutoscalingCapacity.AutoscalingResources(storage, memory)
+                new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory, totalProcessors),
+                new AutoscalingCapacity.AutoscalingResources(storage, memory, processors)
             );
         }
     }

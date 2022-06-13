@@ -320,9 +320,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 : 0L;
 
             Long memory = memoryInfo.get(node);
+            // TODO true processors needs to be found
             return new AutoscalingCapacity.AutoscalingResources(
                 storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
-                memory == null ? ByteSizeValue.ZERO : new ByteSizeValue(memory)
+                memory == null ? ByteSizeValue.ZERO : new ByteSizeValue(memory),
+                null
             );
         }
 

@@ -11,7 +11,6 @@ import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntToDoubleFunction;
 import java.util.stream.IntStream;
@@ -53,25 +53,39 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
-        MlAggsHelper.DoubleBucketValues maybeBucketsValue = extractDoubleBucketedValues(
+        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
             BucketHelpers.GapPolicy.SKIP,
             true
-        ).orElseThrow(
-            () -> new AggregationExecutionException(
-                "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
-            )
         );
-        if (maybeBucketsValue.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
-            throw new AggregationExecutionException(
-                "not enough buckets to calculate change_point. Requires at least [" + ((2 * MINIMUM_BUCKETS) + 2) + "]"
+        if (maybeBucketsValue.isEmpty()) {
+            return new InternalChangePointAggregation(
+                name(),
+                metadata(),
+                null,
+                new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]")
             );
         }
-        Tuple<int[], Integer> candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
-        ChangeType changeType = changePValue(maybeBucketsValue, candidatePoints, P_VALUE_THRESHOLD);
+        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketsValue.get();
+        if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
+            return new InternalChangePointAggregation(
+                name(),
+                metadata(),
+                null,
+                new ChangeType.Indeterminable(
+                    "not enough buckets to calculate change_point. Requires at least ["
+                        + ((2 * MINIMUM_BUCKETS) + 2)
+                        + "]; found ["
+                        + bucketValues.getValues().length
+                        + "]"
+                )
+            );
+        }
+        Tuple<int[], Integer> candidatePoints = candidateChangePoints(bucketValues.getValues());
+        ChangeType changeType = changePValue(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            changeType = maxDeviationKdePValue(maybeBucketsValue, P_VALUE_THRESHOLD);
+            changeType = maxDeviationKdePValue(bucketValues, P_VALUE_THRESHOLD);
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {

@@ -50,7 +50,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.lang.Math.min;
 import static org.elasticsearch.ExceptionsHelper.status;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
@@ -469,8 +468,8 @@ public class ResultsPersisterService {
         @Override
         protected long calculateDelayBound(long previousDelayBound) {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
-            int uncappedBackoff = ((1 << min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
-            currentMax = min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
+            int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
+            currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
             String msg = format("failed to %s after [%s] attempts. Will attempt again.", getName(), currentAttempt);
             LOGGER.warn(() -> format("[%s] %s", jobId, msg));
             msgHandler.accept(msg);

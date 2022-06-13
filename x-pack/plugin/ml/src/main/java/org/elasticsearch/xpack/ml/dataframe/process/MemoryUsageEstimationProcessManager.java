@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.serverError;
 
 public class MemoryUsageEstimationProcessManager {
 
@@ -108,7 +107,7 @@ public class MemoryUsageEstimationProcessManager {
                 e.getMessage(),
                 process.readError()
             );
-            throw serverError(errorMsg, e);
+            throw ExceptionsHelper.serverError(errorMsg, e);
         } finally {
             try {
                 LOGGER.debug("[{}] Closing process", jobId);
@@ -121,7 +120,7 @@ public class MemoryUsageEstimationProcessManager {
                     e.getMessage(),
                     process.readError()
                 );
-                throw serverError(errorMsg, e);
+                throw ExceptionsHelper.serverError(errorMsg, e);
             }
         }
     }

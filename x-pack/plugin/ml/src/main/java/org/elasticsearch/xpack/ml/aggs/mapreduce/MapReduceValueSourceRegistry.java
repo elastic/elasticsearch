@@ -18,7 +18,7 @@ public final class MapReduceValueSourceRegistry {
 
     @FunctionalInterface
     interface MapReduceValuesSupplier {
-        ValuesExtractor build(ValuesSourceConfig config);
+        ValuesExtractor build(ValuesSourceConfig config, int id);
     }
 
     static final ValuesSourceRegistry.RegistryKey<MapReduceValuesSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

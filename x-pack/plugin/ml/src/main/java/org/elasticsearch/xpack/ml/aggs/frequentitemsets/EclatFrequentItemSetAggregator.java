@@ -16,9 +16,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public final class FrequentItemSetsAggregator extends MapReduceAggregator {
-
-    protected FrequentItemSetsAggregator(
+public final class EclatFrequentItemSetAggregator extends MapReduceAggregator<
+    HashBasedTransactionStore,
+    ImmutableTransactionStore,
+    HashBasedTransactionStore,
+    EclatMapReducer.EclatResult> {
+    EclatFrequentItemSetAggregator(
         String name,
         AggregationContext context,
         Aggregator parent,
@@ -28,19 +31,6 @@ public final class FrequentItemSetsAggregator extends MapReduceAggregator {
         int minimumSetSize,
         int size
     ) throws IOException {
-        /**
-         * Note about future readiness:
-         *
-         * In case you want to change data formats between map and reduce think about mixed version clusters.
-         * If its not possible to implement this with BWC translation layers, create a new MapReducer and keep
-         * the current one.
-         *
-         * In order to switch between the 2, look for the minimum node in the cluster and choose the new version
-         * iff all nodes are recent enough.
-         *
-         * The minimum node version is not available yet, but can be added to the AggregationContext which is
-         * created by {@link SearchService}. SearchService has access to cluster state.
-         */
         super(
             name,
             context,
@@ -50,5 +40,4 @@ public final class FrequentItemSetsAggregator extends MapReduceAggregator {
             configs
         );
     }
-
 }

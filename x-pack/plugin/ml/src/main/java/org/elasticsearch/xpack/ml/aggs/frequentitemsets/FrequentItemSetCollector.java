@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
@@ -25,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Collector for frequent item sets.
@@ -36,9 +41,11 @@ import java.util.Map.Entry;
  *
  * To get to the top-n results pop the collector until it is empty and than reverse the order.
  */
-public class FrequentItemSetCollector {
+public final class FrequentItemSetCollector {
 
-    public class FrequentItemSet implements ToXContent, Writeable {
+    private static final Logger logger = LogManager.getLogger(FrequentItemSetCollector.class);
+
+    public static class FrequentItemSet implements ToXContent, Writeable {
         private final Map<String, List<Object>> fields;
         private final double support;
 
@@ -47,12 +54,26 @@ public class FrequentItemSetCollector {
 
         public FrequentItemSet(Map<String, List<Object>> fields, long docCount, double support) {
             this.fields = Collections.unmodifiableMap(fields);
-            this.setDocCount(docCount);
+            this.docCount = docCount;
             this.support = support;
+        }
+
+        public FrequentItemSet(StreamInput in) throws IOException {
+            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
+            this.docCount = in.readVLong();
+            this.support = in.readDouble();
         }
 
         public long getDocCount() {
             return docCount;
+        }
+
+        public double getSupport() {
+            return support;
+        }
+
+        public Map<String, List<Object>> getFields() {
+            return fields;
         }
 
         public void setDocCount(long docCount) {
@@ -76,17 +97,66 @@ public class FrequentItemSetCollector {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeGenericValue(fields);
-            out.writeLong(getDocCount());
+            out.writeMapOfLists(fields, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeVLong(getDocCount());
             out.writeDouble(support);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            final FrequentItemSet that = (FrequentItemSet) other;
+
+            return this.docCount == that.docCount
+                && this.support == that.support
+                && this.fields.size() == that.fields.size()
+                && this.fields.entrySet().stream().allMatch(e -> e.getValue().equals(that.fields.get(e.getKey())));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(docCount, support, fields);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{\"key\": {");
+
+            boolean addComma = false;
+            for (Entry<String, List<Object>> item : fields.entrySet()) {
+                if (addComma) {
+                    sb.append(", ");
+                }
+                sb.append("\"" + item.getKey() + "\": {");
+                sb.append(Strings.collectionToDelimitedString(item.getValue(), ", "));
+                sb.append("}");
+                addComma = true;
+            }
+            sb.append("}, \"doc_count\": ");
+            sb.append(docCount);
+            sb.append(", \"support\": ");
+            sb.append(support);
+            sb.append("}");
+
+            return sb.toString();
         }
 
     }
 
     /**
      * Container for a single frequent itemset
+     *
+     * package private for unit tests
      */
-    class FrequentItemSetCandidate implements ToXContent {
+    class FrequentItemSetCandidate {
 
         private LongsRef items;
         private long docCount;
@@ -100,47 +170,18 @@ public class FrequentItemSetCollector {
             this.docCount = -1;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            final long totalTransactionCount = transactionStore.getTotalTransactionCount();
-
-            builder.startObject();
-            builder.startObject(CommonFields.KEY.getPreferredName());
-            Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
-
-            for (int i = 0; i < items.length; ++i) {
-                Tuple<String, String> item = transactionStore.getItem(items.longs[i]);
-                if (frequentItemsKeyValues.containsKey(item.v1())) {
-                    frequentItemsKeyValues.get(item.v1()).add(item.v2());
-                } else {
-                    List<String> l = new ArrayList<>();
-                    l.add(item.v2());
-                    frequentItemsKeyValues.put(item.v1(), l);
-                }
-            }
-
-            for (Entry<String, List<String>> item : frequentItemsKeyValues.entrySet()) {
-                builder.field(item.getKey(), item.getValue());
-            }
-            builder.endObject();
-
-            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
-            builder.field("support", (double) docCount / totalTransactionCount);
-            builder.endObject();
-            return builder;
-        }
-
-        FrequentItemSet toFrequentItemSet() throws IOException {
+        FrequentItemSet toFrequentItemSet(List<String> fieldNames) throws IOException {
             Map<String, List<Object>> frequentItemsKeyValues = new HashMap<>();
 
             for (int i = 0; i < items.length; ++i) {
-                Tuple<String, String> item = transactionStore.getItem(items.longs[i]);
-                if (frequentItemsKeyValues.containsKey(item.v1())) {
-                    frequentItemsKeyValues.get(item.v1()).add(item.v2());
+                Tuple<Integer, Object> item = transactionStore.getItem(items.longs[i]);
+                String fieldName = fieldNames.get(item.v1());
+                if (frequentItemsKeyValues.containsKey(fieldName)) {
+                    frequentItemsKeyValues.get(fieldName).add(item.v2());
                 } else {
                     List<Object> l = new ArrayList<>();
                     l.add(item.v2());
-                    frequentItemsKeyValues.put(item.v1(), l);
+                    frequentItemsKeyValues.put(fieldName, l);
                 }
             }
 
@@ -216,10 +257,10 @@ public class FrequentItemSetCollector {
         frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
     }
 
-    public FrequentItemSet[] finalizeAndGetResults() throws IOException {
+    public FrequentItemSet[] finalizeAndGetResults(List<String> fieldNames) throws IOException {
         FrequentItemSet[] topFrequentItems = new FrequentItemSet[size()];
         for (int i = topFrequentItems.length - 1; i >= 0; i--) {
-            topFrequentItems[i] = queue.pop().toFrequentItemSet();
+            topFrequentItems[i] = queue.pop().toFrequentItemSet(fieldNames);
         }
         return topFrequentItems;
     }
@@ -239,40 +280,42 @@ public class FrequentItemSetCollector {
      * @return the new minimum doc count necessary to enter the collector
      */
     public long add(List<Long> itemSet, long docCount) {
-        if (queue.top() == null || queue.size() < size || docCount > queue.top().getDocCount()) {
+        logger.trace("add itemset [{}] count: {}", itemSet, docCount);
 
-            // closed set criteria: don't add if we already store a superset
-            if (hasSuperSet(itemSet, docCount) == false) {
-                spareSet.reset(count++, itemSet, docCount);
-                FrequentItemSetCandidate newItemSet = spareSet;
-                FrequentItemSetCandidate removedItemSet = queue.insertWithOverflow(spareSet);
-                if (removedItemSet != null) {
-                    // remove item from frequentItemsByCount
-                    frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
-
-                        // short cut, if there is only 1, it must be the one we are looking for
-                        if (sets.size() == 1) {
-                            return null;
-                        }
-
-                        sets.remove(removedItemSet);
-                        return sets;
-                    });
-                    spareSet = removedItemSet;
-                } else {
-                    spareSet = new FrequentItemSetCandidate();
-                }
-
-                frequentItemsByCount.compute(newItemSet.getDocCount(), (k, sets) -> {
-                    if (sets == null) {
-                        sets = new ArrayList<>();
-                    }
-                    sets.add(newItemSet);
-                    return sets;
-                });
-            }
+        // if the queue is full, shortcut if itemset has a lower count or fewer items than the last set in the queue
+        if (queue.top() != null
+            && queue.size() == size
+            && (docCount < queue.top().getDocCount() || (docCount == queue.top().getDocCount() && itemSet.size() <= queue.top().size()))) {
+            return queue.top().getDocCount();
         }
 
+        // closed set criteria: don't add if we already store a superset
+        if (hasSuperSet(itemSet, docCount)) {
+            logger.trace("skip itemset with super set");
+            return queue.size() < size ? min : queue.top().getDocCount();
+        }
+
+        spareSet.reset(count++, itemSet, docCount);
+        FrequentItemSetCandidate newItemSet = spareSet;
+        FrequentItemSetCandidate removedItemSet = queue.insertWithOverflow(spareSet);
+        if (removedItemSet != null) {
+            // remove item from frequentItemsByCount
+            frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
+
+                // short cut, if there is only 1, it must be the one we are looking for
+                if (sets.size() == 1) {
+                    return null;
+                }
+
+                sets.remove(removedItemSet);
+                return sets;
+            });
+            spareSet = removedItemSet;
+        } else {
+            spareSet = new FrequentItemSetCandidate();
+        }
+
+        frequentItemsByCount.computeIfAbsent(newItemSet.getDocCount(), (k) -> new ArrayList<>()).add(newItemSet);
         // return the minimum doc count this collector takes
         return queue.size() < size ? min : queue.top().getDocCount();
     }
@@ -284,6 +327,10 @@ public class FrequentItemSetCollector {
 
     FrequentItemSetPriorityQueue getQueue() {
         return queue;
+    }
+
+    FrequentItemSetCandidate getLastSet() {
+        return queue.top();
     }
 
     /**

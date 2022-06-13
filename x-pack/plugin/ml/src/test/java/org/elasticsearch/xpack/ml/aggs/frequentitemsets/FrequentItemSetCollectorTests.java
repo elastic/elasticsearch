@@ -29,7 +29,7 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
-    private TransactionStore transactionStore = null;
+    private HashBasedTransactionStore transactionStore = null;
 
     @After
     public void closeReleasables() throws IOException {
@@ -37,7 +37,7 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
     }
 
     public void testQueue() {
-        transactionStore = new TransactionStore(mockBigArrays());
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
 
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, 5, Long.MAX_VALUE);
 
@@ -79,7 +79,7 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
     }
 
     public void testClosedSetSkipping() {
-        transactionStore = new TransactionStore(mockBigArrays());
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
 
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, 5, Long.MAX_VALUE);
 
@@ -115,7 +115,7 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
     }
 
     public void testCopyOnAdd() {
-        transactionStore = new TransactionStore(mockBigArrays());
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
 
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, 5, Long.MAX_VALUE);
         List<Long> itemSet = new ArrayList<>();
@@ -132,4 +132,42 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         assertThat(queue.pop().getItems().longs, equalTo(new long[] { 1L, 2L, 3L, 4L, 5L }));
     }
 
+    public void testLargerItemSetsPreference() {
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
+
+        FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, 5, Long.MAX_VALUE);
+
+        assertEquals(Long.MAX_VALUE, collector.add(List.of(1L, 2L, 3L, 4L), 10L));
+        assertEquals(Long.MAX_VALUE, collector.add(List.of(5L, 6L, 7L, 8L), 11L));
+        assertEquals(Long.MAX_VALUE, collector.add(List.of(11L, 12L, 13L, 14L), 9L));
+        assertEquals(Long.MAX_VALUE, collector.add(List.of(21L, 2L, 3L, 4L), 13L));
+
+        // queue should be full, drop weakest element
+        assertEquals(9L, collector.add(List.of(31L, 2L, 3L, 4L), 14L));
+
+        assertEquals(9L, collector.getLastSet().getDocCount());
+        assertEquals(4, collector.getLastSet().size());
+
+        // ignore set with same doc count but fewer items
+        assertEquals(9L, collector.add(List.of(22L, 23L, 24L), 9L));
+
+        assertEquals(9L, collector.getLastSet().getDocCount());
+        assertEquals(4, collector.getLastSet().size());
+
+        // take set with same doc count but more items
+        assertEquals(9L, collector.add(List.of(25L, 26L, 27L, 28L, 29L), 9L));
+
+        assertEquals(9L, collector.getLastSet().getDocCount());
+        assertEquals(5, collector.getLastSet().size());
+
+        FrequentItemSetPriorityQueue queue = collector.getQueue();
+
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 25L, 26L, 27L, 28L, 29L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 1L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 5L, 6L, 7L, 8L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 21L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 31L, 2L, 3L, 4L }));
+
+        assertEquals(0, collector.size());
+    }
 }

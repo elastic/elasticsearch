@@ -16,79 +16,124 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.DelegatingMapParams;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
-public final class InternalMapReduceAggregation extends InternalAggregation {
+public final class InternalMapReduceAggregation<
+    MapContext extends Closeable,
+    MapFinalContext extends Writeable,
+    ReduceContext extends Closeable,
+    Result extends ToXContent & Writeable> extends InternalAggregation {
 
-    private final AbstractMapReducer<?, ?, ?> mapReducer;
-    private Writeable mapReduceContext;
+    private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
+    private final BigArrays bigArraysForMapReduce;
+    private final List<String> fieldNames;
     private final boolean profiling;
+
+    private MapFinalContext mapFinalContext = null;
+    private Result mapReduceResult = null;
 
     InternalMapReduceAggregation(
         String name,
         Map<String, Object> metadata,
-        AbstractMapReducer<?, ?, ?> mapReducer,
-        Writeable mapReduceContext,
+        AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
+        MapFinalContext mapFinalContext,
+        Result mapReduceResult,
+        List<String> fieldNames,
         boolean profiling
     ) {
         super(name, metadata);
         this.mapReducer = Objects.requireNonNull(mapReducer);
-        this.mapReduceContext = Objects.requireNonNull(mapReduceContext);
+        this.mapFinalContext = mapFinalContext;
+        this.mapReduceResult = mapReduceResult;
+        this.fieldNames = fieldNames;
         this.profiling = profiling;
+
+        // we use the `NON_RECYCLING_INSTANCE` here, which has no circuit breaker attached
+        // However circuit breaking works different in this place:
+        // {@link QueryPhaseResultConsumer} reserves the serialized size of this object plus 50% extra
+        // using the non-breaking and non-recycling instance is ok under the assumption that the real memory
+        // usage is not more than 1.5 * the serialized size
+        this.bigArraysForMapReduce = BigArrays.NON_RECYCLING_INSTANCE;
     }
 
-    public InternalMapReduceAggregation(StreamInput in) throws IOException {
+    public InternalMapReduceAggregation(
+        StreamInput in,
+        Writeable.Reader<AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result>> reader
+    ) throws IOException {
         super(in);
-        this.mapReducer = in.readNamedWriteable(AbstractMapReducer.class);
 
-        // TODO: we should not use `NON_RECYCLING_INSTANCE` here, however we don't have access to AggregationContext yet
-        this.mapReduceContext = this.mapReducer.readMapContext(in, BigArrays.NON_RECYCLING_INSTANCE);
+        // we use the `NON_RECYCLING_INSTANCE` here, which has no circuit breaker attached
+        // However circuit breaking works different in this place:
+        // {@link QueryPhaseResultConsumer} reserves the serialized size of this object plus 50% extra
+        // using the non-breaking and non-recycling instance is ok under the assumption that the real memory
+        // usage is not more than 1.5 * the serialized size
+        this.bigArraysForMapReduce = BigArrays.NON_RECYCLING_INSTANCE;
+
+        this.mapReducer = reader.read(in);
+
+        if (in.readBoolean()) {
+            this.mapFinalContext = this.mapReducer.readMapReduceContext(in, bigArraysForMapReduce);
+        }
+        if (in.readBoolean()) {
+            this.mapReduceResult = this.mapReducer.readResult(in, bigArraysForMapReduce);
+        }
+
+        this.fieldNames = in.readStringList();
         this.profiling = in.readBoolean();
     }
 
     @Override
     public String getWriteableName() {
-        return mapReducer.getAggregationName();
+        return mapReducer.getWriteableName();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-
-        out.writeNamedWriteable(mapReducer);
-        mapReducer.writeContext(out, mapReduceContext);
+        mapReducer.writeTo(out);
+        out.writeOptionalWriteable(mapFinalContext);
+        out.writeOptionalWriteable(mapReduceResult);
+        out.writeStringCollection(fieldNames);
         out.writeBoolean(profiling);
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // TODO: as long as we haven't clarified who is closing, we can't use big arrays from the context
-        Writeable newMapReduceContext = mapReducer.reduceInit(BigArrays.NON_RECYCLING_INSTANCE);
-        // MapReduceContext newMapReduceContext = mapReducer.reduceInit(reduceContext.bigArrays());
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext aggReduceContext) {
 
-        // TODO: if we use the recycling big array instance and something fails here the internal aggregations aren't closed
-        if (reduceContext.isFinalReduce()) {
-            mapReducer.reduce(
-                aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).getMapReduceContext()),
-                newMapReduceContext
-            );
-            try {
-                newMapReduceContext = mapReducer.reduceFinalize(newMapReduceContext);
+        Stream<MapFinalContext> contexts = aggregations.stream().map(agg -> {
+            assert agg.getClass().equals(InternalMapReduceAggregation.class);
+            @SuppressWarnings("unchecked")
+            MapFinalContext context = ((InternalMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>) agg)
+                .getMapFinalContext();
+            return context;
+        }).filter(c -> c != null);
+
+        if (aggReduceContext.isFinalReduce()) {
+            // we can use the reduce context big arrays, because we finalize here
+            try (ReduceContext reduceContext = mapReducer.reduceInit(aggReduceContext.bigArrays())) {
+                mapReducer.reduce(contexts, reduceContext);
+                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fieldNames);
             } catch (IOException e) {
                 throw new AggregationExecutionException("Final reduction failed", e);
             }
-        } else {
-            newMapReduceContext = mapReducer.combine(
-                aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).getMapReduceContext()),
-                newMapReduceContext
-            );
-        }
 
-        return new InternalMapReduceAggregation(name, metadata, mapReducer, newMapReduceContext, profiling);
+            return new InternalMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fieldNames, profiling);
+
+        }
+        // else: combine
+        // can't use the bigarray from the agg reduce context, because we don't finalize it here
+        ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
+        MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext);
+
+        return new InternalMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fieldNames, profiling);
     }
 
     @Override
@@ -106,21 +151,27 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return mapReducer.toXContent(
-            mapReduceContext,
-            builder,
-            new DelegatingMapParams(Map.of(SearchProfileResults.PROFILE_FIELD, String.valueOf(profiling)), params)
-        );
+        if (mapReduceResult != null) {
+            return mapReduceResult.toXContent(
+                builder,
+                new DelegatingMapParams(Map.of(SearchProfileResults.PROFILE_FIELD, String.valueOf(profiling)), params)
+            );
+        }
+        return builder;
     }
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        mapReduceContext = mapReducer.finalizeSampling(samplingContext, mapReduceContext);
+        mapReduceResult = mapReducer.finalizeSampling(samplingContext, mapReduceResult);
         return this;
     }
 
-    public Writeable getMapReduceContext() {
-        return mapReduceContext;
+    MapFinalContext getMapFinalContext() {
+        return mapFinalContext;
     }
 
+    // testing only
+    public Result getMapReduceResult() {
+        return mapReduceResult;
+    }
 }

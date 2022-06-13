@@ -7,74 +7,25 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Stream;
 
-/**
- * Implementation of "transactions", as they are called in
- *
- * Zaki, M. J. (2000). Scalable algorithms for association mining. Knowledge and Data Engineering, IEEE Transactions on, 12(3), 372-390.
- *
- * A transaction is defined as a set of items. For scaling transactions are de-duplicated and store a counter.
- *
- * NOTE: This class is not thread-safe!
- *
- * # Rough design
- *
- * ## Data:
- *
- * - transactions are split into items and items are stored together with their count
- *    - every item has an id and a count
- * - the transaction than gets rewritten into an array of items using the item ids, this dedups and compresses the storage
- *    - every transaction is a bytebuffer containing item ids and a count
- * - items and transactions are stored in a hashtable using ByteRefHash, which internally uses BigArrays
- *    - the item store is basically a map: ByteRef -> item_id, the ByteRef key consists of the fieldname and its value,
- *      the id is number (a count)
- *    - the transaction store is a map: ByteRef -> transaction_id, the ByteRef consists of item_id's using a variable length
- *      encoding (vlong)
- * - the counts are stored as array, the index is {item_, transaction_}the id, the cell stores the count
- * - the store can be serialized and send over the wire, serialization and deserialization uses variable length encodings to
- *   make messages smaller
- *
- * ## Merging
- *
- * - a transaction store contains the items and transactions of 1 shard, this must be merged
- * - transaction stores can be merged, this happens by rewriting and merging
- *
- * ## Pruning
- *
- * - prune removes all items that do not meet the support criteria and rewrites/drops transactions, this can significantly free memory
- * - TODO: pruning is only used after merging all stores from all shards, it could be beneficial to prune already on the shard level
- *
- * ## Top Items/Transactions
- *
- * - top_{items, transactions} creates lists of {item_, transaction_}ids reverse sorted by count
- *
- */
-public final class TransactionStore implements Writeable, Releasable {
+abstract class TransactionStore implements Writeable, Releasable, Accountable {
 
     /**
      * Container for holding item ids reverse sorted by count
@@ -158,8 +109,7 @@ public final class TransactionStore implements Writeable, Releasable {
 
         @Override
         public Iterator<Long> iterator() {
-            Iterator<Long> it = new Iterator<Long>() {
-
+            return new Iterator<Long>() {
                 private int currentIndex = 0;
 
                 @Override
@@ -177,7 +127,6 @@ public final class TransactionStore implements Writeable, Releasable {
                     throw new UnsupportedOperationException();
                 }
             };
-            return it;
         }
 
         public long size() {
@@ -190,154 +139,107 @@ public final class TransactionStore implements Writeable, Releasable {
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(TransactionStore.class);
+    /*
+     * Comparator for comparing items by count, the 1st value is the item id, the 2nd the count
+     */
+    static final Comparator<Tuple<Long, Long>> ITEMS_BY_COUNT_COMPARATOR = new Comparator<Tuple<Long, Long>>() {
+        @Override
+        public int compare(Tuple<Long, Long> o1, Tuple<Long, Long> o2) {
 
-    private static final int INITIAL_ITEM_CAPACITY = PageCacheRecycler.LONG_PAGE_SIZE;
-    private static final int INITIAL_TRANSACTION_CAPACITY = PageCacheRecycler.LONG_PAGE_SIZE;
-    private static final int CAPACITY_INCREMENT = PageCacheRecycler.LONG_PAGE_SIZE;
-
-    private final BigArrays bigArrays;
-
-    // data holders
-    private BytesRefHash items;
-    private LongArray itemCounts;
-    private long totalItemCount;
-    private BytesRefHash transactions;
-    private LongArray transactionCounts;
-    private long totalTransactionCount;
-
-    // re-use bytes ref object
-    private BytesRefBuilder scratchItemBytesRefBuilder = new BytesRefBuilder();
-    private BytesRefBuilder scratchTransactionBytesRefBuilder = new BytesRefBuilder();
-    private BytesRef scratchBytesRef = new BytesRef();
-    private ByteArrayDataInput scratchBytesRefDataInput = new ByteArrayDataInput();
-
-    public TransactionStore(BigArrays bigArrays) {
-        this.bigArrays = bigArrays;
-        // we allocate big arrays so we have to `close` if we fail here or we'll leak them.
-        boolean success = false;
-
-        try {
-            this.items = new BytesRefHash(INITIAL_ITEM_CAPACITY, bigArrays);
-            this.itemCounts = bigArrays.newLongArray(INITIAL_ITEM_CAPACITY, true);
-            this.transactions = new BytesRefHash(INITIAL_TRANSACTION_CAPACITY, bigArrays);
-            this.transactionCounts = bigArrays.newLongArray(INITIAL_TRANSACTION_CAPACITY, true);
-            success = true;
-        } finally {
-            if (false == success) {
-                close();
+            // if counts are equal take the smaller item id first
+            if (o1.v2() == o2.v2()) {
+                return o1.v1().compareTo(o2.v1());
             }
+
+            return o2.v2().compareTo(o1.v2());
         }
+    };
+
+    /**
+     * variant of ITEMS_BY_COUNT_COMPARATOR that reads counts from the given array
+     */
+    static Comparator<Long> compareItems(final LongArray counts) {
+        return (Comparator<Long>) (e1, e2) -> {
+            long count1 = counts.get(e1);
+            long count2 = counts.get(e2);
+
+            if (count1 == count2) {
+                return Long.compare(e1, e2);
+            }
+            return Long.compare(count2, count1);
+        };
     }
 
-    public TransactionStore(StreamInput in, BigArrays bigArrays) throws IOException {
+    // as this is an abstract class, don't account for the shallow size of this class
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator
+        .shallowSizeOfInstance(ByteArrayStreamInput.class);
+
+    protected final BigArrays bigArrays;
+
+    // re-usable objects
+    protected final BytesRef scratchBytesRef = new BytesRef();
+    protected final ByteArrayStreamInput scratchByteArrayStreamInput = new ByteArrayStreamInput();
+
+    TransactionStore(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-
-        // we allocate big arrays so we have to `close` if we fail here or we'll leak them.
-        boolean success = false;
-
-        // these 2 arrays must be closed if cbe throws at construction
-        BytesRefArray itemsArray = null;
-        BytesRefArray transactionsArray = null;
-
-        try {
-            itemsArray = new BytesRefArray(in, bigArrays);
-            this.items = new BytesRefHash(itemsArray, bigArrays);
-            // unassign to not double close on error
-            itemsArray = null;
-
-            long itemCountsSize = in.readVLong();
-            this.itemCounts = bigArrays.newLongArray(itemCountsSize, true);
-            for (int i = 0; i < itemCountsSize; ++i) {
-                itemCounts.set(i, in.readVLong());
-            }
-            this.totalItemCount = in.readVLong();
-            transactionsArray = new BytesRefArray(in, bigArrays);
-            this.transactions = new BytesRefHash(transactionsArray, bigArrays);
-            // unassign to not double close on error
-            transactionsArray = null;
-
-            long transactionsCountsSize = in.readVLong();
-            this.transactionCounts = bigArrays.newLongArray(transactionsCountsSize, true);
-            for (int i = 0; i < transactionsCountsSize; ++i) {
-                transactionCounts.set(i, in.readVLong());
-            }
-            this.totalTransactionCount = in.readVLong();
-
-            success = true;
-        } finally {
-            if (false == success) {
-                try (Releasable releasable = Releasables.wrap(itemsArray, transactionsArray)) {
-                    close();
-                }
-            }
-        }
     }
 
     /**
-     * Add a single transaction to the store.
+     * Get the total number of items
      *
-     * @param keyValues a single transaction consisting of multiple keys(fields) with one or more values.
+     * @return total count of items
      */
-    public void add(Stream<Tuple<String, List<Object>>> keyValues) {
+    abstract long getTotalItemCount();
 
-        // TODO: avoid creating new bytesref for fieldnames??
-        scratchTransactionBytesRefBuilder.clear();
+    /**
+     * Get the total number of transactions
+     *
+     * @return total count of transactions
+     */
+    abstract long getTotalTransactionCount();
 
-        keyValues.forEach(fieldName -> {
-            fieldName.v2().stream().sorted().forEach(fieldValue -> {
-                scratchItemBytesRefBuilder.clear();
+    abstract BytesRefArray getItems();
 
-                // step 1: add the single item to the item list
-                writeString(scratchItemBytesRefBuilder, fieldName.v1());
-                // TODO: change fieldValue into a ByteRef
-                // itemBytesRefBuilder.append(new BytesRef(fieldValue.toString()));
-                // TODO: don't turn numbers into strings
-                writeString(scratchItemBytesRefBuilder, fieldValue.toString());
+    abstract LongArray getItemCounts();
 
-                long id = items.add(scratchItemBytesRefBuilder.get());
+    abstract BytesRefArray getTransactions();
 
-                // for existing keys add returns -1 - curId;
-                if (id < 0) {
-                    id = -1 * (id + 1);
-                }
-
-                if (id >= itemCounts.size()) {
-                    logger.trace("Resizing array for item counts");
-                    itemCounts = bigArrays.resize(itemCounts, itemCounts.size() + CAPACITY_INCREMENT);
-                }
-
-                // step 2: increment the counter
-                itemCounts.increment(id, 1);
-                ++totalItemCount;
-
-                writeSignedVLong(scratchTransactionBytesRefBuilder, id);
-            });
-
-        });
-        long id = transactions.add(scratchTransactionBytesRefBuilder.get());
-        ++totalTransactionCount;
-        if (id < 0) {
-            id = -1 * (id + 1);
-        }
-
-        if (id >= transactionCounts.size()) {
-            transactionCounts = bigArrays.resize(transactionCounts, transactionCounts.size() + CAPACITY_INCREMENT);
-        }
-        transactionCounts.increment(id, 1);
-    }
+    abstract LongArray getTransactionCounts();
 
     /*
-     * Get an item as key value pair.
+     * Get an item decoded as key value pair.
      *
      * @param id the item id
      * @return the item as key value pair
      * TODO: currently field values are hardcoded to strings
      */
-    public Tuple<String, String> getItem(long id) throws IOException {
-        items.get(id, scratchBytesRef);
-        scratchBytesRefDataInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
-        return new Tuple<>(scratchBytesRefDataInput.readString(), scratchBytesRefDataInput.readString());
+    public Tuple<Integer, Object> getItem(long id) throws IOException {
+        getItems().get(id, scratchBytesRef);
+        scratchByteArrayStreamInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
+        return new Tuple<>(scratchByteArrayStreamInput.readVInt(), scratchByteArrayStreamInput.readGenericValue());
+    }
+
+    /**
+     * Get the number of unique transactions.
+     *
+     * @return count of unique transactions
+     */
+    public long getUniqueTransactionCount() {
+        return getTransactions().size();
+    }
+
+    /*
+     * Get an item
+     */
+    public void getItem(long id, BytesRef dest) {
+        getItems().get(id, dest);
+    }
+
+    /*
+     * Get a transaction
+     */
+    public void getTransaction(long id, BytesRef dest) {
+        getTransactions().get(id, dest);
     }
 
     /*
@@ -347,7 +249,7 @@ public final class TransactionStore implements Writeable, Releasable {
      * @return the count of this item
      */
     public long getItemCount(long id) {
-        return itemCounts.get(id);
+        return getItemCounts().get(id);
     }
 
     /*
@@ -357,34 +259,7 @@ public final class TransactionStore implements Writeable, Releasable {
      * @return the count of this transaction
      */
     public long getTransactionCount(long id) {
-        return transactionCounts.get(id);
-    }
-
-    /**
-     * Check if a transaction specified by id contains the item
-     *
-     * @param ids a list of item ids
-     * @param transactionId the transaction id to check
-     * @return true if all ids are part of this transaction or not
-     */
-    public boolean transactionContainAllIds(List<Long> ids, long transactionId) {
-        transactions.get(transactionId, scratchBytesRef);
-        scratchBytesRefDataInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
-
-        int pos = 0;
-        while (scratchBytesRefDataInput.eof() == false) {
-            long item = scratchBytesRefDataInput.readVLong();
-
-            // we can do a linear scan, because we sorted the ids in the transaction in prune, see [ITEM-BOW]
-            if (item == ids.get(pos)) {
-                pos++;
-                if (ids.size() == pos) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return getTransactionCounts().get(id);
     }
 
     /**
@@ -393,252 +268,7 @@ public final class TransactionStore implements Writeable, Releasable {
      * @return count of unique items
      */
     public long getUniqueItemsCount() {
-        return items.size();
-    }
-
-    /**
-     * Get the total number of items
-     *
-     * @return total count of items
-     */
-    public long getTotalItemCount() {
-        return totalItemCount;
-    }
-
-    /**
-     * Get the total number of transactions
-     *
-     * @return total count of transactions
-     */
-    public long getTotalTransactionCount() {
-        return totalTransactionCount;
-    }
-
-    /**
-     * Destructively merges the other transaction store into this transaction store.
-     *
-     * TODO: we merge transaction stores, but technically we don't need the full store including the
-     *       hashtables. Those hashtables are currently re-created after sending them to the coordinator,
-     *       we can save some cycles if we only deserialize the data part and merge just that.
-     *
-     * @param other the other transaction store
-     */
-    public void mergeAndClose(TransactionStore other) {
-        if (items.size() == 0) {
-            this.items.close();
-            this.items = other.items;
-            this.itemCounts.close();
-            this.itemCounts = other.itemCounts;
-            this.transactions.close();
-            this.transactions = other.transactions;
-            this.transactionCounts.close();
-            this.transactionCounts = other.transactionCounts;
-            this.totalItemCount = other.totalItemCount;
-            this.totalTransactionCount = other.totalTransactionCount;
-            other.close();
-            return;
-        }
-
-        // merge the item stores
-        for (int i = 0; i < other.items.capacity(); ++i) {
-            long oldId = other.items.id(i);
-            if (oldId >= 0) {
-                other.items.get(oldId, scratchBytesRef);
-                long newId = items.add(scratchBytesRef);
-                long oldCount = other.itemCounts.get(oldId);
-                // if item already exists in this.items it is a rewrite
-                if (newId < 0) {
-                    newId = -1 * (newId + 1);
-                } else if (newId >= itemCounts.size()) {
-                    itemCounts = bigArrays.resize(itemCounts, itemCounts.size() + CAPACITY_INCREMENT);
-                }
-
-                // reuse the old counter structure to remember how to rewrite
-                other.itemCounts.set(oldId, newId);
-                itemCounts.increment(newId, oldCount);
-            }
-        }
-
-        // early closing, so memory can be freed before we allocate new memory below
-        other.items.close();
-
-        // merge transactions
-        for (int i = 0; i < other.transactions.capacity(); ++i) {
-            long oldId = other.transactions.id(i);
-            if (oldId >= 0) {
-                other.transactions.get(oldId, scratchBytesRef);
-                scratchBytesRefDataInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
-                scratchTransactionBytesRefBuilder.clear();
-
-                while (scratchBytesRefDataInput.eof() == false) {
-                    long item = scratchBytesRefDataInput.readVLong();
-
-                    // rewrite and add to builder
-                    writeSignedVLong(scratchTransactionBytesRefBuilder, other.itemCounts.get(item));
-                }
-                long newId = transactions.add(scratchTransactionBytesRefBuilder.get());
-                if (newId < 0) {
-                    newId = -1 * (newId + 1);
-                } else if (newId >= transactionCounts.size()) {
-                    transactionCounts = bigArrays.resize(transactionCounts, transactionCounts.size() + CAPACITY_INCREMENT);
-                }
-                long oldCount = other.transactionCounts.get(oldId);
-                transactionCounts.increment(newId, oldCount);
-            }
-        }
-
-        totalItemCount += other.totalItemCount;
-        totalTransactionCount += other.totalTransactionCount;
-        other.close();
-    }
-
-    /**
-     * Prune transactions and items according to the given min count
-     *
-     * Prune rewrites the internal data structures by getting rid of items which are
-     * below the given minSupport.
-     *
-     * Performance: In addition it re-arranges transactions in order to execute a
-     * contains operation as linear scan, see [ITEM-BOW].
-     *
-     * Currently this is only used after merging all shard stores.
-     *
-     * TODO: explore whether we could prune per shard based on a heuristic
-     *
-     * @param minSupport the minimum support an item must have to be kept
-     */
-    public void prune(double minSupport) {
-
-        long minCount = (long) (minSupport * totalTransactionCount);
-
-        logger.trace("prune items and transactions, using min count: {}", minCount);
-
-        BytesRefHash prunedItems = null;
-        LongArray prunedItemCounts = null;
-        BytesRefHash prunedTransactions = null;
-        LongArray prunedTransactionCounts = null;
-
-        try {
-            // start with a smaller array as we expect to cut off a looooong tail
-            prunedItems = new BytesRefHash(items.capacity() >> 3, bigArrays);
-            prunedItemCounts = bigArrays.newLongArray(items.capacity() >> 3, true);
-
-            // step 1: prune items
-            for (int i = 0; i < items.capacity(); ++i) {
-                long id = items.id(i);
-                if (id >= 0) {
-                    items.get(id, scratchBytesRef);
-                    long count = itemCounts.get(id);
-                    if (count > minCount) {
-                        long newId = prunedItems.add(scratchBytesRef);
-                        assert newId >= 0 : "found illegal duplicate bytesRef";
-                        if (newId >= prunedItemCounts.size()) {
-                            prunedItemCounts = bigArrays.resize(prunedItemCounts, prunedItemCounts.size() + CAPACITY_INCREMENT);
-                        }
-                        prunedItemCounts.set(newId, count);
-
-                        // remember the new id to rewrite the transactions
-                        itemCounts.set(id, newId);
-                    } else {
-                        // magic -1 marks the item as cut
-                        itemCounts.set(id, -1);
-                    }
-                }
-            }
-
-            logger.trace("Pruned items, before: {}, after: {}", items.size(), prunedItems.size());
-
-            // step 2 prune transactions
-            prunedTransactions = new BytesRefHash(transactions.capacity() >> 3, bigArrays);
-            prunedTransactionCounts = bigArrays.newLongArray(transactions.capacity() >> 3, true);
-            List<Long> itemBuffer = new ArrayList<>();
-
-            for (int i = 0; i < transactions.capacity(); ++i) {
-                long id = transactions.id(i);
-                if (id >= 0) {
-                    transactions.get(id, scratchBytesRef);
-                    scratchBytesRefDataInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
-                    itemBuffer.clear();
-
-                    while (scratchBytesRefDataInput.eof() == false) {
-                        // note: itemCounts is reused as translation table to map the old item id to the new item id
-                        // if the item is mapped to -1, we pruned it in the step above
-                        long item = itemCounts.get(scratchBytesRefDataInput.readVLong());
-                        if (item >= 0) {
-                            // rewrite and add to buffer
-                            itemBuffer.add(item);
-                        }
-                    }
-
-                    // if we did not add any item a transaction might be empty and can be dropped
-                    if (itemBuffer.size() > 0) {
-                        // sort the items backwards by item count, that way we can use a linear scan later [ITEM-BOW]
-                        Collections.sort(itemBuffer, Comparator.comparingLong(prunedItemCounts::get).reversed());
-
-                        scratchTransactionBytesRefBuilder.clear();
-                        itemBuffer.forEach(l -> writeSignedVLong(scratchTransactionBytesRefBuilder, l));
-
-                        long newId = prunedTransactions.add(scratchTransactionBytesRefBuilder.get());
-                        long count = transactionCounts.get(id);
-
-                        // by dropping items previously different transaction can collapse into one
-                        if (newId < 0) {
-                            newId = -1 * (newId + 1);
-                        } else {
-                            if (newId >= prunedTransactionCounts.size()) {
-                                prunedTransactionCounts = bigArrays.resize(
-                                    prunedTransactionCounts,
-                                    prunedTransactionCounts.size() + CAPACITY_INCREMENT
-                                );
-                            }
-                        }
-
-                        prunedTransactionCounts.increment(newId, count);
-                    }
-                }
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("Pruned transactions, before: {}, after: {}", transactions.size(), prunedTransactions.size());
-
-                long bytesBeforePruning = items.ramBytesUsed() + itemCounts.ramBytesUsed() + transactions.ramBytesUsed() + transactionCounts
-                    .ramBytesUsed();
-                long bytesAfterPruning = prunedItems.ramBytesUsed() + prunedItemCounts.ramBytesUsed() + prunedTransactions.ramBytesUsed()
-                    + prunedTransactionCounts.ramBytesUsed();
-
-                logger.trace(
-                    "Pruned item and transactions, memory reclaimed: {}, size of transaction store after pruning: {}",
-                    RamUsageEstimator.humanReadableUnits(bytesBeforePruning - bytesAfterPruning),
-                    RamUsageEstimator.humanReadableUnits(bytesAfterPruning)
-                );
-            }
-
-            items.close();
-            itemCounts.close();
-            transactions.close();
-            transactionCounts.close();
-
-            // swap in the pruned versions
-            items = prunedItems;
-            prunedItems = null;
-            itemCounts = prunedItemCounts;
-            prunedItemCounts = null;
-            transactions = prunedTransactions;
-            prunedTransactions = null;
-            transactionCounts = prunedTransactionCounts;
-            prunedTransactionCounts = null;
-        } finally {
-            Releasables.close(prunedItems, prunedItemCounts, prunedTransactions, prunedTransactionCounts);
-        }
-    }
-
-    /**
-     * Returns a sorted collection of item ids
-     *
-     * @return TopItemIds object
-     */
-    public TopItemIds getTopItemIds() {
-        return getTopItemIds(items.capacity());
+        return getItems().size();
     }
 
     /**
@@ -650,13 +280,16 @@ public final class TransactionStore implements Writeable, Releasable {
     public TopItemIds getTopItemIds(long n) {
         // TODO: heap based and wasteful, this should instead use some lucene magic if possible
         List<Tuple<Long, Long>> idsHelperBuffer = new ArrayList<>();
+        final LongArray itemCounts = getItemCounts();
+
         for (long i = 0; i < itemCounts.size(); ++i) {
             long count = itemCounts.get(i);
             if (count > 0) {
-                idsHelperBuffer.add(new Tuple<Long, Long>(i, count));
+                idsHelperBuffer.add(Tuple.tuple(i, count));
             }
         }
-        idsHelperBuffer.sort((e1, e2) -> e2.v2().compareTo(e1.v2()));
+        // [ITEM-BOW] sort items by count
+        idsHelperBuffer.sort(ITEMS_BY_COUNT_COMPARATOR);
 
         long topN = Math.min(n, idsHelperBuffer.size());
         LongArray sortedIds = bigArrays.newLongArray(topN);
@@ -668,21 +301,12 @@ public final class TransactionStore implements Writeable, Releasable {
     }
 
     /**
-     * Get a traverser object to traverse top items
-     *
-     * @return a top item traverser
-     */
-    public ItemSetTraverser getTopItemIdTraverser() {
-        return new ItemSetTraverser(getTopItemIds());
-    }
-
-    /**
      * Returns a sorted collection of transaction ids
      *
      * @return TopItemIds object
      */
     public TopTransactionIds getTopTransactionIds() {
-        return getTopTransactionIds(transactions.capacity());
+        return getTopTransactionIds(getTransactions().size());
     }
 
     /**
@@ -694,10 +318,12 @@ public final class TransactionStore implements Writeable, Releasable {
     public TopTransactionIds getTopTransactionIds(long n) {
         // TODO: heap based and wasteful, this should instead use some lucene magic
         List<Tuple<Long, Long>> idsHelperBuffer = new ArrayList<>();
+        final LongArray transactionCounts = getTransactionCounts();
+
         for (long i = 0; i < transactionCounts.size(); ++i) {
             long count = transactionCounts.get(i);
             if (count > 0) {
-                idsHelperBuffer.add(new Tuple<Long, Long>(i, count));
+                idsHelperBuffer.add(Tuple.tuple(i, count));
             }
         }
         idsHelperBuffer.sort((e1, e2) -> e2.v2().compareTo(e1.v2()));
@@ -711,59 +337,53 @@ public final class TransactionStore implements Writeable, Releasable {
         return new TopTransactionIds(sortedIds);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        items.getBytesRefs().writeTo(out);
-        long itemCountsSize = items.size();
-        long transactionCountsSize = transactions.size();
-        out.writeVLong(itemCountsSize);
-        for (int i = 0; i < itemCountsSize; ++i) {
-            out.writeVLong(itemCounts.get(i));
-        }
-        out.writeVLong(totalItemCount);
-        transactions.getBytesRefs().writeTo(out);
-        out.writeVLong(transactionCountsSize);
-        for (int i = 0; i < transactionCountsSize; ++i) {
-            out.writeVLong(transactionCounts.get(i));
-        }
-        out.writeVLong(totalTransactionCount);
-    }
-
-    @Override
-    public void close() {
-        Releasables.close(items, itemCounts, transactions, transactionCounts);
-        items = null;
-        itemCounts = null;
-        transactions = null;
-        transactionCounts = null;
-    }
-
-    private static void writeString(BytesRefBuilder builder, String s) {
-        // TODO: expensive way, refactor
-        final BytesRef utf8Result = new BytesRef(s);
-        writeVInt(builder, utf8Result.length);
-        builder.append(utf8Result.bytes, utf8Result.offset, utf8Result.length);
+    /**
+     * Returns a sorted collection of item ids
+     *
+     * @return TopItemIds object
+     */
+    public TopItemIds getTopItemIds() {
+        return getTopItemIds(getItems().size());
     }
 
     /**
-     * helper methods to write signed vlongs, inspired by lucene dataoutput
+     * Get a traverser object to traverse top items
      *
-     * TODO: candidate for re-factoring
+     * @return a top item traverser
      */
-    private static void writeSignedVLong(BytesRefBuilder builder, long i) {
-        while ((i & ~0x7FL) != 0L) {
-            builder.append((byte) ((i & 0x7FL) | 0x80L));
-            i >>>= 7;
-        }
-        builder.append((byte) i);
+    public ItemSetTraverser getTopItemIdTraverser() {
+        return new ItemSetTraverser(getTopItemIds());
     }
 
-    private static void writeVInt(BytesRefBuilder builder, int i) {
-        while ((i & ~0x7F) != 0) {
-            builder.append((byte) ((i & 0x7F) | 0x80));
-            i >>>= 7;
+    /**
+     * Check if a transaction specified by id contains the item
+     *
+     * @param ids a list of item ids
+     * @param transactionId the transaction id to check
+     * @return true if all ids are part of this transaction or not
+     */
+    public boolean transactionContainsAllIds(List<Long> ids, long transactionId) throws IOException {
+        getTransactions().get(transactionId, scratchBytesRef);
+        scratchByteArrayStreamInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
+
+        int pos = 0;
+        while (scratchByteArrayStreamInput.available() > 0) {
+            long item = scratchByteArrayStreamInput.readVLong();
+
+            // we can do a linear scan, because we sorted the ids in the transaction in prune, see [ITEM-BOW]
+            if (item == ids.get(pos)) {
+                pos++;
+                if (ids.size() == pos) {
+                    return true;
+                }
+            }
         }
-        builder.append((byte) i);
+
+        return false;
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + scratchBytesRef.length + scratchByteArrayStreamInput.length();
+    }
 }

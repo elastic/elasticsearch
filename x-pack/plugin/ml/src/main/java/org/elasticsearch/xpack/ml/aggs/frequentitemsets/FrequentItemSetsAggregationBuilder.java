@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuilder<FrequentItemSetsAggregationBuilder> {
+public final class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuilder<FrequentItemSetsAggregationBuilder> {
 
     public static final String NAME = "frequent_items";
 
@@ -168,7 +168,7 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
 
     // this is a leaf only aggregation
     @Override
-    public final FrequentItemSetsAggregationBuilder subAggregations(Builder subFactories) {
+    public FrequentItemSetsAggregationBuilder subAggregations(Builder subFactories) {
         throw new AggregationInitializationException(
             "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
         );

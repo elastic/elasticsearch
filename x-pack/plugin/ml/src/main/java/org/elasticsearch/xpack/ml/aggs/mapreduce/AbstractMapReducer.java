@@ -13,14 +13,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContent.DelegatingMapParams;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -42,37 +44,24 @@ import java.util.stream.Stream;
  * - result output as XContent
  * - named writable magic
  *
- * IMPORTANT: every map reducer must be added to {@link MapReduceNamedContentProvider}
- *
- * @param <MapReduceContext> a context object to be used for collecting and reducing the data of this mapreducer
- * @param <MapReduceResult> the result object that holds the result of reduce
+ * @param <MapContext> context to be used for collecting
+ * @param <MapFinalContext> context after all data of one partition has been mapped
+ * @param <ReduceContext> context to be used for reducing data
+ * @param <Result> the result object that holds the result of this map-reducer
  *
  */
 public abstract class AbstractMapReducer<
-    MR extends AbstractMapReducer<MR, MapReduceContext, MapReduceResult>,
-    MapReduceContext extends Writeable,
-    MapReduceResult extends ToXContent & Writeable> implements NamedWriteable {
+    MapContext extends Closeable,
+    MapFinalContext extends Writeable,
+    ReduceContext extends Closeable,
+    Result extends ToXContent & Writeable> implements NamedWriteable {
 
     private final String aggregationName;
+    private final String mapReducerName;
 
-    protected AbstractMapReducer(String aggregationName) {
+    protected AbstractMapReducer(String aggregationName, String mapReducerName) {
         this.aggregationName = aggregationName;
-    }
-
-    protected AbstractMapReducer(StreamInput in) throws IOException {
-        this.aggregationName = in.readString();
-    }
-
-    /**
-     * Returns the name of the aggregation object, this must match the name of the aggregation builder
-     *
-     * The map-reducer has a writable name, too. Don't mix them up.
-     * The usecase: different versions of a map-reducer in 1 aggregation
-     *
-     * In theory you can also use 1 map-reducer in 2 different aggregations.
-     */
-    public String getAggregationName() {
-        return aggregationName;
+        this.mapReducerName = mapReducerName;
     }
 
     /**
@@ -80,29 +69,27 @@ public abstract class AbstractMapReducer<
      *
      * This is mandatory to create a context object for storing data.
      */
-    protected abstract MapReduceContext doMapInit(BigArrays bigArrays);
+    protected abstract MapContext mapInit(BigArrays bigArrays);
 
     /**
      * Definition of the mapper that gets executed locally on every shard
      *
      * @param keyValues A stream of keys and values, while a value is a list of values.
      */
-    protected abstract MapReduceContext doMap(Stream<Tuple<String, List<Object>>> keyValues, MapReduceContext mapReduceContext);
+    protected abstract MapContext map(Stream<Tuple<Field, List<Object>>> keyValues, MapContext mapReduceContext);
 
     /**
      * Definition of code to execute(optional) after the mapper processed all input.
      *
      */
-    protected MapReduceContext doMapFinalize(MapReduceContext mapReduceContext) {
-        return mapReduceContext;
-    };
+    protected abstract MapFinalContext mapFinalize(MapContext mapReduceContext);
 
     /**
      * Definition of code to execute before the reducer processes any input.
      *
      * This is mandatory to create a result object that holds reduced data.
      */
-    protected abstract MapReduceContext doReduceInit(BigArrays bigArrays);
+    protected abstract ReduceContext reduceInit(BigArrays bigArrays);
 
     /**
      * Definition of the reducer that gets results from every shard
@@ -110,7 +97,7 @@ public abstract class AbstractMapReducer<
      * @param partitions individual map reduce context instances which hold the data
      * @param mapReduceContext the result object create by doReduceInit
      */
-    protected abstract MapReduceContext doReduce(Stream<MapReduceContext> partitions, MapReduceContext mapReduceContext);
+    protected abstract ReduceContext reduce(Stream<MapFinalContext> partitions, ReduceContext mapReduceContext);
 
     /**
      * Definition of the combiner that works as a local reducer, reducing partial data.
@@ -121,17 +108,16 @@ public abstract class AbstractMapReducer<
      * @param mapReduceContext the result object created by doReduceInit
      *
      */
-    protected MapReduceContext doCombine(Stream<MapReduceContext> partitions, MapReduceContext mapReduceContext) {
-        return doReduce(partitions, mapReduceContext);
-    }
+    protected abstract MapFinalContext combine(Stream<MapFinalContext> partitions, ReduceContext mapReduceContext);
 
     /**
      * Definition of code to execute after the reducer processed all input.
      *
-     * @param mapReduceContext the result object returned from doReduce
+     * @param reduceContext the result object returned from doReduce
+     * @param fieldNames list of field names from the input
      * @throws IOException
      */
-    protected abstract MapReduceResult doReduceFinalize(MapReduceContext mapReduceContext) throws IOException;
+    protected abstract Result reduceFinalize(ReduceContext reduceContext, List<String> fieldNames) throws IOException;
 
     /**
      * Definition of code to execute if sampling has been applied.
@@ -139,11 +125,23 @@ public abstract class AbstractMapReducer<
      * You must overwrite this if the results of this map-reducer contains absolute doc counts in any way.
      *
      * @param samplingContext the sampling context
-     * @param mapReduceResult the mapReduceResult to be adjusted for sampling
+     * @param result the mapReduceResult to be adjusted for sampling
      */
-    protected MapReduceResult doFinalizeSampling(SamplingContext samplingContext, MapReduceResult mapReduceResult) {
-        return mapReduceResult;
+    protected Result finalizeSampling(SamplingContext samplingContext, Result result) {
+        return result;
     }
+
+    /**
+     * Definition of code to read map-reduce context from a map-reduce operation from a stream.
+     *
+     * This must be implemented, for writing the context must implement `Writeable`
+     *
+     * @param in the input stream
+     * @param bigArrays instance of BigArrays to use
+     * @return a MapReduceContext
+     * @throws IOException
+     */
+    protected abstract MapFinalContext readMapReduceContext(StreamInput in, BigArrays bigArrays) throws IOException;
 
     /**
      * Definition of code to read results from a map operation from a stream.
@@ -155,102 +153,33 @@ public abstract class AbstractMapReducer<
      * @return a MapReduceContext
      * @throws IOException
      */
-    protected abstract MapReduceContext doReadMapContext(StreamInput in, BigArrays bigArrays) throws IOException;
+    protected abstract Result readResult(StreamInput in, BigArrays bigArrays) throws IOException;
+
+    /**
+     * Extension point to add further information for `profile:true`
+     *
+     * @param add callback to add a string/object pair as debug info
+     */
+    void collectDebugInfo(BiConsumer<String, Object> add) {}
 
     /**
      * Forwarded from {@link InternalAggregation}:
      *
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
+     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
-    boolean mustReduceOnSingleInternalAgg() {
+    final boolean mustReduceOnSingleInternalAgg() {
         return true;
     }
 
-    /**
-     * Methods for MapReduceAggregator and InternalMapReduceAggregation.
-     *
-     * This code assumes that both execute these methods in the right order and therefore the objects are correct.
-     *
-     * (By design MapReduceAggregator and InternalMapReduceAggregation are generic and don't know the internal type)
-     */
+    @Override
+    public final String getWriteableName() {
+        return aggregationName;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(aggregationName);
+        out.writeString(mapReducerName);
     }
-
-    Writeable mapInit(BigArrays bigArrays) {
-        return doMapInit(bigArrays);
-    }
-
-    Writeable map(Stream<Tuple<String, List<Object>>> keyValues, Writeable mapReduceContext) {
-        @SuppressWarnings("unchecked")
-        MapReduceContext context = (MapReduceContext) mapReduceContext;
-
-        return doMap(keyValues, context);
-    }
-
-    Writeable mapFinalize(Writeable mapReduceContext) {
-        @SuppressWarnings("unchecked")
-        MapReduceContext context = (MapReduceContext) mapReduceContext;
-
-        return doMapFinalize(context);
-    };
-
-    Writeable reduceInit(BigArrays bigArrays) {
-        return doReduceInit(bigArrays);
-    }
-
-    Writeable reduce(Stream<Writeable> partitions, Writeable mapReduceContext) {
-        @SuppressWarnings("unchecked")
-        MapReduceContext context = (MapReduceContext) mapReduceContext;
-
-        @SuppressWarnings("unchecked")
-        Stream<MapReduceContext> p = (Stream<MapReduceContext>) partitions;
-
-        return doReduce(p, context);
-    }
-
-    Writeable combine(Stream<Writeable> partitions, Writeable mapReduceContext) {
-        @SuppressWarnings("unchecked")
-        MapReduceContext context = (MapReduceContext) mapReduceContext;
-
-        @SuppressWarnings("unchecked")
-        Stream<MapReduceContext> p = (Stream<MapReduceContext>) partitions;
-
-        return doCombine(p, context);
-    }
-
-    Writeable reduceFinalize(Writeable mapReduceContext) throws IOException {
-        @SuppressWarnings("unchecked")
-        MapReduceContext context = (MapReduceContext) mapReduceContext;
-
-        return doReduceFinalize(context);
-    };
-
-    Writeable finalizeSampling(SamplingContext samplingContext, Writeable mapReduceResult) {
-        @SuppressWarnings("unchecked")
-        MapReduceResult result = (MapReduceResult) mapReduceResult;
-
-        return doFinalizeSampling(samplingContext, result);
-    }
-
-    void writeContext(StreamOutput out, Writeable Writeable) throws IOException {
-        Writeable.writeTo(out);
-    }
-
-    MapReduceContext readMapContext(StreamInput in, BigArrays bigArrays) throws IOException {
-        // TODO: what if this isn't a map context but the result object?
-        // it seems to dangerous to assume that deserialization only happens on partial reduced objects...
-        return doReadMapContext(in, bigArrays);
-    }
-
-    // we know that MapReduceResult implements ToXContent
-    @SuppressWarnings("unchecked")
-    XContentBuilder toXContent(Writeable mapReduceResult, XContentBuilder builder, DelegatingMapParams delegatingMapParams)
-        throws IOException {
-        return ((MapReduceResult) mapReduceResult).toXContent(builder, delegatingMapParams);
-    };
 
 }

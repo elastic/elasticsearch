@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.aggs.mapreduce;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,43 +30,76 @@ import java.util.List;
  */
 public abstract class ValuesExtractor {
 
-    protected final String fieldName;
-    protected final DocValueFormat format;
+    public static class Field implements Writeable {
+        private final String name;
+        private final int id;
 
-    abstract Tuple<String, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException;
+        public Field(String name, int id) {
+            this.name = name;
+            this.id = id;
+        }
 
-    ValuesExtractor(String fieldName, DocValueFormat format) {
-        this.fieldName = fieldName;
+        public String getName() {
+            return name;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeInt(id);
+
+        }
+    };
+
+    private final Field field;
+    private final DocValueFormat format;
+
+    abstract Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException;
+
+    ValuesExtractor(Field field, DocValueFormat format) {
+        this.field = field;
         this.format = format;
     }
 
-    static ValuesExtractor buildBytesExtractor(ValuesSourceConfig config) {
+    public Field getField() {
+        return field;
+    }
+
+    public DocValueFormat getFormat() {
+        return format;
+    }
+
+    static ValuesExtractor buildBytesExtractor(ValuesSourceConfig config, int id) {
         ValuesSource vs = config.getValuesSource();
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
 
-        return new Keyword(fieldName, (Bytes) vs, config.format());
+        return new Keyword(new Field(fieldName, id), (Bytes) vs, config.format());
     }
 
-    static ValuesExtractor buildLongExtractor(ValuesSourceConfig config) {
+    static ValuesExtractor buildLongExtractor(ValuesSourceConfig config, int id) {
         ValuesSource vs = config.getValuesSource();
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
 
         if (Strings.isNullOrEmpty(fieldName)) {
             throw new IllegalArgumentException("scripts are not supported");
         }
-        return new LongValue(fieldName, (Numeric) vs, config.format());
+        return new LongValue(new Field(fieldName, id), (Numeric) vs, config.format());
     }
 
     public static class Keyword extends ValuesExtractor {
         private final ValuesSource.Bytes source;
 
-        Keyword(String fieldName, ValuesSource.Bytes source, DocValueFormat format) {
-            super(fieldName, format);
+        Keyword(Field field, ValuesSource.Bytes source, DocValueFormat format) {
+            super(field, format);
             this.source = source;
         }
 
         @Override
-        public Tuple<String, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
+        public Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
 
             SortedBinaryDocValues values = source.bytesValues(ctx);
 
@@ -73,24 +108,24 @@ public abstract class ValuesExtractor {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(format.format(values.nextValue()));
+                    objects.add(getFormat().format(values.nextValue()));
                 }
-                return new Tuple<>(fieldName, objects);
+                return new Tuple<>(getField(), objects);
             }
-            return new Tuple<>(fieldName, Collections.emptyList());
+            return new Tuple<>(getField(), Collections.emptyList());
         }
     }
 
     public static class LongValue extends ValuesExtractor {
         private final ValuesSource.Numeric source;
 
-        LongValue(String fieldName, ValuesSource.Numeric source, DocValueFormat format) {
-            super(fieldName, format);
+        LongValue(Field field, ValuesSource.Numeric source, DocValueFormat format) {
+            super(field, format);
             this.source = source;
         }
 
         @Override
-        public Tuple<String, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
+        public Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
 
             SortedNumericDocValues values = source.longValues(ctx);
 
@@ -99,11 +134,11 @@ public abstract class ValuesExtractor {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(format.format(values.nextValue()));
+                    objects.add(getFormat().format(values.nextValue()));
                 }
-                return new Tuple<>(fieldName, objects);
+                return new Tuple<>(getField(), objects);
             }
-            return new Tuple<>(fieldName, Collections.emptyList());
+            return new Tuple<>(getField(), Collections.emptyList());
         }
 
     }

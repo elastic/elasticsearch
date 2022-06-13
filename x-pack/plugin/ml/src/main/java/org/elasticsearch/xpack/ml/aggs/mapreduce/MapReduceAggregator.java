@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
@@ -21,57 +22,79 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
 
-public abstract class MapReduceAggregator extends AggregatorBase {
+public abstract class MapReduceAggregator<
+    MapContext extends Closeable,
+    MapFinalContext extends Writeable,
+    ReduceContext extends Closeable,
+    Result extends ToXContent & Writeable> extends AggregatorBase {
 
     private final List<ValuesExtractor> extractors;
-    private final AbstractMapReducer<?, ?, ?> mapReducer;
-    private final BigArrays bigArrays;
-    private final LongObjectPagedHashMap<Writeable> mapReduceContextByBucketOrdinal;
-
+    private final List<String> fieldNames;
+    private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
+    private final BigArrays bigArraysForMapReduce;
+    private final LongObjectPagedHashMap<Object> mapReduceContextByBucketOrdinal;
     private final boolean profiling;
+    private final DelegatingCircuitBreakerService breakerService;
 
     protected MapReduceAggregator(
         String name,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        AbstractMapReducer<?, ?, ?> mapReducer,
+        AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
         List<ValuesSourceConfig> configs
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
-        List<ValuesExtractor> extractors = configs.stream()
-            .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))
-            .collect(Collectors.toList());
+        List<ValuesExtractor> extractors = new ArrayList<>();
+        List<String> fieldNames = new ArrayList<>();
+        int id = 0;
+        for (ValuesSourceConfig c : configs) {
+            ValuesExtractor e = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c, id++);
+            fieldNames.add(e.getField().getName());
+            extractors.add(e);
+        }
 
-        this.extractors = extractors;
+        this.extractors = Collections.unmodifiableList(extractors);
+        this.fieldNames = Collections.unmodifiableList(fieldNames);
         this.mapReducer = mapReducer;
-        this.bigArrays = context.bigArrays();
         this.profiling = context.profiling();
-        this.mapReduceContextByBucketOrdinal = new LongObjectPagedHashMap<>(1, bigArrays);
+
+        // big arrays used for the map reduce context have a lifespan beyond this aggregator, so they can't use the bigarray from the
+        // context. But the non-recycling big array instance does not trip the circuit breaker, so we do a trick here:
+        // We use the non-recycling big array but with the circuit breaker of the context and the counter of the aggregation.
+        // This ensures that we 1st of all have a circuit breaker _and_ that all bytes that are added to the circuit breaker get deducted
+        // later. This is important as otherwise the circuit breaker continues with a wrong count and eventually trips.
+        // (if we would use the big array breaker we would not deduct the counter)
+        this.breakerService = new DelegatingCircuitBreakerService(context.breaker(), this::addRequestCircuitBreakerBytes);
+        this.bigArraysForMapReduce = BigArrays.NON_RECYCLING_INSTANCE.withBreakerService(breakerService).withCircuitBreaking();
+        this.mapReduceContextByBucketOrdinal = new LongObjectPagedHashMap<>(1, context.bigArrays());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMapReduceAggregation(name, metadata(), mapReducer, mapReducer.mapInit(bigArrays), profiling);
+        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, null, null, fieldNames, profiling);
     }
 
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), mapReducer, getMapReduceContext(ordIdx), profiling);
+            results[ordIdx] = buildAggregation(ordIdx);
         }
+
         return results;
     }
 
@@ -80,39 +103,68 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
+                SetOnce<IOException> firstException = new SetOnce<>();
+
                 mapReducer.map(extractors.stream().map(extractor -> {
                     try {
                         return extractor.collectValues(ctx, doc);
                     } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                        firstException.trySet(e);
+                        // ignored in AbstractMapReducer
+                        return null;
                     }
                 }), getMapReduceContext(owningBucketOrd));
+
+                if (firstException.get() != null) {
+                    throw firstException.get();
+                }
             }
         };
     }
 
     @Override
+    public void doPostCollection() {
+        for (long ordIdx = 0; ordIdx < mapReduceContextByBucketOrdinal.size(); ordIdx++) {
+            MapContext context = getMapReduceContext(ordIdx);
+            mapReduceContextByBucketOrdinal.put(ordIdx, mapReducer.mapFinalize(context));
+        }
+    }
+
+    @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("map_reducer", mapReducer.getWriteableName());
+        mapReducer.collectDebugInfo(add);
     }
 
     @Override
     protected void doClose() {
-        // TODO: the initialized MapReduceContext objects could be releasables, if something goes wrong, who is cleaning them up??
+        // disconnect the aggregation context circuit breaker, so big arrays used in results can be passed
+        if (breakerService != null) {
+            breakerService.disconnect();
+        }
+
         Releasables.close(mapReduceContextByBucketOrdinal);
     }
 
-    private Writeable getMapReduceContext(long bucketOrd) {
-        Writeable context = mapReduceContextByBucketOrdinal.get(bucketOrd);
+    private MapContext getMapReduceContext(long bucketOrd) {
+        @SuppressWarnings("unchecked")
+        MapContext context = (MapContext) mapReduceContextByBucketOrdinal.get(bucketOrd);
         if (context == null) {
-
-            // TODO: as long as we haven't clarified who is closing, we can't use big arrays from the context
-            context = mapReducer.mapInit(BigArrays.NON_RECYCLING_INSTANCE);
-
-            // context = mapReducer.mapInit(bigArrays);
+            context = mapReducer.mapInit(bigArraysForMapReduce);
             mapReduceContextByBucketOrdinal.put(bucketOrd, context);
         }
 
         return context;
     }
+
+    private InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        @SuppressWarnings("unchecked")
+        MapFinalContext context = (MapFinalContext) mapReduceContextByBucketOrdinal.get(owningBucketOrdinal);
+        if (context == null) {
+            return buildEmptyAggregation();
+        }
+
+        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fieldNames, profiling);
+    }
+
 }

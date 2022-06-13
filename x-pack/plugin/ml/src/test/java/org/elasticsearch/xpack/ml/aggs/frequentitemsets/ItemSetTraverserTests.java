@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
 import org.junit.After;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ public class ItemSetTraverserTests extends ESTestCase {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
-    private TransactionStore transactionStore = null;
+    private HashBasedTransactionStore transactionStore = null;
     private ItemSetTraverser it = null;
 
     @After
@@ -37,21 +38,21 @@ public class ItemSetTraverserTests extends ESTestCase {
     }
 
     public void testIteration() throws IOException {
-        transactionStore = new TransactionStore(mockBigArrays());
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(
             Stream.of(
-                tuple("k", List.of("a", "d", "f")),
-                tuple("k", List.of("a", "c", "d", "e")),
-                tuple("k", List.of("b", "d")),
-                tuple("k", List.of("b", "c", "d")),
-                tuple("k", List.of("b", "c")),
-                tuple("k", List.of("a", "b", "d")),
-                tuple("k", List.of("b", "d", "e")),
-                tuple("k", List.of("b", "c", "e", "g")),
-                tuple("k", List.of("c", "d", "f")),
-                tuple("k", List.of("a", "b", "d"))
+                tuple(new Field("k", 0), List.of("a", "d", "f")),
+                tuple(new Field("k", 0), List.of("a", "c", "d", "e")),
+                tuple(new Field("k", 0), List.of("b", "d")),
+                tuple(new Field("k", 0), List.of("b", "c", "d")),
+                tuple(new Field("k", 0), List.of("b", "c")),
+                tuple(new Field("k", 0), List.of("a", "b", "d")),
+                tuple(new Field("k", 0), List.of("b", "d", "e")),
+                tuple(new Field("k", 0), List.of("b", "c", "e", "g")),
+                tuple(new Field("k", 0), List.of("c", "d", "f")),
+                tuple(new Field("k", 0), List.of("a", "b", "d"))
             )
         );
 
@@ -77,72 +78,72 @@ public class ItemSetTraverserTests extends ESTestCase {
 
         assertTrue(it.next());
         assertEquals("d", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(1, it.getDepth());
+        assertEquals(1, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("b", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(2, it.getDepth());
+        assertEquals(2, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("c", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(3, it.getDepth());
+        assertEquals(3, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("a", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("e", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(6, it.getDepth());
+        assertEquals(6, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(7, it.getDepth());
+        assertEquals(7, it.getNumberOfItems());
 
         // branch row 2
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(6, it.getDepth());
+        assertEquals(6, it.getNumberOfItems());
 
         // branch row 3
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(6, it.getDepth());
+        assertEquals(6, it.getNumberOfItems());
 
         // branch row 4
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // branch row 5
         assertTrue(it.next());
         assertEquals("e", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(6, it.getDepth());
+        assertEquals(6, it.getNumberOfItems());
 
         // branch row 6
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // branch row 7
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // branch row 8
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
 
         int furtherSteps = 0;
         while (it.next()) {
@@ -153,21 +154,21 @@ public class ItemSetTraverserTests extends ESTestCase {
     }
 
     public void testPruning() throws IOException {
-        transactionStore = new TransactionStore(mockBigArrays());
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(
             Stream.of(
-                tuple("k", List.of("a", "d", "f")),
-                tuple("k", List.of("a", "c", "d", "e")),
-                tuple("k", List.of("b", "d")),
-                tuple("k", List.of("b", "c", "d")),
-                tuple("k", List.of("b", "c")),
-                tuple("k", List.of("a", "b", "d")),
-                tuple("k", List.of("b", "d", "e")),
-                tuple("k", List.of("b", "c", "e", "g")),
-                tuple("k", List.of("c", "d", "f")),
-                tuple("k", List.of("a", "b", "d"))
+                tuple(new Field("k", 0), List.of("a", "d", "f")),
+                tuple(new Field("k", 0), List.of("a", "c", "d", "e")),
+                tuple(new Field("k", 0), List.of("b", "d")),
+                tuple(new Field("k", 0), List.of("b", "c", "d")),
+                tuple(new Field("k", 0), List.of("b", "c")),
+                tuple(new Field("k", 0), List.of("a", "b", "d")),
+                tuple(new Field("k", 0), List.of("b", "d", "e")),
+                tuple(new Field("k", 0), List.of("b", "c", "e", "g")),
+                tuple(new Field("k", 0), List.of("c", "d", "f")),
+                tuple(new Field("k", 0), List.of("a", "b", "d"))
             )
         );
 
@@ -195,19 +196,19 @@ public class ItemSetTraverserTests extends ESTestCase {
 
         assertTrue(it.next());
         assertEquals("d", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(1, it.getDepth());
+        assertEquals(1, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("b", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(2, it.getDepth());
+        assertEquals(2, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("c", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(3, it.getDepth());
+        assertEquals(3, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("a", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("e", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // now prune the tree
         it.prune();
@@ -215,10 +216,10 @@ public class ItemSetTraverserTests extends ESTestCase {
         // branch row 3
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(6, it.getDepth());
+        assertEquals(6, it.getNumberOfItems());
 
         // prune, which actually is ineffective, as we would go up anyway
         it.prune();
@@ -226,12 +227,12 @@ public class ItemSetTraverserTests extends ESTestCase {
         // branch row 4
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // branch row 5
         assertTrue(it.next());
         assertEquals("e", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
 
         // prune
         it.prune();
@@ -239,10 +240,10 @@ public class ItemSetTraverserTests extends ESTestCase {
         // branch row 7
         assertTrue(it.next());
         assertEquals("f", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(4, it.getDepth());
+        assertEquals(4, it.getNumberOfItems());
         assertTrue(it.next());
         assertEquals("g", transactionStore.getItem(it.getItemId()).v2());
-        assertEquals(5, it.getDepth());
+        assertEquals(5, it.getNumberOfItems());
 
         // prune aggressively
         it.prune();

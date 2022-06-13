@@ -33,10 +33,10 @@ class ItemSetTraverser implements Releasable {
 
     // stack implementation: to avoid object churn this is not implemented as classical stack, but optimized for re-usage
     // non-optimized: Stack<TransactionStore.TopItemIds.IdIterator> itemIterators = new Stack<>();
-    private List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
-    private int stackPosition = 0;
+    private final List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
+    private final Stack<Long> itemIdStack = new Stack<>();
 
-    private Stack<Long> itemIdStack = new Stack<>();
+    private int stackPosition = 0;
 
     ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
         this.topItemIds = topItemIds;
@@ -45,13 +45,18 @@ class ItemSetTraverser implements Releasable {
         itemIterators.add(topItemIds.iterator());
     }
 
-    public boolean hasNext() {
+    /**
+     * Return true if the iterator is at a leaf, which means it would backtrack on next()
+     *
+     * @return true if on a leaf
+     */
+    public boolean atLeaf() {
         // check if we are already exhausted
         // non-optimized: itemIterators.isEmpty()
         if (stackPosition == -1) {
             return false;
         }
-        return itemIterators.get(stackPosition).hasNext();
+        return itemIterators.get(stackPosition).hasNext() == false;
     }
 
     public boolean next() {
@@ -102,7 +107,7 @@ class ItemSetTraverser implements Releasable {
         return itemIdStack;
     }
 
-    public int getDepth() {
+    public int getNumberOfItems() {
         return stackPosition;
     }
 

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -15,13 +18,41 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Factory for frequent items aggregation
+ *
+ * Note about future readiness:
+ *
+ * - for improvements that do not require fundamental changes over the wire, use the usual BWC
+ *   translation layers
+ * - for bigger changes, implement a new map reducer and use it iff all nodes in a cluster
+ *   got upgraded, however as long as a cluster has older nodes return the old the map-reducer,
+ *   todo's:
+ *   - add minimum node version to the AggregationContext which is created by {@link SearchService}.
+ *     SearchService has access to cluster state.
+ *   - wrap the new map-reducer in a new Aggregator and return the instance that all nodes in a
+ *     cluster understand
+ *   - add code to return the correct result reader in getResultReader below
+ */
 public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
+
+    // reader that supports different versions, put here to avoid making internals public
+    public static Writeable.Reader<InternalMapReduceAggregation<?, ?, ?, ?>> getResultReader() {
+        return (in -> new InternalMapReduceAggregation<>(in, (mapReducerReader) -> {
+            String mapReducerName = in.readString();
+            if (EclatMapReducer.NAME.equals(mapReducerName)) {
+                return new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, in);
+            }
+            throw new AggregationExecutionException("Unknown map reducer [" + mapReducerName + "]");
+        }));
+    }
 
     private final List<MultiValuesSourceFieldConfig> fields;
     private final double minimumSupport;
@@ -65,7 +96,8 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 )
             );
         }
-        return new FrequentItemSetsAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
+
+        return new EclatFrequentItemSetAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
     }
 
 }

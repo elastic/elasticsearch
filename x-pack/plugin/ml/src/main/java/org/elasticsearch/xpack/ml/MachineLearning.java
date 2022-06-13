@@ -280,11 +280,10 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvid
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregatorFactory;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
@@ -1472,13 +1471,12 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
-                ),
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
             new AggregationSpec(
                 FrequentItemSetsAggregationBuilder.NAME,
                 FrequentItemSetsAggregationBuilder::new,
                 FrequentItemSetsAggregationBuilder.PARSER
-            ).addResultReader(InternalMapReduceAggregation::new)
+            ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
                 .setAggregatorRegistrar(s -> s.registerUsage(FrequentItemSetsAggregationBuilder.NAME))
         );
     }
@@ -1616,9 +1614,6 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
-
-        // map reducers
-        namedWriteables.addAll(new MapReduceNamedContentProvider().getNamedWriteables());
 
         return namedWriteables;
     }

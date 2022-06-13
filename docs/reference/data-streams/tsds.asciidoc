@@ -33,11 +33,8 @@ A TSDS works like a regular data stream with some key differences:
 the <<time-series-mode,`index_mode: time_series`>> option. This option enables
 most TSDS-related functionality.
 
-//* In addition to a `@timestamp`, each document in a TSDS must contain one or
-//more <<time-series-dimension,dimension fields>>. The matching index template for
-//a TSDS must contain mappings for at least one `keyword` dimension.
 * In addition to a `@timestamp`, each document in a TSDS must contain one or
-more dimension fields. The matching index template for
+more <<time-series-dimension,dimension fields>>. The matching index template for
 a TSDS must contain mappings for at least one `keyword` dimension.
 +
 TSDS documents also typically

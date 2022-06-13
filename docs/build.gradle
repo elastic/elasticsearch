@@ -63,7 +63,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
-    systemProperty 'es.TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED', 'true'
     keystorePassword 'keystore-password'
   }
 

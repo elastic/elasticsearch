@@ -33,9 +33,11 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -122,7 +124,12 @@ public class LogConfigurator {
             // whether or not the error listener check failed we can remove the listener now
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
+        configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+    }
+
+    private static void configureESLogging() {
+        LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 
     /**

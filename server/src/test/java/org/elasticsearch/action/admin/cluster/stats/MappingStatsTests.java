@@ -79,6 +79,12 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                 "keyword3": {
                     "type": "keyword",
                     "script": %s
+                },
+                "vector1" : {
+                    "type": "dense_vector",
+                    "index": true,
+                    "dims": 100,
+                    "similarity": "dot_product"
                 }
             }
         }""";
@@ -99,6 +105,14 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             {
               "mappings" : {
                 "field_types" : [
+                  {
+                    "name" : "dense_vector",
+                    "count" : 2,
+                    "index_count" : 2,
+                    "indexed_vector_count" : 2,
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100
+                  },
                   {
                     "name" : "keyword",
                     "count" : 4,
@@ -198,6 +212,14 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             {
               "mappings" : {
                 "field_types" : [
+                  {
+                    "name" : "dense_vector",
+                    "count" : 3,
+                    "index_count" : 3,
+                    "indexed_vector_count" : 3,
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100
+                  },
                   {
                     "name" : "keyword",
                     "count" : 6,
@@ -372,6 +394,48 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         }
 
         return new MappingStats(fieldTypes, runtimeFieldTypes);
+    }
+
+    public void testDenseVectorType() {
+        String mapping = """
+            {
+              "properties": {
+                "vector1": {
+                  "type": "dense_vector",
+                  "dims": 3
+                },
+                "vector2": {
+                  "type": "dense_vector",
+                  "index": false,
+                  "dims": 3
+                },
+                "vector3": {
+                  "type": "dense_vector",
+                  "dims": 768,
+                  "index": true,
+                  "similarity": "dot_product"
+                },
+                "vector4": {
+                  "type": "dense_vector",
+                  "dims": 1024,
+                  "index": true,
+                  "similarity": "cosine"
+                }
+              }
+            }""";
+        int indicesCount = 3;
+        IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
+        DenseVectorFieldStats expectedStats = new DenseVectorFieldStats("dense_vector");
+        expectedStats.count = 4 * indicesCount;
+        expectedStats.indexCount = indicesCount;
+        expectedStats.indexedVectorCount = 2 * indicesCount;
+        expectedStats.indexedVectorDimMin = 768;
+        expectedStats.indexedVectorDimMax = 1024;
+        assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
     public void testAccountsRegularIndices() {

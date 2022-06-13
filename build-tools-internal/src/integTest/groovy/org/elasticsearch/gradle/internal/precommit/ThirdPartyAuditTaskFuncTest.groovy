@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 
-import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath
+import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarJdkClasspath
 
 class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
 
@@ -154,7 +154,7 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
         setupJarJdkClasspath(
                 dir('local-repo/org/elasticsearch/elasticsearch-core/current/'),
                 "> Audit of third party dependencies failed:" + "   Jar Hell with the JDK:" + "    * java.lang.String"
-        );
+        )
         buildFile << """
             dependencies {
               jdkJarHell 'org.elasticsearch:elasticsearch-core:current'

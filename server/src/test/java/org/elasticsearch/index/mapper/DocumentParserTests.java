@@ -1904,8 +1904,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {
               "metrics.service.time" : 10,
               "metrics.service.time.max" : 500,
-              "metrics.service.time.min" : 1,
-              "metrics.object.inner.field" : 1,
               "metrics.service.test.with.dots" : "value"
             }
             """));
@@ -1916,9 +1914,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time.max"));
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.test.with.dots"));
 
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
     }
 
     public void testSubobjectsFalseStructuredPath() throws Exception {
@@ -1957,7 +1955,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNoSubobjects(doc);
     }
 
-    public void testSubobjectsFalseMixedPaths() throws Exception {
+    public void testSubobjectsFalseMixedSubobjectPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
@@ -2026,10 +2024,93 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ObjectMapper innerObject = (ObjectMapper) inner;
         assertNotNull(innerObject.getMapper("field"));
 
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.min"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+        assertNotNull(doc.rootDoc().getField("metrics.object.inner.field"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.min"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+    }
+
+    public void testSubobjectsFalseArrayOfObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics").field("type", "object").field("subobjects", false).endObject())
+        );
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+            {
+              "metrics.service.time": [
+                {
+                  "max" : 1000
+                }
+              ]
+            }
+            """)));
+        assertEquals(
+            "Object [metrics] has subobjects set to false hence it does not support inner object [service.time]",
+            iae.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseParseGeoPoint() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("location");
+                    b.field("type", "geo_point");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics": {
+                "location" : {
+                  "lat": 41.12,
+                  "lon": -71.34
+                }
+              }
+            }
+            """));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.location"));
+        assertNull(parsedDocument.dynamicMappingsUpdate());
+    }
+
+    public void testSubobjectsFalseParentDynamicFalse() throws Exception {
+        // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
+        // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("dynamic", false);
+                b.startObject("properties");
+                {
+                    b.startObject("service");
+                    b.field("type", "object").field("subobjects", false);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : 10,
+                  "time.max" : 500
+                }
+              }
+            }
+            """));
+
+        assertNull(doc.rootDoc().getField("time"));
+        assertNull(doc.rootDoc().getField("time.max"));
+        assertNull(doc.dynamicMappingsUpdate());
     }
 
     public void testWriteToFieldAlias() throws Exception {

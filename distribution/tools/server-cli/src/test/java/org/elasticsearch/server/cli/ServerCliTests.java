@@ -109,7 +109,17 @@ public class ServerCliTests extends CommandTestCase {
         Path pidParentFile = createTempFile();
         assertUsage(containsString("exists but is not a directory"), "-p", pidParentFile.resolve("pid").toString());
         assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
+    }
 
+    public void testPidDirectories() throws Exception {
+        Path tmpDir = createTempDir();
+
+        Path pidFileArg = tmpDir.resolve("pid");
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
+        assertOk("-p", pidFileArg.toString());
+
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(esHomeDir.resolve("pid").toAbsolutePath().toString()));
+        assertOk("-p", "pid");
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
@@ -226,6 +236,20 @@ public class ServerCliTests extends CommandTestCase {
         assertAutoConfigError(ExitCodes.NOOP, ExitCodes.OK);
     }
 
+    public void testSyncPlugins() throws Exception {
+        AtomicBoolean syncPluginsCalled = new AtomicBoolean(false);
+        syncPluginsCallback = (t, options, env, processInfo) -> syncPluginsCalled.set(true);
+        assertOk();
+        assertThat(syncPluginsCalled.get(), is(true));
+    }
+
+    public void testSyncPluginsError() throws Exception {
+        syncPluginsCallback = (t, options, env, processInfo) -> { throw new UserException(ExitCodes.CONFIG, "sync plugins failed"); };
+        int gotMainExitCode = executeMain();
+        assertThat(gotMainExitCode, equalTo(ExitCodes.CONFIG));
+        assertThat(terminal.getErrorOutput(), containsString("sync plugins failed"));
+    }
+
     public void assertKeystorePassword(String password) throws Exception {
         terminal.reset();
         boolean hasPassword = password != null && password.isEmpty() == false;
@@ -271,20 +295,36 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
+    public void testServerExitsNonZero() throws Exception {
+        mockServerExitCode = 140;
+        int exitCode = executeMain();
+        assertThat(exitCode, equalTo(140));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
     Consumer<ServerArgs> argsValidator;
     private final MockServerProcess mockServer = new MockServerProcess();
+    int mockServerExitCode = 0;
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
+
+    interface SyncPluginsMethod {
+        void syncPlugins(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
+    }
+
+    SyncPluginsMethod syncPluginsCallback;
+    private final MockSyncPluginsCli SYNC_PLUGINS_CLI = new MockSyncPluginsCli();
 
     @Before
     public void resetCommand() {
         argsValidator = null;
         autoConfigCallback = null;
+        syncPluginsCallback = null;
+        mockServerExitCode = 0;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -305,6 +345,24 @@ public class ServerCliTests extends CommandTestCase {
             // TODO: fake errors, check password from terminal, allow tests to make elasticsearch.yml change
             if (autoConfigCallback != null) {
                 autoConfigCallback.autoconfig(terminal, options, env, processInfo);
+            }
+        }
+    }
+
+    private class MockSyncPluginsCli extends EnvironmentAwareCommand {
+        MockSyncPluginsCli() {
+            super("mock sync plugins tool");
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
+            fail("Called wrong execute method, must call the one that takes already parsed env");
+        }
+
+        @Override
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+            if (syncPluginsCallback != null) {
+                syncPluginsCallback.syncPlugins(terminal, options, env, processInfo);
             }
         }
     }
@@ -330,9 +388,10 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public void waitFor() {
+        public int waitFor() {
             assert waitForCalled == false;
             waitForCalled = true;
+            return mockServerExitCode;
         }
 
         @Override
@@ -351,12 +410,16 @@ public class ServerCliTests extends CommandTestCase {
     @Override
     protected Command newCommand() {
         return new ServerCli() {
-
             @Override
             protected Command loadTool(String toolname, String libs) {
-                assertThat(toolname, equalTo("auto-configure-node"));
-                assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
-                return AUTO_CONFIG_CLI;
+                if (toolname.equals("auto-configure-node")) {
+                    assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
+                    return AUTO_CONFIG_CLI;
+                } else if (toolname.equals("sync-plugins")) {
+                    assertThat(libs, equalTo("lib/tools/plugin-cli"));
+                    return SYNC_PLUGINS_CLI;
+                }
+                throw new AssertionError("Unknown tool: " + toolname);
             }
 
             @Override
@@ -369,5 +432,4 @@ public class ServerCliTests extends CommandTestCase {
             }
         };
     }
-
 }

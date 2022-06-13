@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -69,6 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.blobstore.testkit.BlobAnalyzeAction.MAX_ATOMIC_WRITE_SIZE;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
@@ -584,7 +584,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         fail(repositoryVerificationException);
                     }
                 } catch (Exception e) {
-                    logger.debug(new ParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
+                    logger.debug(() -> format("failure during cleanup of [%s:%s]", request.getRepositoryName(), blobPath), e);
                     fail(e);
                 }
             }

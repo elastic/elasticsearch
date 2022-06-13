@@ -21,6 +21,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
 
     requires com.sun.jna;
     requires hppc;
@@ -44,7 +45,6 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queries;
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
-    requires org.apache.lucene.spatial3d;
     requires org.apache.lucene.suggest;
 
     exports org.elasticsearch;
@@ -141,7 +141,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.termvectors;
     exports org.elasticsearch.action.update;
     exports org.elasticsearch.bootstrap;
-    exports org.elasticsearch.bootstrap.plugins;
     exports org.elasticsearch.client.internal;
     exports org.elasticsearch.client.internal.node;
     exports org.elasticsearch.client.internal.support;
@@ -290,7 +289,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.document;
     exports org.elasticsearch.rest.action.ingest;
     exports org.elasticsearch.rest.action.search;
-    exports org.elasticsearch.rollup;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.search;
@@ -354,4 +352,5 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
+    provides org.apache.logging.log4j.util.PropertySource with org.elasticsearch.common.logging.ESSystemPropertiesPropertySource;
 }

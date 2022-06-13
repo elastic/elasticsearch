@@ -1,7 +1,7 @@
 pr: 87233
 summary: Remove `apm_user` role
 area: Authorization
-type: breaking
+type: deprecation
 issues: []
 breaking:
   title: Remove `apm_user` role
@@ -10,3 +10,9 @@ breaking:
     use asciidoc.
   impact: Please describe the impact of this change to users
   notable: false
+deprecation:
+  title: Remove `apm_user` role
+  area: Authorization
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

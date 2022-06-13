@@ -90,11 +90,11 @@ public class BytesRestResponse extends RestResponse {
                 level = Level.DEBUG;
             }
 
-            SUPPRESSED_ERROR_LOGGER.log(level, () -> Strings.format(
-                "path: {}, params: {}",
-                channel.request().rawPath(),
-                channel.request().params()
-            ), e);
+            SUPPRESSED_ERROR_LOGGER.log(
+                level,
+                () -> Strings.format("path: {}, params: {}", channel.request().rawPath(), channel.request().params()),
+                e
+            );
         }
         this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {

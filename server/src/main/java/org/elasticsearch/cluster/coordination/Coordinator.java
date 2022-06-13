@@ -302,7 +302,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
                 if (logger.isDebugEnabled()) {
-                    //TODO this is a workaround for log4j's Supplier. We should remove this, once using ES logging api
+                    // TODO this is a workaround for log4j's Supplier. We should remove this, once using ES logging api
                     logger.info(() -> message.get(), e);
                 } else {
                     logger.info(() -> message.get());

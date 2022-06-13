@@ -411,6 +411,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
+            Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 if (node.getLocalNode().isMasterNode()) {
                     node.disconnect();
@@ -418,7 +419,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             }
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
-                if (node.getLocalNode().isMasterNode()) {
+                if (currentLeader.equals(node) == false) { // The current leader still thinks it is leader
                     DiscoveryNodes lastAcceptedNodes = node.coordinator.getLastAcceptedState().nodes();
                     /*
                      * The following has the effect of making the PeerFinder say that there is a leader, even though there is not. It is

@@ -365,8 +365,7 @@ public class AnalyticsProcessManager {
                 LOGGER.info("[{}] Closed process", configId);
             } else {
                 LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-                String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage())
-                    .getFormattedMessage();
+                String errorMsg = format("[%s] Error closing data frame analyzer process [%s]", configId, e.getMessage());
                 processContext.setFailureReason(errorMsg);
             }
         }

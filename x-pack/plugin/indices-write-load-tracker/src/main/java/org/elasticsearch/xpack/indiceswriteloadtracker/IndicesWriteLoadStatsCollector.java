@@ -62,7 +62,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         return parentDataStream != null && index.equals(parentDataStream.getWriteIndex());
     }
 
-    List<ShardWriteLoadHistogramSnapshot> getWriteLoadHistogramsSnapshotAndReset() {
+    List<ShardWriteLoadHistogramSnapshot> getWriteLoadHistogramSnapshotsAndReset() {
         final var shardWriteLoadDistributions = histograms.values()
             .stream()
             .map(ShardWriteLoadHistogram::getWriteLoadHistogramSnapshotAndReset)

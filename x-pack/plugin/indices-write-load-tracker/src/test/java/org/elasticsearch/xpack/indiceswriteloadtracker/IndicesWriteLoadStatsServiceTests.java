@@ -187,7 +187,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<ShardWriteLoadHistogramSnapshot> getWriteLoadHistogramsSnapshotAndReset() {
+        public List<ShardWriteLoadHistogramSnapshot> getWriteLoadHistogramSnapshotsAndReset() {
             getAndResetCalls.incrementAndGet();
             return Collections.emptyList();
         }

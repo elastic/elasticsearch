@@ -165,7 +165,7 @@ class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
         }
 
         try {
-            final var writeLoadHistograms = indexShardWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var writeLoadHistograms = indexShardWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
             indicesWriteLoadStore.putAsync(writeLoadHistograms);
         } catch (Exception e) {
             logger.warn("Unable to store shard write load distributions", e);

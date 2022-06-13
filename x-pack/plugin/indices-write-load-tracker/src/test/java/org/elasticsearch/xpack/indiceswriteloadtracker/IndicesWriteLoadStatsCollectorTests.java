@@ -110,8 +110,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
                 assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(0L)));
             }
-            final var shardLoadDistributions = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
-            assertThat(shardLoadDistributions, is(empty()));
+            final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+            assertThat(shardLoadHistogramSnapshots, is(empty()));
         }
     }
 
@@ -150,26 +150,27 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             }
 
             {
-                final var shardLoadDistributions = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
-                assertThat(shardLoadDistributions, hasSize(1));
-                final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
-                final var indexingLoadDistribution = shardWriteLoadDistribution.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadDistribution.max(), is(closeTo(maxCPUsUsed, 0.5)));
-                assertThat(indexingLoadDistribution.p90(), is(lessThanOrEqualTo(indexingLoadDistribution.max())));
-                assertThat(indexingLoadDistribution.p50(), is(lessThanOrEqualTo(indexingLoadDistribution.p90())));
+                assertThat(shardLoadHistogramSnapshots, hasSize(1));
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+                // TODO: the underlying histogram do not have enough precision
+                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 3.0)));
+                assertThat(indexingLoadHistogramSnapshot.p90(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.max())));
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.p90())));
             }
 
             {
                 // We didn't have any readings after the previous reset
-                final var shardLoadDistributions = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
-                assertThat(shardLoadDistributions, hasSize(1));
-                final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
-                final var indexingLoadDistribution = shardWriteLoadDistribution.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadDistribution.max(), is(equalTo(0.0)));
-                assertThat(indexingLoadDistribution.p90(), is(equalTo(0.0)));
-                assertThat(indexingLoadDistribution.p50(), is(equalTo(0.0)));
+                assertThat(shardLoadHistogramSnapshots, hasSize(1));
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+                assertThat(indexingLoadHistogramSnapshot.max(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
             }
         }
     }
@@ -200,7 +201,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
 
-            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
@@ -249,7 +250,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(120).millis())));
 
-            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
@@ -286,10 +287,10 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             assertThat(shard.getTotalDeleteTimeInNanos(), is(greaterThan(0L)));
 
-            final var shardLoadHistogram = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
-            assertThat(shardLoadHistogram, hasSize(1));
-            final var shardWriteLoadDistribution = shardLoadHistogram.get(0);
+            assertThat(shardLoadHistograms, hasSize(1));
+            final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
             assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
         }
@@ -314,7 +315,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
 
-            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
@@ -322,7 +323,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             indicesWriteLoadStatsCollector.afterIndexShardClosed(shard.shardId(), shard, shard.indexSettings().getSettings());
 
-            assertThat(indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset(), is(empty()));
+            assertThat(indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset(), is(empty()));
         }
     }
 
@@ -370,11 +371,11 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
 
-            final var shardLoadDistributions = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
-            assertThat(shardLoadDistributions, hasSize(1));
-            final var shardWriteLoadDistribution = shardLoadDistributions.get(0);
-            assertThat(shardWriteLoadDistribution.shardId(), is(equalTo(firstDataStreamShard.shardId())));
+            assertThat(shardLoadHistogramSnapshots, hasSize(1));
+            final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+            assertThat(shardWriteLoadHistogramSnapshot.shardId(), is(equalTo(firstDataStreamShard.shardId())));
 
             // take some new samples before rolling over
             for (int i = 0; i < 10; i++) {
@@ -409,18 +410,18 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
 
-            final var writeLoadDistributionAfterRollOver = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
-            assertThat(writeLoadDistributionAfterRollOver, hasSize(2));
+            final var writeLoadHistogramAfterRollOver = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+            assertThat(writeLoadHistogramAfterRollOver, hasSize(2));
             assertThat(
-                writeLoadDistributionAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(firstDataStreamIndex)),
+                writeLoadHistogramAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(firstDataStreamIndex)),
                 is(true)
             );
-            assertThat(writeLoadDistributionAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(rolledOverIndex)), is(true));
+            assertThat(writeLoadHistogramAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(rolledOverIndex)), is(true));
 
-            final var writeLoadAfterRolloverCleanup = indicesWriteLoadStatsCollector.getWriteLoadHistogramsSnapshotAndReset();
+            final var writeLoadAfterRolloverCleanup = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
             assertThat(writeLoadAfterRolloverCleanup, hasSize(1));
-            final var shardWriteLoadDistributionAfterRollover = writeLoadAfterRolloverCleanup.get(0);
-            assertThat(shardWriteLoadDistributionAfterRollover.shardId(), is(equalTo(rolledOverShard.shardId())));
+            final var shardWriteLoadHistogramAfterRollover = writeLoadAfterRolloverCleanup.get(0);
+            assertThat(shardWriteLoadHistogramAfterRollover.shardId(), is(equalTo(rolledOverShard.shardId())));
         }
     }
 

@@ -94,15 +94,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
         desiredNode.toInnerXContent(builder, params);
         // Only serialize the desired node status during cluster state serialization
         if (desiredNodesSerializationContext == DesiredNodes.SerializationContext.CLUSTER_STATE) {
-            final var clusterStateSerializationContext = Metadata.XContentContext.valueOf(
-                params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)
-            );
-
-            if (clusterStateSerializationContext == Metadata.XContentContext.API) {
-                builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            } else {
-                builder.field(STATUS_FIELD.getPreferredName(), status.value);
-            }
+            builder.field(STATUS_FIELD.getPreferredName(), status.value);
         }
         builder.endObject();
         return builder;
@@ -120,6 +112,11 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
 
         Status(short value) {
             this.value = value;
+        }
+
+        // visible for testing
+        public short getValue() {
+            return value;
         }
 
         static Status fromValue(short value) {

@@ -70,8 +70,8 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
         Map<String, Object> responseMap = responseAsMap(response);
         List<Map<String, Object>> nodes = extractValue(responseMap, "metadata.desired_nodes.latest.nodes");
         for (Map<String, Object> desiredNode : nodes) {
-            final String status = extractValue(desiredNode, "status");
-            assertThat(status, is(equalTo(DesiredNodeWithStatus.Status.ACTUALIZED.toString())));
+            final int status = extractValue(desiredNode, "status");
+            assertThat((short) status, is(equalTo(DesiredNodeWithStatus.Status.ACTUALIZED.getValue())));
         }
     }
 

@@ -19,7 +19,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
     /**
      * Verifies that when no data node is available to host a replica, number of replicas are contracted to 0.
      */
-    public void testAutoExpandToClosesValue() throws Exception {
+    public void testClampToMinMax() throws Exception {
         final String indexName = "myindex";
         final String autoExpandValue = randomFrom("0-1", "0-all");
         createIndex(

@@ -103,14 +103,14 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
      * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
      * existing REST based code for input parsing.
      *
+     * @config XContentParserConfiguration for this mapper
      * @param source the operator content as a map
      * @return
      */
-    default XContentParser mapToXContentParser(Map<String, ?> source) {
+    default XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.map(source);
-            return XContentFactory.xContent(builder.contentType())
-                .createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder));
+            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

@@ -137,9 +137,7 @@ public class OperatorUpdateStateTask implements ClusterStateTaskListener {
         public ClusterState execute(ClusterState currentState, List<TaskContext<OperatorUpdateStateTask>> taskContexts) throws Exception {
             for (final var taskContext : taskContexts) {
                 currentState = taskContext.getTask().execute(currentState);
-                taskContext.success(
-                    () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-                );
+                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
             }
             return currentState;
         }

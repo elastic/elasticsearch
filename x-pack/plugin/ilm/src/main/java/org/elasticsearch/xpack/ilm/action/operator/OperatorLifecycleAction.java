@@ -14,7 +14,9 @@ import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.ilm.action.TransportDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.TransportPutLifecycleAction;
 
@@ -57,7 +59,8 @@ public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleActi
 
         for (String name : source.keySet()) {
             Map<String, ?> content = (Map<String, ?>) source.get(name);
-            try (XContentParser parser = mapToXContentParser(content)) {
+            var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+            try (XContentParser parser = mapToXContentParser(config, content)) {
                 PutLifecycleAction.Request request = PutLifecycleAction.Request.parseRequest(name, parser);
                 validate(request);
                 result.add(request);

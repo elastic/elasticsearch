@@ -24,7 +24,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.logging;
 
     requires com.sun.jna;
-    requires hppc;
+    requires com.carrotsearch.hppc;
     requires HdrHistogram;
     requires jopt.simple;
     requires log4j2.ecs.layout;

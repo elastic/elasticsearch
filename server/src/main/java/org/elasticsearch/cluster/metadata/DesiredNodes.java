@@ -249,15 +249,14 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
 
     public static ClusterState updateDesiredNodesStatusIfNeeded(ClusterState clusterState) {
         final var desiredNodes = latestFromClusterState(clusterState);
-        if (desiredNodes == null) {
-            return clusterState;
-        }
 
         return updateDesiredNodesStatusIfNeeded(clusterState, desiredNodes);
     }
 
     public static ClusterState updateDesiredNodesStatusIfNeeded(ClusterState clusterState, DesiredNodes desiredNodes) {
-        assert desiredNodes != null;
+        if (desiredNodes == null) {
+            return clusterState;
+        }
 
         Map<String, DesiredNodeWithStatus> desiredNodesWithUpdatedStatus = null;
         for (DiscoveryNode discoveryNode : clusterState.nodes()) {

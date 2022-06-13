@@ -27,6 +27,7 @@ per document. Nested arrays are not supported.
 [[histogram-params]]
 ==== Parameters
 
+ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
 preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
@@ -38,6 +39,7 @@ include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-histogr
 
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
+endif::[]
 
 [[histogram-uses]]
 ==== Uses

@@ -92,10 +92,6 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         }
     }
 
-    int getMaxReplicas(int numDataNodes) {
-        return Math.min(maxReplicas, numDataNodes - 1);
-    }
-
     public boolean expandToAllNodes() {
         return maxReplicas == Integer.MAX_VALUE;
     }
@@ -114,14 +110,12 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
 
     // package private for testing
     int calculateDesiredNumberOfReplicas(int numMatchingDataNodes) {
-        final int min = minReplicas();
-        final int max = getMaxReplicas(numMatchingDataNodes);
         int numberOfReplicas = numMatchingDataNodes - 1;
         // Make sure number of replicas is always between min and max
-        if (numberOfReplicas < min) {
-            numberOfReplicas = min;
-        } else if (numberOfReplicas > max) {
-            numberOfReplicas = max;
+        if (numberOfReplicas < minReplicas) {
+            numberOfReplicas = minReplicas;
+        } else if (numberOfReplicas > maxReplicas) {
+            numberOfReplicas = maxReplicas;
         }
         return numberOfReplicas;
     }

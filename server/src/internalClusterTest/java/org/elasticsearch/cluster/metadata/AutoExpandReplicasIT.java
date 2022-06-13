@@ -58,7 +58,22 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
                 equalTo("0")
             );
         });
+        ensureGreen(indexName);
 
+        // Remove the setting
+        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", ""));
+
+        assertBusy(() -> {
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings(indexName)
+                    .setNames("index.number_of_replicas")
+                    .get()
+                    .getSetting(indexName, "index.number_of_replicas"),
+                equalTo(String.valueOf(initialReplicas))
+            );
+        });
         ensureGreen(indexName);
     }
 }

@@ -50,22 +50,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
             Settings.builder().put("index.auto_expand_replicas", "0-5").build()
         );
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(5, autoExpandReplicas.maxReplicas());
         assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
-
     }
 
     public void testInvalidValues() {
@@ -284,14 +280,15 @@ public class AutoExpandReplicasTests extends ESTestCase {
     }
 
     public void testCalculateDesiredNumberOfReplicas() {
-        String settingValue = randomFrom("0-all", "0-3");
+        int lowerBound = between(0, 9);
+        int upperBound = between(lowerBound + 1, 10);
+        String settingValue = lowerBound + "-" + randomFrom(upperBound, "all");
         AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
             Settings.builder().put(SETTING_AUTO_EXPAND_REPLICAS, settingValue).build()
         );
         int max = autoExpandReplicas.maxReplicas();
-        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(0), equalTo(0));
-        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(1), equalTo(0));
-        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(2), equalTo(1));
-        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max), equalTo(max - 1));
+        int matchingNodes = between(0, max);
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(matchingNodes), equalTo(Math.max(lowerBound, matchingNodes - 1)));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max + 1), equalTo(max));
     }
 }

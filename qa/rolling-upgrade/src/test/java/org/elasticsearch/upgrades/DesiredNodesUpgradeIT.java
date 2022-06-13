@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesReq
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,12 +52,27 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                     assertThat(statusCode, is(equalTo(400)));
                 }
             }
-            case UPGRADED -> addClusterNodesToDesiredNodesWithFloatProcessorsOrProcessorRanges(4);
+            case UPGRADED -> {
+                assertAllDesiredNodesAreActualized();
+                addClusterNodesToDesiredNodesWithFloatProcessorsOrProcessorRanges(4);
+            }
         }
 
         final var getDesiredNodesRequest = new Request("GET", "/_internal/desired_nodes/_latest");
         final var response = client().performRequest(getDesiredNodesRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
+    }
+
+    private void assertAllDesiredNodesAreActualized() throws Exception {
+        final var request = new Request("GET", "_cluster/state/metadata");
+        final var response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
+        Map<String, Object> responseMap = responseAsMap(response);
+        List<Map<String, Object>> nodes = extractValue(responseMap, "metadata.desired_nodes.latest.nodes");
+        for (Map<String, Object> desiredNode : nodes) {
+            final String status = extractValue(desiredNode, "status");
+            assertThat(status, is(equalTo(DesiredNodeWithStatus.Status.ACTUALIZED.toString())));
+        }
     }
 
     private void addClusterNodesToDesiredNodesWithFloatProcessorsOrProcessorRanges(int version) throws Exception {

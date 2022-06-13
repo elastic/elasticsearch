@@ -40,8 +40,13 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
 public class DesiredNodes implements Writeable, ToXContentObject, Iterable<DesiredNodeWithStatus> {
     public static final String CONTEXT_MODE_PARAM = "desired_nodes_x_content_context";
-    public static final String CONTEXT_MODE_API = "api";
-    public static final String CONTEXT_MODE_CLUSTER_STATE = "cluster_state";
+    public static final String CONTEXT_MODE_API = SerializationContext.GET_DESIRED_NODES_API.toString();
+    public static final String CONTEXT_MODE_CLUSTER_STATE = SerializationContext.CLUSTER_STATE.toString();
+
+    public enum SerializationContext {
+        GET_DESIRED_NODES_API,
+        CLUSTER_STATE
+    }
 
     private static final ParseField HISTORY_ID_FIELD = new ParseField("history_id");
     private static final ParseField VERSION_FIELD = new ParseField("version");

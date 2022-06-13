@@ -87,11 +87,22 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final var context = params.param(DesiredNodes.CONTEXT_MODE_PARAM, DesiredNodes.CONTEXT_MODE_CLUSTER_STATE);
+        final var desiredNodesSerializationContext = DesiredNodes.SerializationContext.valueOf(
+            params.param(DesiredNodes.CONTEXT_MODE_PARAM, DesiredNodes.CONTEXT_MODE_CLUSTER_STATE)
+        );
         builder.startObject();
         desiredNode.toInnerXContent(builder, params);
-        if (DesiredNodes.CONTEXT_MODE_CLUSTER_STATE.equals(context)) {
-            builder.field(STATUS_FIELD.getPreferredName(), status.value);
+        // Only serialize the desired node status during cluster state serialization
+        if (desiredNodesSerializationContext == DesiredNodes.SerializationContext.CLUSTER_STATE) {
+            final var clusterStateSerializationContext = Metadata.XContentContext.valueOf(
+                params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)
+            );
+
+            if (clusterStateSerializationContext == Metadata.XContentContext.API) {
+                builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+            } else {
+                builder.field(STATUS_FIELD.getPreferredName(), status.value);
+            }
         }
         builder.endObject();
         return builder;

@@ -734,6 +734,19 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(((ObjectMapper) barMapper).getMapper("baz"));
     }
 
+    public void testEmptyObjectGetsMapped() throws Exception {
+        MapperService mapperService = createMapperService();
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> {
+            b.startObject("foo");
+            b.endObject();
+        }));
+        Mapping mapping = doc.dynamicMappingsUpdate();
+        assertNotNull(mapping);
+        Mapper foo = mapping.getRoot().getMapper("foo");
+        assertThat(foo, instanceOf(ObjectMapper.class));
+    }
+
     public void testDynamicGeoPointArrayWithTemplate() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
@@ -1846,7 +1859,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1859,7 +1872,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """)));
         assertEquals(
             "Object [metrics.service] has subobjects set to false hence it does not support inner object [time]",
-            err.getMessage()
+            err.getRootCause().getMessage()
         );
     }
 
@@ -1867,7 +1880,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1880,13 +1893,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """)));
         assertEquals(
             "Object [metrics.service] has subobjects set to false hence it does not support inner object [test.with.dots]",
-            err.getMessage()
+            err.getRootCause().getMessage()
         );
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1895,7 +1908,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("Object [_doc] has subobjects set to false hence it does not support inner object [metrics]", err.getMessage());
+        assertEquals(
+            "Object [_doc] has subobjects set to false hence it does not support inner object [metrics]",
+            err.getRootCause().getMessage()
+        );
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
@@ -2035,7 +2051,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics").field("type", "object").field("subobjects", false).endObject())
         );
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics.service.time": [
                 {
@@ -2046,7 +2062,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """)));
         assertEquals(
             "Object [metrics] has subobjects set to false hence it does not support inner object [service.time]",
-            iae.getMessage()
+            err.getRootCause().getMessage()
         );
     }
 

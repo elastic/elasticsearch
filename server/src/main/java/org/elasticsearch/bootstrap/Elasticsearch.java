@@ -15,7 +15,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
@@ -57,15 +56,14 @@ class Elasticsearch {
         });
         LogConfigurator.registerErrorListener();
 
-        final Elasticsearch elasticsearch = new Elasticsearch();
         PrintStream out = getStdout();
         PrintStream err = getStderr();
         try {
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
             initPidFile(serverArgs.pidFile());
-            elasticsearch.init(
-                serverArgs.daemonize(),
+            Bootstrap.init(
+                serverArgs.daemonize() == false,
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword(),
@@ -102,7 +100,8 @@ class Elasticsearch {
             Logger logger = LogManager.getLogger(Elasticsearch.class);
             logger.error("fatal exception while booting Elasticsearch", e);
         }
-        e.printStackTrace(err);
+        // format exceptions to the console in a special way to avoid 2MB stacktraces from guice, etc.
+        StartupException.printStackTrace(e, err);
         gracefullyExit(err, 1); // mimic JDK exit code on exception
     }
 
@@ -216,16 +215,5 @@ class Elasticsearch {
 
         // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
         Security.setProperty("policy.expandProperties", "true");
-    }
-
-    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword, Path pidFile)
-        throws NodeValidationException, UserException {
-        try {
-            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword, pidFile);
-        } catch (BootstrapException | RuntimeException e) {
-            // format exceptions to the console in a special way
-            // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupException(e);
-        }
     }
 }

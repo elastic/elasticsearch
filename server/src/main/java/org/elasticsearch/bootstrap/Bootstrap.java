@@ -337,7 +337,7 @@ final class Bootstrap {
                     // guice: log the shortened exc to the log file
                     ByteArrayOutputStream os = new ByteArrayOutputStream();
                     PrintStream ps = new PrintStream(os, false, StandardCharsets.UTF_8);
-                    new StartupException(e).printStackTrace(ps);
+                    StartupException.printStackTrace(e, ps);
                     ps.flush();
                     logger.error("Guice Exception: {}", os.toString(StandardCharsets.UTF_8));
                 } else if (e instanceof NodeValidationException) {

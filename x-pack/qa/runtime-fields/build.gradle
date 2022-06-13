@@ -24,7 +24,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
+      yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
     }
 
     restResources {

@@ -45,12 +45,12 @@ import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.MockVariableLengthPayloadFilter;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.English;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +58,7 @@ import java.util.HashSet;
 import java.util.Random;
 
 /** Tests partial enumeration (only pulling a subset of the indexed data) */
-public class BlockPostingsFormat3Tests extends LuceneTestCase {
+public class BlockPostingsFormat3Tests extends ESTestCase {
     private final int MAXDOC = TEST_NIGHTLY ? Lucene50PostingsFormat.BLOCK_SIZE * 20 : Lucene50PostingsFormat.BLOCK_SIZE * 3;
 
     // creates 8 fields with different options and does "duels" of fields against each other

@@ -278,7 +278,7 @@ public final class DocumentParser {
         innerParseObject(context, mapper);
         // restore the enable path flag
         if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+            copyNestedFields(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -344,7 +344,14 @@ public final class DocumentParser {
         );
     }
 
-    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
+    private static void copyNestedFields(DocumentParserContext context, NestedObjectMapper nested) {
+        if (context.isWithinCopyTo()) {
+            // Only process the nested document after we've finished parsing the actual
+            // doc; we can't copy_to outside of the current nested context, so if we are
+            // in a copy_to context then we're adding data within the doc and we haven't
+            // finished parsing yet.
+            return;
+        }
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -363,7 +370,7 @@ public final class DocumentParser {
     private static void addFields(Version indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false) {
+            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
                 rootDoc.add(field);
             }
         }

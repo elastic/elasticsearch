@@ -8,10 +8,14 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class NoSecurityManagerTests extends LuceneTestCase {
 
     public void testPrepopulateSecurityCaller() {

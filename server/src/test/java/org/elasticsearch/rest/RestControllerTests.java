@@ -253,7 +253,7 @@ public class RestControllerTests extends ESTestCase {
         final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
-        final RestApiVersion previous = current.previous();
+        final RestApiVersion previous = RestApiVersion.previous();
         final String deprecationMessage = "["
             + replacedMethod.name()
             + " "

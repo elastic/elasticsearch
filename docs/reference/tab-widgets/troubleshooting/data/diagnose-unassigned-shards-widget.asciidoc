@@ -32,7 +32,7 @@ include::diagnose-unassigned-shards.asciidoc[tag=cloud]
        hidden="">
 ++++
 
-include::diagnose-unassigned-shards.asciidoc[tag=cloud]
+include::diagnose-unassigned-shards.asciidoc[tag=self-managed]
 
 ++++
   </div>

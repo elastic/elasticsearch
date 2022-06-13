@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
@@ -24,10 +23,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
@@ -44,13 +40,6 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
     protected static final String RAC_ROLE = "rac_role";
     protected static final String NATIVE_RAC_ROLE = "native_rac_role";
     protected static final SecureString NATIVE_RAC_USER_PASSWORD = new SecureString("native_rac_user_password".toCharArray());
-
-    // Needed for testing in IDE
-    @SuppressForbidden(reason = "sets the feature flag")
-    @BeforeClass
-    public static void enableFeature() {
-        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.user_profile_feature_flag_enabled", "true"));
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

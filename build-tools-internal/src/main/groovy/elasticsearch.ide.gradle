@@ -25,15 +25,35 @@ tasks.register('configureIdeCheckstyle') {
   group = 'ide'
   description = 'Generated a suitable checkstyle config for IDEs'
 
-  String checkstyleConfig = 'build-tools-internal/src/main/resources/checkstyle.xml'
-  String checkstyleSuppressions = 'build-tools-internal/src/main/resources/checkstyle_suppressions.xml'
-  String checkstyleIdeFragment = 'build-tools-internal/src/main/resources/checkstyle_ide_fragment.xml'
-  String checkstyleIdeConfig = "$rootDir/checkstyle_ide.xml"
+  String resources = 'build-tools-internal/src/main/resources'
+  String checkstyleConfig = "${resources}/checkstyle.xml"
+  String checkstyleSuppressions = "${resources}/checkstyle_suppressions.xml"
+  String checkstyleIdeFragment = "${resources}/checkstyle_ide_fragment.xml"
+  String checkstyleIdeConfig = "${rootDir}/checkstyle_ide.xml"
 
-  inputs.files(file(checkstyleConfig), file(checkstyleIdeFragment))
-  outputs.files(file(checkstyleIdeConfig))
+  String checkstylePluginConfigTemplate = "${resources}/checkstyle-idea.xml"
+  String checkstylePluginConfig = "${rootDir}/.idea/checkstyle-idea.xml"
+
+  inputs.files(
+    file(checkstyleConfig),
+    file(checkstyleIdeFragment),
+    file(checkstylePluginConfigTemplate)
+  )
+  outputs.files(
+    file(checkstyleIdeConfig),
+    file(checkstylePluginConfig)
+  )
 
   doLast {
+    // Configure the IntelliJ Checkstyle plugin by copying a standard file. We don't simply commit
+    // the result to version control, because the plugin has a habit of modifying the file and
+    // replacing the `$PROJECT_DIR$` placeholders, which developers must then revert.
+    Files.copy(
+      Paths.get(file(checkstylePluginConfigTemplate).getPath()),
+      Paths.get(file(checkstylePluginConfig).getPath()),
+      StandardCopyOption.REPLACE_EXISTING
+    )
+
     // Create an IDE-specific checkstyle config by first copying the standard config
     Files.copy(
       Paths.get(file(checkstyleConfig).getPath()),

@@ -37,7 +37,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             // we are not doing this for this project itself to avoid jar hell with itself
             var elasticsearchCoreProject = project.findProject(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH);
             if (elasticsearchCoreProject != null) {
-                project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, project.project(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH));
+                project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, elasticsearchCoreProject);
             }
         }
 

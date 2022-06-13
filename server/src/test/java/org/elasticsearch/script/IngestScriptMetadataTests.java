@@ -12,6 +12,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class IngestScriptMetadataTests extends ESTestCase {
@@ -20,13 +21,13 @@ public class IngestScriptMetadataTests extends ESTestCase {
         IngestScript.Metadata m = new IngestScript.Metadata(ctx, null);
         assertNull(m.getVersionType());
         for (VersionType vt : VersionType.values()) {
-            m.setVersionType(vt);
-            assertEquals(VersionType.toString(vt), ctx.get("_version_type"));
+            m.setVersionType(vt.toString());
+            assertEquals(VersionType.toString(vt).toLowerCase(Locale.ROOT), ctx.get("_version_type"));
         }
 
         for (VersionType vt : VersionType.values()) {
             ctx.put("_version_type", VersionType.toString(vt));
-            assertEquals(vt, m.getVersionType());
+            assertEquals(vt.toString().toLowerCase(Locale.ROOT), m.getVersionType());
         }
 
         m.setVersionType(null);

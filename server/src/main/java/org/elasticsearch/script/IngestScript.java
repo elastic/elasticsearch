@@ -122,13 +122,17 @@ public abstract class IngestScript {
             store.setVersion(version);
         }
 
-        public VersionType getVersionType() {
-            String str = store.getString(VERSION_TYPE);
-            return str != null ? VersionType.fromString(str.toLowerCase(Locale.ROOT)) : null;
+        public String getVersionType() {
+            return store.getString(VERSION_TYPE);
         }
 
-        public void setVersionType(VersionType versionType) {
-            store.set(VERSION_TYPE, versionType != null ? VersionType.toString(versionType) : null);
+        public void setVersionType(String versionType) {
+            if (versionType != null) {
+                versionType = versionType.toLowerCase(Locale.ROOT);
+                // validation
+                VersionType.fromString(versionType);
+            }
+            store.set(VERSION_TYPE, versionType);
         }
 
         public ZonedDateTime getTimestamp() {

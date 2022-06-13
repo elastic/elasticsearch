@@ -122,7 +122,7 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
         ClusterState withShutdown = stateWithNodeShuttingDown(initialState());
-        executor.abortTaskIfApplicable(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
+        executor.shuttingDown(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
         verify(task, never()).markAsLocallyAborted(anyString());
     }
 
@@ -138,7 +138,21 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
         executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
         ClusterState initialState = initialState();
         ClusterState withShutdown = stateWithNodeShuttingDown(initialState);
-        executor.abortTaskIfApplicable(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
+        executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
+        verify(task, times(1)).markAsLocallyAborted(anyString());
+    }
+
+    public void testAbortOnDisable() {
+        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
+        HealthNodeSelector task = mock(HealthNodeSelector.class);
+        PersistentTaskState state = mock(PersistentTaskState.class);
+        executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
+        clusterSettings.applySettings(Settings.builder().put(HealthNodeSelectorTaskExecutor.ENABLED_SETTING.getKey(), false).build());
         verify(task, times(1)).markAsLocallyAborted(anyString());
     }
 
@@ -168,7 +182,6 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
 
         return ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-
             .build();
     }
 

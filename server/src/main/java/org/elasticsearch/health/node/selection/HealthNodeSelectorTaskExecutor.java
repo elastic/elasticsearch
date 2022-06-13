@@ -61,7 +61,6 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     private final AtomicReference<HealthNodeSelector> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
-    private boolean enabled;
 
     public HealthNodeSelectorTaskExecutor(
         ClusterService clusterService,
@@ -73,25 +72,22 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
-        this.shutdownListener = this::abortTaskIfApplicable;
-        this.enabled = ENABLED_SETTING.get(settings);
-        if (enabled) {
+        this.shutdownListener = this::shuttingDown;
+        if (ENABLED_SETTING.get(settings)) {
             clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);
         }
-        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
     }
 
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    private void enable(boolean enabled) {
         if (enabled) {
-            if (HealthNodeSelector.findTask(clusterService.state()) == null) {
-                clusterService.addListener(taskStarter);
-            }
+            clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);
         } else {
             clusterService.removeListener(taskStarter);
             clusterService.removeListener(shutdownListener);
+            abortTaskIfApplicable("disabling health node via '" + ENABLED_SETTING.getKey() + "'");
         }
     }
 
@@ -136,34 +132,41 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     void startTask(ClusterChangedEvent event) {
         // Wait until every node in the cluster is upgraded to 8.4.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
-            if (event.localNodeMaster()) {
+            // If the node is not a master node or if the task already exists this node should not start the task anymore
+            if (event.state().nodes().getLocalNode().isMasterNode() == false || HealthNodeSelector.findTask(event.state()) != null) {
                 clusterService.removeListener(taskStarter);
-                if (HealthNodeSelector.findTask(event.state()) == null) {
-                    persistentTasksService.sendStartRequest(
-                        TASK_NAME,
-                        TASK_NAME,
-                        new HealthNodeSelectorTaskParams(),
-                        ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
-                            Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                            if (t instanceof ResourceAlreadyExistsException == false) {
-                                logger.error("Failed to create the health node selector task", e);
-                            }
-                        })
-                    );
-                }
-            } else if (event.state().nodes().getLocalNode().isMasterNode() == false) {
+            } else if (event.localNodeMaster()) {
                 clusterService.removeListener(taskStarter);
+                persistentTasksService.sendStartRequest(
+                    TASK_NAME,
+                    TASK_NAME,
+                    new HealthNodeSelectorTaskParams(),
+                    ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
+                        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                        if (t instanceof ResourceAlreadyExistsException == false) {
+                            logger.error("Failed to create the health node selector task", e);
+                        }
+                    })
+                );
+
             }
         }
     }
 
     // visible for testing
-    void abortTaskIfApplicable(ClusterChangedEvent event) {
+    void shuttingDown(ClusterChangedEvent event) {
         String nodeId = clusterService.localNode().getId();
+        if (isNodeShuttingDown(event, nodeId)) {
+            abortTaskIfApplicable("node [" + nodeId + "] shutting down");
+        }
+    }
+
+    // visible for testing
+    void abortTaskIfApplicable(String reason) {
         HealthNodeSelector task = currentTask.get();
-        if (task != null && task.isCancelled() == false && isNodeShuttingDown(event, nodeId)) {
-            logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
-            task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
+        if (task != null && task.isCancelled() == false) {
+            logger.info("Aborting health node selector task due to {}.", reason);
+            task.markAsLocallyAborted(reason);
             currentTask.set(null);
         }
     }

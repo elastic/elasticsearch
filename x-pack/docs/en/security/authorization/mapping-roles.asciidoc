@@ -2,21 +2,24 @@
 [[mapping-roles]]
 === Mapping users and groups to roles
 
-Role mapping is supported by all realms except `native` and `file`. Those two realms
-assign roles directly to users, they do not support role mapping.
+Role mapping is supported by all realms except `native` and `file`.
 
-TIP: Native realms use <<managing-native-users,user management APIs>>.
+TIP:  Those two realms assign roles directly to users, they do not support role mapping.
+Native realms use <<managing-native-users,user management APIs>>.
 File realms use <<roles-management-file,File-based role management>>.
 
-If using Role Mapping, there are two supported sources,
+If using Role Mapping, there are two supported sources of role mapping rules,
 <<mapping-roles-api, Role Mapping API>> and <<mapping-roles-file, Role Mapping File>>.
 
-IMPORTANT: Role Mapping API is preferred over Role Mapping File, and is supported by more realms.
+IMPORTANT: Role Mapping API is preferred over Role Mapping File.
 
 The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms support
-<<mapping-roles-api, API>>. However, only the PKI, LDAP, and AD realms in that list
-also support <<mapping-roles-file, Role Mapping File>>. In addition, all seven of
-these realms support <<authorization_realms,Delegated Authorization>> too.
+<<mapping-roles-api, Role Mapping API>>. Only PKI, LDAP, and AD realms
+support <<mapping-roles-file, Role Mapping File>>.
+
+Besides Role Mapping, the PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and
+SAML realms realms support <<authorization_realms,Delegated Authorization>> too.
+Role Mapping and Delegated Authorization cannot be used simultaneously in a realm.
 Pick the best option available for each realm based on your requirements.
 
 If you choose role mapping, you will have to create roles and _role-mappings_.

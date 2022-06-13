@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -111,7 +112,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         RoutingNode node;
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, COLD_NODE)) {
-            node = new RoutingNode(n.getId(), n, shard);
+            node = RoutingNodesHelper.routingNode(n.getId(), n, shard);
             d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
@@ -157,7 +158,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         allocation.debugDecision(true);
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
-            node = new RoutingNode(n.getId(), n, shard);
+            node = RoutingNodesHelper.routingNode(n.getId(), n, shard);
             d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
@@ -178,7 +179,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             );
         }
 
-        node = new RoutingNode(COLD_NODE.getId(), COLD_NODE, shard);
+        node = RoutingNodesHelper.routingNode(COLD_NODE.getId(), COLD_NODE, shard);
         d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
         assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
         assertThat(

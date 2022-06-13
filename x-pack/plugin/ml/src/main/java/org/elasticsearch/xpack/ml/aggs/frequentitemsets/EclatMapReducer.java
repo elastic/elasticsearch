@@ -124,8 +124,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
         // parameters
         this.minimumSupport = in.readDouble();
-        this.minimumSetSize = in.readInt();
-        this.size = in.readInt();
+        this.minimumSetSize = in.readVInt();
+        this.size = in.readVInt();
     }
 
     public double getMinimumSupport() {
@@ -146,8 +146,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
         // parameters
         out.writeDouble(minimumSupport);
-        out.writeInt(minimumSetSize);
-        out.writeInt(size);
+        out.writeVInt(minimumSetSize);
+        out.writeVInt(size);
     }
 
     @Override

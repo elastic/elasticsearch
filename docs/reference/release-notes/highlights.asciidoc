@@ -17,39 +17,16 @@ Other versions:
 
 // The notable-highlights tag marks entries that
 // should be featured in the Stack Installation and Upgrade Guide:
-
 // tag::notable-highlights[]
+// [discrete]
+// === Heading
+//
+// Description.
+// end::notable-highlights[]
+
+
 [discrete]
 [[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
 === Integrate filtering support for approximate nearest neighbor search
+_knn_search endpoint now has a "filter" option that allows to return only the nearest documents that satisfy the provided filter
 
-The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option
-that allows to return only the nearest documents that satisfy the provided
-filter.
-
-[discrete]
-[[nlp-latency-throughput-stats]]
-=== NLP latency and throughput stats
-
-New statistics are available for the NLP inference to show how quickly it is
-working. The three new statistics are:
-
-* peak_throughput_per_minute
-* throughput_last_minute
-* average_inference_time_ms_last_minute
-
-The aim is to provide an indication of whether inference is currently keeping up
-with requirements or the cluster needs to be scaled up to meet demand. The
-statistics for the last minute give quick feedback to show the effect of scaling
-the {ml} nodes.
-
-[discrete]
-[[random-sampler-aggregation]]
-=== Random sampler aggregation
-
-With the new random sampler aggregation, in technical preview, developers can
-exponentially accelerate their aggregations for calculations, with a slight
-trade off in accuracy, by randomly sampling documents in a statistically robust
-manner. The random sampler aggregation can be used to accelerate any application
-that utilizes aggregations for calculations.
-// end::notable-highlights[]

@@ -17,14 +17,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -55,7 +51,6 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -63,37 +58,15 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERHEAD;
 
 public class PITFailureTests extends ESTestCase {
 
     public static final String PIT_EXCEPTION_MESSAGE = "test - PIT open did not succeed";
     private final List<HitExtractor> keyExtractors = emptyList();
-    private final HitExtractor tsExtractor = TimestampExtractor.INSTANCE;
-    private final HitExtractor implicitTbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
 
     public void testHandlingPitFailure() {
-        int sequenceFiltersCount = randomIntBetween(1, 5);
-        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
-            new BreakerSettings(
-                CIRCUIT_BREAKER_NAME,
-                CIRCUIT_BREAKER_LIMIT,
-                CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.MEMORY,
-                CircuitBreaker.Durability.TRANSIENT
-            )
-        );
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                Settings.EMPTY,
-                eqlBreakerSettings,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            ESMockClient esClient = new ESMockClient();
-        ) {
-            CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
+        try (ESMockClient esClient = new ESMockClient();) {
+
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 new String[] { "test" },
                 org.elasticsearch.xpack.ql.util.DateUtils.UTC,
@@ -121,6 +94,7 @@ public class PITFailureTests extends ESTestCase {
                 x -> emptySet()
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
+            CircuitBreaker cb = new NoopCircuitBreaker("testcb");
             EqlSession eqlSession = new EqlSession(
                 esClient,
                 eqlConfiguration,
@@ -131,32 +105,28 @@ public class PITFailureTests extends ESTestCase {
                 new Verifier(new Metrics()),
                 new Optimizer(),
                 new Planner(),
-                eqlCircuitBreaker
+                cb
             );
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession);
             List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>();
+            criteria.add(
+                new Criterion<>(
+                    0,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    keyExtractors,
+                    TimestampExtractor.INSTANCE,
+                    null,
+                    ImplicitTiebreakerHitExtractor.INSTANCE,
+                    false
+                )
+            );
 
-            for (int i = 0; i < sequenceFiltersCount; i++) {
-                final int j = i;
-                criteria.add(
-                    new Criterion<>(
-                        i,
-                        new BoxedQueryRequest(
-                            () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
-                            "@timestamp",
-                            emptyList(),
-                            emptySet()
-                        ),
-                        keyExtractors,
-                        tsExtractor,
-                        null,
-                        implicitTbExtractor,
-                        false
-                    )
-                );
-            }
-
-            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
+            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, cb);
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(
                 wrap(

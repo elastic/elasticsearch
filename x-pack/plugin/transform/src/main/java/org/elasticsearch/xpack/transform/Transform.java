@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
@@ -131,16 +132,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
-    public static final int DEFAULT_FAILURE_RETRIES = 10;
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
 
-    // How many times the transform task can retry on an non-critical failure
+    public static final int DEFAULT_FAILURE_RETRIES = 10;
+    // How many times the transform task can retry on a non-critical failure.
+    // This cluster-level setting is deprecated, the users should be using transform-level setting instead.
+    // In order to ensure BWC, this cluster-level setting serves as a fallback in case the transform-level setting is not specified.
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
         "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
         0,
-        100,
+        SettingsConfig.MAX_NUM_FAILURE_RETRIES,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

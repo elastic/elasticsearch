@@ -154,6 +154,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
+        this.refreshJwksAlgs()
+    }
+
+    private void refreshJwksAlgs() {
         // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
         try {
             this.jwksAlgsHmac = this.parseJwksAlgsHmac();
@@ -440,7 +444,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                      * but will attempt to refresh the JWK upon signature verification failure, 
                      * as this might indicate that the JWT Provider has rotated the signing keys.
                      */
-                    this.jwksAlgsPkc = this.parseJwksAlgsPkc();
+                    this.refreshJwksAlgs();
                     JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.jwksAlgsHmac : this.jwksAlgsPkc;
                     JwtValidateUtil.validate(
                         jwt,

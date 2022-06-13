@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -39,7 +38,9 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -47,7 +48,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -62,6 +62,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -432,8 +433,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
         if (indicesLookup == null) {
-            DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
-            indicesLookup = Builder.buildIndicesLookup(dataStreamMetadata, indices);
+            indicesLookup = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
         }
         return indicesLookup;
     }
@@ -450,7 +450,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
         return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
     }
 
@@ -463,7 +463,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -521,7 +521,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      *
      * @param onNextIndex a hook that gets notified for each index that's processed
      */
-    public ImmutableOpenMap<String, MappingMetadata> findMappings(
+    public Map<String, MappingMetadata> findMappings(
         String[] concreteIndices,
         Function<String, Predicate<String>> fieldFilter,
         Runnable onNextIndex
@@ -545,7 +545,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
+    public Map<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
         final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
@@ -838,11 +838,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         throw new IndexNotFoundException(index);
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> indices() {
+    public Map<String, IndexMetadata> indices() {
         return this.indices;
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> getIndices() {
+    public Map<String, IndexMetadata> getIndices() {
         return indices();
     }
 
@@ -876,11 +876,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return aliasedIndices.keySet();
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
+    public Map<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> getTemplates() {
+    public Map<String, IndexTemplateMetadata> getTemplates() {
         return templates();
     }
 
@@ -903,9 +903,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
-        if (IndexMetadata.INDEX_ROUTING_PATH.exists(settings)) {
-            // No need to validate the index.mode=time_series validation takes care of validating that the mentioned fields exist in the
-            // mapping and that it refers to fields of type keyword and with time_series_dimension enabled.
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
+        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
+            // Setting validation takes care of this.
+            // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
+            // attribute enabled. This is validated elsewhere (DocumentMapper).
             return true;
         }
 
@@ -916,15 +921,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public Map<String, DataStream> dataStreams() {
-        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
-            .map(DataStreamMetadata::dataStreams)
-            .orElse(Collections.emptyMap());
+        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
     }
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
-        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
-            .map(DataStreamMetadata::getDataStreamAliases)
-            .orElse(Collections.emptyMap());
+        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
@@ -933,7 +934,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             .orElse(Collections.emptyMap());
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
@@ -1211,10 +1212,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
-        out.writeVInt(templates.size());
-        for (IndexTemplateMetadata template : templates.values()) {
-            template.writeTo(out);
-        }
+        out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
     }
 
@@ -1249,6 +1247,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
+
+        // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
+        // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
+        // become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
+        // #mappingsByHash.
+        private boolean checkForUnusedMappings = true;
+
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
@@ -1269,6 +1274,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
+            this.checkForUnusedMappings = false;
         }
 
         private Builder(Map<String, MappingMetadata> mappingsByHash) {
@@ -1292,6 +1298,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
+            maybeSetMappingPurgeFlag(previous, indexMetadata);
             return this;
         }
 
@@ -1309,10 +1316,31 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
+            maybeSetMappingPurgeFlag(previous, indexMetadata);
             return this;
         }
 
-        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        private void maybeSetMappingPurgeFlag(@Nullable IndexMetadata previous, IndexMetadata updated) {
+            if (checkForUnusedMappings) {
+                return;
+            }
+            if (previous == null) {
+                return;
+            }
+            final MappingMetadata mapping = previous.mapping();
+            if (mapping == null) {
+                return;
+            }
+            final MappingMetadata updatedMapping = updated.mapping();
+            if (updatedMapping == null) {
+                return;
+            }
+            if (mapping.getSha256().equals(updatedMapping.getSha256()) == false) {
+                checkForUnusedMappings = true;
+            }
+        }
+
+        private static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }
@@ -1358,7 +1386,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder remove(String index) {
             previousIndicesLookup = null;
-
+            checkForUnusedMappings = true;
             IndexMetadata previous = indices.remove(index);
             updateAliases(previous, null);
             return this;
@@ -1366,6 +1394,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder removeAllIndices() {
             previousIndicesLookup = null;
+            checkForUnusedMappings = true;
 
             indices.clear();
             mappingsByHash.clear();
@@ -1373,9 +1402,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
-            previousIndicesLookup = null;
-
+        public Builder indices(Map<String, IndexMetadata> indices) {
             for (var value : indices.values()) {
                 put(value, false);
             }
@@ -1457,7 +1484,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
+        public Builder templates(Map<String, IndexTemplateMetadata> templates) {
             this.templates.putAllFromMap(templates);
             return this;
         }
@@ -1515,14 +1542,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public DataStream dataStream(String dataStreamName) {
-            previousIndicesLookup = null;
-
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
-            if (dataStreamMetadata != null) {
-                return dataStreamMetadata.dataStreams().get(dataStreamName);
-            } else {
-                return null;
-            }
+            return dataStreamMetadata().dataStreams().get(dataStreamName);
         }
 
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
@@ -1533,7 +1553,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 dataStream.validate(indices::get);
             }
 
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
+            this.customs.put(
+                DataStreamMetadata.TYPE,
+                new DataStreamMetadata(
+                    ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
+                    ImmutableOpenMap.<String, DataStreamAlias>builder().putAllFromMap(dataStreamAliases).build()
+                )
+            );
             return this;
         }
 
@@ -1547,118 +1573,40 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             // trigger this validation on each new Metadata creation, even if there are no changes to data streams.
             dataStream.validate(indices::get);
 
-            Map<String, DataStream> existingDataStreams = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.dataStreams())).orElse(new HashMap<>());
-            existingDataStreams.put(dataStream.getName(), dataStream);
-            Map<String, DataStreamAlias> existingDataStreamAliases = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases())).orElse(new HashMap<>());
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withAddedDatastream(dataStream));
             return this;
+        }
+
+        public DataStreamMetadata dataStreamMetadata() {
+            return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
-
-            Map<String, DataStream> existingDataStream = Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                .orElse(new HashMap<>());
-            Map<String, DataStreamAlias> dataStreamAliases = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases())).orElse(new HashMap<>());
-
-            if (existingDataStream.containsKey(dataStream) == false) {
-                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
+            final DataStreamMetadata existing = dataStreamMetadata();
+            final DataStreamMetadata updated = existing.withAlias(aliasName, dataStream, isWriteDataStream, filter);
+            if (existing == updated) {
+                return false;
             }
-
-            Map<String, Object> filterAsMap;
-            if (filter != null) {
-                filterAsMap = XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true);
-            } else {
-                filterAsMap = null;
-            }
-
-            DataStreamAlias alias = dataStreamAliases.get(aliasName);
-            if (alias == null) {
-                String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
-            } else {
-                DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
-                if (copy == alias) {
-                    return false;
-                }
-                alias = copy;
-            }
-            dataStreamAliases.put(aliasName, alias);
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 
         public Builder removeDataStream(String name) {
             previousIndicesLookup = null;
-
-            Map<String, DataStream> existingDataStreams = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.dataStreams())).orElse(new HashMap<>());
-            existingDataStreams.remove(name);
-
-            Map<String, DataStreamAlias> existingDataStreamAliases = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases())).orElse(new HashMap<>());
-
-            Set<String> aliasesToDelete = new HashSet<>();
-            List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
-            for (var alias : existingDataStreamAliases.values()) {
-                DataStreamAlias copy = alias.removeDataStream(name);
-                if (copy != null) {
-                    if (copy == alias) {
-                        continue;
-                    }
-                    aliasesToUpdate.add(copy);
-                } else {
-                    aliasesToDelete.add(alias.getName());
-                }
-            }
-            for (DataStreamAlias alias : aliasesToUpdate) {
-                existingDataStreamAliases.put(alias.getName(), alias);
-            }
-            for (String aliasToDelete : aliasesToDelete) {
-                existingDataStreamAliases.remove(aliasToDelete);
-            }
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withRemovedDataStream(name));
             return this;
         }
 
         public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
             previousIndicesLookup = null;
 
-            Map<String, DataStreamAlias> dataStreamAliases = Optional.ofNullable(
-                (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
-            ).map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases())).orElse(new HashMap<>());
-
-            DataStreamAlias existing = dataStreamAliases.get(aliasName);
-            if (mustExist && existing == null) {
-                throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
-            } else if (existing == null) {
+            final DataStreamMetadata existing = dataStreamMetadata();
+            final DataStreamMetadata updated = existing.withRemovedAlias(aliasName, dataStreamName, mustExist);
+            if (existing == updated) {
                 return false;
             }
-            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
-            if (copy == existing) {
-                return false;
-            }
-            if (copy != null) {
-                dataStreamAliases.put(aliasName, copy);
-            } else {
-                dataStreamAliases.remove(aliasName);
-            }
-            Map<String, DataStream> existingDataStream = Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                .orElse(new HashMap<>());
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 
@@ -1681,7 +1629,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+        public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
@@ -1804,17 +1752,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
-            final Set<String> allIndices = indicesMap.keySet();
 
             int oldestIndexVersionId = Version.CURRENT.id;
+            int totalNumberOfShards = 0;
+            int totalOpenIndexShards = 0;
 
             for (IndexMetadata indexMetadata : indicesMap.values()) {
+                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 final String name = indexMetadata.getIndex().getName();
                 final boolean visible = indexMetadata.isHidden() == false;
                 if (visible) {
                     visibleIndices.add(name);
                 }
                 if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
                     allOpenIndices.add(name);
                     if (visible) {
                         visibleOpenIndices.add(name);
@@ -1833,37 +1784,31 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
-            final DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
-            assert assertDataStreams(indicesMap, dataStreamMetadata);
-
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
+                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
+            } else {
+                // we have changes to the the entity names so we ensure we have no naming collisions
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }
+            assert assertDataStreams(indicesMap, dataStreamMetadata());
 
-            purgeUnusedEntries(indicesMap);
+            if (checkForUnusedMappings) {
+                purgeUnusedEntries(indicesMap);
+            }
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
+            String[] allIndicesArray = indicesMap.keySet().toArray(Strings.EMPTY_ARRAY);
             String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
-            int totalNumberOfShards = 0;
-            int totalOpenIndexShards = 0;
-            for (IndexMetadata indexMetadata : indicesMap.values()) {
-                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
-                if (IndexMetadata.State.OPEN.equals(indexMetadata.getState())) {
-                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
-                }
-            }
 
             return new Metadata(
                 clusterUUID,
@@ -1895,60 +1840,43 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
-            Set<String> allIndices,
-            @Nullable DataStreamMetadata dataStreamMetadata
+            DataStreamMetadata dataStreamMetadata
         ) {
             final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>();
+            final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
+            final var allDataStreams = dataStreamMetadata.dataStreams();
+            // Adding data stream aliases:
+            for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+                if (indexAliases.contains(dataStreamAlias)) {
+                    duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
+                }
+                if (indicesMap.containsKey(dataStreamAlias)) {
+                    aliasDuplicatesWithIndices.add(dataStreamAlias);
+                }
+                if (allDataStreams.containsKey(dataStreamAlias)) {
+                    aliasDuplicatesWithDataStreams.add(dataStreamAlias);
+                }
+            }
             for (String alias : indexAliases) {
-                if (allIndices.contains(alias)) {
+                if (allDataStreams.containsKey(alias)) {
+                    aliasDuplicatesWithDataStreams.add(alias);
+                }
+                if (indicesMap.containsKey(alias)) {
                     aliasDuplicatesWithIndices.add(alias);
                 }
             }
-
-            final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
-            final Set<String> allDataStreams;
-            if (dataStreamMetadata != null) {
-                allDataStreams = dataStreamMetadata.dataStreams().keySet();
-                // Adding data stream aliases:
-                for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
-                    if (indexAliases.contains(dataStreamAlias)) {
-                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
-                    }
-                    if (allIndices.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithIndices.add(dataStreamAlias);
-                    }
-                    if (allDataStreams.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithDataStreams.add(dataStreamAlias);
-                    }
+            allDataStreams.forEach((key, value) -> {
+                if (indicesMap.containsKey(key)) {
+                    duplicates.add("data stream [" + key + "] conflicts with index");
                 }
-            } else {
-                allDataStreams = Set.of();
-            }
-
+            });
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, aliasDuplicatesWithIndices, duplicates);
-            }
-
-            for (String alias : indexAliases) {
-                if (allDataStreams.contains(alias)) {
-                    aliasDuplicatesWithDataStreams.add(alias);
-                }
             }
             if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
-
-            final Set<String> dataStreamDuplicatesWithIndices = new HashSet<>();
-            for (String ds : allDataStreams) {
-                if (allIndices.contains(ds)) {
-                    dataStreamDuplicatesWithIndices.add(ds);
-                }
-            }
-            for (String dataStream : dataStreamDuplicatesWithIndices) {
-                duplicates.add("data stream [" + dataStream + "] conflicts with index");
-            }
-
             if (duplicates.isEmpty() == false) {
                 throw new IllegalStateException(
                     "index, alias, and data stream names need to be unique, but the following duplicates "
@@ -2002,13 +1930,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
-            @Nullable DataStreamMetadata dataStreamMetadata,
+            DataStreamMetadata dataStreamMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();
             // If there are no indices, then skip data streams. This happens only when metadata is read from disk
-            if (dataStreamMetadata != null && indices.size() > 0) {
+            if (indices.size() > 0) {
                 Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
                 for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
                     List<Index> allIndicesOfAllDataStreams = alias.getDataStreams().stream().map(name -> {
@@ -2139,28 +2067,27 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
 
-        static boolean assertDataStreams(ImmutableOpenMap<String, IndexMetadata> indices, @Nullable DataStreamMetadata dsMetadata) {
-            if (dsMetadata != null) {
-                // Sanity check, because elsewhere a more user friendly error should have occurred:
-                List<String> conflictingAliases = null;
+        static boolean assertDataStreams(Map<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
+            // Sanity check, because elsewhere a more user friendly error should have occurred:
+            List<String> conflictingAliases = null;
 
-                for (var dataStream : dsMetadata.dataStreams().values()) {
-                    for (var index : dataStream.getIndices()) {
-                        IndexMetadata im = indices.get(index.getName());
-                        if (im != null && im.getAliases().isEmpty() == false) {
-                            for (var alias : im.getAliases().values()) {
-                                if (conflictingAliases == null) {
-                                    conflictingAliases = new LinkedList<>();
-                                }
-                                conflictingAliases.add(alias.alias());
+            for (var dataStream : dsMetadata.dataStreams().values()) {
+                for (var index : dataStream.getIndices()) {
+                    IndexMetadata im = indices.get(index.getName());
+                    if (im != null && im.getAliases().isEmpty() == false) {
+                        for (var alias : im.getAliases().values()) {
+                            if (conflictingAliases == null) {
+                                conflictingAliases = new LinkedList<>();
                             }
+                            conflictingAliases.add(alias.alias());
                         }
                     }
                 }
-                if (conflictingAliases != null) {
-                    throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
-                }
             }
+            if (conflictingAliases != null) {
+                throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+            }
+
             return true;
         }
 

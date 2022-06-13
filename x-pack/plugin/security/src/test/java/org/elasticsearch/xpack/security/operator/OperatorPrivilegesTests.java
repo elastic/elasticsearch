@@ -165,7 +165,10 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(operatorOnlyRegistry.check(eq(operatorAction), any())).thenReturn(() -> message);
         when(operatorOnlyRegistry.check(eq(nonOperatorAction), any())).thenReturn(null);
         ThreadContext threadContext = new ThreadContext(settings);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> Authentication.AuthenticationType.INTERNAL == authc.getAuthenticationType(),
+            () -> AuthenticationTestHelper.builder().build()
+        );
 
         if (randomBoolean()) {
             threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);

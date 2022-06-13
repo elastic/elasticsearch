@@ -9,7 +9,6 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -45,7 +44,6 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -580,7 +578,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param failure if non null then the request failed catastrophically with this exception
      */
     protected void finishHim(Exception failure) {
-        logger.debug(() -> new ParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
+        logger.debug(() -> "[" + task.getId() + "]: finishing with a catastrophic failure", failure);
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
@@ -824,9 +822,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
         private final WorkerBulkByScrollTaskState taskWorker;
-        private final ScriptService scriptService;
-        private final Script script;
-        private final Map<String, Object> params;
+        protected final ScriptService scriptService;
+        protected final Script script;
+        protected final Map<String, Object> params;
 
         public ScriptApplier(
             WorkerBulkByScrollTaskState taskWorker,
@@ -859,9 +857,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             OpType oldOpType = OpType.INDEX;
             context.put("op", oldOpType.toString());
 
-            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-            UpdateScript updateScript = factory.newInstance(params, context);
-            updateScript.execute();
+            execute(context);
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {
@@ -933,6 +929,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
 
+        protected abstract void execute(Map<String, Object> ctx);
     }
 
     public enum OpType {

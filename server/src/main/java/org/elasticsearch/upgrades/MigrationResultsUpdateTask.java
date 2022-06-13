@@ -20,6 +20,8 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.HashMap;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Handles updating the {@link FeatureMigrationResults} in the cluster state.
  */
@@ -55,8 +57,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
      * @param clusterService The cluster service to which this task should be submitted.
      */
     public void submit(ClusterService clusterService) {
-        String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
-            .getFormattedMessage();
+        String source = format("record [%s] migration [%s]", featureName, status.succeeded() ? "success" : "failure");
         submitUnbatchedTask(clusterService, source, this);
     }
 
@@ -90,7 +91,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
-                new ParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),
+                () -> "failed to update cluster state after successful migration of feature [" + featureName + "]",
                 clusterStateUpdateException
             );
         } else {

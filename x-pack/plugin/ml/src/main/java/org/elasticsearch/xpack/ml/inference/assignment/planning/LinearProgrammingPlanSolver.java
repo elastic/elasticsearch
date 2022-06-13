@@ -44,12 +44,20 @@ class LinearProgrammingPlanSolver {
     private static final int RANDOMIZED_ROUNDING_ROUNDS = 20; // more rounds do not seem to improve things.
 
     /**
-     * Ojalgo creates a 2D double array with size of complexity {@link #memoryComplexity()}.
-     * We set a limit of storing 4M doubles. This should result to a max of about ~100MB (determined through tests)
-     * for the solver to run in the heap. This should be enough to avoid OOM exceptions. We fall back to the
-     * bin packing solution if we're over that limit.
+     * Ojalgo solver may throw a OOM exception if the problem is too large.
+     * When the solver is dense, a 2D double array is created with size of complexity {@link #memoryComplexity()}.
+     * We empirically determine a threshold for complexity after which we switch the solver to sparse mode
+     * which consumes significantly less memory at the cost of speed.
      */
-    private static final int MEMORY_COMPLEXITY_LIMIT = 4_000_000;
+    private static final int MEMORY_COMPLEXITY_SPARSE_THRESHOLD = 4_000_000;
+
+    /**
+     * Ojalgo solver may throw a OOM exception if the problem is too large.
+     * When the solver is dense, a 2D double array is created with size of complexity {@link #memoryComplexity()}.
+     * Using the same function for when the solver is sparse we empirically determine a threshold after which
+     * we do not invoke the solver at all and fall back to our bin packing solution.
+     */
+    private static final int MEMORY_COMPLEXITY_LIMIT = 10_000_000;
 
     private final Random random = new Random(RANDOMIZATION_SEED);
 
@@ -241,9 +249,12 @@ class LinearProgrammingPlanSolver {
         // We define L1 so that L1 = L1' * C / N_j < 1. Solving for L1', we get L1' = L1 * N_j / C.
         // Replacing L1' with L1 in the objective function we get: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * a_i_j / C).
 
-        ExpressionsBasedModel model = new ExpressionsBasedModel(
-            new Optimisation.Options().abort(new CalendarDateDuration(10, CalendarDateUnit.SECOND))
-        );
+        Optimisation.Options options = new Optimisation.Options().abort(new CalendarDateDuration(10, CalendarDateUnit.SECOND));
+        if (memoryComplexity() > MEMORY_COMPLEXITY_SPARSE_THRESHOLD) {
+            logger.debug(() -> "Problem size is large enough to switch to sparse solver");
+            options.sparse = true;
+        }
+        ExpressionsBasedModel model = new ExpressionsBasedModel(options);
 
         Map<Tuple<Model, Node>, Variable> allocationVars = new HashMap<>();
 

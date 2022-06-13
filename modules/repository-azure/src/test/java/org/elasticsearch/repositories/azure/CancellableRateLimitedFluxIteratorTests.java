@@ -148,6 +148,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         iterator.cancel();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87112")
     public void testCancellation() throws Exception {
         int requestedElements = 4;
         final AtomicBoolean cancelled = new AtomicBoolean();

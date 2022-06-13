@@ -84,7 +84,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -131,7 +131,7 @@ public class MetadataIndexTemplateService {
             try {
                 final var task = taskContext.getTask();
                 state = task.execute(state);
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }
@@ -236,8 +236,8 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Package visible for testing
-    ClusterState addComponentTemplate(
+    // Public visible for testing
+    public ClusterState addComponentTemplate(
         final ClusterState currentState,
         final boolean create,
         final String name,
@@ -628,6 +628,8 @@ public class MetadataIndexTemplateService {
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
+        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
+        final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
             finalSettings.put(
@@ -637,7 +639,8 @@ public class MetadataIndexTemplateService {
                     indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
-                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
+                    combinedSettings,
+                    combinedMappings
                 )
             );
         }
@@ -1222,8 +1225,7 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName)
-        throws Exception {
+    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve mappings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1242,7 +1244,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
         final String indexName
-    ) throws Exception {
+    ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
         List<CompressedXContent> mappings = template.composedOf()
             .stream()

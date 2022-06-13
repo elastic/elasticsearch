@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -65,6 +64,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 class ClientTransformIndexer extends TransformIndexer {
 
@@ -314,8 +315,8 @@ class ClientTransformIndexer extends TransformIndexer {
                     // seqNoPrimaryTermAndIndex
                     // - for tests fail(assert), so we can debug the problem
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                        () -> format(
+                            "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
                         ),
                         statsExc
@@ -327,7 +328,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    logger.error(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
                 }
                 listener.onFailure(statsExc);
@@ -336,14 +337,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Updated state document from [{}] to [{}]",
-                transformConfig.getId(),
-                expectedValue,
-                newValue
-            )
-        );
+        logger.debug(() -> format("[%s] Updated state document from [%s] to [%s]", transformConfig.getId(), expectedValue, newValue));
         boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
@@ -399,7 +393,7 @@ class ClientTransformIndexer extends TransformIndexer {
             closePitRequest,
             ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
-                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+                logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
         );
     }
@@ -458,10 +452,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     disablePit = true;
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Failed to create a point in time reader, falling back to normal search.",
-                            getJobId()
-                        ),
+                        () -> format("[%s] Failed to create a point in time reader, falling back to normal search.", getJobId()),
                         e
                     );
                 }
@@ -504,11 +495,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Search context missing, falling back to normal search; request [{}]",
-                            getJobId(),
-                            name
-                        ),
+                        () -> format("[%s] Search context missing, falling back to normal search; request [%s]", getJobId(), name),
                         e
                     );
                     namedPits.remove(name);

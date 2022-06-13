@@ -103,6 +103,8 @@ created the data stream:
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
+  - match: { data_streams.0.time_series.temporal_ranges.0.start: 2021-04-28T00:00:00.000Z }
+  - match: { data_streams.0.time_series.temporal_ranges.0.end: 2021-04-29T00:00:00.000Z }
   - set:  { data_streams.0.indices.0.index_name: backing_index }
 
   - do:

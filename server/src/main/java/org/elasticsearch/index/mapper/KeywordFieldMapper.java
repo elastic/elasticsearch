@@ -10,15 +10,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
@@ -61,6 +62,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -76,6 +78,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -137,19 +140,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null)
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
             .acceptsNull();
 
         private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
             true,
-            m -> toType(m).eagerGlobalOrdinals,
+            m -> toType(m).fieldType().eagerGlobalOrdinals(),
             false
         );
         private final Parameter<Integer> ignoreAbove = Parameter.intParam(
             "ignore_above",
             true,
-            m -> toType(m).ignoreAbove,
+            m -> toType(m).fieldType().ignoreAbove(),
             Defaults.IGNORE_ABOVE
         );
 
@@ -190,7 +193,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
                 if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field ["
@@ -247,8 +250,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 stored,
@@ -263,8 +266,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script,
                 onScriptError,
                 meta,
-                dimension
-            );
+                dimension };
         }
 
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
@@ -278,10 +280,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (normalizer == null) {
                     if (indexCreatedVersion.isLegacyIndexVersion()) {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "Could not find normalizer [{}] of legacy index, falling back to default",
-                                normalizerName
-                            )
+                            () -> format("Could not find normalizer [%s] of legacy index, falling back to default", normalizerName)
                         );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {
@@ -860,18 +859,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final boolean indexed;
     private final boolean hasDocValues;
-    private final String nullValue;
-    private final boolean eagerGlobalOrdinals;
-    private final int ignoreAbove;
     private final String indexOptions;
     private final FieldType fieldType;
     private final SimilarityProvider similarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
-    private final FieldValues<String> scriptValues;
     private final ScriptCompiler scriptCompiler;
-    private final boolean dimension;
     private final Version indexCreatedVersion;
 
     private final IndexAnalyzers indexAnalyzers;
@@ -884,31 +878,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(
-            simpleName,
-            mappedFieldType,
-            mappedFieldType.normalizer,
-            multiFields,
-            copyTo,
-            builder.script.get() != null,
-            builder.onScriptError.getValue()
-        );
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
-        this.nullValue = builder.nullValue.getValue();
-        this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
-        this.ignoreAbove = builder.ignoreAbove.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = fieldType;
         this.similarity = builder.similarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
-        this.scriptValues = builder.scriptValues();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
-        this.dimension = builder.dimension.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
@@ -922,7 +903,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         String value;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            value = nullValue;
+            value = fieldType().nullValue;
         } else {
             value = parser.textOrNull();
         }
@@ -937,7 +918,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+        this.fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     private void indexValue(DocumentParserContext context, String value) {
@@ -945,13 +926,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        if (value.length() > ignoreAbove) {
+        if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
             return;
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (dimension) {
+        if (fieldType().isDimension()) {
             context.getDimensions().addString(fieldType().name(), value);
         }
 
@@ -1025,16 +1006,111 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), fieldType().normalizer);
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(dimension).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension())
+            .init(this);
     }
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    boolean hasNormalizer() {
+        return normalizerName != null;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return syntheticFieldLoader(simpleName());
+    }
+
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (hasNormalizer()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
+            );
+        }
+        return new BytesSyntheticFieldLoader(name(), simpleName) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+                b.value(value.utf8ToString());
+            }
+        };
+    }
+
+    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        public BytesSyntheticFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader) throws IOException {
+            SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
+
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    hasValue = leaf.advanceExact(docId);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return hasValue;
+                }
+
+                @Override
+                public void load(XContentBuilder b) throws IOException {
+                    long first = leaf.nextOrd();
+                    long next = leaf.nextOrd();
+                    if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                        b.field(simpleName);
+                        loadNextValue(b, leaf.lookupOrd(first));
+                        return;
+                    }
+                    b.startArray(simpleName);
+                    loadNextValue(b, leaf.lookupOrd(first));
+                    loadNextValue(b, leaf.lookupOrd(next));
+                    while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                        loadNextValue(b, leaf.lookupOrd(next));
+                    }
+                    b.endArray();
+                }
+            };
+        }
+
+        protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
     }
 }

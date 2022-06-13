@@ -43,7 +43,6 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
                 equalTo(String.valueOf(initialReplicas))
             );
         });
-        ensureGreen(indexName);
 
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", "non-existing-node"));
 
@@ -58,7 +57,6 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
                 equalTo("0")
             );
         });
-        ensureGreen(indexName);
 
         // Remove the setting
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", ""));
@@ -74,6 +72,5 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
                 equalTo(String.valueOf(initialReplicas))
             );
         });
-        ensureGreen(indexName);
     }
 }

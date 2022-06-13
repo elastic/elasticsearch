@@ -164,7 +164,9 @@ public class IndexLifecycleService
     // package private for testing
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
+    }
 
+    private void onMasterFailOver(Exception e) {
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
@@ -174,8 +176,7 @@ public class IndexLifecycleService
 
             boolean safeToStop = true; // true until proven false by a run policy
 
-            // If we just became master, we need to kick off any async actions that
-            // may have not been run due to master rollover
+            // Doing full inspection of all indices in the cluster state due to Master FailOver
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 if (Strings.hasText(policyName)) {
@@ -205,7 +206,7 @@ public class IndexLifecycleService
                         } else {
                             lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                         }
-                    } catch (Exception e) {
+                    } catch (e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
                                 new ParameterizedMessage(

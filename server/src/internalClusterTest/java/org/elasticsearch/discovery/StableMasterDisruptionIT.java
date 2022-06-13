@@ -35,12 +35,10 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,9 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singleton;
@@ -126,20 +122,21 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertGreenMasterStability(internalCluster().client());
     }
 
-    private void assertGreenMasterStability(Client client) throws ExecutionException, InterruptedException, IOException {
+    private void assertGreenMasterStability(Client client) throws Exception {
         assertMasterStability(client, HealthStatus.GREEN, "The cluster has a stable master node");
     }
 
-    private void assertMasterStability(Client client, HealthStatus expectedStatus, String expectedSummarySubstring)
-        throws ExecutionException, InterruptedException, IOException {
-        GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
-        String debugInformation = xContentToString(healthResponse);
-        assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
-        assertThat(
-            debugInformation,
-            healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
-            containsString(expectedSummarySubstring)
-        );
+    private void assertMasterStability(Client client, HealthStatus expectedStatus, String expectedSummarySubstring) throws Exception {
+        assertBusy(() -> {
+            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
+            String debugInformation = xContentToString(healthResponse);
+            assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
+            assertThat(
+                debugInformation,
+                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
+                containsString(expectedSummarySubstring)
+            );
+        });
     }
 
     private String xContentToString(ToXContentObject xContent) throws IOException {
@@ -477,13 +474,11 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertGreenMasterStability(internalCluster().client(randomFrom(dataNodes)));
     }
 
-    public void testCannotJoinMaster() throws Exception {
+    public void testNoMasterEligibleNodes() throws Exception {
         /*
-         * In this test we have a single master-eligible node. We then simulate a cluster changed event to the MasterHistory that this
-         * node is no longer the master. But PeerFinder still thinks it is the elected master. So the health check ought to return that
-         * we cannot join the master. We set the master lookup threshold very low on the data nodes, so when we run the master stability
-         *  check on one of the data nodes, it will see that there has been no master recently and there are no master eligible nodes, so
-         *  it returns a RED status.
+         * In this test we have a single master-eligible node. We then stop the master. We set the master lookup threshold very low on the
+         * data nodes, so when we run the master stability check on one of the data nodes, it will see that there has been no master
+         * recently and there are no master eligible nodes, so it returns a RED status.
          */
         internalCluster().startMasterOnlyNodes(
             1,
@@ -518,62 +513,12 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         }
     }
 
-    public void testNoMasterRecently() throws Exception {
+    public void testCannotJoinLeader() throws Exception {
         /*
-         * In this test we have a three master-eligible node. We make it so that the two non-active ones cannot communicate, and then we
-         * stop the active master node. Now there is no quorum so a new master cannot be eliected. We set the master lookup threshold very
-         *  low on the data nodes, so when we run the master stability check on one
-         * of the data nodes, it will see that there has been no master recently and there are no master eligible nodes, so it returns a
-         * RED status.
-         */
-        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(
-            3,
-            Settings.builder()
-                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
-                .build()
-        );
-        final List<String> dataNodes = internalCluster().startDataOnlyNodes(
-            2,
-            Settings.builder()
-                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
-                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-                .put(
-                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(-1, TimeUnit.SECONDS)
-                )
-                .build()
-        );
-        ensureStableCluster(5);
-        String problemDataNode = randomFrom(dataNodes);
-        String firstMasterNode = internalCluster().getMasterName();
-        List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
-        NetworkDisruption networkDisconnect = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(Set.of(nonActiveMasterNodes.get(0), dataNodes.get(0)),
-                Set.of(nonActiveMasterNodes.get(1), dataNodes.get(1))),
-            NetworkDisruption.UNRESPONSIVE
-        );
-
-        internalCluster().clearDisruptionScheme();
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-        internalCluster().stopCurrentMasterNode();
-        assertMasterStability(
-            internalCluster().client(problemDataNode),
-            HealthStatus.RED,
-            "No master has been observed recently"
-        );
-    }
-
-    public void testNoMasterEligibleNodes2() throws Exception {
-        /*
-         * In this test we have a single master-eligible node. We then stop the master node so that we have no master-eligible nodes in
-         * the cluster. We set the master lookup threshold very low on the data nodes, so when we run the master stability check on one
-         * of the data nodes, it will see that there has been no master recently and there are no master eligible nodes, so it returns a
-         * RED status.
+         * In this test we have a single master-eligible node. We create a cluster change event saying that the master went to null and
+         * send it only to the master history on each data node. As a result, the PeerFinder still thinks it is the master. Since the
+         * PeerFinder thinks there is a master but we have record of it being null in the history, the data node thinks that it has
+         * problems joining the elected master and returns a RED status.
          */
         internalCluster().startMasterOnlyNodes(
             1,
@@ -599,17 +544,22 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
         Iterable<MasterHistoryService> masterHistoryServices = internalCluster().getDataNodeInstances(MasterHistoryService.class);
         for (MasterHistoryService masterHistoryService : masterHistoryServices) {
-            ClusterState state =
-                new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(new DiscoveryNodes.Builder().masterNodeId(null)).build();
-            ClusterState previousState =
-                new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(new DiscoveryNodes.Builder().masterNodeId("test").add(new DiscoveryNode(
-                    "test",
-                    "test",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
-                ))).build();
+            ClusterState state = new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(
+                new DiscoveryNodes.Builder().masterNodeId(null)
+            ).build();
+            ClusterState previousState = new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(
+                new DiscoveryNodes.Builder().masterNodeId("test")
+                    .add(
+                        new DiscoveryNode(
+                            "test",
+                            "test",
+                            buildNewFakeTransportAddress(),
+                            Collections.emptyMap(),
+                            DiscoveryNodeRole.roles(),
+                            Version.CURRENT
+                        )
+                    )
+            ).build();
             ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("test", state, previousState);
             masterHistoryService.getLocalMasterHistory().clusterChanged(clusterChangedEvent);
         }

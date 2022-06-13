@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -451,14 +449,14 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = calculateOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else {
-                // NOTE: The logic in this block will be implemented in a future PR
-                result = createIndicator(
-                    HealthStatus.RED,
-                    "No master has been observed recently",
-                    HealthIndicatorDetails.EMPTY,
-                    UNSTABLE_MASTER_IMPACTS,
-                    getContactSupportUserActions(explain)
-                );
+            // NOTE: The logic in this block will be implemented in a future PR
+            result = createIndicator(
+                HealthStatus.RED,
+                "No master has been observed recently",
+                HealthIndicatorDetails.EMPTY,
+                UNSTABLE_MASTER_IMPACTS,
+                getContactSupportUserActions(explain)
+            );
         }
         return result;
     }

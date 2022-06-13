@@ -256,7 +256,7 @@ public class LeaderChecker {
                             logger.debug(() -> "leader [" + leader + "] disconnected during check", exp);
                             leaderFailed(
                                 () -> format(
-                                    "master node [{}] disconnected, restarting discovery [{}]",
+                                    "master node [%s] disconnected, restarting discovery [%s]",
                                     leader.descriptionWithoutAttributes(),
                                     ExceptionsHelper.unwrapCause(exp).getMessage()
                                 ),
@@ -267,7 +267,7 @@ public class LeaderChecker {
                             logger.debug(() -> "leader [" + leader + "] health check failed", exp);
                             leaderFailed(
                                 () -> format(
-                                    "master node [{}] reported itself as unhealthy [{}], {}",
+                                    "master node [%s] reported itself as unhealthy [%s], %s",
                                     leader.descriptionWithoutAttributes(),
                                     exp.getCause().getMessage(),
                                     RESTARTING_DISCOVERY_TEXT
@@ -299,8 +299,8 @@ public class LeaderChecker {
                             );
                             leaderFailed(
                                 () -> format(
-                                    "[{}] consecutive checks of the master node [{}] were unsuccessful ([{}] rejected, [{}] timed out), "
-                                        + "{} [last unsuccessful check: {}]",
+                                    "[%s] consecutive checks of the master node [%s] were unsuccessful ([%s] rejected, [%s] timed out), "
+                                        + "%s [last unsuccessful check: %s]",
                                     failureCount,
                                     leader.descriptionWithoutAttributes(),
                                     rejectedCountSinceLastSuccess,
@@ -351,7 +351,7 @@ public class LeaderChecker {
             if (discoveryNode.equals(leader)) {
                 logger.debug("leader [{}] disconnected", leader);
                 leaderFailed(
-                    () -> format("master node [{}] disconnected, restarting discovery", leader.descriptionWithoutAttributes()),
+                    () -> format("master node [%s] disconnected, restarting discovery", leader.descriptionWithoutAttributes()),
                     new NodeDisconnectedException(discoveryNode, "disconnected")
                 );
             }

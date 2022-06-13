@@ -92,7 +92,7 @@ public class BytesRestResponse extends RestResponse {
 
             SUPPRESSED_ERROR_LOGGER.log(
                 level,
-                () -> Strings.format("path: {}, params: {}", channel.request().rawPath(), channel.request().params()),
+                () -> Strings.format("path: %s, params: %s", channel.request().rawPath(), channel.request().params()),
                 e
             );
         }

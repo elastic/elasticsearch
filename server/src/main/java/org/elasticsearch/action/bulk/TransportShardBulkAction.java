@@ -411,7 +411,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 logger.log(
                     level,
                     () -> Strings.format(
-                        "{} failed to execute bulk item ({}) {}",
+                        "%s failed to execute bulk item (%s) %s",
                         context.getPrimary().shardId(),
                         opType.getLowercase(),
                         docWriteRequest

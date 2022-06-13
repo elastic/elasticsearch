@@ -287,7 +287,7 @@ public class JobNodeSelector {
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
             if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > mostAvailableMemoryForML) {
                 String message = format(
-                    "[{}] not waiting for node assignment as estimated job size [%s] is greater than largest possible job size [%s]",
+                    "[%s] not waiting for node assignment as estimated job size [%s] is greater than largest possible job size [%s]",
                     jobId,
                     MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage,
                     mostAvailableMemoryForML

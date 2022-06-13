@@ -423,17 +423,38 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 jwt = SignedJWT.parse(serializedJwt.toString());
                 final String jwtAlg = jwt.getHeader().getAlgorithm().getName();
                 final boolean isJwtAlgHmac = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwtAlg);
-                final JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.jwksAlgsHmac : this.jwksAlgsPkc;
-                JwtValidateUtil.validate(
-                    jwt,
-                    this.allowedIssuer,
-                    this.allowedAudiences,
-                    this.allowedClockSkew.seconds(),
-                    jwksAndAlgs.algs,
-                    jwksAndAlgs.jwks
-                );
+
+                try:
+                    JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.jwksAlgsHmac : this.jwksAlgsPkc;
+                    JwtValidateUtil.validate(
+                        jwt,
+                        this.allowedIssuer,
+                        this.allowedAudiences,
+                        this.allowedClockSkew.seconds(),
+                        jwksAndAlgs.algs,
+                        jwksAndAlgs.jwks
+                    );
+                } catch (JwtValidateUtil.InvalidSignatureException e) {
+                    /**
+                     * Elasticsearch automatically caches the retrieved JWK set to avoid unnecessary HTTP requests, 
+                     * but will attempt to refresh the JWK upon signature verification failure, 
+                     * as this might indicate that the JWT Provider has rotated the signing keys.
+                     */
+                    this.parseJwksAlgsPkc();
+                    JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.jwksAlgsHmac : this.jwksAlgsPkc;
+                    JwtValidateUtil.validate(
+                        jwt,
+                        this.allowedIssuer,
+                        this.allowedAudiences,
+                        this.allowedClockSkew.seconds(),
+                        jwksAndAlgs.algs,
+                        jwksAndAlgs.jwks
+                    );
+                }
+                
                 claimsSet = jwt.getJWTClaimsSet();
                 LOGGER.trace("Realm [{}] JWT validation succeeded for token=[{}].", super.name(), tokenPrincipal);
+            
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
                 final AuthenticationResult<User> failure = AuthenticationResult.unsuccessful(msg, e);

@@ -310,7 +310,7 @@ public class JwtValidateUtil {
                 return; // VERIFY SUCCEEDED
             }
         }
-        throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new InvalidSignatureException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -370,5 +370,11 @@ public class JwtValidateUtil {
         final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
         signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
         return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
+    public class InvalidSignatureException extends Exception { 
+        public InvalidSignatureException(String errorMessage) {
+            super(errorMessage);
+        }
     }
 }

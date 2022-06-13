@@ -540,8 +540,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry(
                                 "filters",
                                 matchesList().item(
-                                    matchesMap().entry("query", "*:*")
-                                        .entry("segments_counted_in_constant_time", greaterThan(0))
+                                    matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", greaterThan(0))
                                 )
                             )
                     )
@@ -576,10 +575,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             .entry("segments_with_deleted_docs", 0)
                             .entry(
                                 "filters",
-                                matchesList().item(
-                                    matchesMap().entry("query", "*:*")
-                                        .entry("segments_counted_in_constant_time", 0)
-                                )
+                                matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                             )
                     )
                 );
@@ -698,10 +694,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         .entry("segments_with_deleted_docs", 0)
                         .entry(
                             "filters",
-                            matchesList().item(
-                                matchesMap().entry("query", "*:*")
-                                    .entry("segments_counted_in_constant_time", 1)
-                            )
+                            matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 1))
                         )
                 );
             }

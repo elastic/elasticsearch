@@ -139,7 +139,7 @@ public class QueryToFilterAdapter {
         builder.add(extraQuery, BooleanClause.Occur.FILTER);
         Query rewrittenUnion = searcher().rewrite(new ConstantScoreQuery(builder.build()));
         if (rewrittenUnion instanceof ConstantScoreQuery) {
-          rewrittenUnion = ((ConstantScoreQuery) rewrittenUnion).getQuery();
+            rewrittenUnion = ((ConstantScoreQuery) rewrittenUnion).getQuery();
         }
         // This union is inefficient if Lucene cannot merge clauses of the boolean query through a rewrite.
         final boolean inefficientUnion = rewrittenUnion instanceof BooleanQuery;

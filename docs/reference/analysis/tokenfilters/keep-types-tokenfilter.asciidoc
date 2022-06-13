@@ -25,7 +25,7 @@ Certain token filters can also add token types. For example, the
 type.
 
 Some tokenizers don't support this token filter, for example keyword, simple_pattern, and
-simple_pattern_split tokenizers.
+simple_pattern_split tokenizers, as they don't support setting the token type attribute.
 ====
 
 This filter uses Lucene's

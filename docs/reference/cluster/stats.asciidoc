@@ -505,6 +505,18 @@ Number of fields mapped to the field data type in selected nodes.
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
 
+`indexed_vector_count`::
+(integer)
+For dense_vector field types, number of indexed vector types in selected nodes.
+
+`indexed_vector_dim_min`::
+(integer)
+For dense_vector field types, the minimum dimension of all indexed vector types in selected nodes.
+
+`indexed_vector_dim_max`::
+(integer)
+For dense_vector field types, the maximum dimension of all indexed vector types in selected nodes.
+
 `script_count`::
 (integer)
 Number of fields that declare a script.

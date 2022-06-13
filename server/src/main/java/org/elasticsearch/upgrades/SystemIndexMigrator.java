@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -184,10 +183,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
-                                new ParameterizedMessage(
-                                    "failed to resume system index migration from index [{}], that index is not present in the cluster",
+                                format(
+                                    "failed to resume system index migration from index [%s], that index is not present in the cluster",
                                     stateIndexName
-                                ).getFormattedMessage()
+                                )
                             )
                         );
                     }

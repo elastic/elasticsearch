@@ -515,6 +515,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
         StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
         StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT
     );

@@ -24,6 +24,7 @@ The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option
 that allows to return only the nearest documents that satisfy the provided
 filter.
 
+// tag::notable-highlights[]
 [discrete]
 [[nlp-latency-throughput-stats]]
 === NLP latency and throughput stats

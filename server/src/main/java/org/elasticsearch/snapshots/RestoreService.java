@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -400,10 +399,10 @@ public class RestoreService implements ClusterStateApplier {
 
             if (explicitlyRequestedSystemIndices.size() > 0) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "requested system indices {}, but system indices can only be restored as part of a feature state",
+                    format(
+                        "requested system indices %s, but system indices can only be restored as part of a feature state",
                         explicitlyRequestedSystemIndices
-                    ).getFormattedMessage()
+                    )
                 );
             }
 
@@ -572,10 +571,10 @@ public class RestoreService implements ClusterStateApplier {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
-                        new ParameterizedMessage(
-                            "requested system data stream [{}], but system data streams can only be restored as part of a feature state",
+                        format(
+                            "requested system data stream [%s], but system data streams can only be restored as part of a feature state",
                             requestedDataStream
-                        ).getFormattedMessage()
+                        )
                     );
                 } else if (featureStateDataStreams.contains(requestedDataStream)) {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);

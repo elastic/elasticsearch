@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -235,8 +234,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     public void testMigrateIndexWithWriteBlock() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
-        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
-            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
+        String indexName = INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old");
+
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
         ensureGreen();

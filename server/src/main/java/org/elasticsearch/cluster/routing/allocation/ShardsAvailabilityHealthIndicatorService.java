@@ -265,6 +265,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         MIGRATE_TO_TIERS_ACTION_GUIDE
     );
 
+    public static final Map<String, UserAction.Definition> ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "migrate_data_tiers_require_data_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
+                        + tier
+                        + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
+                        + "nodes in this tier. Remove ["
+                        + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
+                        + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then "
+                        + "using the data tier migration action [POST /_ilm/migrate_to_data_tiers]. "
+                        + "Finally, restart ILM [POST /_ilm/start].",
+                    MIGRATE_TO_TIERS_ACTION_GUIDE
+                )
+            )
+        );
+
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new UserAction.Definition(
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
@@ -274,6 +294,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
         MIGRATE_TO_TIERS_ACTION_GUIDE
     );
+
+    public static final Map<String, UserAction.Definition> ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "migrate_data_tiers_include_data_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
+                        + tier
+                        + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
+                        + "nodes in this tier. Remove ["
+                        + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
+                        + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then "
+                        + "using the data tier migration action [POST /_ilm/migrate_to_data_tiers]. "
+                        + "Finally, restart ILM [POST /_ilm/start].",
+                    MIGRATE_TO_TIERS_ACTION_GUIDE
+                )
+            )
+        );
 
     public static final String NODE_CAPACITY_ACTION_GUIDE = "http://ela.st/node-capacity";
     public static final UserAction.Definition ACTION_INCREASE_NODE_CAPACITY = new UserAction.Definition(
@@ -552,7 +592,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 actions.addAll(
                     checkDataTierAtShardLimit(indexMetadata, clusterState, dataTierAllocationResults, dataTierNodes, preferredTier)
                 );
-                actions.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, dataTierNodes));
+                actions.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, preferredTier, dataTierNodes));
                 checkNotEnoughNodesInDataTier(dataTierAllocationResults, preferredTier).ifPresent(actions::add);
             }
         }
@@ -626,6 +666,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private List<UserAction.Definition> checkDataTierShouldMigrate(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> dataTierAllocationResults,
+        @Nullable String preferredTier,
         Set<DiscoveryNode> dataTierNodes
     ) {
         // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.
@@ -646,11 +687,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 // Check if the data tier nodes this shard is allowed on have data attributes that match
                 if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
                     // No data tier nodes match the required data attribute
-                    actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA);
+                    actions.add(
+                        Optional.ofNullable(preferredTier)
+                            .map(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP::get)
+                            .orElse(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA)
+                    );
                 }
                 if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
                     // No data tier nodes match the included data attributes
-                    actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA);
+                    actions.add(
+                        Optional.ofNullable(preferredTier)
+                            .map(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP::get)
+                            .orElse(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA)
+                    );
                 }
             }
             return actions;

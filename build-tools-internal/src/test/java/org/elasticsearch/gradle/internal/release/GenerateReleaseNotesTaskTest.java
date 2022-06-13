@@ -181,6 +181,29 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
+     * Check that when deriving a list of major.minor versions from git tags, the current unreleased version is included,
+     * but any higher version numbers are not.
+     */
+    @Test
+    public void getMinorVersions_includesCurrentButNotFutureVersions() {
+        // given:
+        when(gitWrapper.listVersions(anyString())).thenReturn(
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0", "8.0.1", "8.1.0", "8.2.0", "8.2.1", "8.3.0", "8.3.1", "8.4.0")
+                .map(QualifiedVersion::of)
+        );
+
+        // when:
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.3.0-SNAPSHOT");
+        Set<MinorVersion> minorVersions = GenerateReleaseNotesTask.getMinorVersions(versions);
+
+        // then:
+        assertThat(
+            minorVersions,
+            containsInAnyOrder(new MinorVersion(8, 0), new MinorVersion(8, 1), new MinorVersion(8, 2), new MinorVersion(8, 3))
+        );
+    }
+
+    /**
      * Check that the task partitions the list of files correctly by version for a prerelease.
      */
     @Test

@@ -164,82 +164,82 @@ public class IndexLifecycleService
     // package private for testing
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
-    }
 
-    private void onMasterFailOver(Exception e) {
-        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null) {
-            OperationMode currentMode = currentMetadata.getOperationMode();
-            if (OperationMode.STOPPED.equals(currentMode)) {
-                return;
-            }
+        private void onMasterFailOver(Exception e) {
+            final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (currentMetadata != null) {
+                OperationMode currentMode = currentMetadata.getOperationMode();
+                if (OperationMode.STOPPED.equals(currentMode)) {
+                    return;
+                }
 
-            boolean safeToStop = true; // true until proven false by a run policy
+                boolean safeToStop = true; // true until proven false by a run policy
 
-            // Doing full inspection of all indices in the cluster state due to Master FailOver
-            for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-                String policyName = idxMeta.getLifecyclePolicyName();
-                if (Strings.hasText(policyName)) {
-                    final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                    StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
+                // Doing full inspection of all indices in the cluster state due to Master FailOver
+                for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
+                    String policyName = idxMeta.getLifecyclePolicyName();
+                    if (Strings.hasText(policyName)) {
+                        final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+                        StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
-                    try {
-                        if (OperationMode.STOPPING == currentMode) {
-                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
-                                logger.info(
-                                    "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey.getName()
-                                );
-                                lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
-                                // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
-                                safeToStop = false;
+                        try {
+                            if (OperationMode.STOPPING == currentMode) {
+                                if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                                    logger.info(
+                                        "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
+                                        idxMeta.getIndex().getName(),
+                                        policyName,
+                                        stepKey.getName()
+                                    );
+                                    lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                                    // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
+                                    safeToStop = false;
+                                } else {
+                                    logger.info(
+                                        "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
+                                        stepKey == null ? "n/a" : stepKey.getName(),
+                                        idxMeta.getIndex().getName(),
+                                        policyName
+                                    );
+                                }
                             } else {
-                                logger.info(
-                                    "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                                    stepKey == null ? "n/a" : stepKey.getName(),
-                                    idxMeta.getIndex().getName(),
-                                    policyName
-                                );
+                                lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                             }
-                        } else {
-                            lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
-                        }
-                    } catch (e) {
-                        if (logger.isTraceEnabled()) {
-                            logger.warn(
-                                new ParameterizedMessage(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey,
-                                    lifecycleState.asMap()
-                                ),
-                                e
-                            );
-                        } else {
-                            logger.warn(
-                                new ParameterizedMessage(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey
-                                ),
-                                e
-                            );
+                        } catch (Exception e) {
+                            if (logger.isTraceEnabled()) {
+                                logger.warn(
+                                    new ParameterizedMessage(
+                                        "async action execution failed during master election trigger"
+                                            + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                        idxMeta.getIndex().getName(),
+                                        policyName,
+                                        stepKey,
+                                        lifecycleState.asMap()
+                                    ),
+                                    e
+                                );
+                            } else {
+                                logger.warn(
+                                    new ParameterizedMessage(
+                                        "async action execution failed during master election trigger"
+                                            + " for index [{}] with policy [{}] in step [{}]",
+                                        idxMeta.getIndex().getName(),
+                                        policyName,
+                                        stepKey
+                                    ),
+                                    e
+                                );
 
+                            }
+                            // Don't rethrow the exception, we don't want a failure for one index to be
+                            // called to cause actions not to be triggered for further indices
                         }
-                        // Don't rethrow the exception, we don't want a failure for one index to be
-                        // called to cause actions not to be triggered for further indices
                     }
                 }
-            }
 
-            if (safeToStop && OperationMode.STOPPING == currentMode) {
-                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+                if (safeToStop && OperationMode.STOPPING == currentMode) {
+                    submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+                }
             }
         }
     }

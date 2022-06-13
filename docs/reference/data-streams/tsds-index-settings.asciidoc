@@ -1,3 +1,4 @@
+ifeval::["{release-state}"=="unreleased"]
 [[tsds-index-settings]]
 === Time series index settings
 
@@ -51,3 +52,4 @@ preview:[] (<<dynamic-index-settings,Dynamic>>, integer)
 Maximum number of time series dimensions for the
 index. Defaults to `16`.
 // end::dimensions-limit[]
+endif::[]

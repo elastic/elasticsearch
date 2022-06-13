@@ -2529,7 +2529,7 @@ public class InternalEngine extends Engine {
                 }
             }
             if (indexWriter.hasPendingMerges() == false
-                && engineConfig.getThreadPool().relativeTimeInNanos() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                && engineConfig.getThreadPool().rawRelativeTimeInMillis() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
                 // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
                 // we deadlock on engine#close for instance.
                 engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {

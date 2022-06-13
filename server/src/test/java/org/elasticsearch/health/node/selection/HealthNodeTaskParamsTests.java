@@ -14,28 +14,28 @@ import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
 
-public class HealthNodeSelectionTaskParamsTests extends AbstractNamedWriteableTestCase<HealthNodeSelectorTaskParams> {
+public class HealthNodeTaskParamsTests extends AbstractNamedWriteableTestCase<HealthNodeTaskParams> {
 
     // NOTE: This test case does not currently implement mutateInstance, because all instances of the class
     // are equal and have the same hashcode (for now).
 
     @Override
-    protected HealthNodeSelectorTaskParams createTestInstance() {
-        return new HealthNodeSelectorTaskParams();
+    protected HealthNodeTaskParams createTestInstance() {
+        return new HealthNodeTaskParams();
     }
 
     @Override
-    protected HealthNodeSelectorTaskParams copyInstance(HealthNodeSelectorTaskParams instance, Version version) throws IOException {
-        return new HealthNodeSelectorTaskParams();
+    protected HealthNodeTaskParams copyInstance(HealthNodeTaskParams instance, Version version) throws IOException {
+        return new HealthNodeTaskParams();
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(HealthNodeSelectorTaskExecutor.getNamedWriteables());
+        return new NamedWriteableRegistry(HealthNodeTaskExecutor.getNamedWriteables());
     }
 
     @Override
-    protected Class<HealthNodeSelectorTaskParams> categoryClass() {
-        return HealthNodeSelectorTaskParams.class;
+    protected Class<HealthNodeTaskParams> categoryClass() {
+        return HealthNodeTaskParams.class;
     }
 }

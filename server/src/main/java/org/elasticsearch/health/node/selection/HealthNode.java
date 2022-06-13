@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Main component used for selecting the health node of the cluster
  */
-public class HealthNodeSelector extends AllocatedPersistentTask {
+public class HealthNode extends AllocatedPersistentTask {
 
     public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.health_node_feature_flag_enabled"));
 
@@ -27,9 +27,9 @@ public class HealthNodeSelector extends AllocatedPersistentTask {
         return FEATURE_FLAG_ENABLED;
     }
 
-    public static final String TASK_NAME = "health-node-selector";
+    public static final String TASK_NAME = "health-node";
 
-    HealthNodeSelector(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+    HealthNode(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
     }
 

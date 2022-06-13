@@ -18,19 +18,17 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NAME;
+import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-class HealthNodeSelectorTaskParams implements PersistentTaskParams {
+class HealthNodeTaskParams implements PersistentTaskParams {
 
-    public static final ObjectParser<HealthNodeSelectorTaskParams, Void> PARSER = new ObjectParser<>(
-        TASK_NAME,
-        true,
-        HealthNodeSelectorTaskParams::new
-    );
+    private static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();
 
-    HealthNodeSelectorTaskParams() {}
+    public static final ObjectParser<HealthNodeTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
 
-    HealthNodeSelectorTaskParams(StreamInput in) {}
+    HealthNodeTaskParams() {}
+
+    HealthNodeTaskParams(StreamInput in) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -52,8 +50,8 @@ class HealthNodeSelectorTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) {}
 
-    public static HealthNodeSelectorTaskParams fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static HealthNodeTaskParams fromXContent(XContentParser parser) {
+        return INSTANCE;
     }
 
     @Override
@@ -63,6 +61,6 @@ class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof HealthNodeSelectorTaskParams;
+        return obj instanceof HealthNodeTaskParams;
     }
 }

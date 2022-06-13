@@ -38,7 +38,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.health.node.selection.HealthNodeSelector;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -762,7 +762,7 @@ public class TasksIT extends ESIntegTestCase {
         // Find tasks that are not expected to complete and identify the nodes running them
         List<PersistentTasksCustomMetadata.PersistentTask<?>> alwaysRunningTasks = findTasks(
             clusterService().state(),
-            HealthNodeSelector.TASK_NAME
+            HealthNode.TASK_NAME
         );
         Set<String> nodesRunningTasks = alwaysRunningTasks.stream()
             .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)

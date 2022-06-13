@@ -14,16 +14,16 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class HealthNodeSelectorTaskParamsXContentTests extends AbstractXContentTestCase<HealthNodeSelectorTaskParams> {
+public class HealthNodeTaskParamsXContentTests extends AbstractXContentTestCase<HealthNodeTaskParams> {
 
     @Override
-    protected HealthNodeSelectorTaskParams createTestInstance() {
-        return new HealthNodeSelectorTaskParams();
+    protected HealthNodeTaskParams createTestInstance() {
+        return new HealthNodeTaskParams();
     }
 
     @Override
-    protected HealthNodeSelectorTaskParams doParseInstance(XContentParser parser) throws IOException {
-        return HealthNodeSelectorTaskParams.PARSER.parse(parser, null);
+    protected HealthNodeTaskParams doParseInstance(XContentParser parser) throws IOException {
+        return HealthNodeTaskParams.PARSER.parse(parser, null);
     }
 
     @Override
@@ -33,6 +33,6 @@ public class HealthNodeSelectorTaskParamsXContentTests extends AbstractXContentT
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(HealthNodeSelectorTaskExecutor.getNamedXContentParsers());
+        return new NamedXContentRegistry(HealthNodeTaskExecutor.getNamedXContentParsers());
     }
 }

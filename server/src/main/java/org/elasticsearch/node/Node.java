@@ -100,8 +100,8 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
-import org.elasticsearch.health.node.selection.HealthNodeSelector;
-import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -491,8 +491,8 @@ public class Node implements Closeable {
                 SystemIndexMigrationExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            Stream<NamedXContentRegistry.Entry> healthNodeSelectorTaskNamedXContentParsers = HealthNodeSelector.isEnabled()
-                ? HealthNodeSelectorTaskExecutor.getNamedXContentParsers().stream()
+            Stream<NamedXContentRegistry.Entry> healthNodeSelectorTaskNamedXContentParsers = HealthNode.isEnabled()
+                ? HealthNodeTaskExecutor.getNamedXContentParsers().stream()
                 : Stream.empty();
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
@@ -860,11 +860,11 @@ public class Node implements Closeable {
                 metadataCreateIndexService,
                 settingsModule.getIndexScopedSettings()
             );
-            final HealthNodeSelectorTaskExecutor healthNodeSelectorTaskExecutor = HealthNodeSelector.isEnabled()
-                ? new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
+            final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNode.isEnabled()
+                ? new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
                 : null;
-            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNodeSelector.isEnabled()
-                ? List.of(systemIndexMigrationExecutor, healthNodeSelectorTaskExecutor)
+            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNode.isEnabled()
+                ? List.of(systemIndexMigrationExecutor, healthNodeTaskExecutor)
                 : List.of(systemIndexMigrationExecutor);
             final List<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -984,8 +984,8 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-                if (HealthNodeSelector.isEnabled()) {
-                    b.bind(HealthNodeSelectorTaskExecutor.class).toInstance(healthNodeSelectorTaskExecutor);
+                if (HealthNode.isEnabled()) {
+                    b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                 }
             });
 

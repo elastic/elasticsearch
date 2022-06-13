@@ -42,7 +42,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class HealthNodeSelectorExecutorTests extends ESTestCase {
+public class HealthNodeExecutorTests extends ESTestCase {
 
     /** Needed by {@link ClusterService} **/
     private static ThreadPool threadPool;
@@ -55,7 +55,7 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
 
     @BeforeClass
     public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(HealthNodeSelectorExecutorTests.class.getSimpleName());
+        threadPool = new TestThreadPool(HealthNodeExecutorTests.class.getSimpleName());
     }
 
     @Before
@@ -80,62 +80,42 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", initialState(), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, times(1)).sendStartRequest(
-            eq("health-node-selector"),
-            eq("health-node-selector"),
-            eq(new HealthNodeSelectorTaskParams()),
+            eq("health-node"),
+            eq("health-node"),
+            eq(new HealthNodeTaskParams()),
             any()
         );
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
-            eq("health-node-selector"),
-            eq("health-node-selector"),
-            eq(new HealthNodeSelectorTaskParams()),
+            eq("health-node"),
+            eq("health-node"),
+            eq(new HealthNodeTaskParams()),
             any()
         );
     }
 
     public void testDoNothingIfAlreadyShutdown() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            settings,
-            clusterSettings
-        );
-        HealthNodeSelector task = mock(HealthNodeSelector.class);
+        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
+        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
         ClusterState withShutdown = stateWithNodeShuttingDown(initialState());
         executor.shuttingDown(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
         verify(task, never()).markAsLocallyAborted(anyString());
     }
 
     public void testAbortOnShutdown() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            settings,
-            clusterSettings
-        );
-        HealthNodeSelector task = mock(HealthNodeSelector.class);
+        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
+        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
         ClusterState initialState = initialState();
         ClusterState withShutdown = stateWithNodeShuttingDown(initialState);
         executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
@@ -143,16 +123,11 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnDisable() {
-        HealthNodeSelectorTaskExecutor executor = new HealthNodeSelectorTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            settings,
-            clusterSettings
-        );
-        HealthNodeSelector task = mock(HealthNodeSelector.class);
+        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeSelectorTaskParams(), state);
-        clusterSettings.applySettings(Settings.builder().put(HealthNodeSelectorTaskExecutor.ENABLED_SETTING.getKey(), false).build());
+        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
+        clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build());
         verify(task, times(1)).markAsLocallyAborted(anyString());
     }
 
@@ -188,7 +163,7 @@ public class HealthNodeSelectorExecutorTests extends ESTestCase {
     private ClusterState stateWithHealthNodeSelectorTask(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
-        tasks.addTask(HealthNodeSelector.TASK_NAME, HealthNodeSelector.TASK_NAME, new HealthNodeSelectorTaskParams(), NO_NODE_FOUND);
+        tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, new HealthNodeTaskParams(), NO_NODE_FOUND);
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         return builder.metadata(metadata).build();

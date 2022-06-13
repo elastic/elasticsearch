@@ -2009,13 +2009,13 @@ public final class InternalTestCluster extends TestCluster {
             Client client = viaNode != null ? client(viaNode) : client();
             ClusterState state = client.admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node-selector");
+            PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
             return task != null && task.isAssigned()
                 ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode()).getName()
                 : null;
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get the selected health node " + e.getMessage(), e);
+            throw new RuntimeException("Can't get the health node " + e.getMessage(), e);
         }
     }
 

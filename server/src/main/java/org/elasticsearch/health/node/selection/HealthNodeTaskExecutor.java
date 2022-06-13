@@ -40,14 +40,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NAME;
+import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
 /**
- * Persistent task executor that is managing the {@link HealthNodeSelector}.
+ * Persistent task executor that is managing the {@link HealthNode}.
  */
-public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecutor<HealthNodeSelectorTaskParams> {
+public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
 
-    private static final Logger logger = LogManager.getLogger(HealthNodeSelector.class);
+    private static final Logger logger = LogManager.getLogger(HealthNode.class);
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "health.node.enabled",
@@ -58,11 +58,11 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
-    private final AtomicReference<HealthNodeSelector> currentTask = new AtomicReference<>();
+    private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
 
-    public HealthNodeSelectorTaskExecutor(
+    public HealthNodeTaskExecutor(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
         Settings settings,
@@ -92,23 +92,23 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     }
 
     @Override
-    protected void nodeOperation(AllocatedPersistentTask task, HealthNodeSelectorTaskParams params, PersistentTaskState state) {
-        HealthNodeSelector healthNodeSelector = (HealthNodeSelector) task;
-        currentTask.set(healthNodeSelector);
+    protected void nodeOperation(AllocatedPersistentTask task, HealthNodeTaskParams params, PersistentTaskState state) {
+        HealthNode healthNode = (HealthNode) task;
+        currentTask.set(healthNode);
         String nodeId = clusterService.localNode().getId();
         logger.info("Node [" + nodeId + "] is selected as the current health node.");
     }
 
     @Override
-    protected HealthNodeSelector createTask(
+    protected HealthNode createTask(
         long id,
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<HealthNodeSelectorTaskParams> taskInProgress,
+        PersistentTasksCustomMetadata.PersistentTask<HealthNodeTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new HealthNodeSelector(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
+        return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 
     /**
@@ -116,7 +116,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
      */
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(
-        HealthNodeSelectorTaskParams params,
+        HealthNodeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
     ) {
@@ -132,23 +132,23 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     void startTask(ClusterChangedEvent event) {
         // Wait until every node in the cluster is upgraded to 8.4.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
-            // If the node is not a master node or if the task already exists this node should not start the task anymore
-            if (event.state().nodes().getLocalNode().isMasterNode() == false || HealthNodeSelector.findTask(event.state()) != null) {
+            boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
+            boolean isElectedMaster = event.localNodeMaster();
+            if (isElectedMaster || healthNodeTaskExists) {
                 clusterService.removeListener(taskStarter);
-            } else if (event.localNodeMaster()) {
-                clusterService.removeListener(taskStarter);
+            }
+            if (isElectedMaster && healthNodeTaskExists == false) {
                 persistentTasksService.sendStartRequest(
                     TASK_NAME,
                     TASK_NAME,
-                    new HealthNodeSelectorTaskParams(),
-                    ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
+                    new HealthNodeTaskParams(),
+                    ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                         if (t instanceof ResourceAlreadyExistsException == false) {
-                            logger.error("Failed to create the health node selector task", e);
+                            logger.error("Failed to create the health node task", e);
                         }
                     })
                 );
-
             }
         }
     }
@@ -163,9 +163,9 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     // visible for testing
     void abortTaskIfApplicable(String reason) {
-        HealthNodeSelector task = currentTask.get();
+        HealthNode task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
-            logger.info("Aborting health node selector task due to {}.", reason);
+            logger.info("Aborting health node task due to {}.", reason);
             task.markAsLocallyAborted(reason);
             currentTask.set(null);
         }
@@ -178,15 +178,11 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return List.of(
-            new NamedXContentRegistry.Entry(
-                PersistentTaskParams.class,
-                new ParseField(TASK_NAME),
-                HealthNodeSelectorTaskParams::fromXContent
-            )
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TASK_NAME), HealthNodeTaskParams::fromXContent)
         );
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, HealthNodeSelectorTaskParams::new));
+        return List.of(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, HealthNodeTaskParams::new));
     }
 }

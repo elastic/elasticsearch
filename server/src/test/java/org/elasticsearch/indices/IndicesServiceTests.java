@@ -33,7 +33,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
-import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -199,7 +199,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
-        return Settings.builder().put(HealthNodeSelectorTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
     }
 
     public void testCanDeleteShardContent() {

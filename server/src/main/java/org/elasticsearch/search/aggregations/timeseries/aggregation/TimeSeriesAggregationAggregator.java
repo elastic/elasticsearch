@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -91,8 +92,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private RoundingInterval rounding;
     private boolean needAggregator;
     protected Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
-    private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
-    private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
+    private ObjectArray<Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
+    private ObjectArray<AggregatorBucketFunction> aggregatorCollectors;
 
     @SuppressWarnings("unchecked")
     public TimeSeriesAggregationAggregator(
@@ -160,8 +161,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             throw new IllegalArgumentException("time_series_aggregation group by must have an aggregator");
         }
 
-        groupBucketValues = new LinkedHashMap<>();
-        aggregatorCollectors = new HashMap<>();
+        groupBucketValues = bigArrays().newObjectArray(1);
+        aggregatorCollectors = bigArrays().newObjectArray(1);
     }
 
     @Override
@@ -258,7 +259,14 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected void doClose() {
         Releasables.close(bucketOrds);
         Releasables.close(timestampOrds);
-        aggregatorCollectors.forEach((k, v) -> { v.close(); });
+        Releasables.close(groupBucketValues);
+        for (int i = 0; i< aggregatorCollectors.size(); i++) {
+            AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(i);
+            if (aggregatorBucketFunction != null) {
+                aggregatorBucketFunction.close();
+            }
+        }
+        Releasables.close(aggregatorCollectors);
     }
 
     public class Collector extends LeafBucketCollectorBase {
@@ -440,11 +448,12 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
      */
     public void collectTimeSeriesValues(long bucketOrd) throws IOException {
         if (needAggregator) {
+            aggregatorCollectors = bigArrays().grow(aggregatorCollectors, bucketOrd + 1);
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
             if (aggregatorBucketFunction == null) {
                 AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays(), aggregatorParams);
                 aggregatorBucketFunction = new TSIDBucketFunction(bigArrays(), internal);
-                aggregatorCollectors.put(bucketOrd, aggregatorBucketFunction);
+                aggregatorCollectors.set(bucketOrd, aggregatorBucketFunction);
             }
 
             for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
@@ -473,7 +482,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         } else {
             Map<Long, InternalAggregation> tsids = new LinkedHashMap<>();
             timeBucketMetrics.forEach((k, v) -> { tsids.put(k + offset, v.getAggregation(format, metadata())); });
-            groupBucketValues.put(bucketOrd, tsids);
+            groupBucketValues = bigArrays().grow(groupBucketValues, bucketOrd + 1);
+            groupBucketValues.set(bucketOrd, tsids);
         }
     }
 }

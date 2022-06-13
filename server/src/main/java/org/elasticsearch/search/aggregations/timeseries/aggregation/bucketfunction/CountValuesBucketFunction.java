@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class CountValuesBucketFunction implements AggregatorBucketFunction<Double> {
 
-    private ObjectArray<Map<Long, AtomicInteger>> values; // TODO change hashmap
+    private ObjectArray<Map<Long, AtomicInteger>> values;
     private BigArrays bigArrays;
 
     public CountValuesBucketFunction(BigArrays bigArrays) {

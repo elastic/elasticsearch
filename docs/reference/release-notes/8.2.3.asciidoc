@@ -26,7 +26,6 @@ Security::
 
 Snapshot/Restore::
 * Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87254[#87254] (issue: {es-issue}87237[#87237])
-* Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87264[#87264] (issue: {es-issue}87237[#87237])
 
 [[enhancement-8.2.3]]
 [float]

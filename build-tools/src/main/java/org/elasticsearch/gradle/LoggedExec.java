@@ -14,6 +14,7 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Exec;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.process.BaseExecSpec;
 import org.gradle.process.ExecOperations;
@@ -41,20 +42,22 @@ import javax.inject.Inject;
 public class LoggedExec extends Exec implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
-    private Consumer<Logger> outputLogger;
     private FileSystemOperations fileSystemOperations;
+
+    private boolean spoolOutput = false;
 
     @Inject
     public LoggedExec(FileSystemOperations fileSystemOperations) {
         this.fileSystemOperations = fileSystemOperations;
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
-            setSpoolOutput(false);
+
             // We use an anonymous inner class here because Gradle cannot properly snapshot this input for the purposes of
             // incremental build if we use a lambda. This ensures LoggedExec tasks that declare output can be UP-TO-DATE.
             doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
+                    Consumer<Logger> outputLogger = configureSpooledOutput(false);
                     int exitValue = LoggedExec.this.getExecutionResult().get().getExitValue();
                     if (exitValue != 0) {
                         try {
@@ -74,11 +77,23 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
                     }
                 }
             });
+        } else if (spoolOutput) {
+            configureSpooledOutput(spoolOutput);
         }
     }
 
+    @Internal
+    public boolean isSpoolOutput() {
+        return spoolOutput;
+    }
+
     public void setSpoolOutput(boolean spoolOutput) {
+        this.spoolOutput = spoolOutput;
+    }
+
+    private Consumer<Logger> configureSpooledOutput(boolean spoolOutput) {
         final OutputStream out;
+        Consumer<Logger> outputLogger;
         if (spoolOutput) {
             File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
@@ -98,6 +113,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
         }
         setStandardOutput(out);
         setErrorOutput(out);
+        return outputLogger;
     }
 
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {

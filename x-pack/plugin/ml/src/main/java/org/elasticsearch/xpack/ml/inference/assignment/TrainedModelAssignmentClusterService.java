@@ -532,7 +532,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (load.remainingJobs() == 0) {
             return Optional.of(
                 org.elasticsearch.core.Strings.format(
-                    "This node is full. Number of opened jobs and allocated native inference processes [%s], {} [%s].",
+                    "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
                     load.getNumAssignedJobs(),
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxOpenJobs

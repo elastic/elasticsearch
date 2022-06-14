@@ -8,15 +8,15 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -85,16 +85,16 @@ public class BytesRestResponse extends RestResponse {
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage(
-                "path: {}, params: {}",
-                channel.request().rawPath(),
-                channel.request().params()
-            );
+            Level level = Level.WARN;
             if (status.getStatus() < 500) {
-                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
-            } else {
-                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
+                level = Level.DEBUG;
             }
+
+            SUPPRESSED_ERROR_LOGGER.log(
+                level,
+                () -> Strings.format("path: %s, params: %s", channel.request().rawPath(), channel.request().params()),
+                e
+            );
         }
         this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {

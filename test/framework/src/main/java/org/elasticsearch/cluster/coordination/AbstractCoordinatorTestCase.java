@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -409,8 +410,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final int newValue = randomInt();
                         clusterNode.onNode(() -> {
                             logger.debug(
-                                "----> [runRandomly {}] proposing new value [{}] to [{}]",
+                                "----> [runRandomly {}] proposing new value [{}={}] to [{}]",
                                 thisStep,
+                                key,
                                 newValue,
                                 clusterNode.getId()
                             );
@@ -1434,7 +1436,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
                             assertNotNull("State not committed : " + newState, state);
-                            assertStateEquals(state, newState);
+                            final boolean notRecovered = state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
+                            assertEquals(notRecovered, newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+                            if (notRecovered == false) {
+                                assertStateEquals(state, newState);
+                            }
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(source, oldState, newState);
                         }
@@ -1518,6 +1524,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void allowClusterStateApplicationFailure() {
                 clusterApplierService.allowClusterStateApplicationFailure();
+                masterService.allowPublicationFailure();
             }
 
             boolean deliverBlackholedRequests() {
@@ -1584,6 +1591,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     static class AckedFakeThreadPoolMasterService extends FakeThreadPoolMasterService {
 
         AckCollector nextAckCollector = new AckCollector();
+        boolean publicationMayFail = false;
 
         AckedFakeThreadPoolMasterService(
             String nodeName,
@@ -1611,6 +1619,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ackListener.onNodeAck(node, e);
                 }
             };
+        }
+
+        public void allowPublicationFailure() {
+            publicationMayFail = true;
+        }
+
+        @Override
+        protected boolean publicationMayFail() {
+            return publicationMayFail;
         }
     }
 
@@ -1655,7 +1672,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-            return new MockSinglePrioritizingExecutor(nodeName, nodeId, deterministicTaskQueue, threadPool);
+            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+                @Override
+                public void run() {
+                    try (
+                        CloseableThreadContext.Instance ignored = DeterministicTaskQueue.getLogContext('{' + nodeName + "}{" + nodeId + '}')
+                    ) {
+                        command.run();
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "DisruptableClusterApplierService[" + command + "]";
+                }
+            });
         }
 
         @Override
@@ -1867,8 +1898,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             @Override
             public void close() {
-                delegate.close();
-                trackedArrays.remove(this);
+                if (trackedArrays.remove(this)) {
+                    delegate.close();
+                }
             }
 
             @Override

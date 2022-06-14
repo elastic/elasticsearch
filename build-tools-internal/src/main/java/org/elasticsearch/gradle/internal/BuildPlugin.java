@@ -57,6 +57,7 @@ public class BuildPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply("elasticsearch.java");
         project.getPluginManager().apply("elasticsearch.publish");
+        project.getPluginManager().apply(ElasticsearchJavadocPlugin.class);
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
         InternalPrecommitTasks.create(project, true);
         configureLicenseAndNotice(project);

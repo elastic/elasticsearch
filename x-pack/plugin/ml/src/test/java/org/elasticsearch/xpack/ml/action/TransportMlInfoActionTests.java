@@ -171,14 +171,22 @@ public class TransportMlInfoActionTests extends ESTestCase {
 
         ByteSizeValue effectiveMaxModelMemoryLimit = TransportMlInfoAction.calculateEffectiveMaxModelMemoryLimit(clusterSettings, nodes);
 
-        // Expect configured percentage of current node size (allowing for small rounding errors) - max is bigger but can't be added
+        // Expect configured percentage of max node size - our lazy nodes are exhausted, but are smaller so should scale up to the max
         assertThat(effectiveMaxModelMemoryLimit, notNullValue());
+        // Memory limit is rounded down to the next whole megabyte, so allow a 1MB range here
         assertThat(
             effectiveMaxModelMemoryLimit.getBytes() + Math.max(
                 Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
                 DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
             ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100)
+            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100)
+        );
+        assertThat(
+            effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            greaterThan(mlMaxNodeSize * mlMemoryPercent / 100 - ByteSizeValue.ofMb(1).getBytes())
         );
 
         ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);

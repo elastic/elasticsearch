@@ -64,7 +64,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
         assert DiscoveryNode.canContainData(env.settings()) == false;
 
@@ -75,18 +75,18 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+    private void processNoMasterNoDataNode(Terminal terminal, Path[] paths, Environment env) throws IOException {
+        NodeEnvironment.DataPath[] dataPaths = toDataPaths(paths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
+        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(dataPaths);
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetadataPaths);
 
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), paths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
         if (indexPaths.isEmpty() && metadata.indices().isEmpty()) {
@@ -109,23 +109,23 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
         // clean-up all metadata dirs
-        MetadataStateFormat.deleteMetaState(dataPaths);
+        MetadataStateFormat.deleteMetaState(paths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+    private void processMasterNoDataNode(Terminal terminal, Path[] paths, Environment env) throws IOException {
+        NodeEnvironment.DataPath[] dataPaths = toDataPaths(paths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(dataPaths);
         if (shardDataPaths.isEmpty()) {
             terminal.println(NO_SHARD_DATA_TO_CLEAN_UP_FOUND);
             return;
         }
 
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), paths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
 

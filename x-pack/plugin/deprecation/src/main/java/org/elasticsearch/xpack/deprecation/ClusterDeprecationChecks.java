@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -988,6 +989,37 @@ public class ClusterDeprecationChecks {
             );
         }
         return null;
+    }
+
+    /**
+     * Upgrading can require the addition of one ore more small indices. This method checks that based on configuration we have the room
+     * to add a small number of additional shards to the cluster. The goal is to prevent a failure during upgrade.
+     * @param clusterState The cluster state, used to get settings and information about nodes
+     * @return A deprecation issue if there is not enough room in this cluster to add a few more shards, or null otherwise
+     */
+    static DeprecationIssue checkShards(ClusterState clusterState) {
+        // Make sure we have room to add a small non-frozen index if needed
+        final int shardsInFutureNewSmallIndex = 5;
+        final int replicasForFutureIndex = 1;
+        if (ShardLimitValidator.canAddShardsToCluster(shardsInFutureNewSmallIndex, replicasForFutureIndex, clusterState, false)) {
+            return null;
+        } else {
+            final int totalShardsToAdd = shardsInFutureNewSmallIndex * (1 + replicasForFutureIndex);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "The cluster has too many shards to be able to upgrade",
+                "https://ela.st/es-deprecation-7-shard-limit",
+                String.format(
+                    Locale.ROOT,
+                    "Upgrading requires adding a small number of new shards. There is not enough room for %d more "
+                        + "shards. Increase the cluster.max_shards_per_node setting, or remove indices "
+                        + "to clear up resources.",
+                    totalShardsToAdd
+                ),
+                false,
+                null
+            );
+        }
     }
 
     static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState) {

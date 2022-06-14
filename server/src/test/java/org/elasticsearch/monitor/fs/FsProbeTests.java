@@ -11,7 +11,7 @@ package org.elasticsearch.monitor.fs;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment.DataPath;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -241,16 +241,16 @@ public class FsProbeTests extends ESTestCase {
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {
-        NodePath np = new FakeNodePath(createTempDir());
+        DataPath np = new FakeDataPath(createTempDir());
         assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
         assertThat(FsProbe.getFSInfo(np).free, greaterThanOrEqualTo(0L));
         assertThat(FsProbe.getFSInfo(np).available, greaterThanOrEqualTo(0L));
     }
 
-    static class FakeNodePath extends NodeEnvironment.NodePath {
+    static class FakeDataPath extends DataPath {
         public final FileStore fileStore;
 
-        FakeNodePath(Path path) throws IOException {
+        FakeDataPath(Path path) throws IOException {
             super(path);
             this.fileStore = new HugeFileStore();
         }

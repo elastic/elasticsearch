@@ -1,12 +1,10 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.security.enabled', 'true'

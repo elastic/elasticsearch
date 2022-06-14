@@ -8,9 +8,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -24,6 +23,25 @@ restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   restApi {
     include '*'
+  }
+}
+
+configurations {
+    javaRestTestImplementation {
+      extendsFrom testImplementation
+    }
+}
+
+sourceSets {
+  javaRestTest {
+    java {
+      srcDir 'src/test/java'
+    }
+    resources {
+      srcDir 'src/test/resources'
+    }
+    compileClasspath = main.output + compileClasspath
+    runtimeClasspath = main.output + runtimeClasspath
   }
 }
 
@@ -71,20 +89,22 @@ def clusterUserNameProvider = providers.systemProperty('tests.rest.cluster.usern
 def clusterPasswordProvider = providers.systemProperty('tests.rest.cluster.password')
         .orElse('test-user-password')
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'tests.rest.async', 'false'
   systemProperty 'tests.rest.cluster.username', clusterUserNameProvider.get()
   systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
 }
 
-TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
+TaskProvider<RestIntegTestTask> asyncJavaRestTest = tasks.register("asyncJavaRestTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
     systemProperty 'tests.rest.cluster.username', clusterUserNameProvider.get()
     systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
 }
 
 tasks.named("check").configure {
-  dependsOn(asyncIntegTest)
+  dependsOn(asyncJavaRestTest)
 }
 
 testClusters.configureEach {
@@ -128,4 +148,14 @@ testClusters.configureEach {
 tasks.named('splitPackagesAudit').configure {
   // the client package should be owned by the client, but server has some classes there too
   ignoreClasses 'org.elasticsearch.client.*'
+}
+
+tasks.named('checkstyleJavaRestTest').configure {
+  enabled = false
+}
+
+// this check is incompatible with the internal-java-rest-test setup we did here
+// to not need to change the docs repo too. fine for 7.17
+tasks.named('testingConventions').configure {
+  enabled = false
 }

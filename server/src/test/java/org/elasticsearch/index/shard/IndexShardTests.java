@@ -1620,9 +1620,9 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
 
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -2054,6 +2054,18 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         blockingCallRelocated(shard, routing, (primaryContext, listener) -> listener.onResponse(null));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
+        closeShards(shard);
+    }
+
+    public void testRecoveringShardFailsIfStartedTooSoon() throws IOException {
+        final IndexShard shard = newShard(false);
+        final ShardRouting originalRouting = shard.routingEntry();
+        final ShardRouting startedRouting = ShardRoutingHelper.moveToStarted(originalRouting);
+        assertThat(
+            expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, startedRouting))
+                .getMessage(),
+            containsString("stale shard-started event")
+        );
         closeShards(shard);
     }
 
@@ -4139,8 +4151,8 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         final ShardId shardId = shardRouting.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
         IndexShard primary = newShard(

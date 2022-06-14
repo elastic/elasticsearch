@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -342,9 +343,24 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 );
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
+        } else if (isDelayedDueToNodeRestart(allocation, shardRouting)) {
+            return ReplicaShardAllocator.delayedDecision(shardRouting, allocation, logger, nodeDecisions);
         }
+
         // TODO: do we need handling of delayed allocation for leaving replicas here?
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
+        if (shardRouting.unassignedInfo().isDelayed()) {
+            String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+            if (lastAllocatedNodeId != null) {
+                SingleNodeShutdownMetadata nodeShutdownMetadata = allocation.nodeShutdowns().get(lastAllocatedNodeId);
+                return nodeShutdownMetadata != null && nodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART;
+            }
+        }
+
+        return false;
     }
 
     @Override

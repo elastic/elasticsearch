@@ -60,7 +60,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
             ClusterDeprecationChecks::checkILMFreezeActions,
-            ClusterDeprecationChecks::emptyDataTierPreferenceCheck
+            ClusterDeprecationChecks::emptyDataTierPreferenceCheck,
+            ClusterDeprecationChecks::checkShards
         )
     );
 

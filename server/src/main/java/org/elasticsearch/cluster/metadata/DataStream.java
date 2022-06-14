@@ -31,13 +31,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -109,14 +110,24 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     ) {
         this.name = name;
         this.timeStampField = timeStampField;
-        this.indices = Collections.unmodifiableList(indices);
+        this.indices = org.elasticsearch.core.List.copyOf(indices);
         this.generation = generation;
         this.metadata = metadata;
         this.hidden = hidden;
         this.replicated = replicated;
         this.timeProvider = timeProvider;
         this.system = system;
+        assert assertConsistent(this.indices);
+    }
+
+    private static boolean assertConsistent(List<Index> indices) {
         assert indices.size() > 0;
+        final Set<String> indexNames = new HashSet<>();
+        for (Index index : indices) {
+            final boolean added = indexNames.add(index.getName());
+            assert added : "found duplicate index entries in " + indices;
+        }
+        return true;
     }
 
     public String getName() {

@@ -16,11 +16,12 @@ public class TestUtils {
 
     public static String normalizeString(String input, File projectRootDir) {
         try {
-            String normalizedPathPrefix = projectRootDir.getCanonicalPath().replaceAll("\\\\", "/");
-            System.out.println("normalizedPathPrefix = " + normalizedPathPrefix);
+            String cannonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace("\\", "/");
+            String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace("\\", "/");
             return input.lines()
-                .map(it -> it.replaceAll("\\\\", "/"))
-                .map(it -> it.replaceAll(normalizedPathPrefix, "."))
+                .map(it -> it.replace("\\", "/"))
+                .map(it -> it.replace(cannonicalNormalizedPathPrefix, "."))
+                .map(it -> it.replace(normalizedPathPrefix, "."))
                 .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))
                 .collect(Collectors.joining("\n"));
         } catch (IOException e) {

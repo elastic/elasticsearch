@@ -17,8 +17,8 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackProject('plugin').path)))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {
@@ -27,7 +27,7 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
   extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
   extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")

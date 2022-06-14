@@ -10,6 +10,8 @@ setup:
               properties:
                 str:
                    type: keyword
+                str_missing:
+                   type: keyword
                 ip:
                    type: ip
                 boolean:
@@ -44,7 +46,6 @@ setup:
   - do:
       cluster.health:
         wait_for_status: green
-
 ---
 "Basic test":
   - do:

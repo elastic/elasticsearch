@@ -64,7 +64,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
@@ -206,7 +205,7 @@ public abstract class TransportClient extends AbstractClient {
                 null,
                 null,
                 null,
-                new SystemIndices(emptyMap())
+                new SystemIndices(emptyList())
             );
             modules.add(actionModule);
 

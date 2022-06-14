@@ -410,7 +410,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             });
         } else {
-            listener.onFailure(new NoSeedNodeLeftException(clusterAlias));
+            listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
         }
     }
 

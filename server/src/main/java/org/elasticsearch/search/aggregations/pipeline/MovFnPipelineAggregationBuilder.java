@@ -173,7 +173,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         if (window <= 0) {
             context.addValidationError("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override

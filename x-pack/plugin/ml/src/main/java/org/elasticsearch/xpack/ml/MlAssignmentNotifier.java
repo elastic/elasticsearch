@@ -100,6 +100,9 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         PersistentTasksCustomMetadata currentTasks,
         boolean alwaysAuditUnassigned
     ) {
+        if (currentTasks == null) {
+            return;
+        }
 
         for (PersistentTask<?> currentTask : currentTasks.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();

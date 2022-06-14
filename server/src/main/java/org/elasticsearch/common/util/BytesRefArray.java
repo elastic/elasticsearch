@@ -56,14 +56,14 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
             // startOffsets
             size = in.readVLong();
             long sizeOfStartOffsets = size + 1;
-            startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, true);
+            startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, false);
             for (long i = 0; i < sizeOfStartOffsets; ++i) {
                 startOffsets.set(i, in.readVLong());
             }
 
             // bytes
             long sizeOfBytes = in.readVLong();
-            bytes = bigArrays.newByteArray(sizeOfBytes, true);
+            bytes = bigArrays.newByteArray(sizeOfBytes, false);
 
             for (long i = 0; i < sizeOfBytes; ++i) {
                 bytes.set(i, in.readByte());
@@ -75,6 +75,13 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
                 close();
             }
         }
+    }
+
+    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+        this.bytes = bytes;
+        this.startOffsets = startOffsets;
+        this.size = size;
+        this.bigArrays = bigArrays;
     }
 
     public void append(BytesRef key) {
@@ -104,6 +111,18 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     @Override
     public void close() {
         Releasables.close(bytes, startOffsets);
+    }
+
+    public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
+        BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
+
+        // don't leave a broken array behind, although it isn't used any longer
+        other.startOffsets = other.bigArrays.newLongArray(1, false);
+        other.startOffsets.set(0, 0);
+        other.bytes = other.bigArrays.newByteArray(1, false);
+        other.size = 0;
+
+        return b;
     }
 
     @Override

@@ -57,6 +57,30 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
+    public void testTakeOwnership() {
+        BytesRefArray array = randomArray();
+        long size = array.size();
+        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
+
+        assertNotEquals(array, newOwnerOfArray);
+        assertEquals(0, array.size());
+        assertEquals(size, newOwnerOfArray.size());
+
+        // although technically the array should not be re-used after transferring ownership, it should be possible
+        BytesRefBuilder refBuilder = new BytesRefBuilder();
+        String str = randomUnicodeOfLengthBetween(4, 20);
+        refBuilder.copyChars(str);
+        array.append(refBuilder.get());
+        assertEquals(1, array.size());
+
+        BytesRef ref = new BytesRef();
+        array.get(0, ref);
+        assertEquals(str, ref.utf8ToString());
+
+        array.close();
+        newOwnerOfArray.close();
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

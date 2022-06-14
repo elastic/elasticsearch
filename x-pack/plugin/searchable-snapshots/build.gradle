@@ -18,7 +18,7 @@ dependencies {
   internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 tasks.named("internalClusterTest").configure {
   // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.

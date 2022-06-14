@@ -116,7 +116,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.realtime(),
                 request.version(),
                 request.versionType(),
-                request.fetchSourceContext()
+                request.fetchSourceContext(),
+                request.isForceSyntheticSource()
             );
         return new GetResponse(result);
     }

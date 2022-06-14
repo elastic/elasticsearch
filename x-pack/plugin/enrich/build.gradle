@@ -18,4 +18,4 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

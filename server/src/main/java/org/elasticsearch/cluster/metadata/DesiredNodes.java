@@ -225,7 +225,6 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     private static Map<String, DesiredNodeWithStatus> toMap(final List<DesiredNodeWithStatus> desiredNodes) {
-        // use an ordered map to preserve order
         return Collections.unmodifiableMap(
             desiredNodes.stream().collect(Collectors.toMap(DesiredNodeWithStatus::externalId, Function.identity(), (left, right) -> {
                 assert left.desiredNode().externalId().equals(right.externalId()) == false;

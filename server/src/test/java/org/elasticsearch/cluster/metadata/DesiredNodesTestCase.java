@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public abstract class DesiredNodesTestCase extends ESTestCase {
     public static DesiredNodes randomDesiredNodes() {
@@ -107,13 +107,8 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         List<DesiredNode> expectedActualizedNodes,
         List<DesiredNode> expectedPendingNodes
     ) {
-        for (DesiredNode desiredNode : desiredNodes.actualized()) {
-            assertThat(expectedActualizedNodes, hasItem(desiredNode));
-        }
-
-        for (DesiredNode desiredNode : desiredNodes.pending()) {
-            assertThat(expectedPendingNodes, hasItem(desiredNode));
-        }
+        assertThat(desiredNodes.actualized(), containsInAnyOrder(expectedActualizedNodes.toArray(new DesiredNode[0])));
+        assertThat(desiredNodes.pending(), containsInAnyOrder(expectedPendingNodes.toArray(new DesiredNode[0])));
     }
 
     public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest() {

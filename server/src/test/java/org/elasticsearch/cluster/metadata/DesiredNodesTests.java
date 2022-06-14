@@ -18,7 +18,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
@@ -27,7 +26,6 @@ import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -127,7 +125,7 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
             discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
         }
 
-        final var desiredNodes = createDesiredNodes(actualizedDesiredNodes, pendingDesiredNodes, joiningDesiredNodes);
+        final var desiredNodes = createDesiredNodes(actualizedDesiredNodes, concatLists(pendingDesiredNodes, joiningDesiredNodes));
 
         final var clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
@@ -175,8 +173,7 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
         final var metadata = Metadata.builder();
 
         DesiredNodes previousDesiredNodes = null;
-        final boolean desiredNodesInClusterState = randomBoolean();
-        if (desiredNodesInClusterState) {
+        if (randomBoolean()) {
             final var actualizedDesiredNodes = randomList(1, 5, this::createActualizedDesiredNode);
             final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
 
@@ -187,23 +184,25 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
 
         final var clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata.build()).build();
 
-        final var newDesiredNodes = createDesiredNodes(
-            // Reuse the same nodes from the previous desired nodes or create new ones
-            desiredNodesInClusterState && randomBoolean()
-                ? previousDesiredNodes.nodes()
-                    .stream()
-                    .map(dn -> new DesiredNodeWithStatus(dn.desiredNode(), DesiredNodeWithStatus.Status.PENDING))
-                    .toList()
-                : randomList(1, 10, this::createPendingDesiredNode)
-        );
+        final DesiredNodes newDesiredNodes;
+        if (previousDesiredNodes != null) {
+            newDesiredNodes = DesiredNodes.createIncludingStatusFromPreviousVersion(
+                previousDesiredNodes.historyID(),
+                previousDesiredNodes.version() + 1,
+                previousDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList(),
+                previousDesiredNodes
+            );
+        } else {
+            newDesiredNodes = createDesiredNodes(
+                randomList(1, 5, this::createActualizedDesiredNode),
+                randomList(0, 5, this::createPendingDesiredNode)
+            );
+        }
 
         final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(clusterState, newDesiredNodes);
 
         assertThat(updatedClusterState, is(not(sameInstance(clusterState))));
         assertThat(DesiredNodes.latestFromClusterState(updatedClusterState), is(equalTo(newDesiredNodes)));
-        for (DesiredNodeWithStatus desiredNode : DesiredNodes.latestFromClusterState(updatedClusterState)) {
-            assertThat(desiredNode.actualized(), is(equalTo(false)));
-        }
     }
 
     public void testNodesStatusIsCarriedOverInNewVersions() {
@@ -238,13 +237,10 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
         }
     }
 
-    @SafeVarargs
-    private static DesiredNodes createDesiredNodes(List<DesiredNodeWithStatus>... nodeLists) {
-        assertThat(nodeLists.length, is(greaterThan(0)));
-        final List<DesiredNodeWithStatus> desiredNodes = new ArrayList<>();
-        for (List<DesiredNodeWithStatus> nodeList : nodeLists) {
-            desiredNodes.addAll(nodeList);
-        }
+    private static DesiredNodes createDesiredNodes(List<DesiredNodeWithStatus> actualized, List<DesiredNodeWithStatus> pending) {
+        assertThat(actualized.stream().allMatch(DesiredNodeWithStatus::actualized), is(true));
+        assertThat(pending.stream().allMatch(DesiredNodeWithStatus::pending), is(true));
+        final List<DesiredNodeWithStatus> desiredNodes = concatLists(actualized, pending);
         return DesiredNodes.create(randomAlphaOfLength(10), randomInt(10), desiredNodes);
     }
 

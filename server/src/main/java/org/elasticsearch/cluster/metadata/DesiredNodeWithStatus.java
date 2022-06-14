@@ -23,7 +23,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) implements Writeable, ToXContentObject {
+public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
+    implements
+        Writeable,
+        ToXContentObject,
+        Comparable<DesiredNodeWithStatus> {
 
     private static final Version STATUS_TRACKING_SUPPORT_VERSION = Version.V_8_4_0;
     private static final ParseField STATUS_FIELD = new ParseField("status");
@@ -102,6 +106,11 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status) impl
 
     static DesiredNodeWithStatus fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public int compareTo(DesiredNodeWithStatus o) {
+        return desiredNode.compareTo(o.desiredNode);
     }
 
     public enum Status {

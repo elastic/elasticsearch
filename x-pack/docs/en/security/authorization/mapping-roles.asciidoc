@@ -8,8 +8,8 @@ The native and file realms assign roles directly to users.
 Native realms use <<managing-native-users,user management APIs>>.
 File realms use <<roles-management-file,File-based role management>>.
 
-If using Role Mapping, there are two supported sources of role mapping rules,
-<<mapping-roles-api, Role Mapping API>> and <<mapping-roles-file, Role Mapping File>>.
+You can map roles through the 
+<<mapping-roles-api, Role mapping API>> (recommended) or a <<mapping-roles-file, Role mapping file>>.
 
 IMPORTANT: Role Mapping API is preferred over Role Mapping File.
 

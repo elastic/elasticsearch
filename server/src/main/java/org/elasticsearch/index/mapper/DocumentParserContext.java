@@ -239,9 +239,9 @@ public abstract class DocumentParserContext {
             // dynamic object mappers may have been obtained from applying a dynamic template, in which case their definition may contain
             // sub-fields as well as sub-objects that need to be added to the mappings
             for (Mapper submapper : objectMapper.mappers.values()) {
-                //we could potentially skip the step of adding these to the dynamic mappers, because their parent is already added to
-                //that list, and what is important is that all of the intermediate objects are added to the dynamic object mappers so that
-                //they can be looked up once sub-fields need to be added to them. For simplicity, we treat these like any other object
+                // we could potentially skip the step of adding these to the dynamic mappers, because their parent is already added to
+                // that list, and what is important is that all of the intermediate objects are added to the dynamic object mappers so that
+                // they can be looked up once sub-fields need to be added to them. For simplicity, we treat these like any other object
                 addDynamicMapper(submapper);
             }
         }

@@ -745,6 +745,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(mapping);
         Mapper foo = mapping.getRoot().getMapper("foo");
         assertThat(foo, instanceOf(ObjectMapper.class));
+        assertEquals(0, ((ObjectMapper) foo).mappers.size());
     }
 
     public void testDynamicGeoPointArrayWithTemplate() throws Exception {

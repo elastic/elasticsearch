@@ -450,11 +450,12 @@ causes and their causes, as well as any suppressed exceptions and so on:
     logger.debug("operation failed", exception);
 
 If you wish to use placeholders and an exception at the same time, construct a
-`ParameterizedMessage`:
+`Supplier<String>` and use `org.elasticsearch.core.Strings.format`
+- note java.util.Formatter syntax
 
-    logger.debug(() -> "failed at offset [" + offset + "]", exception);
+    logger.debug(() -> Strings.format("failed at offset [%s]", offset), exception);
 
-You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
+You can also use a `java.util.Supplier<String>` to avoid constructing
 expensive messages that will usually be discarded:
 
     logger.debug(() -> "rarely seen output [" + expensiveMethod() + "]");

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -452,20 +451,20 @@ public class ProfileService {
                             if (subject.canAccessResourcesOf(profileDocument.user().toSubject())) {
                                 listener.onResponse(new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()));
                             } else {
-                                final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                    "profile [{}] matches search criteria but is not accessible to "
-                                        + "the current subject with username [{}] and realm name [{}]",
+                                final String errorMessage = org.elasticsearch.core.Strings.format(
+                                    "profile [%s] matches search criteria but is not accessible to "
+                                        + "the current subject with username [%s] and realm name [%s]",
                                     profileDocument.uid(),
                                     subject.getUser().principal(),
                                     subject.getRealm().getName()
                                 );
                                 logger.error(errorMessage);
                                 assert false : "this should not happen";
-                                listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                                listener.onFailure(new ElasticsearchException(errorMessage));
                             }
                         } else {
-                            final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
+                            final String errorMessage = org.elasticsearch.core.Strings.format(
+                                "multiple [%s] profiles [%s] found for user [%s] from realm [%s]%s",
                                 hits.length,
                                 Arrays.stream(hits)
                                     .map(SearchHit::getId)
@@ -479,7 +478,7 @@ public class ProfileService {
                                     : (" under domain [" + subject.getRealm().getDomain().name() + "]")
                             );
                             logger.error(errorMessage);
-                            listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                            listener.onFailure(new ElasticsearchException(errorMessage));
                         }
                     }, listener::onFailure)
                 )

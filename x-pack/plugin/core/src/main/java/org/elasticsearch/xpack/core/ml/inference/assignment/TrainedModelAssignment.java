@@ -190,8 +190,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     }
 
     public boolean isSatisfied(Set<String> assignableNodeIds) {
-        int allocations = nodeRoutingTable
-            .entrySet()
+        int allocations = nodeRoutingTable.entrySet()
             .stream()
             .filter(e -> assignableNodeIds.contains(e.getKey()))
             .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED))

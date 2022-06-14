@@ -377,13 +377,14 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         return stats;
     }
 
+    @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
     protected MappingStats mutateInstance(MappingStats instance) throws IOException {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
-        long totalFieldCount = instance.getTotalFieldCount();
-        long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount();
-        long totalMappingSizeBytes = instance.getTotalMappingSizeBytes();
+        long totalFieldCount = instance.getTotalFieldCount().getAsLong();
+        long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount().getAsLong();
+        long totalMappingSizeBytes = instance.getTotalMappingSizeBytes().getAsLong();
         switch (between(1, 5)) {
             case 1 -> {
                 boolean remove = fieldTypes.size() > 0 && randomBoolean();

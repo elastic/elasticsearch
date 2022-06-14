@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,6 +32,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -174,9 +176,15 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return occurrences;
     }
 
+    @Nullable // for BwC
     private final Long totalFieldCount;
+
+    @Nullable // for BwC
     private final Long totalDeduplicatedFieldCount;
+
+    @Nullable // for BwC
     private final Long totalMappingSizeBytes;
+
     private final List<FieldStats> fieldTypeStats;
     private final List<RuntimeFieldStats> runtimeFieldStats;
 
@@ -223,25 +231,31 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         out.writeCollection(runtimeFieldStats);
     }
 
-    /**
-     * @return the total number of fields (in non-system indices).
-     */
-    public long getTotalFieldCount() {
-        return totalFieldCount;
+    private static OptionalLong ofNullable(Long l) {
+        return l == null ? OptionalLong.empty() : OptionalLong.of(l);
     }
 
     /**
-     * @return the total number of fields (in non-system indices) accounting for deduplication.
+     * @return the total number of fields (in non-system indices), or {@link OptionalLong#empty()} if omitted (due to BwC)
      */
-    public long getTotalDeduplicatedFieldCount() {
-        return totalDeduplicatedFieldCount;
+    public OptionalLong getTotalFieldCount() {
+        return ofNullable(totalFieldCount);
     }
 
     /**
-     * @return the total size of all mappings (including those for system indices) accounting for deduplication and compression.
+     * @return the total number of fields (in non-system indices) accounting for deduplication, or {@link OptionalLong#empty()} if omitted
+     * (due to BwC)
      */
-    public long getTotalMappingSizeBytes() {
-        return totalMappingSizeBytes;
+    public OptionalLong getTotalDeduplicatedFieldCount() {
+        return ofNullable(totalDeduplicatedFieldCount);
+    }
+
+    /**
+     * @return the total size of all mappings (including those for system indices) accounting for deduplication and compression, or {@link
+     * OptionalLong#empty()} if omitted (due to BwC).
+     */
+    public OptionalLong getTotalMappingSizeBytes() {
+        return ofNullable(totalMappingSizeBytes);
     }
 
     /**

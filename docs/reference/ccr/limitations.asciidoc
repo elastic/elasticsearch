@@ -74,3 +74,6 @@ remote cluster manually.
 === Cluster Settings
 {ccr} does not support replicating cluster settings, please replicate them to a
 remote cluster manually. 
+
+=== Restored index
+{ccr} auto follow pattern will not automatically replicated restored indices

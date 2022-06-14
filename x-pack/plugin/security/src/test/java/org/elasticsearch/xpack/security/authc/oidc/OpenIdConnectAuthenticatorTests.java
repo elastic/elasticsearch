@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc.oidc;
 
 import net.minidev.json.JSONArray;
 
+import com.nimbusds.jose.Header;
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
@@ -43,9 +45,20 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,6 +66,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
@@ -84,6 +100,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -877,6 +894,116 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Map<String, Object> userInfoObject2 = new JWTClaimsSet.Builder().claim("email_verified", "yes").build().toJSONObject();
         e = expectThrows(IllegalStateException.class, () -> OpenIdConnectAuthenticator.mergeObjects(idTokenObject2, userInfoObject2));
         assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
+    }
+
+    public void testHandleUserinfoResponseSuccess() throws Exception {
+        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
+        final HttpResponse response = new BasicHttpResponse(new BasicStatusLine(httpVersion, RestStatus.OK.getStatus(), "OK"));
+
+        final String sub = randomAlphaOfLengthBetween(4, 36);
+        final String inf = randomAlphaOfLength(12);
+        final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject(sub).claim("inf", inf).build();
+        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
+        if (randomBoolean()) {
+            entity.setContentEncoding(
+                randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
+            );
+        }
+        response.setEntity(entity);
+
+        final String idx = randomAlphaOfLength(8);
+        final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).claim("idx", idx).build();
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+
+        this.authenticator = buildAuthenticator();
+        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+
+        final JWTClaimsSet finalClaims = future.get();
+        assertThat(finalClaims.getSubject(), equalTo(sub));
+        assertThat(finalClaims.getClaim("inf"), equalTo(inf));
+        assertThat(finalClaims.getClaim("idx"), equalTo(idx));
+    }
+
+    public void testHandleUserinfoResponseFailure() throws Exception {
+        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
+        final HttpResponse response = new BasicHttpResponse(
+            new BasicStatusLine(httpVersion, RestStatus.NOT_FOUND.getStatus(), "Gone away")
+        );
+
+        final StringEntity entity = new StringEntity("<HTML><BODY>Not Found</BODY></HTML>", ContentType.TEXT_HTML);
+        response.setEntity(entity);
+
+        final String sub = randomAlphaOfLengthBetween(4, 36);
+        final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).build();
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+
+        this.authenticator = buildAuthenticator();
+        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+
+        final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(
+            exception,
+            TestMatchers.throwableWithMessage(
+                "Failed to get user information from the UserInfo endpoint. Code=[404], Description=[Gone away]"
+            )
+        );
+    }
+
+    public void testLogIdTokenAndNonce() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException {
+        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
+
+        final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
+        final IDTokenValidator validator = mock(IDTokenValidator.class);
+        final JOSEException joseException = new JOSEException("jose exception");
+        // The validator throws an exception so that the getUserClaims logs both debug messages
+        when(validator.validate(any(), any())).thenThrow(joseException);
+
+        final OpenIdConnectAuthenticator openIdConnectAuthenticator = new OpenIdConnectAuthenticator(
+            config,
+            getOpConfig(),
+            getDefaultRpConfig(),
+            new SSLService(env),
+            validator,
+            null
+        );
+
+        final JWT idToken = mock(JWT.class);
+        final Header header = mock(Header.class);
+        final String headerString = "{\"kid\":\"key1\",\"alg\":\"RS256\",\"JWT\":\"RS256\"}";
+        when(header.toString()).thenReturn(headerString);
+        when(idToken.getHeader()).thenReturn(header);
+        when(idToken.getParsedString()).thenReturn("header.payload.signature");
+
+        final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
+
+        try {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "JWT exception",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "ID Token: [header.payload.signature], Nonce: [" + expectedNonce + "]"
+                )
+            );
+            final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+            openIdConnectAuthenticator.getUserClaims(null, idToken, expectedNonce, false, future);
+            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+            assertThat(e.getCause(), is(joseException));
+            // The logging message assertion is the only thing we actually care in this test
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
+            openIdConnectAuthenticator.close();
+        }
     }
 
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {

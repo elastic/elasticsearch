@@ -48,13 +48,12 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -275,7 +274,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
+    private static void readProximity(Terms terms, PostingsEnum postings) throws IOException {
         if (terms.hasPositions()) {
             for (int pos = 0; pos < postings.freq(); pos++) {
                 postings.nextPosition();
@@ -286,7 +285,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
+    private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
@@ -386,27 +385,13 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(
-                    new PointsVisitor(values.getMinPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
-                );
-                values.intersect(
-                    new PointsVisitor(values.getMaxPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
-                );
+                values.intersect(new PointsVisitor());
                 stats.addPoints(field.name, directory.getBytesRead());
             }
         }
     }
 
     private class PointsVisitor implements PointValues.IntersectVisitor {
-        private final byte[] point;
-        private final int numDims;
-        private final int bytesPerDim;
-
-        PointsVisitor(byte[] point, int numDims, int bytesPerDim) {
-            this.point = point;
-            this.numDims = numDims;
-            this.bytesPerDim = bytesPerDim;
-        }
 
         @Override
         public void visit(int docID) throws IOException {
@@ -420,13 +405,6 @@ final class IndexDiskUsageAnalyzer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            for (int dim = 0; dim < numDims; dim++) {
-                int offset = dim * bytesPerDim;
-                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0
-                    || Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
-                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                }
-            }
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }

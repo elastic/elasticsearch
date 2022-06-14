@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -41,10 +40,12 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
@@ -55,21 +56,25 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
-        currentState,
-        taskContexts) -> {
-        ClusterState state = currentState;
-        for (final var taskContext : taskContexts) {
-            try {
-                final var task = taskContext.getTask();
-                state = task.execute(state);
-                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
+    @SuppressWarnings("Convert2Lambda") // can't SuppressForbidden on a lambda
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
+        new ClusterStateTaskExecutor<>() {
+            @Override
+            @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
+            public ClusterState execute(ClusterState currentState, List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts) {
+                ClusterState state = currentState;
+                for (final var taskContext : taskContexts) {
+                    try {
+                        final var task = taskContext.getTask();
+                        state = task.execute(state);
+                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                }
+                return state;
             }
-        }
-        return state;
-    };
+        };
 
     IndexLifecycleRunner(
         PolicyStepsRegistry stepRegistry,
@@ -279,7 +284,7 @@ class IndexLifecycleRunner {
             // we can afford to drop these requests if they timeout as on the next {@link
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
-            clusterService.submitStateUpdateTask(
+            submitUnbatchedTask(
                 String.format(
                     Locale.ROOT,
                     "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}",
@@ -303,11 +308,7 @@ class IndexLifecycleRunner {
                     @Override
                     public void onFailure(Exception e) {
                         logger.error(
-                            new ParameterizedMessage(
-                                "retry execution of step [{}] for index [{}] failed",
-                                failedStep.getKey().getName(),
-                                index
-                            ),
+                            () -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().getName(), index),
                             e
                         );
                     }
@@ -330,8 +331,7 @@ class IndexLifecycleRunner {
                             }
                         }
                     }
-                },
-                newExecutor()
+                }
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -516,15 +516,10 @@ class IndexLifecycleRunner {
      */
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
-                policy,
-                index.getName(),
-                currentStepKey
-            ),
+            () -> format("policy [%s] for index [%s] failed on step [%s]. Moving to ERROR step", policy, index.getName(), currentStepKey),
             e
         );
-        clusterService.submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(
                 Locale.ROOT,
                 "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}",
@@ -535,8 +530,7 @@ class IndexLifecycleRunner {
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
-            }),
-            newExecutor()
+            })
         );
     }
 
@@ -577,8 +571,8 @@ class IndexLifecycleRunner {
      */
     private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
         logger.debug(
-            new ParameterizedMessage(
-                "unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
+            () -> format(
+                "unable to retrieve policy [%s] for index [%s], recording this in step_info for this index",
                 policyName,
                 index.getName()
             ),
@@ -669,8 +663,7 @@ class IndexLifecycleRunner {
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
      *       this point given how these tasks are mostly set up on the cluster state applier thread.
      *
-     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig,
-     *               ClusterStateTaskExecutor)}
+     * @param source source string as used in {@link ClusterService#submitUnbatchedStateUpdateTask}
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
@@ -690,7 +683,7 @@ class IndexLifecycleRunner {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

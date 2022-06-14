@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="jwt-realm"]
+=== JWT realm
+
+Refer to <<jwt-auth-realm,JWT authentication>>.
+
+[role="exclude",id="_authorizing_with_the_role_mapping_api"]
+==== Role mapping with JWT
+
+Refer to <<jwt-authorization-role-mapping,Authorizing with the role mapping API>>.
+
 [role="exclude",id="migration-api-feature-upgrade"]
 === Feature upgrade APIs
 
@@ -72,7 +82,7 @@ See <<back-up-config-files>> and <<cluster-state-snapshots>>.
 // [END] Snapshot and restore
 
 [role="exclude",id="configuring-tls-docker"]
-== Encrypting communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker Container
 
 Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
 
@@ -84,7 +94,7 @@ Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]
-== {ccs-cap}, clients, and integrations
+=== {ccs-cap}, clients, and integrations
 
 Refer to <<security-clients-integrations,Securing clients and integrations>>.
 
@@ -309,6 +319,11 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 === Encrypting communications
 
 See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+[role="exclude",id="security-api-search-user-profile"]
+=== Search user profile API
+
+See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
 [roles="exclude",id="modules-scripting-stored-scripts"]
@@ -360,7 +375,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 === Upgrade API
 
 The `_upgrade` API is no longer useful and will be removed.
-For information about upgrading, see 
+For information about upgrading, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
@@ -1813,7 +1828,7 @@ See the <<sql-search-api-request-body,request body parameters>> for the
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 even if you opt to perform a full-cluster restart instead of a rolling upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="rolling-upgrades"]
@@ -1821,7 +1836,7 @@ For more information about upgrading, refer to
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="reindex-upgrade"]
@@ -1832,7 +1847,7 @@ Before upgrading to {es} 8.0 and later, you must reindex any indices created in
 a 6.x version. We recommend using the **Upgrade Assistant** to guide you
 through this process.
 
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 //end::upgrade-reindex[]
 
@@ -1852,3 +1867,8 @@ include::redirects.asciidoc[tag=upgrade-reindex]
 
 For more information about reindexing from a remote cluster, refer to
 <<reindex-from-remote>>.
+
+[role="exclude",id="infer-trained-model-deployment"]
+=== Infer trained model deployment API
+
+See <<infer-trained-model>>.

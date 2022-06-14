@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
@@ -72,6 +73,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +95,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -298,7 +301,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
@@ -366,6 +369,27 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals("Runtime field [field] was set to null but its removal is not supported in this context", exception.getMessage());
     }
 
+    public void testSearchRequestRuntimeFieldsAndMultifieldDetection() {
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("cat", Map.of("type", "keyword")),
+            Map.entry("cat.subfield", Map.of("type", "keyword")),
+            Map.entry("dog", Map.of("type", "long"))
+        );
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(
+                new MockFieldMapper.FakeFieldType("pig"),
+                new MockFieldMapper.FakeFieldType("pig.subfield"),
+                new MockFieldMapper.FakeFieldType("cat"),
+                new MockFieldMapper.FakeFieldType("cat.subfield")
+            ),
+            List.of(new TestRuntimeField("runtime", "long"))
+        );
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null, mappingLookup, runtimeMappings);
+        assertTrue(context.isMultiField("pig.subfield"));
+        assertFalse(context.isMultiField("cat.subfield"));
+        assertTrue(mappingLookup.isMultiField("cat.subfield"));
+    }
+
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
         return createSearchExecutionContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of());
     }
@@ -395,7 +419,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MapperService mapperService = createMapperService(indexSettings);
+        MapperService mapperService = createMapperService(indexSettings, mappingLookup);
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
@@ -420,7 +444,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
-    private static MapperService createMapperService(IndexSettings indexSettings) {
+    private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
             emptyMap(),
@@ -434,7 +458,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         when(mapperService.parserContext()).thenReturn(
             new MappingParserContext(
                 null,
-                mapperRegistry.getMapperParsers()::get,
+                type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
                 searchExecutionContextSupplier,
@@ -444,6 +468,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 indexSettings,
                 indexSettings.getMode().buildIdFieldMapper(() -> true)
             )
+        );
+        when(mapperService.isMultiField(anyString())).then(
+            (Answer<Boolean>) invocation -> mappingLookup.isMultiField(invocation.getArgument(0))
         );
         return mapperService;
     }

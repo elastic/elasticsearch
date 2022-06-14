@@ -97,7 +97,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         out.writeInt(seed);
     }
 
-    void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
+    static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
         if (builders == null || builders.isEmpty()) {
             return;
         }

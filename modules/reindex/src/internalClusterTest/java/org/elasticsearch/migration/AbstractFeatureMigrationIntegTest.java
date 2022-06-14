@@ -41,7 +41,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -52,6 +51,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase {
 
     static final String VERSION_META_KEY = "version";
@@ -70,7 +70,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setIndexPattern(".ext-unman-*")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -79,7 +78,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setIndexPattern(".int-unman-*")
         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -116,8 +114,15 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
+    protected String masterAndDataNode;
+    protected String masterName;
+
     @Before
-    public void setupTestPlugin() {
+    public void setup() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        masterName = internalCluster().startMasterOnlyNode();
+        masterAndDataNode = internalCluster().startNode();
+
         TestPlugin testPlugin = getPlugin(TestPlugin.class);
         testPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
         testPlugin.postMigrationHook.set((state, metadata) -> {});
@@ -134,10 +139,12 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             descriptor.getIndexPattern(),
             endsWith("*")
         );
-        String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
+        String indexName = descriptor.isAutomaticallyManaged()
+            ? descriptor.getPrimaryIndex()
+            : descriptor.getIndexPattern().replace("*", "old");
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+        if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             // unmanaged
             createRequest.setSettings(
                 createSettings(
@@ -154,7 +161,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                     .build()
             );
         }
-        if (descriptor.getMappings() == null) {
+        if (descriptor.isAutomaticallyManaged() == false) {
             createRequest.setMapping(createMapping(false, descriptor.isInternal()));
         }
         CreateIndexResponse response = createRequest.get();

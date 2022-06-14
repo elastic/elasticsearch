@@ -139,7 +139,7 @@ public class CorsHandler {
         return false;
     }
 
-    private void setPreflightHeaders(final HttpResponse response) {
+    private static void setPreflightHeaders(final HttpResponse response) {
         response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
         response.addHeader("content-length", "0");
     }

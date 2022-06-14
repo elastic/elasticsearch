@@ -131,7 +131,7 @@ public class FilterPath {
     }
 
     private static class FilterPathBuilder {
-        private class BuildNode {
+        private static class BuildNode {
             private final Map<String, BuildNode> children;
             private final boolean isFinalNode;
 
@@ -141,7 +141,7 @@ public class FilterPath {
             }
         }
 
-        private BuildNode root = new BuildNode(false);
+        private final BuildNode root = new BuildNode(false);
 
         void insert(String filter) {
             insertNode(filter, root);

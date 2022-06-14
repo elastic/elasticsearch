@@ -208,7 +208,12 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertThat(response.getTotalShards(), equalTo(numberOfShards));
             assertThat(response.getFailedShards(), equalTo(failedShards.size()));
             assertThat(response.getSuccessfulShards(), equalTo(numberOfShards - failedShards.size()));
-            assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            if (numberOfShards == failedShards.size()) {
+                assertTrue(response.getStats().isEmpty());
+                assertThat(totalIndexSize.get(), equalTo(0L));
+            } else {
+                assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            }
         } finally {
             stopped.set(true);
             handlingThread.join();
@@ -256,7 +261,11 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         AnalyzeIndexDiskUsageResponse resp = future.actionGet();
         assertThat(resp.getTotalShards(), equalTo(numberOfShards));
         assertThat(resp.getSuccessfulShards(), equalTo(successfulShards.size()));
-        assertThat(resp.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+        if (successfulShards.isEmpty()) {
+            assertTrue(resp.getStats().isEmpty());
+        } else {
+            assertThat(resp.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+        }
     }
 
     private static DiscoveryNodes newNodes(int numNodes) {

@@ -9,9 +9,7 @@ package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -34,6 +32,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
 /**
@@ -60,7 +59,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     void perform(Runnable onComplete) {
         if (running.compareAndSet(false, true)) {
             LOGGER.debug("starting tsdb update task");
-            clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", new ClusterStateUpdateTask(Priority.URGENT) {
+            submitUnbatchedTask("update_tsdb_data_stream_end_times", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return updateTimeSeriesTemporalRange(currentState, Instant.now());
@@ -79,15 +78,15 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     onComplete.run();
                 }
 
-            }, newExecutor());
+            });
         } else {
             LOGGER.debug("not starting tsdb update task, because another execution is still running");
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     void setPollInterval(TimeValue newValue) {
@@ -142,8 +141,8 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     dataStream.validate(mBuilder::get);
                 } catch (Exception e) {
                     LOGGER.error(
-                        () -> new ParameterizedMessage(
-                            "unable to update [{}] for data stream [{}] and backing index [{}]",
+                        () -> format(
+                            "unable to update [%s] for data stream [%s] and backing index [%s]",
                             IndexSettings.TIME_SERIES_END_TIME.getKey(),
                             dataStream.getName(),
                             head.getName()

@@ -340,6 +340,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      *
      * and
      *
+     * } catch (SecurityException e) {
+     *     throw e;
+     * }
+     *
+     * and
+     *
      * } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
      *     throw this.convertToScriptException(e, e.getHeaders())
      * }
@@ -353,20 +359,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             TryNode irTryNode = new TryNode(internalLocation);
             irTryNode.setBlockNode(irBlockNode);
 
-            CatchNode irCatchNode = new CatchNode(internalLocation);
-            irCatchNode.attachDecoration(new IRDExceptionType(PainlessExplainError.class));
-            irCatchNode.attachDecoration(new IRDSymbol("#painlessExplainError"));
-
-            irTryNode.addCatchNode(irCatchNode);
-
-            BlockNode irCatchBlockNode = new BlockNode(internalLocation);
-            irCatchBlockNode.attachCondition(IRCAllEscape.class);
-
-            irCatchNode.setBlockNode(irCatchBlockNode);
-
-            ThrowNode irThrowNode = new ThrowNode(internalLocation);
-
-            irCatchBlockNode.addStatementNode(irThrowNode);
+            ThrowNode irThrowNode = createCatchAndThrow(PainlessExplainError.class, internalLocation, irTryNode);
 
             InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
             irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(ScriptException.class));
@@ -425,30 +418,21 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irInvokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
-            for (Class<?> throwable : new Class<?>[] {
+            irThrowNode = createCatchAndThrow(SecurityException.class, internalLocation, irTryNode);
+            irLoadVariableNode = new LoadVariableNode(internalLocation);
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(SecurityException.class));
+            irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
+            irThrowNode.setExpressionNode(irLoadVariableNode);
+
+            for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,
                 LinkageError.class,
                 OutOfMemoryError.class,
                 StackOverflowError.class,
-                Exception.class }) {
+                Exception.class
+            )) {
 
-                String name = throwable.getSimpleName();
-                name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-                irCatchNode = new CatchNode(internalLocation);
-                irCatchNode.attachDecoration(new IRDExceptionType(throwable));
-                irCatchNode.attachDecoration(new IRDSymbol(name));
-
-                irTryNode.addCatchNode(irCatchNode);
-
-                irCatchBlockNode = new BlockNode(internalLocation);
-                irCatchBlockNode.attachCondition(IRCAllEscape.class);
-
-                irCatchNode.setBlockNode(irCatchBlockNode);
-
-                irThrowNode = new ThrowNode(internalLocation);
-
-                irCatchBlockNode.addStatementNode(irThrowNode);
+                irThrowNode = createCatchAndThrow(throwable, internalLocation, irTryNode);
 
                 irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(ScriptException.class));
@@ -468,7 +452,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 irLoadVariableNode = new LoadVariableNode(internalLocation);
                 irLoadVariableNode.attachDecoration(new IRDExpressionType(ScriptException.class));
-                irLoadVariableNode.attachDecoration(new IRDName(name));
+                irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(throwable)));
 
                 irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
@@ -508,6 +492,32 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    // Turn an exception class name into a local variable name to hold an object of that type
+    private static String getExceptionVariableName(Class<? extends Throwable> throwable) {
+        String name = throwable.getSimpleName();
+        return "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
+    }
+
+    // Helper for catching a known exception type. Returns the ThrowNode to be filled in.
+    private static ThrowNode createCatchAndThrow(Class<? extends Throwable> throwable, Location internalLocation, TryNode irTryNode) {
+        String name = getExceptionVariableName(throwable);
+
+        CatchNode irCatchNode = new CatchNode(internalLocation);
+        irCatchNode.attachDecoration(new IRDExceptionType(throwable));
+        irCatchNode.attachDecoration(new IRDSymbol(name));
+
+        irTryNode.addCatchNode(irCatchNode);
+
+        BlockNode irCatchBlockNode = new BlockNode(internalLocation);
+        irCatchBlockNode.attachCondition(IRCAllEscape.class);
+
+        irCatchNode.setBlockNode(irCatchBlockNode);
+        ThrowNode irThrowNode = new ThrowNode(internalLocation);
+        irCatchBlockNode.addStatementNode(irThrowNode);
+
+        return irThrowNode;
     }
 
     @Override

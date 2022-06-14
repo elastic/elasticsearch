@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.BitMixer;
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -24,6 +20,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -145,29 +142,56 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public static class SetBackedLongFilter extends LongFilter {
-        private LongSet valids;
-        private LongSet invalids;
+        // Autoboxing long could cause allocations when doing Set.contains, so
+        // this alternative to java.lang.Long is not final so that a preallocated instance
+        // can be used in accept (note that none of this is threadsafe!)
+        private static class Long {
+            private long value;
+
+            private Long(long value) {
+                this.value = value;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Long that = (Long) o;
+                return value == that.value;
+            }
+
+            @Override
+            public int hashCode() {
+                return java.lang.Long.hashCode(value);
+            }
+        }
+
+        private Set<Long> valids;
+        private Set<Long> invalids;
+
+        private Long spare = new Long(0);
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
-                valids = new LongHashSet(numValids);
+                valids = new HashSet<>(numValids);
             }
             if (numInvalids > 0) {
-                invalids = new LongHashSet(numInvalids);
+                invalids = new HashSet<>(numInvalids);
             }
         }
 
         @Override
         public boolean accept(long value) {
-            return (valids == null || valids.contains(value)) && (invalids == null || invalids.contains(value) == false);
+            spare.value = value;
+            return (valids == null || valids.contains(spare)) && (invalids == null || invalids.contains(spare) == false);
         }
 
         private void addAccept(long val) {
-            valids.add(val);
+            valids.add(new Long(val));
         }
 
         private void addReject(long val) {
-            invalids.add(val);
+            invalids.add(new Long(val));
         }
     }
 
@@ -409,18 +433,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         boolean hasIncludes = includeValues != null;
         out.writeBoolean(hasIncludes);
         if (hasIncludes) {
-            out.writeVInt(includeValues.size());
-            for (BytesRef value : includeValues) {
-                out.writeBytesRef(value);
-            }
+            out.writeCollection(includeValues, StreamOutput::writeBytesRef);
         }
         boolean hasExcludes = excludeValues != null;
         out.writeBoolean(hasExcludes);
         if (hasExcludes) {
-            out.writeVInt(excludeValues.size());
-            for (BytesRef value : excludeValues) {
-                out.writeBytesRef(value);
-            }
+            out.writeCollection(excludeValues, StreamOutput::writeBytesRef);
         }
         out.writeVInt(incNumPartitions);
         out.writeVInt(incZeroBasedPartition);

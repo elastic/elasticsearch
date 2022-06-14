@@ -17,12 +17,8 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
@@ -140,9 +136,7 @@ import java.lang.annotation.Annotation;
  * Sets up a constant binding. Constant injections must always be annotated.
  * When a constant binding's value is a string, it is eligible for conversion to
  * all primitive types, to {@link Enum#valueOf all enums}, and to
- * {@link Class#forName class literals}. Conversions for other types can be
- * configured using {@link #convertToTypes(Matcher, TypeConverter)
- * convertToTypes()}.
+ * {@link Class#forName class literals}.
  *
  * <pre>
  *   {@literal @}Color("red") Color red; // A member variable (field)
@@ -176,8 +170,7 @@ import java.lang.annotation.Annotation;
  * the problems at runtime, as soon as you try to create your Injector.
  *
  * <p>The other methods of Binder such as {@link #bindScope},
- * {@link #install}, {@link #requestStaticInjection},
- * {@link #addError} and {@link #currentStage} are not part of the Binding EDSL;
+ * {@link #install}, and {@link #addError} are not part of the Binding EDSL;
  * you can learn how to use these in the usual way, from the method
  * documentation.
  *
@@ -208,46 +201,9 @@ public interface Binder {
     <T> AnnotatedBindingBuilder<T> bind(Class<T> type);
 
     /**
-     * See the EDSL examples at {@link Binder}.
-     */
-    AnnotatedConstantBindingBuilder bindConstant();
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject instance fields
-     * and methods of the given object.
-     *
-     * @param type     of instance
-     * @param instance for which members will be injected
-     * @since 2.0
-     */
-    <T> void requestInjection(TypeLiteral<T> type, T instance);
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject instance fields
-     * and methods of the given object.
-     *
-     * @param instance for which members will be injected
-     * @since 2.0
-     */
-    void requestInjection(Object instance);
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject static fields
-     * and methods in the given classes.
-     *
-     * @param types for which static members will be injected
-     */
-    void requestStaticInjection(Class<?>... types);
-
-    /**
      * Uses the given module to configure more bindings.
      */
     void install(Module module);
-
-    /**
-     * Gets the current stage.
-     */
-    Stage currentStage();
 
     /**
      * Records an error message which will be presented to the user at a later
@@ -284,58 +240,6 @@ public interface Binder {
     <T> Provider<T> getProvider(Key<T> key);
 
     /**
-     * Returns the provider used to obtain instances for the given injection type.
-     * The returned provider will not be valid until the {@link Injector} has been
-     * created. The provider will throw an {@code IllegalStateException} if you
-     * try to use it beforehand.
-     *
-     * @since 2.0
-     */
-    <T> Provider<T> getProvider(Class<T> type);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}. The returned members injector will not be valid until the main
-     * {@link Injector} has been created. The members injector will throw an {@code
-     * IllegalStateException} if you try to use it beforehand.
-     *
-     * @param typeLiteral type to get members injector for
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}. The returned members injector will not be valid until the main
-     * {@link Injector} has been created. The members injector will throw an {@code
-     * IllegalStateException} if you try to use it beforehand.
-     *
-     * @param type type to get members injector for
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(Class<T> type);
-
-    /**
-     * Binds a type converter. The injector will use the given converter to
-     * convert string constants to matching types as needed.
-     *
-     * @param typeMatcher matches types the converter can handle
-     * @param converter   converts values
-     * @since 2.0
-     */
-    void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter);
-
-    /**
-     * Registers a listener for injectable types. Guice will notify the listener when it encounters
-     * injectable types matched by the given type matcher.
-     *
-     * @param typeMatcher that matches injectable types the listener should be notified of
-     * @param listener    for injectable types matched by typeMatcher
-     * @since 2.0
-     */
-    void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher, TypeListener listener);
-
-    /**
      * Returns a binder that uses {@code source} as the reference location for
      * configuration errors. This is typically a {@link StackTraceElement}
      * for {@code .java} source but it could any binding source, such as the
@@ -360,14 +264,4 @@ public interface Binder {
      */
     Binder skipSources(Class<?>... classesToSkip);
 
-    /**
-     * Creates a new private child environment for bindings and other configuration. The returned
-     * binder can be used to add and configuration information in this environment. See {@link
-     * PrivateModule} for details.
-     *
-     * @return a binder that inherits configuration from this binder. Only exposed configuration on
-     *         the returned binder will be visible to this binder.
-     * @since 2.0
-     */
-    PrivateBinder newPrivateBinder();
 }

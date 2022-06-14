@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -38,7 +37,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
@@ -318,20 +316,29 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .endObject();
             client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
-        final AtomicBoolean relocated = new AtomicBoolean();
+        final Index index = resolveIndex(indexName);
+        final List<ShardId> failingShards = randomSubsetOf(
+            between(1, numberOfShards),
+            IntStream.range(0, numberOfShards).mapToObj(n -> new ShardId(index, n)).toList()
+        );
         final AtomicInteger failedShards = new AtomicInteger();
+        final AtomicInteger successfulShards = new AtomicInteger();
         try {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
                 transportService.addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
-                    if (relocated.compareAndSet(false, true)) {
-                        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                        for (IndexService indexService : indicesService) {
-                            for (IndexShard indexShard : indexService) {
-                                failedShards.incrementAndGet();
-                                indexShard.close("test", randomBoolean());
-                            }
-                        }
+                    AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
+                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                    logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
+                    ShardId shardId = shardRequest.shardId();
+                    if (failingShards.contains(shardId)) {
+                        IndexShard indexShard = indicesService.getShardOrNull(shardId);
+                        assertNotNull("No shard found for shard " + shardId, indexShard);
+                        logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
+                        indexShard.close("test", randomBoolean());
+                        failedShards.incrementAndGet();
+                    } else {
+                        successfulShards.incrementAndGet();
                     }
                     handler.messageReceived(request, channel, task);
                 });
@@ -340,10 +347,11 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 AnalyzeIndexDiskUsageAction.INSTANCE,
                 new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
             ).actionGet();
-            assertThat(failedShards.get(), greaterThan(0));
+            assertThat(failedShards.get(), equalTo(failingShards.size()));
             assertThat(resp.getTotalShards(), equalTo(numberOfShards));
             assertThat(resp.getFailedShards(), equalTo(failedShards.get()));
             assertThat(resp.getSuccessfulShards(), equalTo(resp.getTotalShards() - resp.getFailedShards()));
+            assertThat(successfulShards.get(), equalTo(numberOfShards - failedShards.get()));
             assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
         } finally {
             for (String node : internalCluster().getNodeNames()) {

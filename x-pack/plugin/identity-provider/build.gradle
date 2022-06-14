@@ -289,7 +289,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 if (BuildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests

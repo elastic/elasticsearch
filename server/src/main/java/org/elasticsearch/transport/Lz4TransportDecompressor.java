@@ -327,7 +327,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         return bytesConsumed;
     }
 
-    private byte[] getThreadLocalBuffer(ThreadLocal<byte[]> threadLocal, int requiredSize) {
+    private static byte[] getThreadLocalBuffer(ThreadLocal<byte[]> threadLocal, int requiredSize) {
         byte[] buffer = threadLocal.get();
         if (requiredSize > buffer.length) {
             buffer = new byte[requiredSize];

@@ -44,7 +44,6 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -463,8 +462,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    private static String urlEncode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
+    private static String urlEncode(String param) {
+        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
     private String deflateAndBase64Encode(SAMLObject message) throws Exception {

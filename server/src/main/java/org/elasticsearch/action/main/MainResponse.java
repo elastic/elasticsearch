@@ -87,7 +87,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("number", build.qualifiedVersion())
-            .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
@@ -113,14 +112,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            final String buildFlavor = (String) value.get("build_flavor");
             final String buildType = (String) value.get("build_type");
             response.build = new Build(
                 /*
                  * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
                  * we know.
                  */
-                buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
                 buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
                 (String) value.get("build_hash"),
                 (String) value.get("build_date"),

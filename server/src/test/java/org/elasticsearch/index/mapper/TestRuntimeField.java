@@ -73,5 +73,15 @@ public final class TestRuntimeField implements RuntimeField {
         public Query termQuery(Object value, SearchExecutionContext context) {
             return null;
         }
+
+        @Override
+        public boolean isSearchable() {
+            return true;
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return true;
+        }
     }
 }

@@ -23,23 +23,35 @@ import org.mockito.Mockito;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
-    private static final String ROLE_NAME = "sts-fixture-test";
+    private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
     public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
         HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpServer.createContext("/", exchange -> {
             try (exchange) {
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                Map<String, String> params = Arrays.stream(body.split("&"))
+                    .map(e -> e.split("="))
+                    .collect(Collectors.toMap(e -> e[0], e -> URLDecoder.decode(e[1], StandardCharsets.UTF_8)));
+                assertEquals(ROLE_NAME, params.get("RoleSessionName"));
+
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");
                 byte[] response = """
                     <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
@@ -85,9 +97,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             "AWS_WEB_IDENTITY_TOKEN_FILE",
             "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
             "AWS_ROLE_ARN",
-            ROLE_ARN,
-            "AWS_ROLE_SESSION_NAME",
-            ROLE_NAME
+            ROLE_ARN
         );
         Map<String, String> systemProperties = Map.of(
             "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
@@ -96,7 +106,8 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
             environment,
             environmentVariables::get,
-            systemProperties::getOrDefault
+            systemProperties::getOrDefault,
+            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
         );
         try {
             AWSCredentials credentials = S3Service.buildCredentials(

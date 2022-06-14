@@ -139,7 +139,6 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             .put(
                 new DataStream(
                     d.getName(),
-                    d.getTimeStampField(),
                     d.getIndices(),
                     d.getGeneration(),
                     d.getMetadata(),

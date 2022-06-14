@@ -35,7 +35,10 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
-            project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, project.project(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH));
+            var elasticsearchCoreProject = project.findProject(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH);
+            if (elasticsearchCoreProject != null) {
+                project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, elasticsearchCoreProject);
+            }
         }
 
         TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
@@ -48,7 +51,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         // usually only one task is created. but this construct makes our integTests easier to setup
         project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
-            Configuration runtimeConfiguration = getRuntimeConfiguration(project);
+            Configuration runtimeConfiguration = project.getConfigurations().getByName("runtimeClasspath");
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
@@ -68,11 +71,4 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         return audit;
     }
 
-    private Configuration getRuntimeConfiguration(Project project) {
-        Configuration runtime = project.getConfigurations().findByName("runtimeClasspath");
-        if (runtime == null) {
-            return project.getConfigurations().getByName("testCompileClasspath");
-        }
-        return runtime;
-    }
 }

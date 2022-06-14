@@ -18,7 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -113,7 +114,7 @@ public class RestPluginsActionTests extends ESTestCase {
         assertThat(rows, containsInAnyOrder(matchers));
     }
 
-    private Table buildTable(List<PluginInfo> pluginInfo, boolean includeBootstrap) {
+    private Table buildTable(List<PluginDescriptor> pluginDescriptor, boolean includeBootstrap) {
         final RestRequest request = new FakeRestRequest();
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -140,7 +141,7 @@ public class RestPluginsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new PluginsAndModules(pluginInfo, List.of()),
+                    new PluginsAndModules(pluginDescriptor.stream().map(PluginRuntimeInfo::new).toList(), List.of()),
                     null,
                     null,
                     null
@@ -157,7 +158,7 @@ public class RestPluginsActionTests extends ESTestCase {
         return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
     }
 
-    private PluginInfo plugin(String name, PluginType type) {
-        return new PluginInfo(name, name + " description", "1.0", null, null, null, List.of(), false, type, null, false);
+    private PluginDescriptor plugin(String name, PluginType type) {
+        return new PluginDescriptor(name, name + " description", "1.0", null, null, null, null, List.of(), false, type, null, false);
     }
 }

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -142,7 +143,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("kibana"), new RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("kibana"))
+            .realmRef(new RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
         searchRequests = new ArrayList<>();
@@ -388,7 +393,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         assertThat(
             tokenToInvalidate1.getAuthentication(),
-            equalTo(new Authentication(new User("bob"), new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null))
+            equalTo(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(new User("bob"))
+                    .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
+                    .build(false)
+            )
         );
 
         assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
@@ -434,11 +445,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     }
 
     private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
-        Authentication authentication = new Authentication(
-            new User("bob"),
-            new RealmRef("native", NativeRealmSettings.TYPE, "node01"),
-            null
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User("bob"))
+            .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
+            .build(false);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);

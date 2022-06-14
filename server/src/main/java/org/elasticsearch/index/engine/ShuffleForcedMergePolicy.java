@@ -59,7 +59,7 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
         return wrap(in.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext));
     }
 
-    private MergeSpecification wrap(MergeSpecification mergeSpec) throws IOException {
+    private static MergeSpecification wrap(MergeSpecification mergeSpec) throws IOException {
         if (mergeSpec == null) {
             return null;
         }
@@ -86,7 +86,7 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
 
     // Return a new list that sort segments of the original one by name (older first)
     // and then interleave them to colocate oldest and most recent segments together.
-    private List<SegmentCommitInfo> interleaveList(List<SegmentCommitInfo> infos) throws IOException {
+    private static List<SegmentCommitInfo> interleaveList(List<SegmentCommitInfo> infos) throws IOException {
         List<SegmentCommitInfo> newInfos = new ArrayList<>(infos.size());
         Collections.sort(infos, Comparator.comparing(a -> a.info.name));
         int left = 0;

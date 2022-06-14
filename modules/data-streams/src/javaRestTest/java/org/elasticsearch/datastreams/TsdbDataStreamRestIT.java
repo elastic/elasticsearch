@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +42,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 2,
-                        "routing_path": ["metricset", "time_series_dimension"]
+                        "mode": "time_series"
                     }
                 },
                 "mappings":{
@@ -86,7 +86,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 }
             },
             "data_stream": {
-                "index_mode": "time_series"
             }
         }""";
 
@@ -328,7 +327,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
         assertThat(
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
-            contains("metricset", "time_series_dimension")
+            containsInAnyOrder("metricset", "k8s.pod.uid")
         );
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
@@ -463,7 +462,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 e.getMessage(),
                 containsString(
                     "composable template [1] with index patterns [k8s*], priority [null],"
-                        + " index_mode [null] would cause tsdb data streams [k8s] to no longer match a data stream template"
+                        + " index.routing_path [] would cause tsdb data streams [k8s] to no longer match a data stream template"
                         + " with a time_series index_mode"
                 )
             );

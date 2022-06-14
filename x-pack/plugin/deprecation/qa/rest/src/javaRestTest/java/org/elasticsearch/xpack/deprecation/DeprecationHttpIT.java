@@ -259,7 +259,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * <p>
      * Re-running this back-to-back helps to ensure that warnings are not being maintained across requests.
      */
-    private void doTestDeprecationWarningsAppearInHeaders() throws IOException {
+    private void doTestDeprecationWarningsAppearInHeaders() throws Exception {
         final boolean useDeprecatedField = randomBoolean();
         final boolean useNonDeprecatedSetting = randomBoolean();
 
@@ -280,10 +280,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
         // trigger all deprecations
         Request request = new Request("GET", "/_test_cluster/deprecated_settings");
         request.setEntity(buildSettingsRequest(settings, useDeprecatedField ? "deprecated_settings" : "settings"));
-        final RequestOptions options = request.getOptions()
-            .toBuilder()
-            .addHeader("X-Opaque-Id", "XOpaqueId-doTestDeprecationWarningsAppearInHeaders")
-            .build();
+        String xOpaqueId = "XOpaqueId-doTestDeprecationWarningsAppearInHeaders" + randomInt();
+        final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", xOpaqueId).build();
         request.setOptions(options);
         Response response = client().performRequest(request);
         assertOK(response);
@@ -306,6 +304,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }
+        // expect to index same number of new deprecations as the number of header warnings in the response
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
+            long indexedDeprecations = documents.stream().filter(m -> xOpaqueId.equals(m.get(X_OPAQUE_ID_FIELD_NAME))).count();
+            assertThat(documents.toString(), indexedDeprecations, equalTo((long) headerMatchers.size()));
+        });
+
     }
 
     public void testDeprecationRouteThrottling() throws Exception {
@@ -415,12 +420,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "settings"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
@@ -433,12 +438,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
@@ -485,12 +490,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "settings"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_critical_settings"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "CRITICAL"),
                         hasKey("log.logger"),
                         hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
@@ -537,12 +542,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "settings"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_warn_settings"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[deprecated_warn_settings] usage is deprecated but won't be breaking in next version")
@@ -555,12 +560,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
@@ -619,12 +624,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "compatible_api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "compatible_key"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "CRITICAL"),
                         hasKey("log.logger"),
                         hasEntry("message", "You are using a compatible API for this request")
@@ -637,12 +642,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("elasticsearch.event.category", "compatible_api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasKey("ecs.version"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/compat_only"),
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "CRITICAL"),
                         hasKey("log.logger"),
                         hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")

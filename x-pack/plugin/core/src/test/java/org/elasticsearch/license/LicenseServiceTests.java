@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
@@ -198,7 +197,7 @@ public class LicenseServiceTests extends ESTestCase {
             final var taskCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.class);
             final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
             @SuppressWarnings("unchecked")
-            final ArgumentCaptor<ActionListener<ClusterState>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+            final ArgumentCaptor<Runnable> listenerCaptor = ArgumentCaptor.forClass(Runnable.class);
             doNothing().when(taskContext).success(listenerCaptor.capture());
             verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
@@ -214,7 +213,7 @@ public class LicenseServiceTests extends ESTestCase {
 
             ClusterState updatedState = taskExecutorCaptor.getValue().execute(oldState, List.of(taskContext));
             // Pass updated state to listener to trigger onResponse call to wrapped `future`
-            listenerCaptor.getValue().onResponse(updatedState);
+            listenerCaptor.getValue().run();
             assertion.accept(future);
         }
     }

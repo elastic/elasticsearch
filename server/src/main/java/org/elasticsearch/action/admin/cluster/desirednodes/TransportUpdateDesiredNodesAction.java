@@ -175,9 +175,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 taskContext.success(
-                    taskContext.getTask()
-                        .listener()
-                        .delegateFailure(replacedExistingHistoryId ? SUCCESS_NEW_HISTORY_ID : SUCCESS_SAME_HISTORY_ID)
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
                 );
             }
             return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);

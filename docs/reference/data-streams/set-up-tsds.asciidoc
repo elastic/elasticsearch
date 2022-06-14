@@ -233,11 +233,9 @@ See <<avoid-index-pattern-collisions>>.
 PUT _index_template/my-weather-sensor-index-template
 {
   "index_patterns": ["metrics-weather_sensors-*"],
-  "data_stream": {
-    "index_mode": "time_series"
-  },
   "template": {
     "settings": {
+      "index.mode": "time_series",
       "index.routing_path": [ "sensor_id", "location" ]
     }
   },

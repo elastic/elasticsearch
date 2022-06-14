@@ -44,7 +44,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -376,7 +378,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         }
     }
 
-    public void testRedForNoMasterAndNoMasterEligibleNodes() {
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndNoMasterEligibleNodes() throws IOException {
         try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -398,6 +401,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                 HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
                 assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
                 assertThat(healthIndicatorResult.summary(), equalTo("No master eligible nodes found in the cluster"));
+                Map<String, Object> detailsMap = xContentToMap(healthIndicatorResult.details());
+                Collection<Object> recentMasters = ((Collection<Object>) detailsMap.get("recent_masters"));
+                // We don't show nulls in the recent_masters list:
+                assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                for (Object recentMaster : recentMasters) {
+                    Map<String, String> recentMasterMap = (Map<String, String>) recentMaster;
+                    assertThat(recentMasterMap.get("name"), notNullValue());
+                    assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
+                }
+                assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered yet"));
             }
             cluster.clusterNodes.addAll(removedClusterNodes);
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -407,7 +420,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         }
     }
 
-    public void testRedForNoMasterAndWithMasterEligibleNodesAndLeader() {
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndLeader() throws IOException {
         try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -430,6 +444,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                     HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
                     assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
                     assertThat(healthIndicatorResult.summary(), containsString("has been elected master, but the node being queried"));
+                    Map<String, Object> detailsMap = xContentToMap(healthIndicatorResult.details());
+                    Collection<Object> recentMasters = ((Collection<Object>) detailsMap.get("recent_masters"));
+                    // We don't show nulls in the recent_masters list:
+                    assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                    for (Object recentMaster : recentMasters) {
+                        Map<String, String> recentMasterMap = (Map<String, String>) recentMaster;
+                        assertThat(recentMasterMap.get("name"), notNullValue());
+                        assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
+                    }
+                    assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered"));
                     // This restores the PeerFinder so that the test cleanup doesn't fail:
                     node.coordinator.getPeerFinder().activate(lastAcceptedNodes);
                 }
@@ -442,7 +466,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         }
     }
 
-    public void testRedForNoMasterAndWithMasterEligibleNodesAndNoLeader() {
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndNoLeader() throws IOException {
         try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -456,6 +481,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                 HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
                 if (node.getLocalNode().isMasterNode() == false) {
                     assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
+                    Map<String, Object> detailsMap = xContentToMap(healthIndicatorResult.details());
+                    Collection<Object> recentMasters = ((Collection<Object>) detailsMap.get("recent_masters"));
+                    // We don't show nulls in the recent_masters list:
+                    assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                    for (Object recentMaster : recentMasters) {
+                        Map<String, String> recentMasterMap = (Map<String, String>) recentMaster;
+                        assertThat(recentMasterMap.get("name"), notNullValue());
+                        assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
+                    }
+                    assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered"));
                 }
             }
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {

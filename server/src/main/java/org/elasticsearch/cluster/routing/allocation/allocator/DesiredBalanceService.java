@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -24,6 +25,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -38,7 +40,7 @@ public class DesiredBalanceService {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(-1, Map.of(), Map.of());
+    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(-1, Map.of());
 
     public DesiredBalanceService(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -52,7 +54,7 @@ public class DesiredBalanceService {
      */
     boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
 
-        logger.trace("starting to recompute desired balance");
+        logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
@@ -62,13 +64,8 @@ public class DesiredBalanceService {
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
-        if (routingNodes.size() == 0) {
-            final var clearDesiredBalance = currentDesiredBalance.desiredAssignments().size() != 0;
-            if (clearDesiredBalance) {
-                currentDesiredBalance = new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of());
-            }
-            return clearDesiredBalance;
-            // TODO test for this case
+        if (routingNodes.isEmpty()) {
+            return setCurrentDesiredBalance(new DesiredBalance(desiredBalanceInput.index(), Map.of()));
         }
 
         // we assume that all ongoing recoveries will complete
@@ -119,7 +116,9 @@ public class DesiredBalanceService {
 
             // treesets so that we are consistent about the order of future relocations
             final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
-            final var targetNodes = new TreeSet<>(desiredBalance.getDesiredNodeIds(shardId));
+            final var assignment = desiredBalance.getAssignment(shardId);
+
+            final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
 
             for (final var shardRouting : assignedShardRoutings) {
@@ -190,7 +189,7 @@ public class DesiredBalanceService {
         do {
 
             if (hasChanges) {
-                final var unassigned = routingAllocation.routingNodes().unassigned();
+                final var unassigned = routingNodes.unassigned();
 
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
@@ -209,7 +208,7 @@ public class DesiredBalanceService {
 
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingAllocation.routingNodes().unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {
@@ -230,21 +229,26 @@ public class DesiredBalanceService {
             // calculation
         } while (hasChanges && isFresh.test(desiredBalanceInput));
 
-        final var desiredAssignments = new HashMap<ShardId, Set<String>>();
+        final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            desiredAssignments.put(
-                shardAndAssignments.getKey(),
-                shardAndAssignments.getValue().stream().map(ShardRouting::currentNodeId).collect(Collectors.toUnmodifiableSet())
-            );
+            assignments.put(shardAndAssignments.getKey(), ShardAssignment.of(shardAndAssignments.getValue()));
         }
 
-        final var unassigned = new HashMap<ShardId, Integer>();
-        for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
+        for (var ignored : routingNodes.unassigned().ignored()) {
             assert ignored.unassignedInfo() != null;
             assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                 || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                || (ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED && hasChanges)
                 : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
-            unassigned.merge(ignored.shardId(), 1, Integer::sum);
+
+            var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
+            assignments.compute(
+                ignored.shardId(),
+                (key, oldValue) -> oldValue == null
+                    ? new ShardAssignment(Set.of(), 1, unassigned ? 0 : 1)
+                    : new ShardAssignment(oldValue.nodeIds(), oldValue.unassigned() + 1, oldValue.ignored() + (unassigned ? 0 : 1))
+            );
+
         }
 
         logger.trace(
@@ -253,30 +257,44 @@ public class DesiredBalanceService {
                 : "desired balance computation converged"
         );
 
-        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        final DesiredBalance newDesiredBalance = new DesiredBalance(lastConvergedIndex, desiredAssignments, unassigned);
         assert desiredBalance == currentDesiredBalance;
-        currentDesiredBalance = newDesiredBalance;
-        if (DesiredBalance.areSame(newDesiredBalance, desiredBalance) == false) {
-            if (logger.isTraceEnabled()) {
-                for (Map.Entry<ShardId, Set<String>> desiredAssignment : newDesiredBalance.desiredAssignments().entrySet()) {
-                    final var shardId = desiredAssignment.getKey();
-                    final var newNodes = desiredAssignment.getValue();
-                    final var oldNodes = desiredBalance.desiredAssignments().get(shardId);
-                    if (newNodes.equals(oldNodes)) {
-                        logger.trace("{} desired balance unchanged,   allocating to {}", shardId, newNodes);
-                    } else {
-                        logger.trace("{} desired balance changed, now allocating to {} vs previous {}", shardId, newNodes, oldNodes);
-                    }
-                }
-                logger.trace("desired balance updated");
+        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
+        return setCurrentDesiredBalance(new DesiredBalance(lastConvergedIndex, assignments));
+    }
+
+    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
+        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
+        if (logger.isTraceEnabled()) {
+            if (hasChanges) {
+                logChanges(currentDesiredBalance, newDesiredBalance);
+                logger.trace("desired balance changed : {}", newDesiredBalance);
+            } else {
+                logger.trace("desired balance unchanged: {}", newDesiredBalance);
             }
-            logger.trace("desired balance changed : {}", newDesiredBalance);
-            return true;
-        } else {
-            logger.trace("desired balance unchanged: {}", desiredBalance);
-            return false;
         }
+        currentDesiredBalance = newDesiredBalance;
+        return hasChanges;
+    }
+
+    private static void logChanges(DesiredBalance old, DesiredBalance updated) {
+        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
+        var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
+
+        var newLine = System.lineSeparator();
+        var builder = new StringBuilder();
+        for (ShardId shardId : intersection) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
+                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+            }
+        }
+        for (ShardId shardId : diff) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+        }
+        logger.trace("desired balance updated: {}", builder.append(newLine).toString());
     }
 
     public DesiredBalance getCurrentDesiredBalance() {

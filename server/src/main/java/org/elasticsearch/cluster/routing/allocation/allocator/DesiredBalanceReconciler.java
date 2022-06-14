@@ -59,7 +59,7 @@ public class DesiredBalanceReconciler {
             // TODO test that we do this even if desired balance is empty
         }
 
-        if (desiredBalance.desiredAssignments().isEmpty() && desiredBalance.unassigned().isEmpty()) {
+        if (desiredBalance.assignments().isEmpty()) {
             // no desired state yet but it is on its way and we'll reroute again when it is ready
             logger.trace("desired balance is empty, nothing to reconcile");
             return;
@@ -186,50 +186,58 @@ public class DesiredBalanceReconciler {
         do {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
-                final var desiredNodeIds = desiredBalance.getDesiredNodeIds(shard.shardId());
+                final var assignment = desiredBalance.getAssignment(shard.shardId());
                 var isThrottled = false;
-                for (final var desiredNodeId : desiredNodeIds) {
-                    final var routingNode = routingNodes.node(desiredNodeId);
-                    if (routingNode == null) {
-                        // desired node no longer exists
-                        continue;
-                    }
-
-                    final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                    switch (canAllocateDecision.type()) {
-                        case YES -> {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
-                            }
-                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(
-                                shard,
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                allocation.clusterInfo(),
-                                allocation.snapshotShardSizeInfo(),
-                                allocation.metadata(),
-                                allocation.routingTable()
-                            );
-                            routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
-                            if (shard.primary() == false) {
-                                // copy over the same replica shards to the secondary array so they will get allocated
-                                // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                    secondary[secondaryLength++] = primary[++i];
-                                }
-                            }
-                            continue nextShard;
+                if (assignment != null) {
+                    for (final var desiredNodeId : assignment.nodeIds()) {
+                        final var routingNode = routingNodes.node(desiredNodeId);
+                        if (routingNode == null) {
+                            // desired node no longer exists
+                            continue;
                         }
-                        case THROTTLE -> isThrottled = true;
+
+                        final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                        switch (canAllocateDecision.type()) {
+                            case YES -> {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
+                                }
+                                final long shardSize = DiskThresholdDecider.getExpectedShardSize(
+                                    shard,
+                                    ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                    allocation.clusterInfo(),
+                                    allocation.snapshotShardSizeInfo(),
+                                    allocation.metadata(),
+                                    allocation.routingTable()
+                                );
+                                routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                                if (shard.primary() == false) {
+                                    // copy over the same replica shards to the secondary array so they will get allocated
+                                    // in a subsequent iteration, allowing replicas of other shards to be allocated first
+                                    while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                        secondary[secondaryLength++] = primary[++i];
+                                    }
+                                }
+                                continue nextShard;
+                            }
+                            case THROTTLE -> isThrottled = true;
+                        }
                     }
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, desiredNodeIds);
+                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
                 }
 
-                final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(
-                    isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO
-                );
+                final UnassignedInfo.AllocationStatus allocationStatus;
+                if (assignment == null || assignment.isIgnored()) {
+                    allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
+                } else if (isThrottled) {
+                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
+                } else {
+                    allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;
+                }
+
                 unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
                 if (shard.primary() == false) {
                     // we could not allocate it and we are a replica - check if we can ignore the other replicas
@@ -258,8 +266,13 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var desiredNodeIds = desiredBalance.getDesiredNodeIds(shardRouting.shardId());
-            if (desiredNodeIds.contains(shardRouting.currentNodeId())) {
+            final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+            if (assignment == null) {
+                // balance is not computed
+                continue;
+            }
+
+            if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                 // shard is already on a desired node
                 continue;
             }
@@ -277,7 +290,7 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var moveTarget = findRelocationTarget(shardRouting, desiredNodeIds);
+            final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
             if (moveTarget != null) {
                 routingNodes.relocateShard(
                     shardRouting,
@@ -305,8 +318,13 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var desiredNodeIds = desiredBalance.getDesiredNodeIds(shardRouting.shardId());
-            if (desiredNodeIds.contains(shardRouting.currentNodeId())) {
+            final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+            if (assignment == null) {
+                // balance is not computed
+                continue;
+            }
+
+            if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                 // shard is already on a desired node
                 continue;
             }
@@ -321,7 +339,7 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var rebalanceTarget = findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanAllocate);
+            final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
             if (rebalanceTarget != null) {
                 routingNodes.relocateShard(
                     shardRouting,

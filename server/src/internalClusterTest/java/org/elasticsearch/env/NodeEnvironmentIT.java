@@ -224,6 +224,13 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             Files.createFile(sharedCache);
         }
 
+        // check that settings are validated prior to moving folders
+        dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().startNode(Settings.builder().put(dataPathSettings).put("bad", "setting"))
+        );
+
         // check that upgrade works
         dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);

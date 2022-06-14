@@ -97,7 +97,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             0L
         );
 
-        reconcile(routingAllocation, new DesiredBalance(1, Map.of(), Map.of()));
+        reconcile(routingAllocation, new DesiredBalance(1, Map.of()));
         assertFalse(routingAllocation.routingNodesChanged());
     }
 
@@ -175,9 +175,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                     ? Map.of()
                     : Map.of(
                         new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
-                        Set.of("node-0")
-                    ),
-                Map.of()
+                        new ShardAssignment(Set.of("node-0"), 0, 0)
+                    )
             )
         );
         assertTrue(routingAllocation.routingNodesChanged());
@@ -540,11 +539,11 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                         assertTrue(shardRouting.unassigned());
                     }
                 }
-                assertTrue(desiredBalance.getDesiredNodeIds(indexShardRoutingTable.shardId()).containsAll(nodeIds));
+                assertTrue(desiredBalance.getAssignment(indexShardRoutingTable.shardId()).nodeIds().containsAll(nodeIds));
             }
         }
 
-        assertNotEquals(anyAssigned, desiredBalance.desiredAssignments().values().stream().allMatch(Set::isEmpty));
+        assertNotEquals(anyAssigned, desiredBalance.assignments().values().stream().map(ShardAssignment::nodeIds).allMatch(Set::isEmpty));
     }
 
     public void testUnassignedAllocationPredictsDiskUsage() {
@@ -1027,10 +1026,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                             .stream()
                             .map(DiscoveryNode::getId)
                             .filter(nodeId -> isDesiredPredicate.test(indexShardRoutingTable.shardId(), nodeId))
-                            .collect(Collectors.toSet())
+                            .collect(Collectors.collectingAndThen(Collectors.toSet(), set -> new ShardAssignment(set, 0, 0)))
                     )
-                ),
-            Map.of()
+                )
         );
     }
 

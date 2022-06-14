@@ -12,9 +12,9 @@ You can map roles through the
 <<mapping-roles-api, Role mapping API>> (recommended) or a <<mapping-roles-file, Role mapping file>>.
 
 
-The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms support
-<<mapping-roles-api, Role Mapping API>>. Only PKI, LDAP, and AD realms
-support <<mapping-roles-file, Role Mapping File>>.
+The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms support the
+<<mapping-roles-api, Role mapping API>>. Only PKI, LDAP, and AD realms
+support <<mapping-roles-file, Role mapping files>>.
 
 Besides Role Mapping, the PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and
 SAML realms realms support <<authorization_realms,Delegated Authorization>> too.

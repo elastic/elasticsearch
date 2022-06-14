@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -532,9 +531,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
-                    new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
+                org.elasticsearch.core.Strings.format(
+                    "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
+                    load.getNumAssignedJobs(),
+                    MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
+                    maxOpenJobs
                 )
             );
         }
@@ -545,17 +546,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             : 0);
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node has insufficient available memory. Available memory for ML [{} ({})], "
-                        + "memory required by existing jobs and models [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
-                    new Object[] {
-                        load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
-                        load.getAssignedJobMemory(),
-                        ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
-                        requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
+                org.elasticsearch.core.Strings.format(
+                    "This node has insufficient available memory. Available memory for ML [%s (%s)], "
+                        + "memory required by existing jobs and models [%s (%s)], "
+                        + "estimated memory required for this model [%s (%s)].",
+
+                    load.getMaxMlMemory(),
+                    ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
+                    load.getAssignedJobMemory(),
+                    ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
+                    requiredMemory,
+                    ByteSizeValue.ofBytes(requiredMemory).toString()
                 )
             );
         }

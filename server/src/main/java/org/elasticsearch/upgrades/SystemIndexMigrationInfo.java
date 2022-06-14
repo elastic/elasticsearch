@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -30,6 +29,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Holds the data required to migrate a single system index, including metadata from the current index. If necessary, computes the settings
@@ -249,23 +249,23 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         // The first case shouldn't happen, master nodes must have all `SystemIndexPlugins` installed.
         // In the second case, we should just start over.
         if (descriptor == null) {
-            String errorMsg = new ParameterizedMessage(
-                "couldn't find system index descriptor for index [{}] from feature [{}], which likely means this node is missing a plugin",
+            String errorMsg = format(
+                "couldn't find system index descriptor for index [%s] from feature [%s], which likely means this node is missing a plugin",
                 taskState.getCurrentIndex(),
                 taskState.getCurrentFeature()
-            ).toString();
+            );
             logger.warn(errorMsg);
             assert false : errorMsg;
             throw new IllegalStateException(errorMsg);
         }
 
         if (imd == null) {
-            String errorMsg = new ParameterizedMessage(
-                "couldn't find index [{}] from feature [{}] with descriptor pattern [{}]",
+            String errorMsg = format(
+                "couldn't find index [%s] from feature [%s] with descriptor pattern [%s]",
                 taskState.getCurrentIndex(),
                 taskState.getCurrentFeature(),
                 descriptor.getIndexPattern()
-            ).toString();
+            );
             logger.warn(errorMsg);
             assert false : errorMsg;
             throw new IllegalStateException(errorMsg);

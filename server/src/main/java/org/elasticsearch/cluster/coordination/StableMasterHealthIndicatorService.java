@@ -461,12 +461,30 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return result;
     }
 
+    /**
+     * Creates a HealthIndicatorResult in the case that there has been no master in the last few seconds, there is no elected master known,
+     * and there are no master eligible nodes. The status will be RED, and the details (if explain is true) will contain the list of any
+     * masters seen previously and a description of known problems from this node's Coordinator.
+     * @param localMasterHistory Used to pull recent master nodes for the details if explain is true
+     * @param explain If true, details are returned
+     * @return A HealthIndicatorResult with a RED status
+     */
     private HealthIndicatorResult calculateOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
         String summary = "No master eligible nodes found in the cluster";
         HealthIndicatorDetails details = getDetails(explain, localMasterHistory, coordinator.getClusterFormationState().getDescription());
         return createIndicator(HealthStatus.RED, summary, details, UNSTABLE_MASTER_IMPACTS, getContactSupportUserActions(explain));
     }
 
+    /**
+     * Creates a HealthIndicatorResult in the case that there has been no master in the last few seconds in this node's cluster state, but
+     * PeerFinder reports that there is an elected master. The assumption is that this node is having a problem joining the elected master.
+     * The status will be RED, and the details (if explain is true) will contain the list of any masters seen previously and a
+     * description of known problems from this node's Coordinator.
+     * @param localMasterHistory Used to pull recent master nodes for the details if explain is true
+     * @param currentMaster The node that PeerFinder reports as the elected master
+     * @param explain If true, details are returned
+     * @return A HealthIndicatorResult with a RED status
+     */
     private HealthIndicatorResult calculateOnCannotJoinLeader(
         MasterHistory localMasterHistory,
         DiscoveryNode currentMaster,
@@ -482,6 +500,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return createIndicator(HealthStatus.RED, summary, details, UNSTABLE_MASTER_IMPACTS, getContactSupportUserActions(explain));
     }
 
+    /**
+     * Returns the master eligible nodes as found in this node's Coordinator, plus the local node if it is master eligible.
+     * @return All known master eligible nodes in this cluster
+     */
     private Collection<DiscoveryNode> getMasterEligibleNodes() {
         Set<DiscoveryNode> masterEligibleNodes = new HashSet<>();
         coordinator.getFoundPeers().forEach(node -> {
@@ -489,6 +511,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 masterEligibleNodes.add(node);
             }
         });
+        // Coordinator does not report the local node, so add it:
         if (clusterService.localNode().isMasterNode()) {
             masterEligibleNodes.add(clusterService.localNode());
         }

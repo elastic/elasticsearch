@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,6 +113,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
+            // But we should remove routing to removed or shutting down nodes.
+            removeRoutingToRemovedOrShuttingDownNodes(event);
             return;
         }
 
@@ -142,6 +145,65 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
+    }
+
+    private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
+        if (areAssignedNodesRemoved(event)) {
+            submitUnbatchedTask("removing routing entries for removed or shutting down nodes", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return removeRoutingToUnassignableNodes(currentState);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("could not remove routing entries for removed or shutting down nodes", e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    logger.trace(
+                        () -> format(
+                            "updated model assignments based on node changes in the cluster; new metadata [%s]",
+                            Strings.toString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    // Visible for testing
+    static boolean areAssignedNodesRemoved(ClusterChangedEvent event) {
+        boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        if (event.nodesRemoved() || nodesShutdownChanged) {
+            Set<String> removedOrShuttingDownNodeIds = new HashSet<>(nodesShuttingDown(event.state()));
+            event.nodesDelta().removedNodes().stream().map(DiscoveryNode::getId).forEach(removedOrShuttingDownNodeIds::add);
+
+            TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(event.state());
+            for (TrainedModelAssignment assignment : metadata.modelAssignments().values()) {
+                if (Sets.intersection(removedOrShuttingDownNodeIds, assignment.getNodeRoutingTable().keySet()).isEmpty() == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Visible for testing
+    static ClusterState removeRoutingToUnassignableNodes(ClusterState currentState) {
+        Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
+        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
+        for (TrainedModelAssignment assignment : metadata.modelAssignments().values()) {
+            Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
+            if (routedNodeIdsToRemove.isEmpty() == false) {
+                TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
+                routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
+                builder.updateAssignment(assignment.getModelId(), assignmentBuilder.calculateAndSetAssignmentState());
+            }
+        }
+        return update(currentState, builder);
     }
 
     public void updateModelRoutingTable(
@@ -345,7 +407,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return rebalancer.rebalance();
     }
 
-    private List<DiscoveryNode> getAssignableNodes(ClusterState clusterState) {
+    private static List<DiscoveryNode> getAssignableNodes(ClusterState clusterState) {
         final Set<String> shuttingDownNodes = nodesShuttingDown(clusterState);
         return clusterState.getNodes()
             .getNodes()

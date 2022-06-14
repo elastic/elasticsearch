@@ -46,11 +46,13 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,6 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -825,6 +828,216 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(true)
         );
+    }
+
+    public void testAreAssignedNodesRemoved_GivenRemovedNodeThatIsRouted() {
+        String modelId = "existing-model";
+        String nodeId1 = "node-1";
+        String nodeId2 = "node-2";
+        Metadata metadata = Metadata.builder()
+            .putCustom(
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata.Builder.empty()
+                    .addNewAssignment(
+                        modelId,
+                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                            .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    )
+                    .build()
+            )
+            .build();
+        DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(metadata)
+            .build();
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).build())
+            .metadata(metadata)
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", currentState, previousState);
+
+        assertThat(TrainedModelAssignmentClusterService.areAssignedNodesRemoved(event), is(true));
+    }
+
+    public void testAreAssignedNodesRemoved_GivenRemovedNodeThatIsNotRouted() {
+        String modelId = "existing-model";
+        String nodeId1 = "node-1";
+        String nodeId2 = "node-2";
+        Metadata metadata = Metadata.builder()
+            .putCustom(
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata.Builder.empty()
+                    .addNewAssignment(
+                        modelId,
+                        TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                            .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    )
+                    .build()
+            )
+            .build();
+        DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(metadata)
+            .build();
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).build())
+            .metadata(metadata)
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", currentState, previousState);
+
+        assertThat(TrainedModelAssignmentClusterService.areAssignedNodesRemoved(event), is(false));
+    }
+
+    public void testAreAssignedNodesRemoved_GivenShuttingDownNodeThatIsRouted() {
+        String modelId = "existing-model";
+        String nodeId1 = "node-1";
+        String nodeId2 = "node-2";
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                    .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+        DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
+            .build();
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                nodeId1,
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(nodeId1)
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setStartedAtMillis(System.currentTimeMillis())
+                                    .setReason("test")
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", currentState, previousState);
+
+        assertThat(TrainedModelAssignmentClusterService.areAssignedNodesRemoved(event), is(true));
+    }
+
+    public void testAreAssignedNodesRemoved_GivenShuttingDownNodeThatIsNotRouted() {
+        String modelId = "existing-model";
+        String nodeId1 = "node-1";
+        String nodeId2 = "node-2";
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 10_000L))
+                    .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+        DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        DiscoveryNode node2 = buildNode(nodeId2, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        ClusterState previousState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata))
+            .build();
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(TrainedModelAssignmentMetadata.NAME, trainedModelAssignmentMetadata)
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                nodeId1,
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(nodeId1)
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setStartedAtMillis(System.currentTimeMillis())
+                                    .setReason("test")
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", currentState, previousState);
+
+        assertThat(TrainedModelAssignmentClusterService.areAssignedNodesRemoved(event), is(false));
+    }
+
+    public void testRemoveRoutingToUnassignableNodes() {
+        String modelId1 = "model-1";
+        String modelId2 = "model-2";
+        String nodeId1 = "node-1";
+        String nodeId2 = "node-2";
+        String nodeId3 = "node-3";
+        Metadata metadata = Metadata.builder()
+            .putCustom(
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata.Builder.empty()
+                    .addNewAssignment(
+                        modelId1,
+                        TrainedModelAssignment.Builder.empty(newParams(modelId1, 10_000L))
+                            .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    )
+                    .addNewAssignment(
+                        modelId2,
+                        TrainedModelAssignment.Builder.empty(newParams(modelId2, 10_000L))
+                            .addRoutingEntry(nodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            .addRoutingEntry(nodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            .addRoutingEntry(nodeId3, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    )
+                    .build()
+            )
+            .putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    Map.of(
+                        nodeId3,
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId(nodeId3)
+                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                            .setStartedAtMillis(System.currentTimeMillis())
+                            .setReason("test")
+                            .build()
+                    )
+                )
+            )
+            .build();
+        DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        DiscoveryNode node3 = buildNode(nodeId3, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node3).build())
+            .metadata(metadata)
+            .build();
+
+        ClusterState resultState = TrainedModelAssignmentClusterService.removeRoutingToUnassignableNodes(currentState);
+
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(resultState);
+        assertThat(trainedModelAssignmentMetadata.modelAssignments(), is(aMapWithSize(2)));
+        for (String modelId : List.of(modelId1, modelId2)) {
+            TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getModelAssignment(modelId);
+            assertThat(assignment, is(notNullValue()));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), hasKey(nodeId1));
+        }
     }
 
     private ClusterState.Builder csBuilderWithNodes(String name, DiscoveryNode... nodes) {

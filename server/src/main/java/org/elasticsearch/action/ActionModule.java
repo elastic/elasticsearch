@@ -267,6 +267,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.OperatorHandlerProvider;
 import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.operator.service.OperatorClusterStateController;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
@@ -275,6 +276,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -891,13 +893,18 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
     }
 
-    public void initOperatorHandlers() {
+    /**
+     * Initializes the operator action handlers for Elasticsearch and it's modules/plugins
+     *
+     * @param pluginsService needed to load all modules/plugins operator handlers through SPI
+     */
+    public void initOperatorHandlers(PluginsService pluginsService) {
         List<OperatorHandler<?>> handlers = new ArrayList<>();
 
+        List<? extends OperatorHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
+
         handlers.add(new OperatorClusterUpdateSettingsAction(clusterSettings));
-        for (ActionPlugin plugin : actionPlugins) {
-            handlers.addAll(plugin.getOperatorHandlers());
-        }
+        pluginHandlers.forEach(h -> handlers.addAll(h.handlers()));
 
         operatorController.initHandlers(handlers);
     }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

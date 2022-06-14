@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
 
 import java.time.Instant;
 import java.util.HashMap;

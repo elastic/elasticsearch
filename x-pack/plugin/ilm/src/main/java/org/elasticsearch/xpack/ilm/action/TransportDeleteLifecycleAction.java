@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
-import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
 
 import java.util.List;
 import java.util.Optional;

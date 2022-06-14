@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.operator.OperatorHandlerProvider;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -97,6 +99,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
+
+    private static Class<?>[] SPI_CLASSES = { OperatorHandlerProvider.class };
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -281,7 +285,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
-
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
             .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
@@ -293,6 +296,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
         }
+    }
+
+    public <T> List<? extends T> loadServiceProviders(Class<T> provider) {
+        List<T> result = new ArrayList<>();
+        getClass().getModule().addUses(provider);
+
+        for (LoadedPlugin pluginTuple : plugins) {
+            ServiceLoader.load(provider, pluginTuple.loader()).iterator().forEachRemaining(c -> result.add(c));
+        }
+
+        return Collections.unmodifiableList(result);
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {

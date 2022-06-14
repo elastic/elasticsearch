@@ -30,7 +30,6 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -106,9 +105,10 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
-import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
+import org.elasticsearch.xpack.ilm.operator.ILMOperatorHandlerProvider;
+import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
 import org.elasticsearch.xpack.slm.SLMInfoTransportAction;
 import org.elasticsearch.xpack.slm.SLMUsageTransportAction;
 import org.elasticsearch.xpack.slm.SlmHealthIndicatorService;
@@ -271,6 +271,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
         ilmOperatorAction.set(new OperatorLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
+
+        ILMOperatorHandlerProvider.handler(ilmOperatorAction.get());
         return components;
     }
 
@@ -377,11 +379,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             )
         );
         return handlers;
-    }
-
-    @Override
-    public List<OperatorHandler<?>> getOperatorHandlers() {
-        return List.of(ilmOperatorAction.get());
     }
 
     @Override

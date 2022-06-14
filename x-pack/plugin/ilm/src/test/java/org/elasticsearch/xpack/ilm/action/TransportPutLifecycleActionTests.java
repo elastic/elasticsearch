@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
-import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
 
 import java.util.Map;
 

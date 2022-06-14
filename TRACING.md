@@ -17,21 +17,21 @@ Elasticsearch to hard-code the use of an SDK.
 
 ## How is tracing configured?
 
-   * The `xpack.apm.tracing.enabled` setting must be set to `true`
+   * The `xpack.apm.enabled` setting must be set to `true`
    * The APM agent must be both enabled and configured with server credentials.
      See below.
 
 We have a config file in [`config/elasticapm.properties`][config], which
 configures settings that are not dynamic, or should not be changed at runtime.
 Other settings can be configured at runtime by using the cluster settings API,
-and setting `xpack.apm.tracing.agent.<key>` with a string value, where `<key>`
+and setting `xpack.apm.agent.<key>` with a string value, where `<key>`
 is the APM agent key that you want to configure. For example, to change the
 sampling rate:
 
     curl -XPUT \
       -H "Content-type: application/json" \
       -u "$USERNAME:$PASSWORD" \
-      -d '{ "persistent": { "xpack.apm.tracing.agent.transaction_sample_rate": "0.75" } }' \
+      -d '{ "persistent": { "xpack.apm.agent.transaction_sample_rate": "0.75" } }' \
       https://localhost:9200/_cluster/settings
 
 ### More details about configuration

@@ -120,7 +120,7 @@ public class APMJvmOptions {
     }
 
     public static List<String> apmJvmOptions(Settings settings, KeyStoreWrapper keystore, Path tmpdir) throws UserException, IOException {
-        final boolean enabled = settings.getAsBoolean("xpack.apm.tracing.enabled", false);
+        final boolean enabled = settings.getAsBoolean("xpack.apm.enabled", false);
 
         if (enabled == false) {
             return List.of();
@@ -141,8 +141,8 @@ public class APMJvmOptions {
             }
         }
 
-        if (keystore != null && keystore.getSettingNames().contains("xpack.apm.tracing.secret_token")) {
-            try (SecureString token = keystore.getString("xpack.apm.tracing.secret_token")) {
+        if (keystore != null && keystore.getSettingNames().contains("xpack.apm.secret_token")) {
+            try (SecureString token = keystore.getString("xpack.apm.secret_token")) {
                 propertiesMap.put("secret_token", token.toString());
             }
         }
@@ -180,7 +180,7 @@ public class APMJvmOptions {
     private static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("xpack.apm.tracing.agent.");
+        final Settings agentSettings = settings.getByPrefix("xpack.apm.agent.");
         agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
 
         // These settings must not be changed
@@ -188,7 +188,7 @@ public class APMJvmOptions {
             if (propertiesMap.containsKey(key)) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Do not set a value for [xpack.apm.tracing.agent." + key + "], as this is configured automatically by Elasticsearch"
+                    "Do not set a value for [xpack.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
                 );
             }
         }

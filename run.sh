@@ -15,11 +15,11 @@ cd "build/distribution/local/elasticsearch-${ES_VERSION}-SNAPSHOT"
 SERVER_URL=""
 SECRET_TOKEN=""
 
-if ! grep -q xpack.apm.tracing.enabled config/elasticsearch.yml ; then
-  echo "xpack.apm.tracing.enabled: true" >> config/elasticsearch.yml
+if ! grep -q xpack.apm.enabled config/elasticsearch.yml ; then
+  echo "xpack.apm.enabled: true" >> config/elasticsearch.yml
 fi
-if ! grep -q xpack.apm.tracing.agent.server_url config/elasticsearch.yml ; then
-  echo "xpack.apm.tracing.agent.server_url: $SERVER_URL" >> config/elasticsearch.yml
+if ! grep -q xpack.apm.agent.server_url config/elasticsearch.yml ; then
+  echo "xpack.apm.agent.server_url: $SERVER_URL" >> config/elasticsearch.yml
 fi
 
 # Configure the ES keystore, so that we can use `elastic:password` for REST
@@ -27,7 +27,7 @@ fi
 if [[ ! -f config/elasticsearch.keystore ]]; then
   ./bin/elasticsearch-keystore create
   echo "password"      | ./bin/elasticsearch-keystore add -x 'bootstrap.password'
-  echo "$SECRET_TOKEN" | ./bin/elasticsearch-keystore add -x "xpack.apm.tracing.secret_token"
+  echo "$SECRET_TOKEN" | ./bin/elasticsearch-keystore add -x "xpack.apm.secret_token"
 fi
 
 
@@ -58,5 +58,5 @@ fi
 
 # export ES_JAVA_OPTS=" -ea "
 
-# exec ./bin/elasticsearch -Expack.apm.tracing.enabled=true -Eingest.geoip.downloader.enabled=false
+# exec ./bin/elasticsearch -Expack.apm.enabled=true -Eingest.geoip.downloader.enabled=false
 exec ./bin/elasticsearch -Eingest.geoip.downloader.enabled=false

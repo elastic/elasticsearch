@@ -88,12 +88,12 @@ class APMAgentSettings {
         });
     }
 
-    private static final String APM_SETTING_PREFIX = "xpack.apm.tracing.";
+    private static final String APM_SETTING_PREFIX = "xpack.apm.";
 
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `xpack.apm.tracing.enabled`
+        // ES controls this via `xpack.apm.enabled`
         "recording"
     );
 

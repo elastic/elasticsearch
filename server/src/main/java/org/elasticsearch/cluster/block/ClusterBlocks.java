@@ -274,10 +274,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
         final Set<ClusterBlock> global = readBlockSet(in);
-        Map<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(
-            i -> i.readString().intern(),
-            ClusterBlocks::readBlockSet
-        );
+        Map<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         if (global.isEmpty() && indicesBlocks.isEmpty()) {
             return EMPTY_CLUSTER_BLOCK;
         }

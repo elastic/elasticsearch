@@ -30,6 +30,34 @@ or to rehydrate parts of it. Access to the data is expected to be infrequent,
 and can therefore happen with limited performance and query capabilities.
 
 [discrete]
+[[new_geo_grid_query]]
+=== New geo_grid query
+With the geo grid query, you can now natively return all the documents that overlap a specific geo tile.
+There is no need to reconstruct the geometry or the actual boundaries of the spatial cluster as Elasticsearch
+can do this for you which saves you time and reduces complexity.
+This is especially useful when geometries are spread across tiles like on a soccer ball football.
+While hexagon tiles line the sphere each tile is not exactly straight forward to calculate its boundary.
+
+```
+GET /example/_search
+{
+  "query": {
+    "geo_grid" :{
+      "location" : {
+        "geotile" : "6/32/22"
+      }
+    }
+  }
+}
+```
+
+Geo grid query can also help determine the single source of truth of containment.
+With geo grid query, you can match exactly the intersection-test of Elasticsearch.
+As an example, if a client has bounds for a grid-cell at a higher (or lower) precision than what is used
+by Elasticsearch when running a corresponding aggregation, the containment-check might be slightly different.
+This side-steps any disconnect based on projection/datum difference between client and Elasticsearch.
+
+[discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]
 === Add support for dots in field names for metrics usecases
 Metrics data can often be made of several fields with dots in their names,

@@ -292,6 +292,9 @@ Transform::
 Authorization::
 * Has privileges API for profiles {es-pull}85898[#85898]
 
+Geo::
+* New geo_grid query to be used with geogrid aggregations {es-pull}86596[#86596] (issue: {es-issue}85727[#85727])
+
 Health::
 * Add support for `impact_areas` to health impacts {es-pull}85830[#85830] (issue: {es-issue}85829[#85829])
 * Add troubleshooting guides to shards allocation actions {es-pull}87078[#87078]

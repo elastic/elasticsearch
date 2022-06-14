@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -107,7 +106,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -117,7 +115,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -127,13 +124,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import javax.crypto.SecretKeyFactory;
-
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -147,28 +142,9 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        "pbkdf2",
-        Function.identity(),
-        v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
-                );
-            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-                try {
-                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.api_key.hashing.algorithm] setting.",
-                        e
-                    );
-                }
-            }
-        },
-        Setting.Property.NodeScope
+        (s) -> Hasher.PBKDF2.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -359,7 +335,7 @@ public class ApiKeyService {
     /**
      * package-private for testing
      */
-    XContentBuilder newDocument(
+    static XContentBuilder newDocument(
         char[] apiKeyHashChars,
         String name,
         Authentication authentication,
@@ -588,7 +564,7 @@ public class ApiKeyService {
     // We do not replace assigned roles because they are created explicitly by users.
     // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
     // (including the _reserved metadata field).
-    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+    private static List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
         // capturing role descriptors does not preempt for superuser.
         return roleDescriptors.stream().map(rd -> {
@@ -707,7 +683,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateApiKeyExpiration(
+    static void validateApiKeyExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -791,7 +767,7 @@ public class ApiKeyService {
         }));
     }
 
-    private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
+    private static Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
         if (request.getExpiration() != null) {
             return now.plusSeconds(request.getExpiration().getSeconds());
         } else {
@@ -1140,17 +1116,17 @@ public class ApiKeyService {
     /**
      * Logs an exception concerning a specific api key at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), exception);
             }
         }
         return exception;
@@ -1159,17 +1135,17 @@ public class ApiKeyService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.trace(() -> "Failure in [" + action + "]", esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> "Failure in [" + action + "]", exception);
             }
         }
         return exception;
@@ -1439,11 +1415,10 @@ public class ApiKeyService {
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
-            ObjectParserHelper<ApiKeyDoc, Void> parserHelper = new ObjectParserHelper<>();
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
             builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
-            parserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
+            ObjectParserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
             PARSER = builder.build();
         }
 

@@ -55,7 +55,7 @@ public enum IndexMode {
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
@@ -119,13 +119,13 @@ public enum IndexMode {
             checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
         }
 
-        private void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }
 
-        private String error(Setting<?> unsupported) {
+        private static String error(Setting<?> unsupported) {
             return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
         }
 
@@ -161,7 +161,7 @@ public enum IndexMode {
             return new TimestampBounds(settings);
         }
 
-        private String routingRequiredBad() {
+        private static String routingRequiredBad() {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
@@ -187,7 +187,7 @@ public enum IndexMode {
         }
     };
 
-    protected String tsdbMode() {
+    protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 

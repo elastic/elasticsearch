@@ -14,10 +14,11 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation project(path: 'preallocate')
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(project(path: xpackModule('shutdown')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 tasks.named("internalClusterTest").configure {
   // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.

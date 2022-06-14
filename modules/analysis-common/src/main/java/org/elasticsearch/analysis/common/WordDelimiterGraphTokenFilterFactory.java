@@ -95,7 +95,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
-    private int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    private static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }

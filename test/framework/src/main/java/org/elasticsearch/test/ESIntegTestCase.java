@@ -8,6 +8,9 @@
 
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -89,10 +92,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -111,6 +114,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1045,6 +1049,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task name from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+        return findTasks(clusterState, Set.of(taskName));
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task names from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            return List.of();
+        }
+        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
     }
 
     /**
@@ -2229,6 +2251,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
             SUITE_SEED = null;
             currentCluster = null;
             INSTANCE = null;
+        }
+        awaitGlobalNettyThreadsFinish();
+    }
+
+    /**
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
+     *  lingering threads can intermittently trigger the thread leak detector.
+     */
+    static void awaitGlobalNettyThreadsFinish() {
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

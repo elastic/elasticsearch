@@ -16,16 +16,20 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -82,7 +86,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     emptyList(),
                     0L,
                     electionStrategy,
-                    new StatusInfo(HEALTHY, "healthy-info")
+                    new StatusInfo(HEALTHY, "healthy-info"),
+                    emptyList()
                 );
             },
             deterministicTaskQueue.getThreadPool(),
@@ -163,7 +168,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 15L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
@@ -180,7 +186,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 16L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet: have discovered []; discovery will continue using ["
@@ -198,7 +205,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherNode),
                 17L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet: have discovered ["
@@ -224,7 +232,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 15L,
                 electionStrategy,
-                new StatusInfo(UNHEALTHY, "unhealthy-info")
+                new StatusInfo(UNHEALTHY, "unhealthy-info"),
+                emptyList()
             ).getDescription(),
             is("this node is unhealthy: unhealthy-info")
         );
@@ -249,7 +258,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 15L,
                 electionStrategy,
-                new StatusInfo(UNHEALTHY, "unhealthy-info")
+                new StatusInfo(UNHEALTHY, "unhealthy-info"),
+                emptyList()
             ).getDescription(),
             is("this node is unhealthy: unhealthy-info")
         );
@@ -271,7 +281,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 1L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
@@ -291,7 +302,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 2L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
@@ -313,7 +325,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherNode),
                 3L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
@@ -334,7 +347,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 4L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
@@ -385,7 +399,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet and this node was detached from its previous cluster, "
@@ -405,7 +420,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet and this node was detached from its previous cluster, "
@@ -427,7 +443,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherNode),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet and this node was detached from its previous cluster, "
@@ -449,7 +466,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(yetAnotherNode),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered yet and this node was detached from its previous cluster, "
@@ -477,7 +495,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [otherNode], "
@@ -497,7 +516,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [otherNode], "
@@ -519,7 +539,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherNode),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [otherNode], "
@@ -541,7 +562,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(yetAnotherNode),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [otherNode], "
@@ -562,7 +584,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
@@ -581,7 +604,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires at least 2 nodes with ids from [n1, n2, n3], "
@@ -600,7 +624,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires 2 nodes with ids [n1, n2], "
@@ -619,7 +644,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], "
@@ -638,7 +664,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4, n5], "
@@ -657,7 +684,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], "
@@ -676,7 +704,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires 3 nodes with ids [n1, n2, n3], "
@@ -695,7 +724,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [n1], "
@@ -714,7 +744,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [n1] and a node with id [n2], "
@@ -733,7 +764,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [n1] and two nodes with ids [n2, n3], "
@@ -752,7 +784,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires a node with id [n1] and "
@@ -795,7 +828,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
 
             // nodes from last-known cluster state could be in either order
@@ -828,7 +862,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 0L,
                 electionStrategy,
-                new StatusInfo(HEALTHY, "healthy-info")
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
             ).getDescription(),
             is(
                 "master not discovered or elected yet, an election requires one or more nodes that have already participated as "
@@ -840,6 +875,93 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             )
         );
 
+    }
+
+    public void testJoinStatusReporting() {
+        final var localNode = makeDiscoveryNode("local");
+        final var otherNode1 = makeDiscoveryNode("otherNode1");
+        final var otherNode2 = makeDiscoveryNode("otherNode2");
+
+        final var clusterState = state(localNode, "otherNode");
+
+        final var prefix = "master not discovered or elected yet, an election requires a node with id [otherNode], "
+            + "have only discovered non-quorum []; discovery will continue using [] from hosts providers and ["
+            + noAttr(localNode)
+            + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0";
+
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                emptyList(),
+                emptyList(),
+                0L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info"),
+                List.of(new JoinStatus(otherNode1, 1, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO))
+            ).getDescription(),
+            is(prefix + "; joining [" + noAttr(otherNode1) + "] in term [1] has status [waiting for response] after [0ms]")
+        );
+
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                emptyList(),
+                emptyList(),
+                0L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info"),
+                List.of(
+                    new JoinStatus(otherNode1, 2, JoinHelper.PENDING_JOIN_CONNECTING, TimeValue.timeValueMillis(10000)),
+                    new JoinStatus(otherNode2, 2, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.timeValueMillis(30000)),
+                    new JoinStatus(otherNode2, 1, JoinHelper.PENDING_JOIN_WAITING_STATE, TimeValue.timeValueMillis(20000))
+                )
+            ).getDescription(),
+            is(
+                prefix
+                    + "; joining ["
+                    + noAttr(otherNode2)
+                    + "] in term [2] has status [waiting for response] after [30s/30000ms]"
+                    + "; joining ["
+                    + noAttr(otherNode2)
+                    + "] in term [1] has status [waiting to receive cluster state] after [20s/20000ms]"
+                    + "; joining ["
+                    + noAttr(otherNode1)
+                    + "] in term [2] has status [waiting to connect] after [10s/10000ms]"
+            )
+        );
+
+        final var expected = new StringBuilder(prefix);
+        final var manyStatuses = new ArrayList<JoinStatus>();
+        for (var term = 20; term > 0; term--) {
+            final var node = randomFrom(otherNode1, otherNode2);
+            if (manyStatuses.size() < 10) {
+                expected.append("; joining [")
+                    .append(noAttr(node))
+                    .append("] in term [")
+                    .append(term)
+                    .append("] has status [status goes here] after [")
+                    .append(term)
+                    .append("ms]");
+            }
+            manyStatuses.add(new JoinStatus(node, term, "status goes here", TimeValue.timeValueMillis(term)));
+        }
+        Randomness.shuffle(manyStatuses);
+
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                emptyList(),
+                emptyList(),
+                0L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info"),
+                manyStatuses
+            ).getDescription(),
+            is(expected.toString())
+        );
     }
 
     private static DiscoveryNode makeDiscoveryNode(String nodeId) {

@@ -48,6 +48,11 @@ authenticated on the basis of Kerberos tickets. See <<kerberos-realm>>.
 _oidc_::
 A realm that facilitates authentication using OpenID Connect. It enables {es} to serve as an OpenID Connect Relying Party (RP) and provide single sign-on (SSO) support in {kib}. See <<oidc-guide>>.
 
+_jwt_::
+A realm that facilitates using JWT identity tokens as authentication bearer tokens.
+Compatible tokens are OpenID Connect ID Tokens, or custom JWTs containing the same claims.
+See <<jwt-realm>>.
+
 The {security-features} also support custom realms. If you need to integrate
 with another authentication system, you can build a custom realm plugin. For
 more information, see <<custom-realms>>.

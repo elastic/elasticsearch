@@ -22,9 +22,8 @@ restResources {
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless:spi')
 }
-
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.analyze/10_analyze/htmlStrip_deprecated", "Cleanup versioned deprecations in analysis #41560")

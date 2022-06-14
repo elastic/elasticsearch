@@ -19,8 +19,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -253,7 +253,7 @@ public class RestControllerTests extends ESTestCase {
         final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
-        final RestApiVersion previous = current.previous();
+        final RestApiVersion previous = RestApiVersion.previous();
         final String deprecationMessage = "["
             + replacedMethod.name()
             + " "

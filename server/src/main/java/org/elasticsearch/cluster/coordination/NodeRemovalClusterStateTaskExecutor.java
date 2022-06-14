@@ -7,15 +7,16 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
@@ -30,12 +31,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
         @Override
         public void onFailure(final Exception e) {
-            logger.error("unexpected failure during [node-left]", e);
-        }
-
-        @Override
-        public void onNoLongerMaster() {
-            logger.debug("no longer master while processing node removal [node-left]");
+            logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, "unexpected failure during [node-left]", e);
         }
 
         @Override
@@ -68,17 +64,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
-            taskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    task.onClusterStateProcessed.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    task.onFailure(e);
-                }
-            });
+            taskContext.success(() -> task.onClusterStateProcessed.run());
         }
 
         final ClusterState finalState;

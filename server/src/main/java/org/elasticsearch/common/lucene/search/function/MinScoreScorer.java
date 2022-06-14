@@ -30,10 +30,6 @@ final class MinScoreScorer extends Scorer {
         this.minScore = minScore;
     }
 
-    public Scorer getScorer() {
-        return in;
-    }
-
     @Override
     public int docID() {
         return in.docID();

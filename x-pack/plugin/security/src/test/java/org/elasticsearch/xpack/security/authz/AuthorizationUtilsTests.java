@@ -6,18 +6,22 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -50,7 +54,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     public void testSystemUserSwitchWithSystemUser() {
         threadContext.putTransient(
             AuthenticationField.AUTHENTICATION_KEY,
-            new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null)
+            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
         );
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
@@ -60,16 +64,22 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithNonSystemUser() {
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
     public void testSystemUserSwitchWithNonSystemUserAndInternalAction() {
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
@@ -83,8 +93,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
         assertTrue(AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext));
 
         // set authentication
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         assertFalse(AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext));
 
@@ -98,7 +111,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE, randomVersion());
+    }
+
+    public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE, randomVersion());
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
@@ -110,20 +127,20 @@ public class AuthorizationUtilsTests extends ESTestCase {
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN
         )) {
-            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
+            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE, randomVersion());
         }
     }
 
     public void testSwitchAndExecuteAsyncSearchUser() throws Exception {
         String origin = ClientHelper.ASYNC_SEARCH_ORIGIN;
-        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE, randomVersion());
     }
 
     public void testSwitchWithTaskOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE, randomVersion());
     }
 
-    private void assertSwitchBasedOnOriginAndExecute(String origin, User user) throws Exception {
+    private void assertSwitchBasedOnOriginAndExecute(String origin, User user, Version version) throws Exception {
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final String headerName = randomAlphaOfLengthBetween(4, 16);
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
@@ -132,23 +149,30 @@ public class AuthorizationUtilsTests extends ESTestCase {
         final ActionListener<Void> listener = ActionListener.wrap(v -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(user, securityContext.getAuthentication().getUser());
+            final Authentication authentication = securityContext.getAuthentication();
+            assertEquals(user, authentication.getUser());
+            assertEquals(version, authentication.getVersion());
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(user, securityContext.getAuthentication().getUser());
+            final Authentication authentication = securityContext.getAuthentication();
+            assertEquals(user, authentication.getUser());
+            assertEquals(version, authentication.getVersion());
             latch.countDown();
             listener.onResponse(null);
         };
 
         threadContext.putHeader(headerName, headerValue);
         try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(origin)) {
-            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
+            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, version, consumer);
             latch.await();
         }
     }
 
+    private Version randomVersion() {
+        return VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+    }
 }

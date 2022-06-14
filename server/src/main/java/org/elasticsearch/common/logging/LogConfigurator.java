@@ -10,7 +10,10 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
@@ -30,9 +33,11 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -54,6 +59,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -73,6 +79,8 @@ public class LogConfigurator {
             super.log(data);
         }
     };
+
+    private static Appender consoleAppender;
 
     /**
      * Registers a listener for status logger errors. This listener should be registered as early as possible to ensure that no errors are
@@ -102,11 +110,12 @@ public class LogConfigurator {
      * directory from the specified environment.
      *
      * @param environment the environment for reading configs and the logs path
+     * @param useConsole whether a console appender should exist
      * @throws IOException   if there is an issue readings any log4j2.properties in the config
      *                       directory
      * @throws UserException if there are no log4j2.properties in the specified configs path
      */
-    public static void configure(final Environment environment) throws IOException, UserException {
+    public static void configure(final Environment environment, boolean useConsole) throws IOException, UserException {
         Objects.requireNonNull(environment);
         try {
             // we are about to configure logging, check that the status logger did not log any error-level messages
@@ -115,7 +124,12 @@ public class LogConfigurator {
             // whether or not the error listener check failed we can remove the listener now
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
-        configure(environment.settings(), environment.configFile(), environment.logsFile());
+        configureESLogging();
+        configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+    }
+
+    private static void configureESLogging() {
+        LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 
     /**
@@ -145,7 +159,8 @@ public class LogConfigurator {
         return StreamSupport.stream(StatusLogger.getLogger().getListeners().spliterator(), false).anyMatch(l -> l == ERROR_LISTENER);
     }
 
-    private static void configure(final Settings settings, final Path configsPath, final Path logsPath) throws IOException, UserException {
+    private static void configure(final Settings settings, final Path configsPath, final Path logsPath, boolean useConsole)
+        throws IOException, UserException {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
@@ -240,6 +255,42 @@ public class LogConfigurator {
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
         System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
         System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+
+        final Logger rootLogger = LogManager.getRootLogger();
+        Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+        if (appender != null) {
+            if (useConsole) {
+                consoleAppender = appender;
+            } else {
+                Loggers.removeAppender(rootLogger, appender);
+            }
+        }
+    }
+
+    /**
+     * Removes the appender for the console, if one exists.
+     */
+    public static Appender removeConsoleAppender() {
+        Appender appender = consoleAppender;
+        if (appender != null) {
+            Loggers.removeAppender(LogManager.getRootLogger(), appender);
+            consoleAppender = null;
+        }
+        return appender;
+    }
+
+    /**
+     * Temporarily removes the appender for the console, so that log messages go only to the log file.
+     * @param clazz a class to get a logger for
+     * @param callback The code to log while the appender is removed
+     */
+    public static void logWithoutConsole(Class<?> clazz, Consumer<Logger> callback) {
+        Appender appender = removeConsoleAppender();
+        Logger logger = LogManager.getLogger(clazz);
+        callback.accept(logger);
+        if (appender != null) {
+            Loggers.addAppender(LogManager.getRootLogger(), appender);
+        }
     }
 
     private static void configureStatusLogger() {

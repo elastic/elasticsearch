@@ -229,7 +229,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.endObject();
     }
 
-    private void buildTermStatistics(XContentBuilder builder, TermsEnum termIter) throws IOException {
+    private static void buildTermStatistics(XContentBuilder builder, TermsEnum termIter) throws IOException {
         // write term statistics. At this point we do not naturally have a
         // boolean that says if these values actually were requested.
         // However, we can assume that they were not if the statistic values are
@@ -302,7 +302,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         }
     }
 
-    private void buildFieldStatistics(XContentBuilder builder, Terms curTerms) throws IOException {
+    private static void buildFieldStatistics(XContentBuilder builder, Terms curTerms) throws IOException {
         long sumDocFreq = curTerms.getSumDocFreq();
         int docCount = curTerms.getDocCount();
         long sumTotalTermFrequencies = curTerms.getSumTotalTermFreq();

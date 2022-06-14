@@ -420,7 +420,10 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("[" + repositoryName + "] missing"))
+                .allMatch(
+                    shardFailure -> shardFailure.reason()
+                        .contains("Secure setting [repository.encrypted." + repositoryName + ".password] must be set")
+                )
         );
         assertThat(
             incompleteSnapshotResponse.getSnapshotInfo().userMetadata(),

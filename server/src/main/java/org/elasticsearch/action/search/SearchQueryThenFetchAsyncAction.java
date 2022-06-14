@@ -29,7 +29,6 @@ import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSi
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
-    private final SearchPhaseController searchPhaseController;
     private final SearchProgressListener progressListener;
 
     // informations to track the best bottom top doc globally.
@@ -43,7 +42,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         final Map<String, AliasFilter> aliasFilter,
         final Map<String, Float> concreteIndexBoosts,
-        final SearchPhaseController searchPhaseController,
         final Executor executor,
         final QueryPhaseResultConsumer resultConsumer,
         final SearchRequest request,
@@ -74,7 +72,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
-        this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
 
         // register the release of the query consumer to free up the circuit breaker memory
@@ -125,7 +122,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, null, this);
+        return new FetchSearchPhase(results, null, this);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

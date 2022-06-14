@@ -24,7 +24,7 @@ public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Li
     private final LithuanianAnalyzer analyzer;
 
     LithuanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new LithuanianAnalyzer(
             Analysis.parseStopWords(env, settings, LithuanianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

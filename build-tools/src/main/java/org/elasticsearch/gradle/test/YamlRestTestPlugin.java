@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.transform.UnzipTransform;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Plugin;
@@ -28,6 +29,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -35,6 +37,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 
 import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
 public class YamlRestTestPlugin implements Plugin<Project> {
 
@@ -81,9 +84,13 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         var cluster = testClusters.register(YAML_REST_TEST);
         TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
-            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-            cluster.configure(c -> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
-            yamlRestTestTask.configure(t -> t.dependsOn(bundle));
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
+                cluster.configure(c -> c.module(bundle));
+            } else {
+                var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                cluster.configure(c -> c.plugin(bundle));
+            }
         });
 
         // Wire up to check task

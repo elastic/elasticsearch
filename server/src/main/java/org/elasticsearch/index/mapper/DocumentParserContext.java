@@ -247,10 +247,6 @@ public abstract class DocumentParserContext {
         return dynamicMappers;
     }
 
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
-    }
-
     public final ObjectMapper getDynamicObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
     }
@@ -318,7 +314,7 @@ public abstract class DocumentParserContext {
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath(0);
-        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path::isWithinLeafObject);
         return new Wrapper(this) {
             @Override
             public ContentPath path() {
@@ -367,6 +363,14 @@ public abstract class DocumentParserContext {
     }
 
     public abstract ContentPath path();
+
+    public final MapperBuilderContext createMapperBuilderContext() {
+        String p = path().pathAsText("");
+        if (p.endsWith(".")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        return new MapperBuilderContext(p);
+    }
 
     public abstract XContentParser parser();
 

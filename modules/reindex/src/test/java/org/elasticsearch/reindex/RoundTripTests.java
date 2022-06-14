@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -193,7 +194,7 @@ public class RoundTripTests extends ESTestCase {
         example.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        return in;
+        return new NamedWriteableAwareStreamInput(in, writableRegistry());
     }
 
     private Script randomScript() {

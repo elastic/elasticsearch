@@ -82,6 +82,8 @@ public class BwcSetupExtension {
             } else {
                 loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
             }
+
+            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir());
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
             }

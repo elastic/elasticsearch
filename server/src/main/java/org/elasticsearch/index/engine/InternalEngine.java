@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -57,12 +55,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -108,6 +107,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
 
@@ -501,8 +502,8 @@ public class InternalEngine extends Engine {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         logger.trace(
-            () -> new ParameterizedMessage(
-                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+            () -> format(
+                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
                 opsRecovered,
                 translog.currentFileGeneration()
             )
@@ -600,7 +601,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(Map<String, String> commitData) {
+    private static String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -638,18 +639,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
-        @Override
-        public void onUse(Query query) {
-
-        }
-
-        @Override
-        public boolean shouldCache(Query query) {
-            return false;
-        }
-    };
-
     public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
     public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
 
@@ -675,7 +664,7 @@ public class InternalEngine extends Engine {
             ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(),
             null /*query cache disabled*/,
-            NEVER_CACHE_POLICY,
+            TrivialQueryCachingPolicy.NEVER,
             inMemoryReader
         );
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
@@ -1221,7 +1210,7 @@ public class InternalEngine extends Engine {
      * If we hit any failure while processing an indexing on a replica, we should treat that error as tragic and fail the engine.
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
-    private boolean treatDocumentFailureAsTragicError(Index index) {
+    private static boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
             || index.origin() == Operation.Origin.PEER_RECOVERY

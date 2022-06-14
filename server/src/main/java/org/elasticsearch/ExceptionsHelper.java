@@ -255,7 +255,7 @@ public final class ExceptionsHelper {
             try {
                 // try to log the current stack trace
                 final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
-                logger.error("fatal error\n{}", formatted);
+                logger.error("fatal error {}: {}\n{}", error.getClass().getCanonicalName(), error.getMessage(), formatted);
             } finally {
                 new Thread(() -> { throw error; }).start();
             }

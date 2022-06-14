@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
 /**
@@ -39,9 +38,4 @@ interface ConstructionProxy<T> {
      */
     InjectionPoint getInjectionPoint();
 
-    /**
-     * Returns the injected constructor. If the injected constructor is synthetic (such as generated
-     * code for method interception), the natural constructor is returned.
-     */
-    Constructor<T> getConstructor();
 }

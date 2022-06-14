@@ -16,10 +16,13 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -42,14 +45,17 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No corrupted repositories.",
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size()))
+                    RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
+                    null,
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -64,16 +70,25 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     RED,
-                    "Detected [1] corrupted repositories: [corrupted-repo].",
+                    "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
+                    RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
-                    )
+                    ),
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -84,8 +99,19 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
-            equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY))
+            service.calculate(false),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
+                    null,
+                    HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                )
+            )
         );
     }
 

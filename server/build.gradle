@@ -25,6 +25,7 @@ archivesBaseName = 'elasticsearch'
 dependencies {
 
   api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
@@ -44,7 +45,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
@@ -83,6 +83,13 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
+tasks.named('forbiddenApisMain').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+tasks.named('forbiddenApisTest').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+
 tasks.named("testingConventions").configure {
     naming.clear()
     naming {
@@ -96,11 +103,11 @@ tasks.named("testingConventions").configure {
     }
 }
 
+File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateModulesList = tasks.register("generateModulesList") {
     List<String> modules = project(':modules').subprojects.collect { it.name }
     modules.add('x-pack')
-    File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-    processResources.from(modulesFile)
+    File modulesFile = new File(generatedResourcesDir, "modules.txt")
     inputs.property('modules', modules)
     outputs.file(modulesFile)
     doLast {
@@ -113,8 +120,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
     plugins.remove('example')
 
-    File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-    processResources.from(pluginsFile)
+    File pluginsFile = new File(generatedResourcesDir, 'plugins.txt')
     inputs.property('plugins', plugins)
     outputs.file(pluginsFile)
     doLast {
@@ -123,9 +129,8 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     }
 }
 
-tasks.named("processResources").configure {
-    dependsOn generateModulesList, generatePluginsList
-}
+sourceSets.main.output.dir(generatedResourcesDir)
+sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {

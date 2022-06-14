@@ -323,7 +323,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
     }
 
-    private class BitsetCacheKey {
+    private static class BitsetCacheKey {
         final IndexReader.CacheKey index;
         final Query query;
 

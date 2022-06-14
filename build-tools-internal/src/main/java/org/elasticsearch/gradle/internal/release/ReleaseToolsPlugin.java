@@ -77,7 +77,14 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
-                projectDirectory.file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(
+                    String.format(
+                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
+                        version.getMajor(),
+                        version.getMinor(),
+                        version.getRevision()
+                    )
+                )
             );
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
@@ -89,6 +96,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                     String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
                 )
             );
+            task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
+            task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
 
             task.dependsOn(validateChangelogsTask);
         });

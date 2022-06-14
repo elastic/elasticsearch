@@ -44,7 +44,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return reduce(set, numCandidates);
     }
 
-    private CandidateSet reduce(CandidateSet set, int numCandidates) {
+    private static CandidateSet reduce(CandidateSet set, int numCandidates) {
         if (set.candidates.length > numCandidates) {
             Candidate[] candidates = set.candidates;
             Arrays.sort(candidates, (left, right) -> Double.compare(right.score, left.score));

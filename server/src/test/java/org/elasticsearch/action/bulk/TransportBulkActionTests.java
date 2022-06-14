@@ -49,7 +49,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -291,19 +290,19 @@ public class TransportBulkActionTests extends ESTestCase {
             new ConcreteIndex(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
         SystemIndices systemIndices = new SystemIndices(
-            Map.of("plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
+            List.of(new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
         );
         List<String> onlySystem = List.of(".foo", ".bar");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = List.of(".foo", ".bar", ".test");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         List<String> nonSystem = List.of("foo", "bar");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
 
         List<String> mixed = List.of(".foo", ".test", "other");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
     public void testRejectCoordination() throws Exception {

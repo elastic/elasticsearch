@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -34,6 +33,8 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -97,7 +98,7 @@ public class IndexMetadataVerifier {
      * Check that the index version is compatible. Elasticsearch does not support indices created before the
      * previous major version.
      */
-    private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
@@ -216,8 +217,8 @@ public class IndexMetadataVerifier {
                 e.getValue()
             ),
             (e, ex) -> logger.warn(
-                () -> new ParameterizedMessage(
-                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+                () -> format(
+                    "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
                     indexMetadata.getIndex(),
                     e.getKey(),
                     e.getValue()
@@ -236,7 +237,7 @@ public class IndexMetadataVerifier {
      * Convert shared_cache searchable snapshot indices to only specify
      * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
      */
-    IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
+    static IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
         // Only remove these settings for a shared_cache searchable snapshot
         if (indexMetadata.isPartialSearchableSnapshot()) {
             final Settings settings = indexMetadata.getSettings();
@@ -261,7 +262,7 @@ public class IndexMetadataVerifier {
     /**
      * Removes index level ._tier allocation filters, if they exist
      */
-    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+    static IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // Clear any allocation rules other than preference for tier

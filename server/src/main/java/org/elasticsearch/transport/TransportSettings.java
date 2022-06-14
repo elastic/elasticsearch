@@ -61,7 +61,7 @@ public final class TransportSettings {
     );
     public static final Setting<String> PORT = new Setting<>(
         "transport.port",
-        "9300-9400",
+        "9300-9399",
         Function.identity(),
         Setting.Property.NodeScope
     );

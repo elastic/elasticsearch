@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -108,6 +107,13 @@ public class AllocationService {
     }
 
     /**
+     * @return The allocation deciders that the allocation service has been configured with.
+     */
+    public AllocationDeciders getAllocationDeciders() {
+        return allocationDeciders;
+    }
+
+    /**
      * Applies the started shards. Note, only initializing ShardRouting instances that exist in the routing table should be
      * provided as parameter and no duplicates should be contained.
      * <p>
@@ -143,10 +149,10 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    private ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
+    private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
+        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -247,7 +253,7 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.failure());
+                logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetadata, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
@@ -489,7 +495,11 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
-    private void logClusterHealthStateChange(ClusterStateHealth previousStateHealth, ClusterStateHealth newStateHealth, String reason) {
+    private static void logClusterHealthStateChange(
+        ClusterStateHealth previousStateHealth,
+        ClusterStateHealth newStateHealth,
+        String reason
+    ) {
         ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
         ClusterHealthStatus currentHealth = newStateHealth.getStatus();
         if (previousHealth.equals(currentHealth) == false) {
@@ -503,7 +513,7 @@ public class AllocationService {
         }
     }
 
-    private boolean hasDeadNodes(RoutingAllocation allocation) {
+    private static boolean hasDeadNodes(RoutingAllocation allocation) {
         for (RoutingNode routingNode : allocation.routingNodes()) {
             if (allocation.nodes().getDataNodes().containsKey(routingNode.nodeId()) == false) {
                 return true;
@@ -553,7 +563,7 @@ public class AllocationService {
         }
     }
 
-    private void disassociateDeadNodes(RoutingAllocation allocation) {
+    private static void disassociateDeadNodes(RoutingAllocation allocation) {
         Map<String, SingleNodeShutdownMetadata> nodesShutdownMetadata = allocation.metadata().nodeShutdowns();
 
         for (Iterator<RoutingNode> it = allocation.routingNodes().mutableIterator(); it.hasNext();) {
@@ -594,7 +604,7 @@ public class AllocationService {
         }
     }
 
-    private void applyStartedShards(RoutingAllocation routingAllocation, List<ShardRouting> startedShardEntries) {
+    private static void applyStartedShards(RoutingAllocation routingAllocation, List<ShardRouting> startedShardEntries) {
         assert startedShardEntries.isEmpty() == false : "non-empty list of started shard entries expected";
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
@@ -614,7 +624,7 @@ public class AllocationService {
     /**
      * Create a mutable {@link RoutingNodes}. This is a costly operation so this must only be called once!
      */
-    private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
+    private static RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
         return clusterState.mutableRoutingNodes();
     }
 

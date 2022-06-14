@@ -72,7 +72,7 @@ with the value of the ingest timestamp.
 ----------------------------------
 PUT _ingest/pipeline/set_ingest_time
 {
-  "description": "Set `_source.@timestamp_ingest` to `ingest.timestamp` value.",
+  "description": "Set ingest timestamp.",
   "processors": [
     {
       "set": {

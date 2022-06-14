@@ -45,7 +45,13 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
+@LuceneTestCase.SuppressFileSystems(
+    value = {
+        "ExtrasFS", // Don't randomly add 'extra' files to directory.
+        "WindowsFS" // Files.copy(...) replaces files being in use and causes 'java.io.IOException: access denied: ...' mock errors (from
+                    // 'WindowsFS.checkDeleteAccess(...)').
+    }
+)
 public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
     /**

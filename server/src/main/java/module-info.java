@@ -21,6 +21,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
 
     requires com.sun.jna;
     requires hppc;

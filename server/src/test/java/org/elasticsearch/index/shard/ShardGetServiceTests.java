@@ -160,7 +160,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE);
+            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertEquals(new String(testGet2.source() == null ? new byte[0] : testGet2.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
@@ -174,7 +174,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 3);
         }
 
-        testGet2 = primary.getService().get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE);
+        testGet2 = primary.getService()
+            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertEquals(new String(testGet2.source() == null ? new byte[0] : testGet2.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));

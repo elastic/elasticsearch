@@ -59,7 +59,7 @@ public class DeploymentManagerTests extends ESTestCase {
                 4,
                 TimeValue.timeValueMinutes(10),
                 false,
-                "xpack.ml.pytorch_comms_thread_pool"
+                "xpack.ml.native_inference_comms_thread_pool"
             )
         );
     }

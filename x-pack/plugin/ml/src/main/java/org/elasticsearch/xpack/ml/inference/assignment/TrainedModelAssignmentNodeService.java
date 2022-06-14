@@ -69,7 +69,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private static final TimeValue UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentNodeService.class);
     private final TrainedModelAssignmentService trainedModelAssignmentService;
-    private final ClusterService clusterService;
     private final DeploymentManager deploymentManager;
     private final TaskManager taskManager;
     private final Map<String, TrainedModelDeploymentTask> modelIdToTask;
@@ -92,7 +91,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         XPackLicenseState licenseState
     ) {
         this.trainedModelAssignmentService = trainedModelAssignmentService;
-        this.clusterService = clusterService;
         this.deploymentManager = deploymentManager;
         this.taskManager = taskManager;
         this.modelIdToTask = new ConcurrentHashMap<>();
@@ -125,7 +123,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         XPackLicenseState licenseState
     ) {
         this.trainedModelAssignmentService = trainedModelAssignmentService;
-        this.clusterService = clusterService;
         this.deploymentManager = deploymentManager;
         this.taskManager = taskManager;
         this.modelIdToTask = new ConcurrentHashMap<>();

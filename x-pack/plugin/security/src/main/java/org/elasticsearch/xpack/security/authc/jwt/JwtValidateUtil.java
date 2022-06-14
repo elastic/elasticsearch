@@ -310,6 +310,11 @@ public class JwtValidateUtil {
                 return; // VERIFY SUCCEEDED
             }
         }
+
+        if (jwksStrength.isEmpty()) {
+            throw new Exception("No JWKs matched the JWT Algorithm [" + alg.getName() + "] and JWT KID [" + id + "].");
+        }
+
         throw new InvalidSignatureException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
@@ -372,7 +377,7 @@ public class JwtValidateUtil {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public class InvalidSignatureException extends Exception { 
+    public static class InvalidSignatureException extends Exception { 
         public InvalidSignatureException(String errorMessage) {
             super(errorMessage);
         }

@@ -8,7 +8,7 @@ The native and file realms assign roles directly to users.
 Native realms use <<managing-native-users,user management APIs>>.
 File realms use <<roles-management-file,File-based role management>>.
 
-You can map roles through the 
+You can map roles through the
 <<mapping-roles-api, Role mapping API>> (recommended) or a <<mapping-roles-file, Role mapping file>>.
 
 
@@ -21,15 +21,15 @@ SAML realms also support <<authorization_realms,delegated authorization>>.
 You can either map roles for a realm or use delegated authorization; you cannot use both simultaneously.
 
 To use role mapping, you create roles and role mapping rules.
-Role mapping rules can based on realm name, realm type, username, groups,
+Role mapping rules can be based on realm name, realm type, username, groups,
 other user metadata, or combinations of those values.
 
 NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
 of the anonymous user are assigned to all the other users as well.
 
-If there are role-mapping rules created through the API as well as a role mapping file, 
-the rules are combined. 
-It's possible for a single user to have some roles that were mapped through the API, 
+If there are role-mapping rules created through the API as well as a role mapping file,
+the rules are combined.
+It's possible for a single user to have some roles that were mapped through the API,
 and others assigned based on the role mapping file.
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.

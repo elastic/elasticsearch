@@ -11,7 +11,6 @@ File realms use <<roles-management-file,File-based role management>>.
 You can map roles through the 
 <<mapping-roles-api, Role mapping API>> (recommended) or a <<mapping-roles-file, Role mapping file>>.
 
-IMPORTANT: Role Mapping API is preferred over Role Mapping File.
 
 The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and SAML realms support
 <<mapping-roles-api, Role Mapping API>>. Only PKI, LDAP, and AD realms

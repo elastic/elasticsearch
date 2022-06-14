@@ -5,15 +5,12 @@
  * 2.0.
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
-// apply plugin: 'elasticsearch.internal-cluster-test'
-// apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   name 'x-pack-apm-integration'
   description 'Provides APM integration for Elasticsearch'
   classname 'org.elasticsearch.xpack.apm.APM'
   extendedPlugins = ['x-pack-core']
-  javaOpts = "-javaagent:modules/x-pack-apm-integration/elastic-apm-agent-${versions.apm_agent}.jar"
 }
 
 dependencies {

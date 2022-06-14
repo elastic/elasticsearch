@@ -8,8 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,7 +80,7 @@ final class JvmOptionsParser {
      * @throws IOException if there is a problem reading any of the files
      * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
      */
-    static List<String> determineJvmOptions(Path configDir, Path modulesDir, Path pluginsDir, Path tmpDir, String envOptions)
+    static List<String> determineJvmOptions(ServerArgs args, Path configDir, Path pluginsDir, Path tmpDir, String envOptions)
         throws InterruptedException, IOException, UserException {
 
         final JvmOptionsParser parser = new JvmOptionsParser();
@@ -87,7 +90,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(configDir, modulesDir, pluginsDir, envOptions, substitutions);
+            return parser.jvmOptions(args, configDir, pluginsDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -117,14 +120,14 @@ final class JvmOptionsParser {
     }
 
     private List<String> jvmOptions(
-        final Path config,
-        Path modules,
+        ServerArgs args,
+        final Path configDir,
         Path plugins,
         final String esJavaOpts,
         final Map<String, String> substitutions
-    ) throws InterruptedException, IOException, JvmOptionsFileParserException {
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
-        final List<String> jvmOptions = readJvmOptionsFiles(config);
+        final List<String> jvmOptions = readJvmOptionsFiles(configDir);
 
         if (esJavaOpts != null) {
             jvmOptions.addAll(Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).toList());
@@ -134,18 +137,31 @@ final class JvmOptionsParser {
         final MachineDependentHeap machineDependentHeap = new MachineDependentHeap(
             new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
         );
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
+        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(configDir, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
-        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(modules, plugins);
+        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);
 
-        final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + bootstrapOptions.size()
-        );
+        final List<String> apmOptions;
+        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(configDir)) {
+            if (keyStoreWrapper != null) {
+                try {
+                    keyStoreWrapper.decrypt(args.keystorePassword().clone().getChars());
+                } catch (GeneralSecurityException e) {
+                    throw new RuntimeException("Failed to decrypt keystore: " + e.getMessage(), e);
+                }
+            }
+            apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), keyStoreWrapper, Path.of(substitutions.get("ES_TMPDIR")));
+        }
+
+        final int numOptions = systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + bootstrapOptions.size()
+            + apmOptions.size();
+        final List<String> finalJvmOptions = new ArrayList<>(numOptions);
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
         finalJvmOptions.addAll(bootstrapOptions);
+        finalJvmOptions.addAll(apmOptions);
 
         return finalJvmOptions;
     }

@@ -36,7 +36,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 /**
  * A helper to control a {@link Process} running the main Elasticsearch server.
  *
- * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, Path, Path)}.
+ * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, Path)}.
  * The process is controlled by internally sending arguments and control signals on stdin,
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
@@ -66,7 +66,7 @@ public class ServerProcess {
 
     // this allows mocking the process building by tests
     interface OptionsBuilder {
-        List<String> getJvmOptions(Path configDir, Path modulesDir, Path pluginsDir, Path tmpDir, String envOptions)
+        List<String> getJvmOptions(ServerArgs args, Path configDir, Path pluginsDir, Path tmpDir, String envOptions)
             throws InterruptedException, IOException, UserException;
     }
 
@@ -85,9 +85,9 @@ public class ServerProcess {
      * @return A running server process that is ready for requests
      * @throws UserException If the process failed during bootstrap
      */
-    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path modulesDir, Path pluginsDir)
+    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir)
         throws UserException {
-        return start(terminal, processInfo, args, modulesDir, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
+        return start(terminal, processInfo, args, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
     }
 
     // package private so tests can mock options building and process starting
@@ -95,7 +95,6 @@ public class ServerProcess {
         Terminal terminal,
         ProcessInfo processInfo,
         ServerArgs args,
-        Path modulesDir,
         Path pluginsDir,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
@@ -105,7 +104,7 @@ public class ServerProcess {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(processInfo, args.configDir(), modulesDir, pluginsDir, optionsBuilder, processStarter);
+            jvmProcess = createProcess(args, processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(args, jvmProcess.getOutputStream());
@@ -198,9 +197,9 @@ public class ServerProcess {
     }
 
     private static Process createProcess(
+        ServerArgs args,
         ProcessInfo processInfo,
         Path configDir,
-        Path modulesDir,
         Path pluginsDir,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
@@ -211,7 +210,7 @@ public class ServerProcess {
             envVars.put("LIBFFI_TMPDIR", tempDir.toString());
         }
 
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, modulesDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
+        List<String> jvmOptions = optionsBuilder.getJvmOptions(args, configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
         // also pass through distribution type
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 

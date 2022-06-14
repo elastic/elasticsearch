@@ -387,6 +387,8 @@ public class Node implements Closeable {
                 );
             }
 
+            deleteTemporaryApmConfig(jvmInfo);
+
             this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
@@ -1032,6 +1034,36 @@ public class Node implements Closeable {
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
+            }
+        }
+    }
+
+    /**
+     * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
+     * delete the config file. The agent only reads it once, when supplied in this fashion, and it
+     * may contain a secret token.
+     */
+    private void deleteTemporaryApmConfig(JvmInfo jvmInfo) {
+        for (String inputArgument : jvmInfo.getInputArguments()) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                final String agentArg = inputArgument.substring(11);
+                final String[] parts = agentArg.split("=", 2);
+                if (parts[0].matches("modules/x-pack-apm-integration/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                    if (parts.length == 2 && parts[1].startsWith("c=")) {
+                        final Path apmConfig = Path.of(parts[1].substring(2));
+                        if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
+                            try {
+                                Files.deleteIfExists(apmConfig);
+                            } catch (IOException e) {
+                                logger.error(
+                                    "Failed to delete temporary APM config file [" + apmConfig + "], reason: [" + e.getMessage() + "]",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    return;
+                }
             }
         }
     }

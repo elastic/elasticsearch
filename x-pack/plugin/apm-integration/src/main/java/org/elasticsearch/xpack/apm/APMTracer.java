@@ -26,7 +26,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,11 +38,8 @@ import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_DEFAULT_SETTINGS;
-import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
@@ -61,49 +57,22 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private List<String> includeNames;
     private List<String> excludeNames;
     private volatile CharacterRunAutomaton filterAutomaton;
-    private final APMAgentSettings apmAgentSettings;
 
     /**
      * This class is required to make all open telemetry services visible at once
      */
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings, ClusterService clusterService, APMAgentSettings apmAgentSettings) {
-        this.clusterService = Objects.requireNonNull(clusterService);
+    public APMTracer(Settings settings, ClusterService clusterService) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
-        this.apmAgentSettings = apmAgentSettings;
-
         this.enabled = APM_ENABLED_SETTING.get(settings);
-        this.apmAgentSettings.setAgentSetting("recording", Boolean.toString(this.enabled));
-
-        // Apply default values for some system properties. Although we configure
-        // the settings in APM_AGENT_DEFAULT_SETTINGS to defer to the default values, they won't
-        // do anything if those settings are never configured.
-        APM_AGENT_DEFAULT_SETTINGS.keySet()
-            .forEach(
-                key -> apmAgentSettings.setAgentSetting(
-                    key,
-                    APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings)
-                )
-            );
-
-        // Then apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(apmAgentSettings::setAgentSetting);
-
-        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, this::setExcludeNames);
-        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(apmAgentSettings::setAgentSetting), (x, y) -> {});
+        this.clusterService = clusterService;
     }
 
-    private void setEnabled(boolean enabled) {
+    void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
-        // minimise its impact to a running Elasticsearch.
-        this.apmAgentSettings.setAgentSetting("recording", Boolean.toString(enabled));
         if (enabled) {
             this.services = createApmServices();
         } else {
@@ -111,12 +80,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
-    private void setIncludeNames(List<String> includeNames) {
+    void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }
 
-    private void setExcludeNames(List<String> excludeNames) {
+    void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }

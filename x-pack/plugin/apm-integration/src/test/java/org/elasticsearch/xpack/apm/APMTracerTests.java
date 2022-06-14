@@ -20,7 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
@@ -29,11 +28,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class APMTracerTests extends ESTestCase {
@@ -96,61 +91,6 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
-     * Check that when the tracer starts, it applies the default values for some agent settings to the system properties.
-     */
-    public void test_whenTracerCreated_defaultSettingsApplied() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
-        buildTracer(settings, apmAgentSettings);
-
-        verify(apmAgentSettings).setAgentSetting("transaction_sample_rate", "0.5");
-    }
-
-    /**
-     * Check that when the tracer starts and applies the default agent setting values the system properties, their values
-     * are overridden from the cluster settings, if the cluster settings contain values for those agent settings.
-     */
-    public void test_whenTracerCreated_clusterSettingsOverrideDefaults() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .put(APM_AGENT_SETTINGS.getKey() + "transaction_sample_rate", "0.75")
-            .build();
-        buildTracer(settings, apmAgentSettings);
-
-        // This happens twice because we first apply the default settings, whose values are overridden
-        // from the cluster settings, then we apply all the APM-agent related settings, not just the
-        // ones with default values. Although there is some redundancy here, it only happens at startup
-        // for a very small number of settings.
-        verify(apmAgentSettings, times(2)).setAgentSetting("transaction_sample_rate", "0.75");
-    }
-
-    /**
-     * Check that when the tracer starts, it applies all other agent settings to the system properties.
-     */
-    public void test_whenTracerCreated_clusterSettingsAlsoApplied() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .put(APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
-            .build();
-        buildTracer(settings, apmAgentSettings);
-
-        verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
-    }
-
-    /**
-     * Check that when the tracer is enabled, it also sets the APM agent's recording system property to true.
-     */
-    public void test_whenTracerEnabled_setsRecordingProperty() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
-        buildTracer(settings, apmAgentSettings);
-
-        verify(apmAgentSettings).setAgentSetting("recording", "true");
-    }
-
-    /**
      * Check that when a trace is started, then the thread context is updated with tracing information.
      * <p>
      * We expect the APM agent to inject the {@link Task#TRACE_PARENT_HTTP_HEADER} and {@link Task#TRACE_STATE}
@@ -165,17 +105,6 @@ public class APMTracerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         apmTracer.onTraceStarted(threadContext, traceable);
         assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
-    }
-
-    /**
-     * Check that when the tracer is disabled, it also sets the APM agent's recording system property to false.
-     */
-    public void test_whenTracerDisabled_setsRecordingProperty() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
-        buildTracer(settings, apmAgentSettings);
-
-        verify(apmAgentSettings, atLeastOnce()).setAgentSetting("recording", "false");
     }
 
     /**
@@ -257,17 +186,13 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings) {
-        return buildTracer(settings, new APMAgentSettings());
-    }
-
-    private APMTracer buildTracer(Settings settings, APMAgentSettings apmAgentSettings) {
         APM apm = new APM(settings);
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, new HashSet<>(apm.getSettings())));
         when(clusterService.getClusterName()).thenReturn(new ClusterName("testCluster"));
 
-        APMTracer tracer = new APMTracer(settings, clusterService, apmAgentSettings);
+        APMTracer tracer = new APMTracer(settings, clusterService);
         tracer.doStart();
         return tracer;
     }

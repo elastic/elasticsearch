@@ -50,8 +50,14 @@ public class APM extends Plugin implements NetworkPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        tracer.set(new APMTracer(settings, clusterService, new APMAgentSettings()));
-        return List.of(tracer.get());
+        final APMAgentSettings apmAgentSettings = new APMAgentSettings();
+        final APMTracer apmTracer = new APMTracer(settings, clusterService);
+
+        apmAgentSettings.syncAgentSystemProperties(settings);
+        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTracer);
+
+        tracer.set(apmTracer);
+        return List.of(apmTracer);
     }
 
     @Override
@@ -60,7 +66,8 @@ public class APM extends Plugin implements NetworkPlugin {
             APMAgentSettings.APM_ENABLED_SETTING,
             APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.APM_AGENT_SETTINGS
+            APMAgentSettings.APM_AGENT_SETTINGS,
+            APMAgentSettings.APM_TOKEN_SETTING
         );
     }
 }

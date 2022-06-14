@@ -31,16 +31,12 @@ services:
       options:
         max-file: "5"
         max-size: 2m
-    # ports:
-    #   - 127.0.0.1:8220:8220
-    #   - 127.0.0.1:8200:8200
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts/tls/apmserver/cert.crt:/usr/share/apmserver/config/certs/tls.crt
       - ./scripts/tls/apmserver/key.pem:/usr/share/apmserver/config/certs/tls.key
 
   elasticsearch:
-    entrypoint: /entrypoint.sh
     environment:
       - action.destructive_requires_name=false
       - bootstrap.memory_lock=true
@@ -49,8 +45,8 @@ services:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - indices.id_field_data.enabled=true
+      - ingest.geoip.downloader.enabled=false
       - path.repo=/usr/share/elasticsearch/data/backups
-      - xpack.apm.tracing.enabled=true
       - xpack.license.self_generated.type=trial
       - xpack.monitoring.collection.enabled=true
       - xpack.security.authc.anonymous.roles=remote_monitoring_collector
@@ -59,6 +55,13 @@ services:
       - xpack.security.authc.realms.native.native1.order=1
       - xpack.security.authc.token.enabled=true
       - xpack.security.enabled=true
+      # APM specific settings. We don't configure `secret_key` because Kibana is configured with a blank key
+      - xpack.apm.tracing.enabled=true
+      - xpack.apm.tracing.agent.server_url=http://apmserver:8200
+      # Send traces to APM server aggressively
+      - xpack.apm.tracing.agent.metrics_interval=1s
+      # Record everything
+      - xpack.apm.tracing.agent.transaction_sample_rate=1
     healthcheck:
       interval: 20s
       retries: 10

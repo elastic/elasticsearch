@@ -9,16 +9,13 @@
 package org.elasticsearch.xpack.apm;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,19 +29,6 @@ import static org.hamcrest.Matchers.not;
  * Tests around Elasticsearch's tracing support using APM.
  */
 public class ApmIT extends ESRestTestCase {
-
-    @Before
-    public void configureTracing() throws IOException {
-        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
-
-        final Request request = new Request("PUT", "/_cluster/settings");
-        request.setOptions(requestOptions);
-        // The default sample rate is lower, meaning the traces that want to record might be skipped.
-        request.setJsonEntity("""
-            { "persistent": { "xpack.apm.tracing.agent.transaction_sample_rate": "1.0" } }
-            """);
-        assertOK(client().performRequest(request));
-    }
 
     /**
      * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server. The traces are generated in

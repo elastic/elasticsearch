@@ -1,2 +1,0 @@
-# Elastic APM agent config file
--Delastic.apm.config_file=${ES_PATH_CONF}/elasticapm.properties

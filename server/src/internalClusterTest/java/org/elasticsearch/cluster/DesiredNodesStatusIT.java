@@ -24,6 +24,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DesiredNodesStatusIT extends ESIntegTestCase {
     public void testDesiredNodesStatusIsTracked() {
         final int numberOfNodes = randomIntBetween(1, 5);

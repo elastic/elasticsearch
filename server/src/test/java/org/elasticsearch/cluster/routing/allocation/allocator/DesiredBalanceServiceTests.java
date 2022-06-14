@@ -42,6 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DesiredBalanceServiceTests extends ESTestCase {
 
@@ -375,22 +376,25 @@ public class DesiredBalanceServiceTests extends ESTestCase {
         );
     }
 
+    public void testNoDataNodes() {
+        final var desiredBalanceService = getAllocatingDesiredBalanceService();
+        final var clusterState = getInitialClusterState(0);
+        assertDesiredAssignments(desiredBalanceService, Map.of());
+        var convergedIndexBefore = desiredBalanceService.getCurrentDesiredBalance().lastConvergedIndex();
+        assertFalse(executeAndReroute(desiredBalanceService, clusterState));
+        assertDesiredAssignments(desiredBalanceService, Map.of());
+        var convergedIndexAfter = desiredBalanceService.getCurrentDesiredBalance().lastConvergedIndex();
+        assertThat(convergedIndexBefore, lessThan(convergedIndexAfter));
+    }
+
     static ClusterState getInitialClusterState() {
-        final var discoveryNodes = DiscoveryNodes.builder();
-        for (int i = 0; i < 3; i++) {
-            final var transportAddress = buildNewFakeTransportAddress();
-            final var discoveryNode = new DiscoveryNode(
-                "node-" + i,
-                "node-" + i,
-                UUIDs.randomBase64UUID(random()),
-                transportAddress.address().getHostString(),
-                transportAddress.getAddress(),
-                transportAddress,
-                Map.of(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
-            );
-            discoveryNodes.add(discoveryNode);
+        return getInitialClusterState(3);
+    }
+
+    static ClusterState getInitialClusterState(int dataNodesCount) {
+        final var discoveryNodes = DiscoveryNodes.builder().add(createDiscoveryNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+        for (int i = 0; i < dataNodesCount; i++) {
+            discoveryNodes.add(createDiscoveryNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
         final var indexMetadata = IndexMetadata.builder(TEST_INDEX)
@@ -403,10 +407,25 @@ public class DesiredBalanceServiceTests extends ESTestCase {
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes.masterNodeId("node-0").localNodeId("node-0"))
+            .nodes(discoveryNodes.masterNodeId("master").localNodeId("master"))
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
             .build();
+    }
+
+    private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
+        var transportAddress = buildNewFakeTransportAddress();
+        return new DiscoveryNode(
+            id,
+            id,
+            UUIDs.randomBase64UUID(random()),
+            transportAddress.address().getHostString(),
+            transportAddress.getAddress(),
+            transportAddress,
+            Map.of(),
+            roles,
+            Version.CURRENT
+        );
     }
 
     /**

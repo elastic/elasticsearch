@@ -66,7 +66,6 @@ public class DesiredBalanceService {
 
         if (routingNodes.isEmpty()) {
             return setCurrentDesiredBalance(new DesiredBalance(desiredBalanceInput.index(), Map.of()));
-            // TODO test for this case
         }
 
         // we assume that all ongoing recoveries will complete

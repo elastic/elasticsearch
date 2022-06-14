@@ -110,7 +110,7 @@ public class XPackSettingsTests extends ESTestCase {
                 .stream()
                 .filter(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey()))
                 .toList(),
-            hasSize(Build.CURRENT.isSnapshot() ? 1 : 0)
+            hasSize(1)
         );
     }
 

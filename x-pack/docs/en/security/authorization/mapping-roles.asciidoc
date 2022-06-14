@@ -20,7 +20,7 @@ The PKI, LDAP, AD, Kerberos, OpenID Connect, JWT, and
 SAML realms also support <<authorization_realms,delegated authorization>>.
 You can either map roles for a realm or use delegated authorization; you cannot use both simultaneously.
 
-If you choose role mapping, you will have to create roles and _role-mappings_.
+To use role mapping, you create roles and role mapping rules.
 Role mapping rules can based on realm name, realm type, username, groups,
 other user metadata, or combinations of those values.
 

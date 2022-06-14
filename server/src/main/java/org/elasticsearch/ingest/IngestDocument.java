@@ -83,8 +83,12 @@ public final class IngestDocument {
      * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
      * init time, which makes equality comparisons impossible in tests.
      */
-    public IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = sourceAndMetadata;
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        ZonedDateTime ts = null;
+        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime zdt) {
+            ts = zdt;
+        }
+        this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, ts);
         this.ingestMetadata = ingestMetadata;
     }
 

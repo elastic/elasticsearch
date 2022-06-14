@@ -156,9 +156,9 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType(), equalTo(ScriptType.INLINE));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
-        assertNotNull(processor.getPrecompiledIngestScriptFactory());
+        assertNotNull(processor.getPrecompiledIngestScript());
         Map<String, Object> ctx = new HashMap<>();
-        processor.getPrecompiledIngestScriptFactory().newInstance(null, new IngestSourceAndMetadata(ctx, null)).execute();
+        processor.getPrecompiledIngestScript().execute(new IngestSourceAndMetadata(ctx, null));
         assertThat(ctx.get("foo"), equalTo("bar"));
     }
 
@@ -172,6 +172,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertNull(processor.getScript().getLang());
         assertThat(processor.getScript().getType(), equalTo(ScriptType.STORED));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
-        assertNull(processor.getPrecompiledIngestScriptFactory());
+        assertNull(processor.getPrecompiledIngestScript());
     }
 }

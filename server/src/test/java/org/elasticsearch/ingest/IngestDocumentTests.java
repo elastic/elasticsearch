@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -83,7 +84,7 @@ public class IngestDocumentTests extends ESTestCase {
                 DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray() }
         );
 
-        ingestDocument = new IngestDocument("index", "id", null, 1L, null, document);
+        ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -960,9 +961,9 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+        int numFields = randomIntBetween(1, Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -980,9 +981,9 @@ public class IngestDocumentTests extends ESTestCase {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
         }
         if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+            numFields = randomIntBetween(1, Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                otherSourceAndMetadata.put(randomFrom(Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         }
@@ -1100,11 +1101,11 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testIsMetadata() {
-        assertTrue(IngestDocument.Metadata.isMetadata("_type"));
-        assertTrue(IngestDocument.Metadata.isMetadata("_index"));
-        assertTrue(IngestDocument.Metadata.isMetadata("_version"));
-        assertFalse(IngestDocument.Metadata.isMetadata("name"));
-        assertFalse(IngestDocument.Metadata.isMetadata("address"));
+        assertTrue(Metadata.isMetadata("_type"));
+        assertTrue(Metadata.isMetadata("_index"));
+        assertTrue(Metadata.isMetadata("_version"));
+        assertFalse(Metadata.isMetadata("name"));
+        assertFalse(Metadata.isMetadata("address"));
     }
 
 }

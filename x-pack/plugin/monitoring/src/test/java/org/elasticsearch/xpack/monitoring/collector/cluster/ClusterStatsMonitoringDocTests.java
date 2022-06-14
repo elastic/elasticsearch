@@ -541,6 +541,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
+                    "total_field_count" : 0,
+                    "total_deduplicated_field_count" : 0,
+                    "total_deduplicated_mapping_size_in_bytes" : 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },

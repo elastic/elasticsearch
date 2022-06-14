@@ -62,8 +62,8 @@ performance using this approach.
 
 experimental::[]
 
-To run an approximate kNN search, use the kNN search API to search a
-`dense_vector` field with indexing enabled.
+To run an approximate kNN search, use the <<knn-search-api, kNN search API>>
+to search a `dense_vector` field with indexing enabled.
 
 . Explicitly map one or more `dense_vector` fields. Approximate kNN search
 requires the following mapping options:
@@ -186,7 +186,6 @@ You should only force merge an index if it is no longer being written to.
 <<nested,`nested`>> mapping.
 
 * {blank}
-+
 include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
 [discrete]

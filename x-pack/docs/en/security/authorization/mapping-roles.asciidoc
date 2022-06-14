@@ -4,7 +4,7 @@
 
 Role mapping is supported by all realms except `native` and `file`.
 
-TIP:  Those two realms assign roles directly to users, they do not support role mapping.
+The native and file realms assign roles directly to users.
 Native realms use <<managing-native-users,user management APIs>>.
 File realms use <<roles-management-file,File-based role management>>.
 

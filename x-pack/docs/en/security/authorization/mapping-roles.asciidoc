@@ -27,7 +27,10 @@ other user metadata, or combinations of those values.
 NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
 of the anonymous user are assigned to all the other users as well.
 
-There are two sources of role-mapping rules.
+If there are role-mapping rules created through the API as well as a role mapping file, 
+the rules are combined. 
+It's possible for a single user to have some roles that were mapped through the API, 
+and others assigned based on the role mapping file.
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
 These two sources of role-mapping are combined inside of the {es}

@@ -43,7 +43,7 @@ In other words, they may be able to authenticate, but they will have no roles.
 No roles means no privileges, and no privileges means no authorizations to
 make requests.
 
-When you use role-mappings to assign roles to users, the roles must exist.
+When you use role mappings to assign roles to users, the roles must exist.
 There are two sources of roles.
 The available roles should either be added using the
 <<security-role-apis,role management APIs>> or defined in the

@@ -12,19 +12,11 @@ package org.elasticsearch.monitor;
  * Class that represents the Health status for a node as determined by {@link NodeHealthService} and provides additional
  * info explaining the reasons
  */
-public class StatusInfo {
+public record StatusInfo(Status status, String info) {
 
     public enum Status {
         HEALTHY,
         UNHEALTHY
-    }
-
-    private Status status;
-    private String info;
-
-    public StatusInfo(Status status, String info) {
-        this.status = status;
-        this.info = info;
     }
 
     public String getInfo() {

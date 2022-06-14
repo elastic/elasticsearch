@@ -26,6 +26,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * This class is used to fetch the ClusterFormationState from another node. The ClusterFormationState provides information about why that
+ * node thinks that cluster formation has failed.
+ */
 public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoAction.Response> {
 
     public static final ClusterFormationInfoAction INSTANCE = new ClusterFormationInfoAction();
@@ -56,7 +60,9 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
         @Override
         public boolean equals(Object o) {
             // There are no parameters, so all instances of this class are equal
-            if (this == o) return true;
+            if (this == o) {
+                return true;
+            }
             return o != null && getClass() == o.getClass();
         }
 
@@ -92,8 +98,12 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ClusterFormationInfoAction.Response response = (ClusterFormationInfoAction.Response) o;
             return clusterFormationState.equals(response.clusterFormationState);
         }
@@ -105,7 +115,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
     }
 
     /**
-     * This transport action fetches the MasterHistory from a remote node.
+     * This transport action fetches the ClusterFormationState from a remote node.
      */
     public static class TransportAction extends HandledTransportAction<
         ClusterFormationInfoAction.Request,

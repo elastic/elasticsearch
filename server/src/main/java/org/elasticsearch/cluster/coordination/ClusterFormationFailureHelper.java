@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +33,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -122,10 +120,13 @@ public class ClusterFormationFailureHelper {
         }
     }
 
+    /**
+     * If this node believes that cluster formation has failed, this record provides information that can be used to determine why that is.
+     */
     public record ClusterFormationState(
         List<String> initialMasterNodesSetting,
         DiscoveryNode localNode,
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes,
+        Map<String, DiscoveryNode> masterEligibleNodes,
         long clusterStateVersion,
         long acceptedTerm,
         VotingConfiguration lastAcceptedConfiguration,
@@ -201,7 +202,7 @@ public class ClusterFormationFailureHelper {
             this(
                 in.readStringList(),
                 new DiscoveryNode(in),
-                getMasterEligibleNodes(in),
+                in.readMap(StreamInput::readString, DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),
@@ -222,28 +223,23 @@ public class ClusterFormationFailureHelper {
             );
         }
 
-        private static ImmutableOpenMap<String, DiscoveryNode> getMasterEligibleNodes(StreamInput in) throws IOException {
-            Set<Tuple<String, DiscoveryNode>> masterEligibleNodesSet = in.readSet(
-                streamInput -> new Tuple<>(streamInput.readString(), new DiscoveryNode(streamInput))
-            );
-            ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
-            masterEligibleNodesSet.forEach(tuple -> masterEligibleNodesBuilder.put(tuple.v1(), tuple.v2()));
-            return masterEligibleNodesBuilder.build();
-        }
-
         private static StatusInfo getStatusInfo(StreamInput in) throws IOException {
             String statusName = in.readString();
             String statusInfoString = in.readString();
             return new StatusInfo(StatusInfo.Status.valueOf(statusName), statusInfoString);
         }
 
-        String getDescription() {
+        /**
+         * This method provides a human-readable String describing why cluster formation failed.
+         * @return A human-readable String describing why cluster formation failed
+         */
+        public String getDescription() {
             return getCoordinatorDescription() + getJoinStatusDescription();
         }
 
         private String getCoordinatorDescription() {
-            if (statusInfo.getStatus() == UNHEALTHY) {
-                return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
+            if (statusInfo.status() == UNHEALTHY) {
+                return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.info());
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
@@ -391,10 +387,7 @@ public class ClusterFormationFailureHelper {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
-            out.writeCollection(masterEligibleNodes.entrySet(), (streamOut, entry) -> {
-                streamOut.writeString(entry.getKey());
-                entry.getValue().writeTo(streamOut);
-            });
+            out.writeMap(masterEligibleNodes, StreamOutput::writeString, (streamOutput, node) -> node.writeTo(streamOutput));
             out.writeLong(clusterStateVersion);
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
@@ -403,8 +396,8 @@ public class ClusterFormationFailureHelper {
             out.writeList(foundPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
-            out.writeString(statusInfo.getStatus().name());
-            out.writeString(statusInfo.getInfo());
+            out.writeString(statusInfo.status().name());
+            out.writeString(statusInfo.info());
             out.writeCollection(inFlightJoinStatuses, (streamOut, inFlightJoinStatus) -> {
                 inFlightJoinStatus.remoteNode().writeTo(streamOut);
                 streamOut.writeLong(inFlightJoinStatus.term());
@@ -412,51 +405,6 @@ public class ClusterFormationFailureHelper {
                 streamOut.writeLong(inFlightJoinStatus.age().duration());
                 streamOut.writeString(inFlightJoinStatus.age().timeUnit().name());
             });
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(
-                initialMasterNodesSetting,
-                localNode,
-                masterEligibleNodes,
-                clusterStateVersion,
-                acceptedTerm,
-                lastAcceptedConfiguration,
-                lastCommittedConfiguration,
-                resolvedAddresses,
-                foundPeers,
-                currentTerm,
-                hasDiscoveredQuorum,
-                statusInfo.getStatus(),
-                statusInfo.getInfo(),
-                inFlightJoinStatuses
-            );
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ClusterFormationState that = (ClusterFormationState) o;
-            return clusterStateVersion == that.clusterStateVersion
-                && acceptedTerm == that.acceptedTerm
-                && currentTerm == that.currentTerm
-                && initialMasterNodesSetting.equals(that.initialMasterNodesSetting)
-                && localNode.equals(that.localNode)
-                && masterEligibleNodes.equals(that.masterEligibleNodes)
-                && lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration)
-                && lastCommittedConfiguration.equals(that.lastCommittedConfiguration)
-                && resolvedAddresses.equals(that.resolvedAddresses)
-                && foundPeers.equals(that.foundPeers)
-                && hasDiscoveredQuorum == that.hasDiscoveredQuorum
-                && statusInfo.getStatus().equals(that.statusInfo.getStatus())
-                && statusInfo.getInfo().equals(that.statusInfo.getInfo())
-                && inFlightJoinStatuses.equals(that.inFlightJoinStatuses);
-        }
-
-        public boolean hasDiscoveredQuorum() {
-            return hasDiscoveredQuorum;
         }
     }
 }

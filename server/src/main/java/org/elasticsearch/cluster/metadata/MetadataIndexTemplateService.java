@@ -131,7 +131,7 @@ public class MetadataIndexTemplateService {
             try {
                 final var task = taskContext.getTask();
                 state = task.execute(state);
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

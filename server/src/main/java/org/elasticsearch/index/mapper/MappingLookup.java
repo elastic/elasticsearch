@@ -186,6 +186,22 @@ public final class MappingLookup {
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
+        assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
+    }
+
+    private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
+        mappers.forEach(MappingLookup::assertNamesInterned);
+        objectMappers.forEach(MappingLookup::assertNamesInterned);
+        return true;
+    }
+
+    private static void assertNamesInterned(String name, Mapper mapper) {
+        assert name == name.intern();
+        assert mapper.name() == mapper.name().intern();
+        assert mapper.simpleName() == mapper.simpleName().intern();
+        if (mapper instanceof ObjectMapper) {
+            ((ObjectMapper) mapper).mappers.forEach(MappingLookup::assertNamesInterned);
+        }
     }
 
     /**
@@ -404,9 +420,12 @@ public final class MappingLookup {
         return sfm != null && sfm.enabled();
     }
 
+    /**
+     * Build something to load source {@code _source}.
+     */
     public SourceLoader newSourceLoader() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping.getRoot());
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping);
     }
 
     /**

@@ -211,7 +211,7 @@ public class ClusterFormationFailureHelper {
                 in.readImmutableList(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
-                getStatusInfo(in),
+                readStatusInfo(in),
                 in.readList(
                     in1 -> new JoinStatus(
                         new DiscoveryNode(in1),
@@ -223,7 +223,7 @@ public class ClusterFormationFailureHelper {
             );
         }
 
-        private static StatusInfo getStatusInfo(StreamInput in) throws IOException {
+        private static StatusInfo readStatusInfo(StreamInput in) throws IOException {
             String statusName = in.readString();
             String statusInfoString = in.readString();
             return new StatusInfo(StatusInfo.Status.valueOf(statusName), statusInfoString);
@@ -238,8 +238,8 @@ public class ClusterFormationFailureHelper {
         }
 
         private String getCoordinatorDescription() {
-            if (statusInfo.status() == UNHEALTHY) {
-                return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.info());
+            if (statusInfo.getStatus() == UNHEALTHY) {
+                return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();

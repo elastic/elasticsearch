@@ -103,13 +103,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Restore metadata
      */
-    public record Entry(
-        String uuid,
-        Snapshot snapshot,
-        State state,
-        List<String> indices,
-        Map<ShardId, ShardRestoreStatus> shards
-    ) {
+    public record Entry(String uuid, Snapshot snapshot, State state, List<String> indices, Map<ShardId, ShardRestoreStatus> shards) {
         /**
          * Creates new restore metadata
          *
@@ -119,13 +113,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param indices  list of indices being restored
          * @param shards   map of shards being restored to their current restore status
          */
-        public Entry(
-            String uuid,
-            Snapshot snapshot,
-            State state,
-            List<String> indices,
-            Map<ShardId, ShardRestoreStatus> shards
-        ) {
+        public Entry(String uuid, Snapshot snapshot, State state, List<String> indices, Map<ShardId, ShardRestoreStatus> shards) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.indices = Objects.requireNonNull(indices);
@@ -356,13 +344,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices = in.readImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
-                new Entry(
-                    uuid,
-                    snapshot,
-                    state,
-                    indices,
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
-                )
+                new Entry(uuid, snapshot, state, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus))
             );
         }
         this.entries = Collections.unmodifiableMap(entriesBuilder);

@@ -183,8 +183,8 @@ Optionally, the index settings component template for a TSDS can include:
 backing indices.
 
 IMPORTANT: Don't specify the `index.routing_path` index setting in a component
-template. You must configure `index.routing_path` directly in the index
-template. You'll do this in the following step.
+template. If you choose, you can configure `index.routing_path` directly in the
+index template, as shown in the following step.
 
 [source,console]
 ----
@@ -217,9 +217,11 @@ naming scheme].
 
 * A `data_stream` object with an `index_mode` of `time_series`.
 
-* The `index.routing_path` index setting. The setting value should only match
-plain `keyword` dimension fields. You must configure this setting directly in
-the index template.
+* Optional: The `index.routing_path` index setting. The setting value should
+only match plain `keyword` dimension fields and should be set directly in the
+index template. When not defined explicitly, the `index.routing_path` setting is
+generated from the mapping using all mappings that are set with
+`time_series_dimension` set to `true`.
 
 * The component templates containing your mappings and other index settings.
 
@@ -268,7 +270,9 @@ Documents in a TSDS must include:
 
 * A `@timestamp` field
 * One or more dimension fields. At least one dimension must be a `keyword` field
-that matches the `index.routing_path` index setting.
+that matches the `index.routing_path` index setting, if specified. If not specified
+explicitly, `index.routing_path` is set automatically to whichever mappings have
+ `time_series_dimension` set to `true`.
 
 To automatically create your TSDS, submit an indexing request that
 targets the TSDS's name. This name must match one of your index template's

@@ -92,7 +92,8 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
         createIndexWithSettings(
             client(),
@@ -159,7 +160,8 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
         createIndexWithSettings(
             client(),
@@ -168,13 +170,15 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
         createIndexWithSettings(
             client(),
             unmanagedIndex,
             alias + unmanagedIndex,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
+            null
         );
         String missingPolicyName = "missing_policy_";
         createIndexWithSettings(
@@ -184,7 +188,8 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName)
+                .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName),
+            null
         );
 
         assertBusy(() -> {

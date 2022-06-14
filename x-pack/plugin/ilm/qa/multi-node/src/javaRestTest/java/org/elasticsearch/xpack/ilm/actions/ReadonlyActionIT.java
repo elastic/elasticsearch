@@ -54,7 +54,8 @@ public class ReadonlyActionIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
+            null
         );
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new ReadOnlyAction());
@@ -92,7 +93,8 @@ public class ReadonlyActionIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
         index(client(), originalIndex, "_id", "foo", "bar");
 

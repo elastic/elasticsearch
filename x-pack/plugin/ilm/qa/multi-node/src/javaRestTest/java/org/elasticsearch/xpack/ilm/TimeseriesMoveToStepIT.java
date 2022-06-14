@@ -66,7 +66,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.include._name", "javaRestTest-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            null
         );
 
         // move to a step
@@ -104,7 +105,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.include._name", "javaRestTest-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            null
         );
 
         // move to a step
@@ -152,7 +154,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            null
         );
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(new StepKey("new", "complete", "complete"))));
@@ -202,6 +205,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            null,
             true
         );
 
@@ -248,7 +252,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
 
         // move to a step
@@ -290,7 +295,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
 
         // move to a step
@@ -327,7 +333,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
 
         // move to a step
@@ -363,7 +370,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
 
         // move to a step with an invalid request
@@ -399,7 +407,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            null
         );
 
         // move to a step with an invalid request

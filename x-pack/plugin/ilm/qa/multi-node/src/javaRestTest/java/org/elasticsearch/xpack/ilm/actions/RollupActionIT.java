@@ -9,14 +9,22 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
@@ -26,7 +34,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
@@ -43,15 +53,18 @@ public class RollupActionIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
         logger.info("--> running [{}] with index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
+    }
 
-        Settings settings = Settings.builder()
+    private void createIndex(String index, String alias) throws IOException {
+        Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("dim_field1"))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-            .build();
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy);
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
@@ -70,11 +83,14 @@ public class RollupActionIT extends ESRestTestCase {
             .endObject()
             .endObject();
         String mapping = Strings.toString(builder);
-        ESRestTestCase.createIndex(client(), index, settings, mapping, null);
-        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+
+        createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
     public void testRollupIndex() throws Exception {
+        createIndex(index, alias);
+        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+
         RollupActionConfig rollupConfig = RollupActionConfigTests.randomConfig();
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(rollupConfig));
@@ -82,20 +98,66 @@ public class RollupActionIT extends ESRestTestCase {
 
         assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)));
         String rollupIndex = getRollupIndexName(index);
-        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)));
-        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)));
+        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)), 30, TimeUnit.SECONDS);
     }
 
-    // public void testRollupIndexInTheHotPhase() throws Exception {
-    // RollupActionConfig rollupConfig = RollupActionConfigTests.randomConfig();
-    // createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(rollupConfig));
-    // updatePolicy(client(), index, policy);
-    //
-    // assertBusy(() -> assertNotNull(getRollupIndexName(index)));
-    // String rollupIndex = getRollupIndexName(index);
-    // assertTrue(indexExists(rollupIndex));
-    // assertFalse(indexExists(index));
-    // }
+    public void testRollupIndexInTheHotPhase() throws Exception {
+        createIndex(index, alias);
+        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+        RollupActionConfig rollupConfig = RollupActionConfigTests.randomConfig();
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(rollupConfig))
+        );
+        assertTrue(
+            e.getMessage().contains("the [rollup] action(s) may not be used in the [hot] phase without an accompanying [rollover] action")
+        );
+    }
+
+    public void testRollupIndexInTheHotPhaseAfterRollover() throws Exception {
+        String originalIndex = index + "-000001";
+
+        // add a policy
+        Map<String, LifecycleAction> hotActions = Map.of(
+            RolloverAction.NAME,
+            new RolloverAction(null, null, null, 1L, null),
+            RollupILMAction.NAME,
+            new RollupILMAction(RollupActionConfigTests.randomConfig())
+        );
+        Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        client().performRequest(createPolicyRequest);
+
+        // and a template
+        Request createTemplateRequest = new Request("PUT", "_template/" + index);
+        createTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": ["%s-*"],
+              "settings": {
+                "number_of_shards": %s,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(index, 1, policy, alias));
+        createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+        client().performRequest(createTemplateRequest);
+
+        // then create the index and index a document to trigger rollover
+        createIndex(originalIndex, alias);
+        index(client(), originalIndex, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+
+        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(originalIndex)), 30, TimeUnit.SECONDS);
+        String rollupIndex = getRollupIndexName(originalIndex);
+
+        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(originalIndex)), 30, TimeUnit.SECONDS);
+        // assertBusy(() -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+    }
 
     /**
      * gets the generated rollup index name for a given index by looking at newly created indices that match the rollup index name pattern

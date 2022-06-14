@@ -287,9 +287,9 @@ public final class TimeSeriesRestDriver {
         }
     }
 
-    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings, String mapping)
         throws IOException {
-        createIndexWithSettings(client, index, alias, settings, randomBoolean());
+        createIndexWithSettings(client, index, alias, settings, mapping, randomBoolean());
     }
 
     public static void createIndexWithSettings(
@@ -297,6 +297,7 @@ public final class TimeSeriesRestDriver {
         String index,
         String alias,
         Settings.Builder settings,
+        String mapping,
         boolean useWriteIndex
     ) throws IOException {
         Request request = new Request("PUT", "/" + index);
@@ -305,11 +306,13 @@ public final class TimeSeriesRestDriver {
         if (useWriteIndex) {
             writeIndexSnippet = "\"is_write_index\": true";
         }
+        String m = mapping != null ? "\"mappings\": %s, ".formatted(mapping) : "";
         request.setJsonEntity("""
             {
              "settings": %s,
+             %s
              "aliases" : { "%s": { %s } }
-            }""".formatted(Strings.toString(settings.build()), alias, writeIndexSnippet));
+            }""".formatted(Strings.toString(settings.build()), m, alias, writeIndexSnippet));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

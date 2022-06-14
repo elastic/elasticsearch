@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -50,6 +49,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -173,22 +173,16 @@ public class SystemIndices {
                     .stream()
                     // The below filter & map are inside the enclosing flapMap so that we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
-                    .map(
-                        descriptor -> new ParameterizedMessage(
-                            "pattern [{}] from feature [{}]",
-                            descriptor.getIndexPattern(),
-                            feature.getName()
-                        ).getFormattedMessage()
-                    )
+                    .map(descriptor -> format("pattern [%s] from feature [%s]", descriptor.getIndexPattern(), feature.getName()))
             )
             .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
-                new ParameterizedMessage(
-                    "the following system index patterns do not allow suffix [{}] required to allow upgrades: [{}]",
+                format(
+                    "the following system index patterns do not allow suffix [%s] required to allow upgrades: [%s]",
                     UPGRADED_INDEX_SUFFIX,
                     descriptorsWithNoRoomForSuffix
-                ).getFormattedMessage()
+                )
             );
         }
     }

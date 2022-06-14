@@ -15,9 +15,9 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
@@ -39,34 +39,14 @@ class Elasticsearch {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) {
-        overrideDnsCachePolicyProperties();
-        org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
-        /*
-         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
-         * forces such policies to take effect immediately.
-         */
-        org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-
-            @Override
-            public void checkPermission(Permission perm) {
-                // grant all permissions so that we can later set the security manager to the one that we want
-            }
-
-        });
-        LogConfigurator.registerErrorListener();
-
-        final Elasticsearch elasticsearch = new Elasticsearch();
         PrintStream out = getStdout();
         PrintStream err = getStderr();
         try {
-            final var in = new InputStreamStreamInput(System.in);
-            final ServerArgs serverArgs = new ServerArgs(in);
+            final ServerArgs serverArgs = initPhase1();
             initPidFile(serverArgs.pidFile());
-            elasticsearch.init(
-                serverArgs.daemonize(),
-                serverArgs.quiet(),
+            Bootstrap.init(
+                serverArgs.daemonize() == false,
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword(),
                 serverArgs.pidFile()
@@ -102,7 +82,8 @@ class Elasticsearch {
             Logger logger = LogManager.getLogger(Elasticsearch.class);
             logger.error("fatal exception while booting Elasticsearch", e);
         }
-        e.printStackTrace(err);
+        // format exceptions to the console in a special way to avoid 2MB stacktraces from guice, etc.
+        StartupException.printStackTrace(e, err);
         gracefullyExit(err, 1); // mimic JDK exit code on exception
     }
 
@@ -126,6 +107,48 @@ class Elasticsearch {
     @SuppressForbidden(reason = "main exit path")
     private static void exit(int exitCode) {
         System.exit(exitCode);
+    }
+
+    /**
+     * First phase of process initialization.
+     *
+     * <p> Phase 1 consists of some static initialization, reading args from the CLI process, and
+     * finally initializing logging. As little as possible should be done in this phase because
+     * initializing logging is the last step.
+     */
+    private static ServerArgs initPhase1() throws IOException, UserException {
+        initSecurityProperties();
+
+        /*
+         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
+         * forces such policies to take effect immediately.
+         */
+        org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
+            @Override
+            public void checkPermission(Permission perm) {
+                // grant all permissions so that we can later set the security manager to the one that we want
+            }
+        });
+        LogConfigurator.registerErrorListener();
+
+        BootstrapInfo.init();
+
+        // note that reading server args does *not* close System.in, as it will be read from later for shutdown notification
+        var in = new InputStreamStreamInput(System.in);
+        var args = new ServerArgs(in);
+
+        // mostly just paths are used in phase 1, so secure settings are not needed
+        Environment nodeEnv = new Environment(args.nodeSettings(), args.configDir());
+
+        BootstrapInfo.setConsole(ConsoleLoader.loadConsole(nodeEnv));
+
+        // DO NOT MOVE THIS
+        // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
+        LogConfigurator.configure(nodeEnv, args.quiet() == false);
+
+        return args;
     }
 
     /**
@@ -200,7 +223,7 @@ class Elasticsearch {
         Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
     }
 
-    private static void overrideDnsCachePolicyProperties() {
+    private static void initSecurityProperties() {
         for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
             final String overrideValue = System.getProperty(overrideProperty);
@@ -213,16 +236,8 @@ class Elasticsearch {
                 }
             }
         }
-    }
 
-    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword, Path pidFile)
-        throws NodeValidationException, UserException {
-        try {
-            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword, pidFile);
-        } catch (BootstrapException | RuntimeException e) {
-            // format exceptions to the console in a special way
-            // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupException(e);
-        }
+        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
+        Security.setProperty("policy.expandProperties", "true");
     }
 }

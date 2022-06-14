@@ -40,8 +40,8 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -394,19 +394,6 @@ public class Node implements Closeable {
              */
             this.environment = new Environment(settings, initialEnvironment.configFile());
             Environment.assertEquivalent(initialEnvironment, this.environment);
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info(
-                "node name [{}], node ID [{}], cluster name [{}], roles {}",
-                NODE_NAME_SETTING.get(tmpSettings),
-                nodeEnvironment.nodeId(),
-                ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
-                DiscoveryNode.getRolesFromSettings(settings)
-                    .stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toCollection(LinkedHashSet::new))
-            );
-            resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toList();
 
@@ -445,6 +432,23 @@ public class Node implements Closeable {
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
                 settingsUpgraders
             );
+
+            // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
+            // after settings validation.
+            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            logger.info(
+                "node name [{}], node ID [{}], cluster name [{}], roles {}",
+                NODE_NAME_SETTING.get(tmpSettings),
+                nodeEnvironment.nodeId(),
+                ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+                DiscoveryNode.getRolesFromSettings(settings)
+                    .stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toCollection(LinkedHashSet::new))
+            );
+            resourcesToClose.add(nodeEnvironment);
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
+
             ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
@@ -1030,7 +1034,7 @@ public class Node implements Closeable {
         MasterHistoryService masterHistoryService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new InstanceHasMasterHealthIndicatorService(clusterService)
+            new StableMasterHealthIndicatorService(clusterService, masterHistoryService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),
@@ -1042,8 +1046,7 @@ public class Node implements Closeable {
             .toList();
         return new HealthService(
             preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            clusterService
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices)
         );
     }
 

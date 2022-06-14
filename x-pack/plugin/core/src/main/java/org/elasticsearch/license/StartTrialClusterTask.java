@@ -74,10 +74,8 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         );
         if (request.isAcknowledged() == false) {
             taskContext.success(
-                listener.delegateFailure(
-                    (l, s) -> l.onResponse(
-                        new PostStartTrialResponse(PostStartTrialResponse.Status.NEED_ACKNOWLEDGEMENT, ACK_MESSAGES, ACKNOWLEDGEMENT_HEADER)
-                    )
+                () -> listener.onResponse(
+                    new PostStartTrialResponse(PostStartTrialResponse.Status.NEED_ACKNOWLEDGEMENT, ACK_MESSAGES, ACKNOWLEDGEMENT_HEADER)
                 )
             );
             return currentLicensesMetadata;
@@ -98,17 +96,11 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             }
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, discoveryNodes);
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, Version.CURRENT);
-            taskContext.success(
-                listener.delegateFailure(
-                    (delegate, ignored) -> delegate.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL))
-                )
-            );
+            taskContext.success(() -> listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL)));
             return newLicensesMetadata;
         } else {
             taskContext.success(
-                listener.delegateFailure(
-                    (l, s) -> l.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED))
-                )
+                () -> listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED))
             );
             return currentLicensesMetadata;
         }

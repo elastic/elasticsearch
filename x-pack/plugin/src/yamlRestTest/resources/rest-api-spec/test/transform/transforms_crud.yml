@@ -508,6 +508,42 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
+---
+"Test put config with invalid number of failure retries":
+  - do:
+      catch: /settings\.num_failure_retries \[-2\] is out of range. The minimum value is -1 \(infinity\) and the maximum is 100/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "num_failure_retries": -2
+            }
+          }
+  - do:
+      catch: /settings\.num_failure_retries \[101\] is out of range. The minimum value is -1 \(infinity\) and the maximum is 100/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "num_failure_retries": 101
+            }
+          }
+
 ---
 "Test creation failures due to duplicate and conflicting field names":
   - do:

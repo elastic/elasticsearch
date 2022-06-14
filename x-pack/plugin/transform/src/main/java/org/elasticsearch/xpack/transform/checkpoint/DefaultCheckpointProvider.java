@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -235,12 +235,13 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
                             for (int i = 0; i < response.getShardFailures().length; ++i) {
+                                int shardNo = i;
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "Source has [{}] failed shards, shard failure [{}]",
+                                    () -> Strings.format(
+                                        "Source has [%s] failed shards, shard failure [%s]",
                                         response.getFailedShards(),
-                                        i
-                                    ).getFormattedMessage(),
+                                        shardNo
+                                    ),
                                     response.getShardFailures()[i]
                                 );
                             }

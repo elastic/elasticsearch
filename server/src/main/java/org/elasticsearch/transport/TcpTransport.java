@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -700,8 +699,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                        new ParameterizedMessage(
-                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                        () -> format(
+                            "close connection exception caught on transport layer [%s], disconnecting from relevant node",
                             channel
                         ),
                         e

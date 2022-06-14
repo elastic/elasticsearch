@@ -32,3 +32,106 @@ keyword:
   - match:
       hits.hits.0._source:
         kwd: foo
+
+---
+force_synthetic_source_ok:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              synthetic: false
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          obj.kwd: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        obj.kwd: foo
+
+  # When we force synthetic source dots in field names get turned into objects
+  - do:
+      search:
+        index: test
+        force_synthetic_source: true
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        obj:
+          kwd: foo
+
+---
+force_synthetic_source_bad_mapping:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1 # Use a single shard to get consistent error messages
+          mappings:
+            _source:
+              synthetic: false
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        text: foo
+
+  # Forcing synthetic source fails because the mapping is invalid
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        force_synthetic_source: true
+        body:
+          query:
+            ids:
+              values: [1]

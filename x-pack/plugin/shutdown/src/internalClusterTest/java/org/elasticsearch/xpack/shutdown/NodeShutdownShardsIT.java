@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -568,11 +568,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow(
                 () -> new AssertionError(
-                    new ParameterizedMessage(
-                        "could not find a primary shard of index [{}] in list of started shards [{}]",
-                        indexName,
-                        startedShards
-                    )
+                    Strings.format("could not find a primary shard of index [%s] in list of started shards [%s]", indexName, startedShards)
                 )
             );
     }

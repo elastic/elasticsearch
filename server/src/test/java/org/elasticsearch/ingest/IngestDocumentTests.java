@@ -83,7 +83,7 @@ public class IngestDocumentTests extends ESTestCase {
                 DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray() }
         );
 
-        ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        ingestDocument = new IngestDocument("index", "id", null, 1L, null, document);
     }
 
     public void testSimpleGetFieldValue() {

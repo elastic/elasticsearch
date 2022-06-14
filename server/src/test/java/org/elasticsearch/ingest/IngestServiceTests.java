@@ -1143,16 +1143,16 @@ public class IngestServiceTests extends ESTestCase {
         final long ifPrimaryTerm = randomNonNegativeLong();
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
-            for (IngestDocument.Metadata metadata : IngestDocument.Metadata.values()) {
-                if (metadata == IngestDocument.Metadata.VERSION) {
+            for (IngestSourceAndMetadata.Metadata metadata : IngestSourceAndMetadata.Metadata.values()) {
+                if (metadata == IngestSourceAndMetadata.Metadata.VERSION) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), newVersion);
-                } else if (metadata == IngestDocument.Metadata.VERSION_TYPE) {
+                } else if (metadata == IngestSourceAndMetadata.Metadata.VERSION_TYPE) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), versionType);
-                } else if (metadata == IngestDocument.Metadata.IF_SEQ_NO) {
+                } else if (metadata == IngestSourceAndMetadata.Metadata.IF_SEQ_NO) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
-                } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
+                } else if (metadata == IngestSourceAndMetadata.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
-                } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
+                } else if (metadata == IngestSourceAndMetadata.Metadata.DYNAMIC_TEMPLATES) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());

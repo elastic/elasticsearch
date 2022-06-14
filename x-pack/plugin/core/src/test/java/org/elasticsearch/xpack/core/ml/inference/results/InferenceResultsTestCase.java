@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,7 +26,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+            IngestDocument document = new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), null), new HashMap<>());
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();
@@ -45,7 +46,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+            IngestDocument document = new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), null), new HashMap<>());
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();
@@ -55,8 +56,8 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             InferenceResults.writeResult(inferenceResult, document, parentField, modelId);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                Map<IngestDocument.Metadata, Object> metadataMap = document.getMetadata();
-                for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
+                Map<IngestSourceAndMetadata.Metadata, Object> metadataMap = document.getMetadata();
+                for (Map.Entry<IngestSourceAndMetadata.Metadata, Object> metadata : metadataMap.entrySet()) {
                     if (metadata.getValue() != null) {
                         builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
                     }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -41,9 +42,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+        int numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -61,9 +62,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
         }
         if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+            numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                otherSourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         }
@@ -101,9 +102,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
     public void testSerialization() throws IOException {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+        int numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -137,8 +138,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
-        for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
+        Map<IngestSourceAndMetadata.Metadata, Object> metadataMap = ingestDocument.getSourceAndMetadata().extractMetadata();
+        for (Map.Entry<IngestSourceAndMetadata.Metadata, Object> metadata : metadataMap.entrySet()) {
             String fieldName = metadata.getKey().getFieldName();
             if (metadata.getValue() == null) {
                 assertThat(toXContentDoc.containsKey(fieldName), is(false));

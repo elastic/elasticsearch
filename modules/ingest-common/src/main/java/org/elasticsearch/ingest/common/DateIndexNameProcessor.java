@@ -28,6 +28,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
+
 public final class DateIndexNameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date_index_name";
@@ -103,7 +105,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             .append('}')
             .append('>');
         String dynamicIndexName = builder.toString();
-        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), dynamicIndexName);
+        ingestDocument.setFieldValue(Metadata.INDEX.getFieldName(), dynamicIndexName);
         return ingestDocument;
     }
 

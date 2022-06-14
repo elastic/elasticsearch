@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -55,7 +56,9 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
             sourceAndMetadata.putAll((Map<String, Object>) a[5]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[6]));
+            return new WriteableIngestDocument(
+                new IngestDocument(new IngestSourceAndMetadata(sourceAndMetadata, null), (Map<String, Object>) a[6])
+            );
         }
     );
     static {
@@ -89,7 +92,11 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+        ZonedDateTime ts = null;
+        if (ingestMetadata.get(IngestDocument.TIMESTAMP)instanceof ZonedDateTime zdt) {
+            ts = zdt;
+        }
+        this.ingestDocument = new IngestDocument(new IngestSourceAndMetadata(sourceAndMetadata, ts), ingestMetadata);
     }
 
     @Override
@@ -105,8 +112,8 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(DOC_FIELD);
-        Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.getMetadata();
-        for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
+        Map<Metadata, Object> metadataMap = ingestDocument.getMetadata();
+        for (Map.Entry<Metadata, Object> metadata : metadataMap.entrySet()) {
             if (metadata.getValue() != null) {
                 builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
             }

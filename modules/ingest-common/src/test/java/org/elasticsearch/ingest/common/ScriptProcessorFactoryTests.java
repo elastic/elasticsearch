@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -155,9 +156,9 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType(), equalTo(ScriptType.INLINE));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
-        assertNotNull(processor.getPrecompiledIngestScript());
+        assertNotNull(processor.getPrecompiledIngestScriptFactory());
         Map<String, Object> ctx = new HashMap<>();
-        processor.getPrecompiledIngestScript().execute(ctx);
+        processor.getPrecompiledIngestScriptFactory().newInstance(null, new IngestSourceAndMetadata(ctx, null)).execute();
         assertThat(ctx.get("foo"), equalTo("bar"));
     }
 
@@ -171,6 +172,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertNull(processor.getScript().getLang());
         assertThat(processor.getScript().getType(), equalTo(ScriptType.STORED));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
-        assertNull(processor.getPrecompiledIngestScript());
+        assertNull(processor.getPrecompiledIngestScriptFactory());
     }
 }

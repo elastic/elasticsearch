@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -375,7 +376,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                 (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
+                        ingestDocument.setFieldValue(IngestSourceAndMetadata.Metadata.INDEX.getFieldName(), "target");
                         return ingestDocument;
                     }
 

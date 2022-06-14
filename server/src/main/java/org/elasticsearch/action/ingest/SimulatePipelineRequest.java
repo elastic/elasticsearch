@@ -20,7 +20,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,6 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);

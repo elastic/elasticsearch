@@ -103,7 +103,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
      * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
      * existing REST based code for input parsing.
      *
-     * @config XContentParserConfiguration for this mapper
+     * @param config XContentParserConfiguration for this mapper
      * @param source the operator content as a map
      * @return
      */

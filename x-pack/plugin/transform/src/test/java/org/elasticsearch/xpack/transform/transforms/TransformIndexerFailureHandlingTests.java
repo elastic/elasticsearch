@@ -309,7 +309,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null, null),
             null,
             null,
             null,
@@ -384,7 +384,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null, null),
             null,
             null,
             null,
@@ -448,7 +448,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null, null),
             null,
             null,
             null,
@@ -831,6 +831,93 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
         auditor.assertAllExpectationsMatched();
         assertEquals(0, context.getFailureCount());
+    }
+
+    public void testHandleFailure() {
+        testHandleFailure(0, 5, 0);
+        testHandleFailure(5, 0, 5);
+        testHandleFailure(3, 5, 3);
+        testHandleFailure(5, 3, 5);
+        testHandleFailure(0, null, 0);
+        testHandleFailure(3, null, 3);
+        testHandleFailure(5, null, 5);
+        testHandleFailure(7, null, 7);
+        testHandleFailure(Transform.DEFAULT_FAILURE_RETRIES, null, Transform.DEFAULT_FAILURE_RETRIES);
+        testHandleFailure(null, 0, 0);
+        testHandleFailure(null, 3, 3);
+        testHandleFailure(null, 5, 5);
+        testHandleFailure(null, 7, 7);
+        testHandleFailure(null, Transform.DEFAULT_FAILURE_RETRIES, Transform.DEFAULT_FAILURE_RETRIES);
+        testHandleFailure(null, null, Transform.DEFAULT_FAILURE_RETRIES);
+    }
+
+    private void testHandleFailure(
+        Integer configNumFailureRetries,
+        Integer contextNumFailureRetries,
+        int expectedEffectiveNumFailureRetries
+    ) {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig.Builder().setId(transformId)
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("time", TimeSyncConfig.DEFAULT_DELAY))
+            .setPivotConfig(randomPivotConfig())
+            .setSettings(new SettingsConfig.Builder().setNumFailureRetries(configNumFailureRetries).build())
+            .build();
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = request -> mock(SearchResponse.class);
+        Function<BulkRequest, BulkResponse> bulkFunction = request -> mock(BulkResponse.class);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        if (contextNumFailureRetries != null) {
+            context.setNumFailureRetries(contextNumFailureRetries);
+        }
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        for (int i = 0; i <= expectedEffectiveNumFailureRetries; ++i) {
+            indexer.handleFailure(new Exception("exception no. " + (i + 1)));
+            assertFalse(failIndexerCalled.get());
+            assertThat(failureMessage.get(), is(nullValue()));
+            assertThat(context.getFailureCount(), is(equalTo(i + 1)));
+        }
+        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 2)));
+        assertTrue(failIndexerCalled.get());
+        assertThat(
+            failureMessage.get(),
+            is(
+                equalTo(
+                    "task encountered more than "
+                        + expectedEffectiveNumFailureRetries
+                        + " failures; latest failure: exception no. "
+                        + (expectedEffectiveNumFailureRetries + 2)
+                )
+            )
+        );
+        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 2)));
+
+        auditor.assertAllExpectationsMatched();
     }
 
     private MockedTransformIndexer createMockIndexer(

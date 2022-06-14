@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 // TODO implement better diffable logic so that whole diff does not need to be serialized if only one part changes
@@ -199,6 +200,17 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
     public Instant getStartTime() {
         return startTime;
+    }
+
+    public boolean isSatisfied(Set<String> assignableNodeIds) {
+        int allocations = nodeRoutingTable
+            .entrySet()
+            .stream()
+            .filter(e -> assignableNodeIds.contains(e.getKey()))
+            .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED))
+            .mapToInt(e -> e.getValue().getTargetAllocations())
+            .sum();
+        return allocations >= taskParams.getNumberOfAllocations();
     }
 
     @Override

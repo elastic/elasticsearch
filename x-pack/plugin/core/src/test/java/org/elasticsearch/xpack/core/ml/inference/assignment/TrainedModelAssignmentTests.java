@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -18,12 +18,9 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskPar
 import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -202,38 +199,43 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-3"), selectionCount, 3.0 / 6.0, 0.2);
     }
 
-    public void testSelectRandomStartedNodeVersionedBefore() {
+    public void testIsSatisfied_GivenEnoughAllocations() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
-        builder.addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
-        builder.addRoutingEntry("node-2", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
-        builder.addRoutingEntry("node-3", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
-        builder.addRoutingEntry("node-4", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
-        builder.addRoutingEntry("node-5", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
-        builder.addRoutingEntry(
-            "node-6",
-            new RoutingInfo(0, 0, randomFrom(RoutingState.STARTING, RoutingState.STOPPING, RoutingState.STOPPED, RoutingState.FAILED), "")
-        );
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
+        assertThat(assignment.isSatisfied(Sets.newHashSet("node-1", "node-2", "node-3")), is(true));
+    }
 
-        Function<String, Optional<Version>> nodeIdToVersion = nodeId -> {
-            if (nodeId.equals("node-4")) {
-                return Optional.of(Version.V_8_4_0);
-            } else if (nodeId.equals("node-5")) {
-                return Optional.empty();
-            } else {
-                return Optional.of(Version.V_8_3_0);
-            }
-        };
+    public void testIsSatisfied_GivenEnoughAllocations_ButOneNodeIsNotAssignable() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
+        TrainedModelAssignment assignment = builder.build();
+        assertThat(assignment.isSatisfied(Sets.newHashSet("node-2", "node-3")), is(false));
+    }
 
-        final long selectionCount = 1000;
-        Set<String> selectedNodes = new HashSet<>();
-        for (int i = 0; i < selectionCount; i++) {
-            Optional<String> selectedNode = assignment.selectRandomStartedNodeVersionedBefore(nodeIdToVersion, Version.V_8_4_0);
-            assertThat(selectedNode.isPresent(), is(true));
-            selectedNodes.add(selectedNode.get());
-        }
+    public void testIsSatisfied_GivenEnoughAllocations_ButOneNodeIsNeitherStartingNorStarted() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
+        builder.addRoutingEntry(
+            "node-1",
+            new RoutingInfo(1, 1, randomFrom(RoutingState.FAILED, RoutingState.STOPPING, RoutingState.STOPPED), "")
+        );
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
+        TrainedModelAssignment assignment = builder.build();
+        assertThat(assignment.isSatisfied(Sets.newHashSet("node-1", "node-2", "node-3")), is(false));
+    }
 
-        assertThat(selectedNodes, contains("node-1", "node-2", "node-3"));
+    public void testIsSatisfied_GivenNotEnoughAllocations() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(7));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
+        TrainedModelAssignment assignment = builder.build();
+        assertThat(assignment.isSatisfied(Sets.newHashSet("node-1", "node-2", "node-3")), is(false));
     }
 
     private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double tolerance) {

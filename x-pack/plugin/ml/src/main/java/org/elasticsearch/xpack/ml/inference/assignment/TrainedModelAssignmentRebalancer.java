@@ -70,14 +70,7 @@ class TrainedModelAssignmentRebalancer {
     private boolean areAllModelsSatisfied() {
         Set<String> assignableNodeIds = nodeLoads.keySet().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         for (TrainedModelAssignment model : currentMetadata.modelAssignments().values()) {
-            int allocations = model.getNodeRoutingTable()
-                .entrySet()
-                .stream()
-                .filter(e -> assignableNodeIds.contains(e.getKey()))
-                .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED))
-                .mapToInt(e -> e.getValue().getTargetAllocations())
-                .sum();
-            if (allocations < model.getTaskParams().getNumberOfAllocations()) {
+            if (model.isSatisfied(assignableNodeIds) == false) {
                 return false;
             }
         }

@@ -126,11 +126,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     }
 
     public int getRemainingNodeCores(String nodeId) {
-        return remainingNodeCores.get(nodeId);
+        return remainingNodeCores.getOrDefault(nodeId, 0);
     }
 
     public long getRemainingNodeMemory(String nodeId) {
-        return remainingNodeMemory.get(nodeId);
+        return remainingNodeMemory.getOrDefault(nodeId, 0L);
     }
 
     private Quality computeQuality() {

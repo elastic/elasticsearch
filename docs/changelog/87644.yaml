@@ -1,0 +1,5 @@
+pr: 87644
+summary: Check earlier for nested type with disabled subobjects while parsing doc
+area: Mapping
+type: enhancement
+issues: []

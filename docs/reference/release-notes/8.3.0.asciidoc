@@ -12,6 +12,7 @@ Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 Aggregations::
 * Allow `serial_diff` under `min_doc_count` aggs {es-pull}86401[#86401]
 * Allow bucket paths to specify `_count` within a bucket {es-pull}85720[#85720]
+* Fix a bug with flattened fields in terms aggregations {es-pull}87392[#87392]
 * Fix flaky `top_metrics` test {es-pull}86582[#86582] (issue: {es-issue}86377[#86377])
 * Fix: check field existence before trying to merge running stats {es-pull}86926[#86926]
 * Fix: ordering terms aggregation on top metrics null values {es-pull}85774[#85774]
@@ -44,6 +45,7 @@ Distributed::
 * Enforce external id uniqueness during `DesiredNode` construction {es-pull}84227[#84227]
 
 Engine::
+* Fork to WRITE thread before failing shard in `updateCheckPoints` {es-pull}87458[#87458] (issue: {es-issue}87094[#87094])
 * Removing Blocking Wait for Close in `RecoverySourceHandler` {es-pull}86127[#86127] (issue: {es-issue}85839[#85839])
 
 Features::
@@ -73,6 +75,9 @@ Infra/Core::
 Infra/Logging::
 * Temporarily provide `SystemPropertiesPropertySource` {es-pull}87149[#87149]
 
+Infra/Node Lifecycle::
+* Upgrade folders after settings validation {es-pull}87319[#87319]
+
 Infra/Plugins::
 * Use Windows newlines when listing plugin information on Windows {es-pull}86408[#86408] (issue: {es-issue}86352[#86352])
 
@@ -82,6 +87,7 @@ Infra/REST API::
 Infra/Scripting::
 * Allow to sort by script value using `SemVer` semantics {es-pull}85990[#85990] (issues: {es-issue}85989[#85989], {es-issue}82287[#82287])
 * Script: Fix setter shortcut for unbridged setters {es-pull}86868[#86868]
+* Script: Load Whitelists as Resource {es-pull}87539[#87539]
 
 Infra/Settings::
 * Permit removal of archived index settings {es-pull}86107[#86107]
@@ -97,15 +103,23 @@ License::
 
 Machine Learning::
 * Fix ML task auditor exception early in cluster lifecycle {es-pull}87023[#87023] (issue: {es-issue}87002[#87002])
+* Fix `WordPiece` tokenization of unknown words with known subwords {es-pull}87510[#87510]
 * Fix distribution change check for `change_point` aggregation {es-pull}86423[#86423]
+* Fixes inference timeout handling bug that throws unexpected `NullPointerException` {es-pull}87533[#87533]
 * Correct logic for restart from failover fine tuning hyperparameters for training classification and regression models {ml-pull}2251[#2251]
 * Fix possible source of "x = NaN, distribution = class   boost::math::normal_distribution<..." log errors training classification and regression models {ml-pull}2249[#2249]
 * Fix some bugs affecting decision to stop optimizing hyperparameters for training classification and regression models {ml-pull}2259[#2259]
 * Fix cause of "Must provide points at which to evaluate function" log error training classification and regression models {ml-pull}2268[#2268]
 * Fix a source of "Discarding sample = nan, weights = ..." log errors for time series anomaly detection {ml-pull}2286[#2286]
 
+Mapping::
+* Don't run `include_in_parent` when in `copy_to` context {es-pull}87123[#87123] (issue: {es-issue}87036[#87036])
+
 Network::
 * Reject `openConnection` attempt while closing {es-pull}86315[#86315] (issue: {es-issue}86249[#86249])
+
+Recovery::
+* Fail shard if STARTED after master failover {es-pull}87451[#87451] (issue: {es-issue}87367[#87367])
 
 SQL::
 * Fix FORMAT function to comply with Microsoft SQL Server specification {es-pull}86225[#86225] (issue: {es-issue}66560[#66560])
@@ -120,6 +134,7 @@ Search::
 
 Security::
 * Make user and role name constraint consistent with max document ID {es-pull}86728[#86728] (issue: {es-issue}66020[#66020])
+* Security plugin close releasable realms {es-pull}87429[#87429] (issue: {es-issue}86286[#86286])
 
 Snapshot/Restore::
 * DONE should mean fully processed in snapshot status {es-pull}86414[#86414]
@@ -189,6 +204,7 @@ Geo::
 Health::
 * Add a basic check for tier preference and allocation filter clashing {es-pull}85071[#85071]
 * Add preflight checks to Health API to ensure health is obtainable {es-pull}86404[#86404]
+* Add tier information on health api migrate tiers user actions {es-pull}87486[#87486]
 * Health api add indicator doc links {es-pull}86904[#86904] (issue: {es-issue}86892[#86892])
 * Health api copy editing {es-pull}87010[#87010]
 * Return a default user action if no actions could be determined {es-pull}87079[#87079]

@@ -859,7 +859,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                                 listener.onResponse(null);
                             } else if (newEntry == null) {
                                 clusterService.removeListener(this);
-                                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                                Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 RestoreInfo ri = new RestoreInfo(
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),

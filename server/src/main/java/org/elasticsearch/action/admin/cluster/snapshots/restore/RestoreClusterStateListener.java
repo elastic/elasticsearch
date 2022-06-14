@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
@@ -59,7 +60,7 @@ public class RestoreClusterStateListener implements ClusterStateListener {
                 listener.onResponse(new RestoreSnapshotResponse((RestoreInfo) null));
             } else if (newEntry == null) {
                 clusterService.removeListener(this);
-                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                 assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
                 assert RestoreService.completed(shards) : "expected all restore entries to be completed";
                 RestoreInfo ri = new RestoreInfo(

@@ -112,7 +112,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_2_1 = new Version(8_02_01_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_8_2_2 = new Version(8_02_02_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_8_2_3 = new Version(8_02_03_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version CURRENT = V_8_2_3;
+    public static final Version V_8_2_4 = new Version(8_02_04_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
+    public static final Version CURRENT = V_8_2_4;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
     private static final ImmutableOpenMap<String, Version> stringToVersion;

@@ -76,6 +76,11 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         if (in.getVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
             status = Status.fromValue(in.readShort());
         } else {
+            // During upgrades, we consider all desired nodes as PENDING
+            // since it's impossible to know if a node that was supposed to
+            // join the cluster, it joined. The status will be updated
+            // once the master node is upgraded to a version >= STATUS_TRACKING_SUPPORT_VERSION
+            // in JoinTaskExecutor or when the desired nodes are upgraded to a new version.
             status = Status.PENDING;
         }
         return new DesiredNodeWithStatus(desiredNode, status);

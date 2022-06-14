@@ -889,8 +889,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNoLogging(monitor, allDisksOk);
     }
 
-    private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages)
-        throws IllegalAccessException {
+    private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(

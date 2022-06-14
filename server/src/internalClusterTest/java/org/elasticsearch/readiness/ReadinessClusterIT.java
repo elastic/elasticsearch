@@ -134,7 +134,8 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
                 for (String dataNode : dataNodes) {
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-                    s.listenerThreadLatch.await(10, TimeUnit.SECONDS);
+                    boolean awaitSuccessful = s.listenerThreadLatch.await(30, TimeUnit.SECONDS);
+                    assertTrue(awaitSuccessful);
                     tcpReadinessProbeFalse(s);
                 }
 

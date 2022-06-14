@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.NoSuchAlgorithmException;
-
 import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
@@ -102,18 +100,7 @@ public class XPackSettingsTests extends ESTestCase {
     public void testDefaultServiceTokenHashingAlgorithm() {
         assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
     }
-
-    // Whether the domain setting is registered by default depends on the build type
-    public void testRealmDomainSettingRegistrationDefault() {
-        assertThat(
-            XPackSettings.getAllSettings()
-                .stream()
-                .filter(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey()))
-                .toList(),
-            hasSize(1)
-        );
-    }
-
+    
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {
         try {
             SecretKeyFactory.getInstance(algorithmId);

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.StableMasterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -320,8 +320,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 100)
+                .put(StableMasterService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
+                .put(StableMasterService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 100)
                 .build()
         );
         ensureStableCluster(3);
@@ -416,7 +416,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(StableMasterService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
@@ -424,11 +424,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
-                .put(
-                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(60, TimeUnit.SECONDS)
-                )
+                .put(StableMasterService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(StableMasterService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(60, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);

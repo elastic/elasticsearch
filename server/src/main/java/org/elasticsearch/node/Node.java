@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.StableMasterService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -889,7 +890,8 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
+            StableMasterService stableMasterService = new StableMasterService(clusterService, masterHistoryService);
+            HealthService healthService = createHealthService(clusterService, clusterModule, stableMasterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -973,6 +975,7 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
+                b.bind(StableMasterService.class).toInstance(stableMasterService);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1031,10 +1034,10 @@ public class Node implements Closeable {
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
-        MasterHistoryService masterHistoryService
+        StableMasterService stableMasterService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(clusterService, masterHistoryService)
+            new StableMasterHealthIndicatorService(stableMasterService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

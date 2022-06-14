@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.StableMasterService;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -513,9 +513,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
-        StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
-        StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
+        StableMasterService.IDENTITY_CHANGES_THRESHOLD_SETTING,
+        StableMasterService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        StableMasterService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT
     );

@@ -1222,7 +1222,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(
+                    new StableMasterService(clusterService, masterHistoryService)
+                );
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );

@@ -411,8 +411,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         int clusterSize = 5;
         int masterChanges = 3;
         Settings settings = Settings.builder()
-            .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), acceptableIdentityChanges)
-            .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
+            .put(StableMasterService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), acceptableIdentityChanges)
+            .put(StableMasterService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), acceptableNullTransitions)
             .build();
         try (Cluster cluster = new Cluster(clusterSize, true, settings)) {
             cluster.runRandomly();
@@ -513,7 +513,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
+        return new StableMasterHealthIndicatorService(new StableMasterService(clusterService, masterHistoryService));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

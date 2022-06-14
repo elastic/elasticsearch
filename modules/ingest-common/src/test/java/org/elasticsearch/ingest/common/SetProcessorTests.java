@@ -9,8 +9,8 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 import org.elasticsearch.ingest.IngestSourceAndMetadata;
+import org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -102,7 +102,11 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetMetadataExceptVersion() throws Exception {
-        Metadata randomMetadata = randomFrom(IngestSourceAndMetadata.Metadata.INDEX, IngestSourceAndMetadata.Metadata.ID, IngestSourceAndMetadata.Metadata.ROUTING);
+        Metadata randomMetadata = randomFrom(
+            IngestSourceAndMetadata.Metadata.INDEX,
+            IngestSourceAndMetadata.Metadata.ID,
+            IngestSourceAndMetadata.Metadata.ROUTING
+        );
         Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
@@ -114,15 +118,27 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(IngestSourceAndMetadata.Metadata.VERSION.getFieldName(), version, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+        assertThat(
+            ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.VERSION.getFieldName(), Long.class),
+            Matchers.equalTo(version)
+        );
     }
 
     public void testSetMetadataVersionType() throws Exception {
         String versionType = randomFrom("internal", "external", "external_gte");
-        Processor processor = createSetProcessor(IngestSourceAndMetadata.Metadata.VERSION_TYPE.getFieldName(), versionType, null, true, false);
+        Processor processor = createSetProcessor(
+            IngestSourceAndMetadata.Metadata.VERSION_TYPE.getFieldName(),
+            versionType,
+            null,
+            true,
+            false
+        );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
+        assertThat(
+            ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.VERSION_TYPE.getFieldName(), String.class),
+            Matchers.equalTo(versionType)
+        );
     }
 
     public void testSetMetadataIfSeqNo() throws Exception {
@@ -130,15 +146,27 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(IngestSourceAndMetadata.Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
+        assertThat(
+            ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.IF_SEQ_NO.getFieldName(), Long.class),
+            Matchers.equalTo(ifSeqNo)
+        );
     }
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
         long ifPrimaryTerm = randomNonNegativeLong();
-        Processor processor = createSetProcessor(IngestSourceAndMetadata.Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, null, true, false);
+        Processor processor = createSetProcessor(
+            IngestSourceAndMetadata.Metadata.IF_PRIMARY_TERM.getFieldName(),
+            ifPrimaryTerm,
+            null,
+            true,
+            false
+        );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+        assertThat(
+            ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class),
+            Matchers.equalTo(ifPrimaryTerm)
+        );
     }
 
     public void testSetDynamicTemplates() throws Exception {
@@ -148,9 +176,18 @@ public class SetProcessorTests extends ESTestCase {
             Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3))
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> randomFrom("int", "geo_point", "keyword")));
-            Processor processor = createSetProcessor(IngestSourceAndMetadata.Metadata.DYNAMIC_TEMPLATES.getFieldName(), dynamicTemplates, null, true, false);
+            Processor processor = createSetProcessor(
+                IngestSourceAndMetadata.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
+                dynamicTemplates,
+                null,
+                true,
+                false
+            );
             processor.execute(ingestDocument);
-            assertThat(ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.DYNAMIC_TEMPLATES.getFieldName(), Map.class), equalTo(dynamicTemplates));
+            assertThat(
+                ingestDocument.getFieldValue(IngestSourceAndMetadata.Metadata.DYNAMIC_TEMPLATES.getFieldName(), Map.class),
+                equalTo(dynamicTemplates)
+            );
         }
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.script.field.ValidatingMap;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;

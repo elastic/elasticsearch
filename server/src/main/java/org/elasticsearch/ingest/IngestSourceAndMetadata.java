@@ -19,6 +19,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -241,5 +242,19 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         public String getFieldName() {
             return fieldName;
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof IngestSourceAndMetadata) == false) return false;
+        if (super.equals(o) == false) return false;
+        IngestSourceAndMetadata that = (IngestSourceAndMetadata) o;
+        return Objects.equals(timestamp, that.timestamp) && Objects.equals(map, that.map);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(timestamp, map);
     }
 }

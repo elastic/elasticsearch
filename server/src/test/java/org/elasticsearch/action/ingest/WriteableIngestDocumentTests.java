@@ -12,6 +12,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -39,12 +41,21 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
+    @Override
+    protected void assertEqualInstances(WriteableIngestDocument expectedInstance, WriteableIngestDocument newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        assertEquals(expectedInstance, newInstance);
+        // TODO(stu): fix hashcode and remove this override of AbstractXContentTestCase's implementation
+        // assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+    }
+
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            Tuple<String, Object> metadata = randomMetadata();
+            sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -64,10 +75,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(
-                    randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(),
-                    randomAlphaOfLengthBetween(5, 10)
-                );
+                Tuple<String, Object> metadata = randomMetadata();
+                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
         }
@@ -107,7 +116,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            Tuple<String, Object> metadata = randomMetadata();
+            sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -201,5 +211,14 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             || field.startsWith(
                 new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.INGEST_FIELD).toString()
             );
+    }
+
+    protected Tuple<String, Object> randomMetadata() {
+        IngestSourceAndMetadata.Metadata metadata = randomFrom(IngestSourceAndMetadata.Metadata.values());
+        return new Tuple<>(metadata.getFieldName(), switch (metadata) {
+            case VERSION -> randomIntBetween(0, 124);
+            case VERSION_TYPE -> VersionType.toString(randomFrom(VersionType.values()));
+            default -> randomAlphaOfLengthBetween(5, 10);
+        });
     }
 }

@@ -1,6 +1,6 @@
 # Synchronize all pushes to upstream 'master' branch with 'main' branch to facilitate migration
 # Create a PR that automatically merges master with the current branch (esql)
-name: "Sync upstream"
+name: "Sync ESQL upstream"
 on:
   schedule:
       - cron: '40 4 * * *'

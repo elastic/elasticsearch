@@ -64,9 +64,9 @@ TIP: If the cluster experiences unsuitable performance degradation due to the
 In most cases, it is strongly recommended to use the ingest timestamp of the 
 source indices for syncing the {transform}. This is the most optimal way for 
 {transforms} to be able to identify new changes. If your data source follows the 
-https://www.elastic.co/guide/en/ecs/current/ecs-reference.html[ECS standard] you 
-might already have an <<field-event-ingested,`event.ingested`>> field. In this 
-case, use `event.ingested` as the `sync`.`time`.`field` property of your 
+https://www.elastic.co/guide/en/ecs/current/ecs-reference.html[ECS standard], 
+you might already have an <<field-event-ingested,`event.ingested`>> field. In 
+this case, use `event.ingested` as the `sync`.`time`.`field` property of your 
 {transform}.
 
 If you don't have a `event.ingested` field or it isn't populated, you can set it 

@@ -148,10 +148,25 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    /**
+     * Override this method if the master node action also has an {@link org.elasticsearch.operator.OperatorHandler}
+     * interaction. We need to check if certain settings or entities are allowed to be modified by the master node
+     * action, depending on if they are set already in operator mode.
+     *
+     * @return an Optional of the operator handler name
+     */
     protected Optional<String> operatorHandlerName() {
         return Optional.empty();
     }
 
+    /**
+     * Override this method to return the keys of the cluster state or cluster entities that are modified by
+     * the Request object. This method is used by the operator handler logic (see {@link org.elasticsearch.operator.OperatorHandler})
+     * to verify if the keys don't conflict with an existing key set in operator mode.
+     *
+     * @param request the TransportMasterNode request
+     * @return set of String keys intended to be modified/set/deleted by this request
+     */
     protected Set<String> modifiedKeys(Request request) {
         return Collections.emptySet();
     }

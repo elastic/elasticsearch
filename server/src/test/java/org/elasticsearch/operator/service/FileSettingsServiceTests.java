@@ -31,9 +31,14 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -122,7 +127,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             processFileLatch.countDown();
             return null;
-        }).when(service).processFileSettings(any());
+        }).when(service).processFileSettings(any(), anyBoolean());
 
         service.start();
         service.startWatcher();
@@ -143,4 +148,43 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.close();
     }
 
+    @SuppressWarnings("unchecked")
+    public void testInitialFile() throws Exception {
+        OperatorClusterStateController controller = mock(OperatorClusterStateController.class);
+
+        doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
+            return null;
+        }).when(controller).process(any(), any(), any());
+
+        FileSettingsService service = spy(new FileSettingsService(clusterService, controller, env));
+
+        Files.createDirectories(service.operatorSettingsDir());
+
+        // contents of the JSON don't matter, we just need a file to exist
+        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+
+        service.start();
+        assertEquals(
+            "Error applying operator settings",
+            expectThrows(FileSettingsService.OperatorConfigurationError.class, () -> service.startWatcher()).getMessage()
+        );
+
+        verify(service, times(1)).processFileSettings(any(), eq(true));
+
+        service.stop();
+
+        clearInvocations(service);
+
+        // Let's check that if we didn't throw an error that everything works
+        doAnswer((Answer<Void>) invocation -> null).when(controller).process(any(), any(), any());
+
+        service.start();
+        service.startWatcher();
+
+        verify(service, times(1)).processFileSettings(any(), eq(true));
+
+        service.stop();
+        service.close();
+    }
 }

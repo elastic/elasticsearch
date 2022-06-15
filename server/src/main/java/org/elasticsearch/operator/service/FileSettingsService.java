@@ -37,7 +37,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final String SETTINGS_FILE_NAME = "settings.json";
     private static final String NAMESPACE = "file_settings";
 
-    private final ClusterService clusterService;
     private final OperatorClusterStateController controller;
     private final Environment environment;
 
@@ -55,7 +54,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     );
 
     public FileSettingsService(ClusterService clusterService, OperatorClusterStateController controller, Environment environment) {
-        this.clusterService = clusterService;
         this.controller = controller;
         this.environment = environment;
         clusterService.addListener(this);
@@ -142,7 +140,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 Path settingsFilePath = operatorSettingsFile();
                 if (Files.exists(settingsFilePath)) {
                     logger.info("found initial operator settings file [{}], applying...", settingsFilePath);
-                    processFileSettings(settingsFilePath);
+                    processFileSettings(settingsFilePath, true);
                 }
                 enableSettingsWatcher(settingsDir);
             } else {
@@ -194,7 +192,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             enableSettingsWatcher(settingsDir);
 
                             if (watchedFileChanged(path)) {
-                                processFileSettings(path);
+                                processFileSettings(path, false);
                             }
                         } catch (Exception e) {
                             logger.warn("unable to watch or read operator settings file", e);
@@ -220,7 +218,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         if (watching()) {
             try {
                 watchService.close();
-                watcherThreadLatch.await();
+                if (watcherThreadLatch != null) {
+                    watcherThreadLatch.await();
+                }
             } catch (IOException | InterruptedException e) {
                 logger.info("encountered exception while closing watch service", e);
             } finally {
@@ -241,7 +241,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         );
     }
 
-    void processFileSettings(Path path) {
+    void processFileSettings(Path path, boolean onStartup) {
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
@@ -251,7 +251,13 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     if (e instanceof OperatorClusterStateController.IncompatibleVersionException) {
                         logger.info(e.getMessage());
                     } else {
-                        logger.error("Error processing operator settings json file", e);
+                        // If we encountered an exception trying to apply the operator state at
+                        // startup time, we throw an error to force Elasticsearch to exit.
+                        if (onStartup) {
+                            throw new OperatorConfigurationError("Error applying operator settings", e);
+                        } else {
+                            logger.error("Error processing operator settings json file", e);
+                        }
                     }
                 }
             });
@@ -261,4 +267,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     record FileUpdateState(long timestamp, String path, Object fileKey) {}
+
+    /**
+     * Error subclass that is thrown when we encounter a fatal error while applying
+     * the operator cluster state at Elasticsearch boot time.
+     */
+    public static class OperatorConfigurationError extends Error {
+        public OperatorConfigurationError(String message, Throwable t) {
+            super(message, t);
+        }
+    }
 }

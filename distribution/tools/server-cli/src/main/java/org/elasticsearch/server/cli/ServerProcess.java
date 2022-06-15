@@ -85,8 +85,7 @@ public class ServerProcess {
      * @return A running server process that is ready for requests
      * @throws UserException If the process failed during bootstrap
      */
-    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir)
-        throws UserException {
+    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
         return start(terminal, processInfo, args, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
     }
 

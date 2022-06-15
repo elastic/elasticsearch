@@ -16,14 +16,13 @@ import java.util.Properties;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 public class BootstrapJvmOptionsTests extends ESTestCase {
 
     public void testGenerateOptionsHandlesNoPlugins() {
-        final List<String> options = BootstrapJvmOptions.generateOptions(List.of(), List.of());
+        final List<String> options = BootstrapJvmOptions.generateOptions(List.of());
         assertThat(options, is(empty()));
     }
 
@@ -32,18 +31,8 @@ public class BootstrapJvmOptionsTests extends ESTestCase {
         props.put("type", "isolated");
         List<PluginInfo> info = List.of(new PluginInfo(List.of(), props));
 
-        final List<String> options = BootstrapJvmOptions.generateOptions(List.of(), info);
+        final List<String> options = BootstrapJvmOptions.generateOptions(info);
         assertThat(options, is(empty()));
-    }
-
-    public void testGenerateOptionsHandlesModules() {
-        Properties props = new Properties();
-        props.put("type", "isolated");
-        props.put("java.opts", "-ea");
-        List<PluginInfo> info = List.of(new PluginInfo(List.of(), props));
-
-        final List<String> options = BootstrapJvmOptions.generateOptions(info, List.of());
-        assertThat(options, equalTo(List.of("-ea")));
     }
 
     public void testGenerateOptionsHandlesBootstrapPlugins() {
@@ -66,7 +55,7 @@ public class BootstrapJvmOptionsTests extends ESTestCase {
         propsWithJavaOpts.put("java.opts", "-Dkey=value -DotherKey=otherValue");
         PluginInfo info4 = new PluginInfo(List.of("/path/fourth.jar"), propsWithJavaOpts);
 
-        final List<String> options = BootstrapJvmOptions.generateOptions(List.of(), List.of(info1, info2, info3, info4));
+        final List<String> options = BootstrapJvmOptions.generateOptions(List.of(info1, info2, info3, info4));
         assertThat(
             options,
             contains(

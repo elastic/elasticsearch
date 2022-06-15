@@ -731,7 +731,6 @@ public class Node implements Closeable {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
-
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),

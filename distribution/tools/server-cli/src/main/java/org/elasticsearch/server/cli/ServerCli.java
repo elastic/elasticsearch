@@ -90,7 +90,7 @@ class ServerCli extends EnvironmentAwareCommand {
         syncPlugins(terminal, env, processInfo);
 
         ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-        this.server = startServer(terminal, processInfo, args, env.modulesFile(), env.pluginsFile());
+        this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -221,8 +221,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path modulesDir, Path pluginsDir)
-        throws UserException {
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
         return ServerProcess.start(terminal, processInfo, args, pluginsDir);
     }
 }

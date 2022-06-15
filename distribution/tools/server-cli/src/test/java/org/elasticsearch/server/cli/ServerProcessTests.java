@@ -201,14 +201,7 @@ public class ServerProcessTests extends ESTestCase {
             process = new MockElasticsearchProcess();
             return process;
         };
-        return ServerProcess.start(
-            terminal,
-            pinfo,
-            args,
-            esHomeDir.resolve("plugins"),
-            optionsBuilder,
-            starter
-        );
+        return ServerProcess.start(terminal, pinfo, args, esHomeDir.resolve("plugins"), optionsBuilder, starter);
     }
 
     public void testProcessBuilder() throws Exception {

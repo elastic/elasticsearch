@@ -24,11 +24,11 @@ import java.util.stream.Stream;
  * will be added to the JVM's boot classpath. The plugins may also define
  * additional JVM options, in order to configure the bootstrap plugins.
  */
-public class BootstrapJvmOptions {
+class BootstrapJvmOptions {
 
     private BootstrapJvmOptions() {}
 
-    public static List<String> bootstrapJvmOptions(Path plugins) throws IOException {
+    static List<String> bootstrapJvmOptions(Path plugins) throws IOException {
         if (Files.isDirectory(plugins) == false) {
             throw new IllegalArgumentException("Plugins path " + plugins + " must be a directory");
         }
@@ -42,10 +42,7 @@ public class BootstrapJvmOptions {
     private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
         final List<PluginInfo> pluginInfo = new ArrayList<>();
 
-        final List<Path> pluginDirs;
-        try (Stream<Path> pluginDirStream = Files.list(plugins)) {
-            pluginDirs = pluginDirStream.toList();
-        }
+        final List<Path> pluginDirs = listFiles(plugins);
 
         for (Path pluginDir : pluginDirs) {
             if (Files.isDirectory(pluginDir) == false) {
@@ -54,10 +51,7 @@ public class BootstrapJvmOptions {
             final List<String> jarFiles = new ArrayList<>();
             final Properties props = new Properties();
 
-            final List<Path> pluginFiles;
-            try (Stream<Path> pluginFileStream = Files.list(pluginDir)) {
-                pluginFiles = pluginFileStream.toList();
-            }
+            final List<Path> pluginFiles = listFiles(pluginDir);
             for (Path pluginFile : pluginFiles) {
                 final String lowerCaseName = pluginFile.getFileName().toString().toLowerCase(Locale.ROOT);
 
@@ -108,6 +102,12 @@ public class BootstrapJvmOptions {
         bootstrapOptions.add("-Xbootclasspath/a:" + String.join(":", bootstrapJars));
 
         return bootstrapOptions;
+    }
+
+    private static List<Path> listFiles(Path dir) throws IOException {
+        try (Stream<Path> pluginDirStream = Files.list(dir)) {
+            return pluginDirStream.toList();
+        }
     }
 
     // package-private for testing

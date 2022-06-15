@@ -285,8 +285,7 @@ public class MasterService extends AbstractLifecycleComponent {
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                 final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
                     @Override
-                    public void setParentTask(TaskId taskId) {
-                    }
+                    public void setParentTask(TaskId taskId) {}
 
                     @Override
                     public TaskId getParentTask() {

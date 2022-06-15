@@ -71,10 +71,7 @@ class APMAgentSettings {
         // do anything if those settings are never configured.
         APM_AGENT_DEFAULT_SETTINGS.keySet()
             .forEach(
-                key -> this.setAgentSetting(
-                    key,
-                    APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings)
-                )
+                key -> this.setAgentSetting(key, APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings))
             );
 
         // Then apply values from the settings in the cluster state
@@ -152,13 +149,7 @@ class APMAgentSettings {
         NodeScope
     );
 
-    static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
-        APM_SETTING_PREFIX + "secret_token",
-        null
-    );
+    static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "secret_token", null);
 
-    static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(
-        APM_SETTING_PREFIX + "api_key",
-        null
-    );
+    static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "api_key", null);
 }

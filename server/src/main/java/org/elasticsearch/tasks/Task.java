@@ -44,10 +44,10 @@ public class Task implements Traceable {
      */
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
-    /**
-     * Is used internally to pass the apm trace context between the nodes
-     */
     public static final String TRACE_STATE = "tracestate";
+    /**
+     * Used internally to pass the apm trace context between the nodes
+     */
 
     public static final String APM_TRACE_CONTEXT = "apm.local.context";
 

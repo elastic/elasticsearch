@@ -217,7 +217,6 @@ public class AuthorizationService {
         final ActionListener<Void> listener
     ) {
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
-
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
          * <p>

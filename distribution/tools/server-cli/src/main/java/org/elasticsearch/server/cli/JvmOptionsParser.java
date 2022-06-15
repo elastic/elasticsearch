@@ -121,13 +121,13 @@ final class JvmOptionsParser {
 
     private List<String> jvmOptions(
         ServerArgs args,
-        final Path configDir,
+        final Path config,
         Path plugins,
         final String esJavaOpts,
         final Map<String, String> substitutions
     ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
-        final List<String> jvmOptions = readJvmOptionsFiles(configDir);
+        final List<String> jvmOptions = readJvmOptionsFiles(config);
 
         if (esJavaOpts != null) {
             jvmOptions.addAll(Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).toList());
@@ -137,13 +137,13 @@ final class JvmOptionsParser {
         final MachineDependentHeap machineDependentHeap = new MachineDependentHeap(
             new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
         );
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(configDir, substitutedJvmOptions));
+        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
         final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);
 
         final List<String> apmOptions;
-        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(configDir)) {
+        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(config)) {
             if (keyStoreWrapper != null) {
                 try {
                     keyStoreWrapper.decrypt(args.keystorePassword().clone().getChars());

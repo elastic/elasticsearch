@@ -208,7 +208,7 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Called with a Tracers so that each plugin has a chance to work with it.
+     * Called with a Tracer so that each plugin has a chance to work with it.
      */
     public void onTracer(Tracer tracer) {}
 }

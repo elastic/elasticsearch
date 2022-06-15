@@ -501,8 +501,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
-                        final String traceId = traceparent.substring(3, 35);
-                        threadContext.putHeader(Task.TRACE_ID, traceId);
+                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
                         threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
                 } else if (name.equals(Task.TRACE_STATE)) {

@@ -417,10 +417,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
          * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of these
          * parameter values.
          */
-        final ThreadContext threadContext = threadPool.getThreadContext();
         final RestChannel channel;
         {
             RestChannel innerChannel;
+            ThreadContext threadContext = threadPool.getThreadContext();
             try {
                 innerChannel = new DefaultRestChannel(
                     httpChannel,

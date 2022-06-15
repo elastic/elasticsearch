@@ -178,9 +178,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     public void onResponse(NodesStatsResponse nodesStatsResponse) {
                         logger.trace("received node stats response");
 
-                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
-                    }
+                        for (final FailedNodeException failure : nodesStatsResponse.failures()) {
+                            logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
+                        }
 
                         ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
@@ -217,36 +217,36 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         logger.trace("received indices stats response");
 
-                    if (indicesStatsResponse.getShardFailures().length > 0) {
-                        final Set<String> failedNodeIds = new HashSet<>();
-                        for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
-                                if (failedNodeIds.add(failedNodeException.nodeId())) {
+                        if (indicesStatsResponse.getShardFailures().length > 0) {
+                            final Set<String> failedNodeIds = new HashSet<>();
+                            for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
+                                if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                    if (failedNodeIds.add(failedNodeException.nodeId())) {
+                                        logger.warn(
+                                            () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
+                                            failedNodeException.getCause()
+                                        );
+                                    }
+                                    logger.trace(
+                                        () -> format(
+                                            "failed to retrieve stats for shard [%s][%s]",
+                                            shardFailure.index(),
+                                            shardFailure.shardId()
+                                        ),
+                                        shardFailure.getCause()
+                                    );
+                                } else {
                                     logger.warn(
-                                        () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
-                                        failedNodeException.getCause()
+                                        () -> format(
+                                            "failed to retrieve stats for shard [%s][%s]",
+                                            shardFailure.index(),
+                                            shardFailure.shardId()
+                                        ),
+                                        shardFailure.getCause()
                                     );
                                 }
-                                logger.trace(
-                                    () -> format(
-                                        "failed to retrieve stats for shard [%s][%s]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
-                                );
-                            } else {
-                                logger.warn(
-                                    () -> format(
-                                        "failed to retrieve stats for shard [%s][%s]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
-                                );
                             }
                         }
-                    }
 
                         final ShardStats[] stats = indicesStatsResponse.getShards();
                         final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();

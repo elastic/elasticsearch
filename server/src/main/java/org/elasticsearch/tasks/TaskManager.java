@@ -124,7 +124,6 @@ public class TaskManager implements ClusterStateApplier {
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
-
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {

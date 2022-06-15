@@ -431,6 +431,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             try {
                 assertTrue(RESTORE_SHARD_LATCH.await(30, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
             super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);

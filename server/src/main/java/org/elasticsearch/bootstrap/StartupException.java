@@ -12,8 +12,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.PrintStream;
-import java.io.PrintWriter;
-import java.util.function.Consumer;
 
 /**
  * Wraps an exception in a special way that it gets formatted
@@ -23,7 +21,7 @@ import java.util.function.Consumer;
  */
 // TODO: remove this when guice is removed, and exceptions are cleaned up
 // this is horrible, but its what we must do
-final class StartupException extends RuntimeException {
+final class StartupException {
 
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
@@ -31,36 +29,20 @@ final class StartupException extends RuntimeException {
     static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
 
     /**
-     * Create a new StartupException that will format {@code cause}
-     * to the console on failure.
+     * Prints a stacktrace for an exception to a print stream, possibly truncating.
+     *
+     * @param e The exception, which may have a long stack trace
+     * @param err The error stream to print the stacktrace to
      */
-    StartupException(Throwable cause) {
-        super(cause);
-    }
-
-    /*
-     * This logic actually prints the exception to the console, its
-     * what is invoked by the JVM when we throw the exception from main()
-     */
-    @Override
-    public void printStackTrace(PrintStream s) {
-        printStackTrace(s::println);
-    }
-
-    @Override
-    public void printStackTrace(PrintWriter s) {
-        printStackTrace(s::println);
-    }
-
-    private void printStackTrace(Consumer<String> consumer) {
-        Throwable originalCause = getCause();
+    static void printStackTrace(Exception e, PrintStream err) {
+        Throwable originalCause = e.getCause();
         Throwable cause = originalCause;
         if (cause instanceof CreationException) {
             cause = getFirstGuiceCause((CreationException) cause);
         }
 
         String message = cause.toString();
-        consumer.accept(message);
+        err.println(message);
 
         if (cause != null) {
             // walk to the root cause
@@ -70,7 +52,7 @@ final class StartupException extends RuntimeException {
 
             // print the root cause message, only if it differs!
             if (cause != originalCause && (message.equals(cause.toString()) == false)) {
-                consumer.accept("Likely root cause: " + cause);
+                err.println("Likely root cause: " + cause);
             }
 
             // print stacktrace of cause
@@ -78,7 +60,7 @@ final class StartupException extends RuntimeException {
             int linesWritten = 0;
             for (int i = 0; i < stack.length; i++) {
                 if (linesWritten == STACKTRACE_LIMIT) {
-                    consumer.accept("\t<<<truncated>>>");
+                    err.println("\t<<<truncated>>>");
                     break;
                 }
                 String line = stack[i].toString();
@@ -88,12 +70,12 @@ final class StartupException extends RuntimeException {
                     while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
                         i++;
                     }
-                    consumer.accept("\tat <<<guice>>>");
+                    err.println("\tat <<<guice>>>");
                     linesWritten++;
                     continue;
                 }
 
-                consumer.accept("\tat " + line);
+                err.println("\tat " + line);
                 linesWritten++;
             }
         }
@@ -109,7 +91,7 @@ final class StartupException extends RuntimeException {
                     + System.getProperty("es.logs.cluster_name")
                     + ".log";
 
-                consumer.accept("For complete error details, refer to the log at " + logPath);
+                err.println("For complete error details, refer to the log at " + logPath);
             }
         }
     }
@@ -117,7 +99,7 @@ final class StartupException extends RuntimeException {
     /**
      * Returns first cause from a guice error (it can have multiple).
      */
-    static Throwable getFirstGuiceCause(CreationException guice) {
+    private static Throwable getFirstGuiceCause(CreationException guice) {
         for (Message message : guice.getErrorMessages()) {
             Throwable cause = message.getCause();
             if (cause != null) {

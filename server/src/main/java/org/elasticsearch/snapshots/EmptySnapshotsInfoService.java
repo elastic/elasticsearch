@@ -8,13 +8,13 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import java.util.Map;
 
 public class EmptySnapshotsInfoService implements SnapshotsInfoService {
     public static final EmptySnapshotsInfoService INSTANCE = new EmptySnapshotsInfoService();
 
     @Override
     public SnapshotShardSizeInfo snapshotShardSizes() {
-        return new SnapshotShardSizeInfo(ImmutableOpenMap.of());
+        return new SnapshotShardSizeInfo(Map.of());
     }
 }

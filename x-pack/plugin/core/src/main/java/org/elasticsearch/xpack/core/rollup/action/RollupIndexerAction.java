@@ -52,6 +52,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             final String[] metricFields,
             final String[] labelFields
         ) {
+            super(rollupRequest.indices());
             this.rollupRequest = rollupRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;

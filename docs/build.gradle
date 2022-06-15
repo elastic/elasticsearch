@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
@@ -91,6 +91,8 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->

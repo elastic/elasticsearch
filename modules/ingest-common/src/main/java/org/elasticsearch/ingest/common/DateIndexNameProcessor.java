@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -27,8 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-
-import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 
 public final class DateIndexNameProcessor extends AbstractProcessor {
 
@@ -105,7 +104,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             .append('}')
             .append('>');
         String dynamicIndexName = builder.toString();
-        ingestDocument.setFieldValue(Metadata.INDEX.getFieldName(), dynamicIndexName);
+        ingestDocument.setFieldValue(IngestSourceAndMetadata.Metadata.INDEX.getFieldName(), dynamicIndexName);
         return ingestDocument;
     }
 

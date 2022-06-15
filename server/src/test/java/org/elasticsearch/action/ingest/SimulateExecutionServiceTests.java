@@ -15,7 +15,6 @@ import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestProcessorException;
-import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -37,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -378,7 +378,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         for (int id = 0; id < numDocs; id++) {
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) response.getResults().get(id);
-            assertThat(result.getIngestDocument().getMetadata().get(IngestSourceAndMetadata.Metadata.ID), equalTo(Integer.toString(id)));
+            assertThat(result.getIngestDocument().getMetadata().get(Metadata.ID), equalTo(Integer.toString(id)));
             assertThat(result.getIngestDocument().getSourceAndMetadata().get("processed"), is(true));
         }
     }

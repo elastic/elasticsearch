@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: headers
+      features: [headers, transform_and_set]
 
   - do:
       cluster.health:
@@ -72,9 +72,6 @@ teardown:
 
 ---
 "Test grant api key with password":
-  - skip:
-      features: transform_and_set
-
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
@@ -127,9 +124,6 @@ teardown:
 
 ---
 "Test grant api key with token":
-  - skip:
-      features: transform_and_set
-
   - do:
       security.get_token:
         body:
@@ -192,9 +186,6 @@ teardown:
 
 ---
 "Test grant api key forbidden":
-  - skip:
-      features: transform_and_set
-
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user

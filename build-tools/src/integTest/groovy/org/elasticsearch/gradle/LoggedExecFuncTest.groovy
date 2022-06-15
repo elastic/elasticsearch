@@ -10,8 +10,12 @@ package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Ignore
+import spock.lang.IgnoreIf
 import spock.lang.Unroll
+import spock.util.environment.OperatingSystem
 
+@IgnoreIf({ os.isWindows() })
 class LoggedExecFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
@@ -25,6 +29,35 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
     }
 
     @Unroll
+    def "can configure spooling #spooling"() {
+        setup:
+        buildFile << """
+        import org.elasticsearch.gradle.LoggedExec
+        tasks.register('loggedExec', LoggedExec) {
+          commandLine 'ls', '-lh'
+          spoolOutput = $spooling
+        }
+        """
+        when:
+        def result = gradleRunner("loggedExec").build()
+        then:
+//        assertOutputContains(result.getOutput(), "Configuration cache entry stored.")
+        result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
+        file("build/buffered-output/loggedExec").exists() == false
+
+////
+//        when:
+//        result = gradleRunner("loggedExec").buildAndFail()
+//        then:
+//        result.task(':loggedExec').outcome == TaskOutcome.FAILED
+////        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
+
+        where:
+        spooling << [false, true]
+    }
+
+    @Unroll
+    @Ignore
     def "can run #setup setup with configuration cache"() {
         setup:
         buildFile << """

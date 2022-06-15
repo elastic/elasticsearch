@@ -155,9 +155,8 @@ teardown:
                 }
               }
             },
-            "grant_type": "password",
-            "username": "api_key_grant_target_user",
-            "password": "x-pack-test-password-2"
+            "grant_type": "access_token",
+            "access_token": "$token"
           }
   - match: { name: "my-api-key" }
   - is_true: id

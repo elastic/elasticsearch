@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -171,10 +173,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
-     * Verify that a JWT realm successfully connects to HTTPS server, and can handle an HTTP 404 Not Found response correctly.
+     * Verify that a JWT realm successfully handles rotating JWKSets.
+     *
      * @throws Exception Unexpected test failure
      */
-    public void testPkcJwkSetRotation() throws Exception {
+    public void testJwkSetRotationHttps() throws Exception {
         final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
@@ -217,8 +220,104 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
     }
 
+    public void testJwkSetRotationLocal() throws Exception {
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
+
+        final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
+        final String realmName = "realm_" + jwtIssuer.issuerClaimValue;
+        try {
+            this.jwtIssuerAndRealms = new ArrayList<>(1);
+            final Settings.Builder authcSettings = Settings.builder()
+                .put(this.globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
+                .put(
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
+                    String.join(",", jwtIssuer.algorithmsAll)
+                )
+                .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), jwtIssuer.audiencesClaimValue.get(0))
+                .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
+                .put(
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                    JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
+                );
+            String filePath = null;
+
+            if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
+                filePath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
+                authcSettings.put(
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
+                    filePath
+                );
+            }
+            // JWT authc realm secure settings
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            if (Strings.hasText(jwtIssuer.encodedJwkSetHmac)) {
+                secureSettings.setString(
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_JWKSET),
+                    jwtIssuer.encodedJwkSetHmac
+                );
+            }
+            if (Strings.hasText(jwtIssuer.encodedKeyHmacOidc)) {
+                secureSettings.setString(
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_KEY),
+                    jwtIssuer.encodedKeyHmacOidc
+                );
+            }
+            final String rawClientSecret = randomAlphaOfLength(64);
+            secureSettings.setString(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+                rawClientSecret
+            );
+            authcSettings.setSecureSettings(secureSettings);
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, authcSettings);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder);
+
+
+            final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
+
+            jwtRealm.initialize(allRealms, super.licenseState);
+            this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
+
+            final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
+            final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
+            final MinMax jwtAuthcRange = new MinMax(4, 5);
+
+            // Indirectly verify authentication works
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+
+            // Rotate
+            this.rotateJWKsJwtIssuer(jwtIssuer);
+            if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
+                if (filePath == null) {
+                    filePath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    Path of = Path.of(filePath);
+                    Files.delete(of);
+                    Files.writeString(of, jwtIssuer.encodedJwkSetPkcPublic);
+                }
+            }
+
+            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user);
+            // Verify authentication works before performing any failure scenarios
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, rotatedJwt, clientSecret, jwtAuthcRange);
+
+            // Should fail as we are using an old token and have rotated
+            expectThrows(
+                Exception.class,
+                () -> this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange)
+            );
+
+        } finally {
+            jwtIssuer.close();
+        }
+    }
+
     /**
      * Test token parse failures and authentication failures.
+     *
      * @throws Exception Unexpected test failure
      */
     public void testJwtValidationFailures() throws Exception {

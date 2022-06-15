@@ -202,7 +202,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             if (t instanceof SettingsException) {
                 throw (SettingsException) t;
             }
-            LOGGER.error("Unexpected error occurred when retrieving JWKSet " + t);
+            LOGGER.error("Unexpected error occurred when retrieving JWKSet " + t.getMessage());
             close();
             initializeJwksAlgs();
         }

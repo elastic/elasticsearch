@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 

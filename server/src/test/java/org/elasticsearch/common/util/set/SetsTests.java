@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util.set;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 

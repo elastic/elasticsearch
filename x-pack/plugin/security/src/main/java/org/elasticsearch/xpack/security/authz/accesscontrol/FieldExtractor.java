@@ -26,7 +26,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.util.set.Sets;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**

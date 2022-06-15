@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;

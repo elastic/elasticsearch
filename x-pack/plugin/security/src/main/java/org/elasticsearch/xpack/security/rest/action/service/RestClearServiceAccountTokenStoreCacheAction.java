@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 

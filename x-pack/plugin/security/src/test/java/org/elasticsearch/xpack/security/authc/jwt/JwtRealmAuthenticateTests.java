@@ -171,6 +171,53 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
+     * Verify that a JWT realm successfully connects to HTTPS server, and can handle an HTTP 404 Not Found response correctly.
+     * @throws Exception Unexpected test failure
+     */
+    public void testPkcJwkSetRotation() throws Exception {
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
+
+        final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
+        final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, createHttpsServer);
+        assertThat(jwtIssuer.httpsServer, is(notNullValue()));
+        try {
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
+            this.jwtIssuerAndRealms = new ArrayList<>(1);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder);
+            final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
+
+            jwtRealm.initialize(allRealms, super.licenseState);
+            this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
+
+            final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
+            final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
+            final MinMax jwtAuthcRange = new MinMax(2, 3);
+
+            // Indirectly verify authentication works
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+
+            // Rotate
+            this.rotateJWKsJwtIssuer(jwtIssuer);
+
+            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user);
+            // Verify authentication works before performing any failure scenarios
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, rotatedJwt, clientSecret, jwtAuthcRange);
+
+            // Should fail as we are using an old token and have rotated
+            expectThrows(
+                Exception.class,
+                () -> this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange)
+            );
+
+        } finally {
+            jwtIssuer.close();
+        }
+    }
+
+    /**
      * Test token parse failures and authentication failures.
      * @throws Exception Unexpected test failure
      */

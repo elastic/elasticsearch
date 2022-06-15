@@ -38,17 +38,17 @@ public class JwtIssuer implements Closeable {
     final List<String> audiencesClaimValue; // claim name is hard-coded to `aud` for OIDC ID Token compatibility
     final String principalClaimName; // claim name is configurable, EX: Users (sub, oid, email, dn, uid), Clients (azp, appid, client_id)
     final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
-    final List<AlgJwkPair> algAndJwksPkc;
-    final List<AlgJwkPair> algAndJwksHmac;
-    final AlgJwkPair algAndJwkHmacOidc;
+    List<AlgJwkPair> algAndJwksPkc;
+    List<AlgJwkPair> algAndJwksHmac;
+    AlgJwkPair algAndJwkHmacOidc;
 
     // Computed values
-    final List<AlgJwkPair> algAndJwksAll;
-    final Set<String> algorithmsAll;
-    final String encodedJwkSetPkcPrivate;
-    final String encodedJwkSetPkcPublic;
-    final String encodedJwkSetHmac;
-    final String encodedKeyHmacOidc;
+    List<AlgJwkPair> algAndJwksAll;
+    Set<String> algorithmsAll;
+    String encodedJwkSetPkcPrivate;
+    String encodedJwkSetPkcPublic;
+    String encodedJwkSetHmac;
+    String encodedKeyHmacOidc;
     final JwtIssuerHttpsServer httpsServer;
 
     JwtIssuer(
@@ -92,6 +92,37 @@ public class JwtIssuer implements Closeable {
             final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
             this.httpsServer = new JwtIssuerHttpsServer(encodedJwkSetPkcPublicBytes);
         }
+    }
+
+    public void rotate(
+        final List<AlgJwkPair> algAndJwksPkc,
+        final List<AlgJwkPair> algAndJwksHmac,
+        final AlgJwkPair algAndJwkHmacOidc
+    ) {
+        this.algAndJwksPkc = algAndJwksPkc;
+        this.algAndJwksHmac = algAndJwksHmac;
+        this.algAndJwkHmacOidc = algAndJwkHmacOidc;
+
+        this.algAndJwksAll = new ArrayList<>(this.algAndJwksPkc.size() + this.algAndJwksHmac.size() + 1);
+        this.algAndJwksAll.addAll(this.algAndJwksPkc);
+        this.algAndJwksAll.addAll(this.algAndJwksHmac);
+        if (this.algAndJwkHmacOidc != null) {
+            this.algAndJwksAll.add(this.algAndJwkHmacOidc);
+        }
+
+        final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
+        final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
+
+        this.encodedJwkSetPkcPrivate = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, false);
+        this.encodedJwkSetPkcPublic = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
+        this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
+        this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
+
+        if (this.httpsServer != null) {
+            final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
+            this.httpsServer.rotate(encodedJwkSetPkcPublicBytes);
+        }
+
     }
 
     @Override

@@ -68,6 +68,11 @@ public class JwtIssuerHttpsServer implements Closeable {
         LOGGER.debug("Started [{}]", this.url);
     }
 
+    public void rotate(final byte[] encodedJwkSetPkcPublicBytes) {
+        this.httpsServer.removeContext(PATH);
+        this.httpsServer.createContext(PATH, new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
+    }
+
     @Override
     public void close() throws IOException {
         if (this.httpsServer != null) {

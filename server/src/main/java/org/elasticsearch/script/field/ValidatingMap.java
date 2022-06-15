@@ -29,9 +29,12 @@ import java.util.function.BiFunction;
  * via the linked Set from {@link #entrySet()} or {@link Collection#remove(Object)} from the linked collection via {@link #values()}
  */
 public class ValidatingMap extends AbstractMap<String, Object> {
+    private static final BiFunction<String, Object, Object> IDENTITY = (k, v) -> v;
+
     protected final Map<String, BiFunction<String, Object, Object>> validators;
     protected final Map<String, Object> map;
-    private static final BiFunction<String, Object, Object> IDENTITY = (k, v) -> v;
+
+    private EntrySet entrySet;
 
     /**
      * Create a ValidatingMap using the underlying map and set of validators.  The validators are applied to the map to ensure the incoming
@@ -52,7 +55,10 @@ public class ValidatingMap extends AbstractMap<String, Object> {
      */
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        return new EntrySet(map.entrySet());
+        if (entrySet == null) {
+            entrySet = new EntrySet(map.entrySet());
+        }
+        return entrySet;
     }
 
     /**
@@ -116,10 +122,17 @@ public class ValidatingMap extends AbstractMap<String, Object> {
         return map.get(key);
     }
 
+    /**
+     * Get the String version of the value associated with {@code key}, or null
+     */
     public String getString(Object key) {
         return Objects.toString(get(key), null);
     }
 
+    /**
+     * Get the {@link Number} associated with key, or null
+     * @throws IllegalArgumentException if the value is not a {@link Number}
+     */
     public Number getNumber(Object key) {
         Object value = get(key);
         if (value == null) {
@@ -128,7 +141,7 @@ public class ValidatingMap extends AbstractMap<String, Object> {
         if (value instanceof Number number) {
             return number;
         }
-        throw new IllegalStateException(
+        throw new IllegalArgumentException(
             "unexpected type for [" + key + "] with value [" + value + "], expected Number, got [" + value.getClass().getName() + "]"
         );
     }

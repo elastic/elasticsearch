@@ -24,7 +24,15 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
- * {@link ValidatingMap} for the Ingest
+ * Map containing ingest source and metadata.
+ *
+ * The Metadata values in {@link Metadata} are validated when put in the map.
+ * _index, _id and _routing must be a String or null
+ * _version_type must be a lower case VersionType or null
+ * _version must be representable as a long without loss of precision and may not be null
+ *
+ * The map is expected to be used by processors where-as the typed getter and setters should
+ * be used by server code where possible.
  */
 public class IngestSourceAndMetadata extends ValidatingMap {
 
@@ -92,6 +100,7 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         put(Metadata.VERSION.fieldName, version);
     }
 
+    // timestamp isn't backed by the map
     public ZonedDateTime getTimestamp() {
         return timestamp;
     }
@@ -130,6 +139,9 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         return map;
     }
 
+    /**
+     * Allow a String or null
+     */
     protected static String stringValidator(String key, Object value) {
         if (value == null) {
             return null;
@@ -142,6 +154,9 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         );
     }
 
+    /**
+     * Allow Numbers that can be represented as longs without loss of precision
+     */
     protected static Long longValidator(String key, Object value) {
         if (value == null) {
             throw new IllegalArgumentException(key + " must be non-null");
@@ -161,6 +176,9 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         );
     }
 
+    /**
+     * Allow lower case Strings that map to VersionType values, or null
+     */
     protected static String versionTypeValidator(String key, Object value) {
         if (value == null) {
             return null;
@@ -177,6 +195,9 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         );
     }
 
+    /**
+     * Allow maps
+     */
     protected static Map<?, ?> mapValidator(String key, Object value) {
         if (value == null) {
             return null;
@@ -189,6 +210,9 @@ public class IngestSourceAndMetadata extends ValidatingMap {
         );
     }
 
+    /**
+     * Metadata keys that may be present in this map.
+     */
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

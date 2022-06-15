@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
+
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
  */
@@ -43,7 +45,7 @@ public final class IngestDocument {
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
-    public static final String TIMESTAMP = "timestamp";
+    static final String TIMESTAMP = "timestamp";
 
     private final IngestSourceAndMetadata sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
@@ -57,14 +59,14 @@ public final class IngestDocument {
         // source + at max 5 extra fields
         Map<String, Object> rawSourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         rawSourceAndMetadata.putAll(source);
-        rawSourceAndMetadata.put(IngestSourceAndMetadata.Metadata.INDEX.getFieldName(), index);
-        rawSourceAndMetadata.put(IngestSourceAndMetadata.Metadata.ID.getFieldName(), id);
-        rawSourceAndMetadata.put(IngestSourceAndMetadata.Metadata.VERSION.getFieldName(), version);
+        rawSourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
+        rawSourceAndMetadata.put(Metadata.ID.getFieldName(), id);
+        rawSourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         if (routing != null) {
-            rawSourceAndMetadata.put(IngestSourceAndMetadata.Metadata.ROUTING.getFieldName(), routing);
+            rawSourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
         }
         if (versionType != null) {
-            rawSourceAndMetadata.put(IngestSourceAndMetadata.Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+            rawSourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
         this.sourceAndMetadata = new IngestSourceAndMetadata(rawSourceAndMetadata, ZonedDateTime.now(ZoneOffset.UTC));
         this.ingestMetadata = new HashMap<>();

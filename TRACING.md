@@ -18,15 +18,14 @@ Elasticsearch to hard-code the use of an SDK.
 ## How is tracing configured?
 
    * The `xpack.apm.enabled` setting must be set to `true`
-   * The APM agent must be both enabled and configured with server credentials.
-     See below.
+   * You must supplied credentials for the APM server. See below.
 
-We have a config file in [`config/elasticapm.properties`][config], which
-configures settings that are not dynamic, or should not be changed at runtime.
-Other settings can be configured at runtime by using the cluster settings API,
-and setting `xpack.apm.agent.<key>` with a string value, where `<key>`
-is the APM agent key that you want to configure. For example, to change the
-sampling rate:
+All APM settings live under `xpack.apm`. All settings related to the Java agent
+go under `xpack.apm.agent`. Anything you set under there will be propagated to
+the agent.
+
+For agent settings that can be changed dynamically, you can use the cluster
+settings REST API. For example, to change the sampling rate:
 
     curl -XPUT \
       -H "Content-type: application/json" \
@@ -36,17 +35,23 @@ sampling rate:
 
 ### More details about configuration
 
-The APM agent pulls configuration from [multiple sources][agent-config], with a
-hierarchy that means, for example, that options set in the config file cannot be
-overridden via system properties. This means that Elasticsearch cannot ship with
-sensible defaults for dynamic settings in the config file and override them via
-system properties.
+For context, the APM agent pulls configuration from [multiple
+sources][agent-config], with a hierarchy that means, for example, that options
+set in the config file cannot be overridden via system properties.
 
-Instead, static or sensitive config values are put in the config file, and
-dynamic settings are left entirely to the system properties. The Elasticsearch
-APM plugin has appropriate security access to set the APM-related system
-properties. Calls to the ES settings REST API are translated into system
-property writes, which the agent later picks up and applies.
+Now, in order to send tracing data to the APM server, ES needs to configured with
+either a `secret_key` or an `api_key`. We could configure these in the agent via
+system properties, but then their values would be available to any Java code
+that can read system properties.
+
+Instead, when Elasticsearch bootstraps itself, it compiles all APM settings
+together, including any `secret_key` or `api_key` values from the ES keystore,
+and writes out a temporary APM config file containin all static configuration
+(i.e. values that cannot change after the agent starts).  This file is deleted
+soon after ES starts up. Settings that are not sensitive and can be changed
+dynamically are configure via system properties. Calls to the ES settings REST
+API are translated into system property writes, which the agent later picks up
+and applies.
 
 ## Where is tracing data sent?
 
@@ -95,7 +100,7 @@ tracer when a span should start and end.
 
 ## What additional attributes should I set?
 
-That's up to you. Be careful about capture anything that could leak sensitive
+That's up to you. Be careful not to capture anything that could leak sensitive
 or personal information.
 
 ## What is "scope" and when should I used it?

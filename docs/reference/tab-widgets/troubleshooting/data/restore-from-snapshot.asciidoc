@@ -1,0 +1,199 @@
+// tag::cloud[]
+In order to restore the indices and data streams that are missing data:
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment.
++
+
+NOTE:
+If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Stack Management > Index Management**.
+
+. In this step we are going to find all the indices and data streams missing data. If you already have that information
+you could skip this. Go in the **Indices** tab, enable **Include hidden indices** toggle and find all the open indices
+that have an empty **Health** and empty **Data stream**, keep their names somewhere handy. Do the same for in the data
+streams with an empty **Health** in the **Data Streams** tab.
+
+. Use the left side menu to go to **Snapshot and Restore**, there you can verify that you have a snapshot to restore
+the target indices and data streams from. By clicking on every snapshot you can see the indices and data streams it
+contains. Not all resources need to be restored from the same snapshot. Given that you have found one or more snapshots
+to restore your indices you can proceed.
+
+. Go back to **Index Management** via the left side menu. In **Indices** delete all the indices and data streams you
+have noted, by selecting them and then using the **Manage index** button choose delete index. In the **Data Streams**
+tab repeat the same by selecting the affected data streams and then clicking **Delete data steam**.
+
+. Go back to **Index Management** via the left side menu. In **Indices** enable **Include hidden indices** toggle and
+delete all the indices and data streams you have noted, by selecting them and then using the **Manage index** button
+choose delete index. In the **Data Streams** tab repeat the same by selecting the affected data streams and then
+clicking **Delete data steam**.
+
+. Use the left side menu to go back to **Snapshot and Restore**, click on the snapshot that you would like to restore
+from then click **Restore**. In the next page disable the toggle *All data streams and indices, including system
+indices*, deselect all and then choose the indices and data streams you would like to restore. Click **Next** twice to
+continue without changing anything else and finally click **Restore Snapshot**.
+
+. When the process will be complete you will see in the **Restore Status** tab the result of your restore.
++
+For more guidance on creating and restoring snapshots see
+<<snapshot-restore, this guide>>.
+
+//end::kibana-api-ex[]
+// end::cloud[]
+
+// tag::self-managed[]
+In order to restore the indices that are missing shards:
+
+. View the affected indices shards using the <<cat-indices,cat indices API>>.
++
+[source,console]
+----
+GET _cat/indices?v&health=red&h=index,status,health
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+index                                status health
+.ds-my-data-stream-2022.06.13-000001 open   red
+kibana_sample_data_flights           open   red
+----
+// TEST[skip:illustration purposes only]
+
++
+The `red` health of the indices above indicates that these indices are missing primary shards,
+meaning they are missing data.
++
+
+. In order to restore the data we need to find a snapshot that contains these two indices.To find
+such a snapshot use the
+<<get-snapshot-api,get snapshot API>>.
++
+[source,console]
+----
+GET _snapshot/snap-repo/*?verbose=false
+----
+// TEST[skip:illustration purposes only]
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "snapshots" : [
+    {
+      "snapshot" : "snapshot-20200613",                                     <1>
+      "uuid" : "dZyPs1HyTwS-cnKdH08EPg",
+      "repository" : "snap-repo",                                           <2>
+      "indices" : [                                                         <3>
+        ".apm-agent-configuration",
+        ".apm-custom-link",
+        ".ds-.logs-deprecation.elasticsearch-default-2022.06.13-000001",
+        ".ds-ilm-history-5-2022.06.13-000001",
+        ".ds-my-data-stream-2022.06.13-000001",
+        ".geoip_databases",
+        ".kibana-event-log-8.2.2-000001",
+        ".kibana_8.2.2_001",
+        ".kibana_task_manager_8.2.2_001",
+        "kibana_sample_data_ecommerce",
+        "kibana_sample_data_flights",
+        "kibana_sample_data_logs"
+      ],
+      "data_streams" : [ ],
+      "state" : "SUCCESS"                                                     <4>
+    }
+  ],
+  "total" : 1,
+  "remaining" : 0
+}
+----
+// TEST[skip:illustration purposes only]
++
+<1> The name of the snapshot.
++
+<2> The repository of the snapshot.
++
+<3> The indices backed up in the snapshot.
++
+<4> If the snapshot was successful.
+
+. The snapshot `snapshot-20200613` contains the two indices we want to restore.
+You might have multiple snapshots from which you could restore the target indices.The explanation in our case indicates the index allocation configurations are not correct.
+Choose the latest one. Now that we found a snapshot, we will close the target indices via the
+To review your allocation settings, use the <<indices-close, close indices API>>.
++
+[source,console]
+----
+POST kibana_sample_data_flights,.ds-my-data-stream-2022.06.13-000001/_close
+----
+// TEST[skip:illustration purposes only]
++
+You can confirm that they are closed with the
+the <<cat-indices, cat indices API>>.
++
+[source,console]
+----
+GET _cat/indices?v&health=red&h=index,status,health
+----
+// TEST[skip:illustration purposes only]
++
+The response will look like this:
++
+[source,console-result]
+----
+index                                status health
+.ds-my-data-stream-2022.06.13-000001 close   red
+kibana_sample_data_flights           close   red
+----
+
+. The indices are closed, now we can restore the, from snapshots without causing
+any complications using the <<restore-snapshot-api, restore snapshot API>>:
++
+[source,console]
+----
+POST _snapshot/snap-repo/snapshot-20200613/_restore
+{
+  "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.13-000001", <1>
+  "include_aliases": true                                                       <2>
+}
+----
+// TEST[skip:illustration purposes only]
++
+<1> The indices to restore.
++
+<2> We also want to restore the aliases.
+
+. Finally we can verify that the indices are not `red` any more via the <<cat-indices,cat indices API>>.
++
+[source,console]
+----
+GET _cat/indices?v&index=.ds-my-data-stream-2022.06.13-000001,kibana_sample_data_flightsh=index,status,health
+----
+// TEST[skip:illustration purposes only]
++
+The response will look like this:
++
+[source,console-result]
+----
+index                                status health
+.ds-my-data-stream-2022.06.13-000001 open   green
+kibana_sample_data_flights           open   green
+----
+// TEST[skip:illustration purposes only]
+
++
+As we can see above the indices are `green` and open. The issue is resolved.
++
+For more guidance on creating and restoring snapshots see
+<<snapshot-restore, this guide>>.
+// end::self-managed[]

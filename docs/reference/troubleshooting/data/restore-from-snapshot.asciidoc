@@ -1,0 +1,10 @@
+[[restore-from-snapshot]]
+== Restore from snapshot
+
+Elasticsearch is using snapshots to store a copy of your data outside a cluster. You can restore a snapshot to recover
+indices and data streams for which there are no copies of the shards in the cluster. This can happen after a deletion or
+hardware failure.
+
+In order to restore a snapshot in your deployment use the following steps:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/restore-from-snapshot-widget.asciidoc[]

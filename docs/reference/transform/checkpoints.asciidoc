@@ -88,7 +88,7 @@ After you created the ingest pipeline, apply it to the source indices of your
 {transform}. The pipeline adds a field `_source.@timestamp_ingest` to every 
 document with the value of the ingest timestamp. Configure the 
 `sync`.`time`.`field` property of your {transform} to use the field by using the 
-<<put-transform>> for new {transforms} or the <<update-transform>> for existing 
+<<put-transform,create {transform} API>> for new {transforms} or the <<update-transform, update {transform} API>> for existing 
 {transforms}. The `_source.@timestamp_ingest` field is used for syncing the 
 {transform}. 
 

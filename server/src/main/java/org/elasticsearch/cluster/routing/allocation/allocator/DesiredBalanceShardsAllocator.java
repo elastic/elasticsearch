@@ -100,6 +100,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                         rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                     } else {
                         logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
+                        // TODO desired balance this still does not guarantee the correct behaviour in case there is
+                        // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
                         queue.complete(lastConvergedIndex);
                     }
                 }

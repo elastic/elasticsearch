@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,16 +29,17 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -51,13 +51,13 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -152,13 +152,13 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return nbIndices;
     }
 
-    private void createRepository(String name, String type, int nbIndices) {
+    private void createRepository(String name, String type) {
         assertAcked(
             client().admin()
                 .cluster()
                 .preparePutRepository(name)
                 .setType(type)
-                .setSettings(Settings.builder().put("location", randomRepoPath()).put("mock.nbIndices", nbIndices).build())
+                .setSettings(Settings.builder().put("location", randomRepoPath()).build())
         );
     }
 
@@ -207,7 +207,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final int nbIndices = createIndices();
 
         final String repositoryName = "repository";
-        createRepository(repositoryName, FsRepository.TYPE, nbIndices);
+        createRepository(repositoryName, FsRepository.TYPE);
 
         final String snapshot = "snapshot";
         createSnapshot(repositoryName, snapshot, nbIndices);
@@ -292,7 +292,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         int nbIndices = createIndices();
 
         String repositoryName = "repository";
-        createRepository(repositoryName, CustomMockRepositoryPlugin.TYPE, nbIndices);
+        createRepository(repositoryName, CustomMockRepositoryPlugin.TYPE);
 
         String snapshotName = "snapshot";
         createSnapshot(repositoryName, snapshotName, nbIndices);
@@ -329,19 +329,36 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             equalTo(totalSpace)
         );
 
-        var mockRepository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
-            .repository(repositoryName);
-        // Prevent searchable snapshot shards from quickly jumping from INITIALIZED to STARTED
-        mockRepository.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
-
         String prefix = "mounted-";
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);
+
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
                     .stream()
+                    .peek(s -> System.out.println(s.shardId() + " " + s.state()))
+                    .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
+                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                    .filter(s -> s.state() == ShardRoutingState.INITIALIZING)
+                    .count(),
+                equalTo((long) indicesToBeMounted.size())
+            );
+        });
+
+        var mockRepository = (CustomMockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+            .repository(repositoryName);
+        mockRepository.countDown();
+
+        assertBusy(() -> {
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(
+                state.routingTable()
+                    .allShards()
+                    .stream()
+                    .peek(s -> System.out.println(s.shardId() + " " + s.state()))
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
                     .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
                     .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
@@ -369,7 +386,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
     public static class CustomMockRepositoryPlugin extends MockRepository.Plugin {
 
         public static final String TYPE = "custommock";
-        public static final Setting<Integer> NB_INDICES = Setting.intSetting("mock.nbIndices", 0, Setting.Property.NodeScope);
 
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -379,28 +395,16 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return Collections.singletonMap(TYPE, metadata -> {
-                return new CustomMockRepository(
-                    metadata,
-                    env,
-                    namedXContentRegistry,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    new CountDownLatch(NB_INDICES.getDefault(metadata.settings()))
-                );
-            });
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(NB_INDICES);
+            return Collections.singletonMap(
+                TYPE,
+                metadata -> new CustomMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+            );
         }
     }
 
     public static class CustomMockRepository extends MockRepository {
 
-        private final CountDownLatch countDownLatch;
+        private static final CountDownLatch LATCH = new CountDownLatch(1);
 
         public CustomMockRepository(
             RepositoryMetadata metadata,
@@ -408,24 +412,31 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings,
-            CountDownLatch countDownLatch
+            RecoverySettings recoverySettings
         ) {
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
-            this.countDownLatch = countDownLatch;
+        }
+
+        void countDown() {
+            LATCH.countDown();
         }
 
         @Override
-        public void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
-            System.out.println("getSnapshotInfo " + snapshotId);
-            super.getSnapshotInfo(snapshotId, listener);
-        }
-
-        @Override
-        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index)
-            throws IOException {
-            System.out.println("getSnapshotIndexMetaData " + snapshotId);
-            return super.getSnapshotIndexMetaData(repositoryData, snapshotId, index);
+        public void restoreShard(
+            Store store,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId snapshotShardId,
+            RecoveryState recoveryState,
+            ActionListener<Void> listener
+        ) {
+            try {
+                LATCH.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
         }
     }
+
 }

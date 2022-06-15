@@ -82,7 +82,7 @@ teardown:
               "name": "my-api-key",
               "expiration": "1d",
               "role_descriptors": {
-                "role-a": {
+                "role": {
                   "index": [
                     {
                       "names": ["other-index"],
@@ -145,7 +145,7 @@ teardown:
               "name": "my-api-key",
               "expiration": "1d",
               "role_descriptors": {
-                "role-a": {
+                "role": {
                   "index": [
                     {
                       "names": ["other-index"],

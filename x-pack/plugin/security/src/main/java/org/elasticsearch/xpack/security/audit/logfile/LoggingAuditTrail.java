@@ -414,9 +414,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 (policyName, updatedSettings) -> {
                     if (updatedSettings.keySet().isEmpty()) {
                         this.eventFilterPolicyRegistry.remove(policyName);
-                        return;
+                    } else {
+                        this.eventFilterPolicyRegistry.set(policyName, new EventFilterPolicy(policyName, updatedSettings));
                     }
-                    this.eventFilterPolicyRegistry.set(policyName, new EventFilterPolicy(policyName, updatedSettings));
                 }
             );
 

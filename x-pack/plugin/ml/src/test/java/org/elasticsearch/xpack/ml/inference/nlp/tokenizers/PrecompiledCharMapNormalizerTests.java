@@ -20,12 +20,12 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
 
     public void testCommonPrefix() throws IOException {
         PrecompiledCharMapNormalizer parsed = loadTestCharMap();
+        assertThat(parsed.normalize("𝔾"), equalTo("G"));
         OptionalInt local = parsed.commonPrefix("\uFB01".getBytes(StandardCharsets.UTF_8));
         assertThat(local.isPresent(), is(true));
         assertThat(local.getAsInt(), equalTo(2130));
         String transformed = parsed.normalize("\uFB01");
         assertThat(transformed, equalTo("fi"));
-        assertThat(parsed.normalize("𝔾"), equalTo("G"));
         assertThat(parsed.normalize("\uD835\uDD60"), equalTo("o"));
         assertThat(parsed.normalize("\u200D"), equalTo(" "));
         assertThat(parsed.normalize("เขาไม่ได้พูดสักคำ"), equalTo("เขาไม\u0E48ได\u0E49พ\u0E39ดส\u0E31กค\u0E4Dา"));

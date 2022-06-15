@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -347,9 +345,18 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             );
         });
 
+        logger.info("--> All shards are being initialized, attempt to mount an extra index");
+
+        mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
+        assertBusy(() -> {
+            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.STARTED).size(), equalTo(0));
+        });
+
+        logger.info("--> Unlocking the initialized shards");
         var mockRepository = (CustomMockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository(repositoryName);
-        mockRepository.countDown();
+        mockRepository.unlock();
 
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
@@ -365,13 +372,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 equalTo((long) indicesToBeMounted.size())
             );
         });
-
-        mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
-        assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
-            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.STARTED).size(), equalTo(0));
-            assertEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
-        });
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {
@@ -383,7 +383,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     public static class CustomMockRepositoryPlugin extends MockRepository.Plugin {
 
-        public static final String TYPE = "custommock";
+        public static final String TYPE = "custom-mock";
 
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -402,7 +402,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     public static class CustomMockRepository extends MockRepository {
 
-        private static final CountDownLatch LATCH = new CountDownLatch(1);
+        private static final CountDownLatch RESTORE_SHARD_LATCH = new CountDownLatch(1);
 
         public CustomMockRepository(
             RepositoryMetadata metadata,
@@ -415,8 +415,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
-        void countDown() {
-            LATCH.countDown();
+        private void unlock() {
+            RESTORE_SHARD_LATCH.countDown();
         }
 
         @Override
@@ -429,7 +429,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ActionListener<Void> listener
         ) {
             try {
-                LATCH.await(30, TimeUnit.SECONDS);
+                assertTrue(RESTORE_SHARD_LATCH.await(30, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

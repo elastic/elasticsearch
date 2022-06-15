@@ -14,15 +14,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -32,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * This indicator reports the health of master stability.
+ * This service reports the health of master stability.
  * If we have had a master within the last 30 seconds, and that master has not changed more than 3 times in the last 30 minutes, then
  * this will report GREEN.
  * If we have had a master within the last 30 seconds, but that master has changed more than 3 times in the last 30 minutes (and that is
@@ -102,6 +98,11 @@ public class StableMasterService implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
+    /**
+     * This method calculates the master stability as seen from this node.
+     * @param explain If true, the result will contain a non-empty StableMasterDetails if the resulting status is non-GREEN
+     * @return Information about the current stability of the master node, as seen from this node
+     */
     public StableMasterResult calculate(boolean explain) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInHasMasterLookupTimeframe()) {
@@ -209,7 +210,7 @@ public class StableMasterService implements ClusterStateListener {
          * master is unstable, and we were unable to get the master's own view of its history). It could just be a short-lived problem
          * though if the remote history has not arrived yet.
          * If the local node is not master and the master history from the master itself reports that the master has gone null repeatedly
-         *  or changed identity repeatedly, then we have a problem (the master has confirmed what the local node saw).
+         * or changed identity repeatedly, then we have a problem (the master has confirmed what the local node saw).
          */
         boolean masterConfirmedUnstable = localNodeIsMaster
             || remoteHistoryException != null
@@ -237,9 +238,8 @@ public class StableMasterService implements ClusterStateListener {
     }
 
     /**
-     * Returns the health indicator details for the calculateOnMasterHasFlappedNull method. The top-level objects are "current_master" and
-     * (optionally) "exception_fetching_history". The "current_master" object will have "node_id" and "name" fields for the master node.
-     * Both will be null if the last-seen master was null.
+     * Returns the health indicator details for the calculateOnMasterHasFlappedNull method. This method populates the StableMasterDetails
+     * with the currentMaster, and optionally the remoteExceptionMessage and remoteExceptionStackTrace.
      * @param explain If false, nothing is calculated and StableMasterDetails.EMPTY is returned
      * @param localMasterHistory The localMasterHistory
      * @param remoteHistoryException An exception that was found when retrieving the remote master history. Can be null
@@ -321,26 +321,14 @@ public class StableMasterService implements ClusterStateListener {
         }
     }
 
-    public record StableMasterResult(HealthStatus status, String summary, StableMasterDetails details) implements Writeable {
-
-        public StableMasterResult(StreamInput in) throws IOException {
-            this(HealthStatus.fromStreamInput(in), in.readString(), new StableMasterDetails(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            status.writeTo(out);
-            out.writeString(summary);
-            details.writeTo(out);
-        }
-    }
+    public record StableMasterResult(HealthStatus status, String summary, StableMasterDetails details) {}
 
     public record StableMasterDetails(
         DiscoveryNode currentMaster,
         List<DiscoveryNode> recentMasters,
         String remoteExceptionMessage,
         String remoteExceptionStackTrace
-    ) implements Writeable {
+    ) {
 
         public StableMasterDetails(DiscoveryNode currentMaster, List<DiscoveryNode> recentMasters) {
             this(currentMaster, recentMasters, null, null);
@@ -348,32 +336,6 @@ public class StableMasterService implements ClusterStateListener {
 
         public StableMasterDetails(DiscoveryNode currentMaster, Exception remoteException) {
             this(currentMaster, null, remoteException == null ? null : remoteException.getMessage(), getStackTrace(remoteException));
-        }
-
-        public StableMasterDetails(StreamInput in) throws IOException {
-            this(readCurrentMaster(in), readRecentMasters(in), in.readOptionalString(), in.readOptionalString());
-        }
-
-        private static DiscoveryNode readCurrentMaster(StreamInput in) throws IOException {
-            boolean hasCurrentMaster = in.readBoolean();
-            DiscoveryNode currentMaster;
-            if (hasCurrentMaster) {
-                currentMaster = new DiscoveryNode(in);
-            } else {
-                currentMaster = null;
-            }
-            return currentMaster;
-        }
-
-        private static List<DiscoveryNode> readRecentMasters(StreamInput in) throws IOException {
-            boolean hasRecentMasters = in.readBoolean();
-            List<DiscoveryNode> recentMasters;
-            if (hasRecentMasters) {
-                recentMasters = in.readImmutableList(DiscoveryNode::new);
-            } else {
-                recentMasters = null;
-            }
-            return recentMasters;
         }
 
         private static String getStackTrace(Exception e) {
@@ -386,23 +348,5 @@ public class StableMasterService implements ClusterStateListener {
         }
 
         public static final StableMasterDetails EMPTY = new StableMasterDetails(null, null, null, null);
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (currentMaster == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                currentMaster.writeTo(out);
-            }
-            if (recentMasters == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeList(recentMasters);
-            }
-            out.writeOptionalString(remoteExceptionMessage);
-            out.writeOptionalString(remoteExceptionStackTrace);
-        }
     }
 }

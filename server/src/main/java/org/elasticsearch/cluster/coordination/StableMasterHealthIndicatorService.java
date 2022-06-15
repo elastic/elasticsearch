@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -42,8 +40,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String HELP_URL = "https://ela.st/fix-master";
 
     private final StableMasterService stableMasterService;
-
-    private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
@@ -101,6 +97,16 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return createIndicator(status, stableMasterResult.summary(), details, impacts, userActions);
     }
 
+    /**
+     * Returns a HealthIndicatorDetails populated with information from the stableMasterDetails. If explain is false,
+     * HealthIndicatorDetails.EMPTY will be returned. Otherwise the xContent of the returned HealthIndicatorDetails will potentially
+     * include some of "current_master", "recent_masters", and "exception_fetching_history" top-level objects. The "current_master" field
+     * will have "node_id" and "name" fields. The "recent_masters" field will be an array of objects, each containing "node_id" and
+     * "name" fields. The "exception_fetching_history" field will contain "message" and "stack_trace" fields.
+     * @param stableMasterDetails The StableMasterDetails to transform into a HealthIndicatorDetails
+     * @param explain If false, HealthIndicatorDetails.EMPTY will be returned
+     * @return A HealthIndicatorDetails
+     */
     private HealthIndicatorDetails getDetails(StableMasterService.StableMasterDetails stableMasterDetails, boolean explain) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;

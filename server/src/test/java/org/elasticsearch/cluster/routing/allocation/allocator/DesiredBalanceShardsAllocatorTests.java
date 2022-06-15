@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -478,19 +479,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
 
-        rerouteServiceSupplier.set((r, p, l) -> {
-            clusterService.submitUnbatchedStateUpdateTask("test-desired-balance-reroute", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return allocationService.reroute(currentState, "test-desired-balance-reroute", l.map(ignore -> null));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("Should not happen in test");
-                }
-            });
-        });
+        rerouteServiceSupplier.set(new BatchedRerouteService(clusterService, allocationService::reroute));
 
         var indexNameGenerator = new AtomicInteger();
 

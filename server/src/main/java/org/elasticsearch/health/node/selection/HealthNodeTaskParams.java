@@ -51,7 +51,7 @@ class HealthNodeTaskParams implements PersistentTaskParams {
     public void writeTo(StreamOutput out) {}
 
     public static HealthNodeTaskParams fromXContent(XContentParser parser) {
-        return INSTANCE;
+        return PARSER.apply(parser, null);
     }
 
     @Override

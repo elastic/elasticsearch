@@ -43,6 +43,10 @@ public interface Tracer {
 
     Releasable withScope(Traceable traceable);
 
+    /**
+     * A Tracer implementation that does nothing. This is used when no tracer is configured,
+     * in order to avoid null checks everywhere.
+     */
     Tracer NOOP = new Tracer() {
         @Override
         public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {}

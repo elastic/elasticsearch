@@ -14,6 +14,7 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 
 import org.apache.logging.log4j.LogManager;
@@ -44,10 +45,19 @@ import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 
+/**
+ * This is an implementation of the {@link org.elasticsearch.tracing.Tracer} interface, which uses
+ * the OpenTelemetry API to capture spans.
+ * <p>
+ * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
+ * API's default, no-op implementation would be used. However, when the APM Java is attached, it
+ * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
+ */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
 
+    /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
     private final ClusterService clusterService;
 
@@ -56,10 +66,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private List<String> includeNames;
     private List<String> excludeNames;
+    /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
     private volatile CharacterRunAutomaton filterAutomaton;
 
     /**
-     * This class is required to make all open telemetry services visible at once
+     * This class is used to make all OpenTelemetry services visible at once
      */
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
@@ -140,6 +151,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
 
+            // A span can have a parent span, which here is modelled though a parent span context.
+            // Setting this is important for seeing a complete trace in the APM UI.
             final Context parentContext = getParentContext(threadContext);
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
@@ -149,14 +162,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 
+            // The new span context can be used as the parent context directly within the same Java process...
+            threadContext.putTransient(Task.APM_TRACE_CONTEXT, contextForNewSpan);
+
+            // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the threadContext so
+            // that they can be propagated.
             final Map<String, String> spanHeaders = new HashMap<>();
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
-
-            // The span context can be used as the parent context directly within the same Java process
-            threadContext.putTransient(Task.APM_TRACE_CONTEXT, contextForNewSpan);
-            // Whereas for tasks sent to other ES nodes, we need to put trace headers into the threadContext so that they can be
-            // propagated
             threadContext.putHeader(spanHeaders);
 
             return contextForNewSpan;
@@ -189,6 +202,25 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return parentContext;
     }
 
+    /**
+     * Most of the examples of how to use the OTel API look something like this, where the span context
+     * is automatically propagated:
+     *
+     * <pre>{@code
+     * Span span = tracer.spanBuilder("parent").startSpan();
+     * try (Scope scope = parentSpan.makeCurrent()) {
+     *   // ...do some stuff, possibly creating further spans
+     * } finally {
+     *   span.end();
+     * }
+     * }</pre>
+     * This typically isn't useful in Elasticsearch, because a {@link Scope} can't be used across threads.
+     * However, if a scope is active, then the APM agent can capture additional information, so this method
+     * exists to make it possible to use scopes in the few situaton where it makes sense.
+     *
+     * @param traceable the traceable for which to open a scope. A span must currently be open for this {@code traceable}.
+     * @return a method to close the scope when you are finished with it.
+     */
     @Override
     public Releasable withScope(Traceable traceable) {
         final Context context = spans.get(traceable.getSpanId());
@@ -312,7 +344,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
-    static CharacterRunAutomaton buildAutomaton(List<String> includeNames, List<String> excludeNames) {
+    private static CharacterRunAutomaton buildAutomaton(List<String> includeNames, List<String> excludeNames) {
         Automaton includeAutomaton = patternsToAutomaton(includeNames);
         Automaton excludeAutomaton = patternsToAutomaton(excludeNames);
 

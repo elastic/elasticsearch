@@ -14,6 +14,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -29,8 +30,19 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 
-public class APMJvmOptions {
+/**
+ * This class is responsible for working out if APM tracing is enabled, and if so, preparing
+ * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
+ */
+class APMJvmOptions {
+    /**
+     * Contains agent configuration that must always be applied, and cannot be overridden.
+     */
     private static final Map<String, String> STATIC_CONFIG;
+
+    /**
+     * Contains default configuration that will be used unless overridden by explicit configuration.
+     */
     private static final Map<String, String> CONFIG_DEFAULTS;
 
     /**
@@ -75,9 +87,6 @@ public class APMJvmOptions {
     static {
         STATIC_CONFIG = new HashMap<>();
 
-        // Required for OpenTelemetry support
-        STATIC_CONFIG.put("enable_experimental_instrumentations", "true");
-
         // Identifies the version of Elasticsearch in the captured trace data.
         STATIC_CONFIG.put("service_version", Version.CURRENT.toString());
 
@@ -119,7 +128,17 @@ public class APMJvmOptions {
         CONFIG_DEFAULTS.put("central_config", "false");
     }
 
-    public static List<String> apmJvmOptions(Settings settings, KeyStoreWrapper keystore, Path tmpdir) throws UserException, IOException {
+    /**
+     * This method works out if APM tracing is enabled, and if so, prepares a temporary config file
+     * for the APM Java agent and CLI options to the JVM to configure APM. The config file is temporary
+     * because it will be deleted once Elasticsearch starts.
+     *
+     * @param settings the Elasticsearch settings to consider
+     * @param keystore a wrapper to access the keystore, or null if there is no keystore
+     * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
+     */
+    static List<String> apmJvmOptions(Settings settings, @Nullable KeyStoreWrapper keystore, Path tmpdir) throws UserException,
+        IOException {
         final boolean enabled = settings.getAsBoolean("xpack.apm.enabled", false);
 
         if (enabled == false) {
@@ -141,18 +160,12 @@ public class APMJvmOptions {
             }
         }
 
-        if (keystore != null && keystore.getSettingNames().contains("xpack.apm.secret_token")) {
-            try (SecureString token = keystore.getString("xpack.apm.secret_token")) {
-                propertiesMap.put("secret_token", token.toString());
-            }
-        }
-
+        extractSecureSettings(keystore, propertiesMap);
         final Map<String, String> dynamicSettings = extractDynamicSettings(propertiesMap);
 
         final File tempFile = writeApmProperties(tmpdir, propertiesMap);
 
         final List<String> options = new ArrayList<>();
-
         // Use an agent argument to specify the config file instead of e.g. `-Delastic.apm.config_file=...`
         // because then the agent won't try to reload the file, and we can remove it after startup.
         options.add("-javaagent:" + agentJar.get() + "=c=" + tempFile);
@@ -162,6 +175,22 @@ public class APMJvmOptions {
         return options;
     }
 
+    private static void extractSecureSettings(KeyStoreWrapper keystore, Map<String, String> propertiesMap) {
+        if (keystore != null) {
+            for (String key : List.of("api_key", "secret_token")) {
+                if (keystore.getSettingNames().contains("xpack.apm." + key)) {
+                    try (SecureString token = keystore.getString("xpack.apm." + key)) {
+                        propertiesMap.put(key, token.toString());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes settings that can be changed dynamically at runtime from the supplied map, and returns
+     * those settings in a new map.
+     */
     private static Map<String, String> extractDynamicSettings(Map<String, String> propertiesMap) {
         final Map<String, String> cliOptionsMap = new HashMap<>();
 
@@ -199,6 +228,14 @@ public class APMJvmOptions {
         return propertiesMap;
     }
 
+    /**
+     * Writes a Java properties file with data from supplied map to a temporary config, and returns
+     * the file that was created.
+     * @param tmpdir the directory for the file
+     * @param propertiesMap the data to write
+     * @return the file that was created
+     * @throws IOException if writing the file fails
+     */
     private static File writeApmProperties(Path tmpdir, Map<String, String> propertiesMap) throws IOException {
         final Properties p = new Properties();
         p.putAll(propertiesMap);
@@ -210,6 +247,12 @@ public class APMJvmOptions {
         return tempFile;
     }
 
+    /**
+     * The JVM argument that configure the APM agent needs to specify the agent jar path, so this method
+     * finds the jar by inspecting the filesystem.
+     * @return the agent jar file
+     * @throws IOException if a problem occurs reading the filesystem
+     */
     private static Optional<Path> findAgentJar() throws IOException {
         final Path apmModule = Path.of("modules/x-pack-apm-integration");
 

@@ -28,13 +28,17 @@ import java.util.function.Function;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
+/**
+ * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
+ * The methods could all be static, however they are not in order to make unit testing easier.
+ */
 class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
     /**
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
-     * config file, as then their values cannot be overridden dynamically via system properties.
+     * config file, as then their values could not be overridden dynamically via system properties.
      */
     // tag::noformat
     static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
@@ -55,6 +59,10 @@ class APMAgentSettings {
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 
+    /**
+     * Copies APM settings from the provided settings object into the corresponding system properties.
+     * @param settings the settings to apply
+     */
     void syncAgentSystemProperties(Settings settings) {
         this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
 
@@ -73,6 +81,12 @@ class APMAgentSettings {
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
 
+    /**
+     * Copies a setting to the APM agent's system properties under <code>elastic.apm</code>, either
+     * by setting the property if {@code value} has a value, or by deleting the property if it doesn't.
+     * @param key the config key to set, without any prefix
+     * @param value the value to set, or <code>null</code>
+     */
     @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
     void setAgentSetting(String key, String value) {
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
@@ -90,6 +104,9 @@ class APMAgentSettings {
 
     private static final String APM_SETTING_PREFIX = "xpack.apm.";
 
+    /**
+     * A list of APM agent config keys that should never be configured by the user.
+     */
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
@@ -135,8 +152,13 @@ class APMAgentSettings {
         NodeScope
     );
 
-    static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString(
+    static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         APM_SETTING_PREFIX + "secret_token",
+        null
+    );
+
+    static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(
+        APM_SETTING_PREFIX + "api_key",
         null
     );
 }

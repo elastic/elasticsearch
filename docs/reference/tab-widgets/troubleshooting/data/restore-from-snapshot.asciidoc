@@ -22,12 +22,21 @@ and go to **Stack Management > Index Management**.
 you could skip this. Go in the **Indices** tab, enable **Include hidden indices** toggle and find all the open indices
 that have an empty **Health** and empty **Data stream**, keep their names somewhere handy. Do the same for in the data
 streams with an empty **Health** in the **Data Streams** tab.
-
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-index-management-select-red-indices.png[{kib} indices,align="center"]
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-index-management-select-red-data-streams.png[{kib} data streams,align="center"]
++
 . Use the left side menu to go to **Snapshot and Restore**, there you can verify that you have a snapshot to restore
 the target indices and data streams from. By clicking on every snapshot you can see the indices and data streams it
 contains. Not all resources need to be restored from the same snapshot. Given that you have found one or more snapshots
 to restore your indices you can proceed.
-
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-restore-snapshot-content.png[{kib} snapshots,align="center"]
++
 . Go back to **Index Management** via the left side menu. In **Indices** delete all the indices and data streams you
 have noted, by selecting them and then using the **Manage index** button choose delete index. In the **Data Streams**
 tab repeat the same by selecting the affected data streams and then clicking **Delete data steam**.
@@ -41,8 +50,17 @@ clicking **Delete data steam**.
 from then click **Restore**. In the next page disable the toggle *All data streams and indices, including system
 indices*, deselect all and then choose the indices and data streams you would like to restore. Click **Next** twice to
 continue without changing anything else and finally click **Restore Snapshot**.
-
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-restore-snapshot-select-resources.png[{kib} select resources to restore,align="center"]
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,align="center"]
++
 . When the process will be complete you will see in the **Restore Status** tab the result of your restore.
++
+[role="screenshot"]
+image::images/troubleshooting/data/kibana-restore-snapshot-result.png[{kib} select resources to restore,align="center"]
 +
 For more guidance on creating and restoring snapshots see
 <<snapshot-restore, this guide>>.

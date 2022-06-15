@@ -1871,10 +1871,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals(
-            "Object [metrics.service] has subobjects set to false hence it does not support inner object [time]",
-            err.getRootCause().getMessage()
-        );
+        assertEquals("Tried to add subobject [time] to object [metrics.service] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
@@ -1893,8 +1890,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """)));
         assertEquals(
-            "Object [metrics.service] has subobjects set to false hence it does not support inner object [test.with.dots]",
-            err.getRootCause().getMessage()
+            "Tried to add subobject [test.with.dots] to object [metrics.service] which does not support subobjects",
+            err.getMessage()
         );
     }
 
@@ -1909,10 +1906,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals(
-            "Object [_doc] has subobjects set to false hence it does not support inner object [metrics]",
-            err.getRootCause().getMessage()
-        );
+        assertEquals("Tried to add subobject [metrics] to object [_doc] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
@@ -2062,7 +2056,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """)));
         assertEquals(
-            "Object [metrics] has subobjects set to false hence it does not support inner object [service.time]",
+            "Tried to add subobject [service.time] to object [metrics] which does not support subobjects",
             err.getRootCause().getMessage()
         );
     }

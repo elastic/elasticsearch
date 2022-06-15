@@ -505,6 +505,26 @@ public final class DocumentParser {
                 }
                 context.addDynamicMapper(dynamicObjectMapper);
             }
+            if (mapper.subobjects() == false) {
+                if (dynamicObjectMapper instanceof NestedObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add nested object ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + mapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
+                if (dynamicObjectMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add subobject ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + mapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
+            }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
             }

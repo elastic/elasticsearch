@@ -101,7 +101,10 @@ public class XContentUtils {
                 builder.startObject("api_key");
                 Map<String, Object> metadata = authenticationSubject.getMetadata();
                 builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
-                builder.field("name", metadata.get(AuthenticationField.API_KEY_NAME_KEY));
+                Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+                if (name != null) {
+                    builder.field("name", name);
+                }
                 builder.endObject();
             }
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());

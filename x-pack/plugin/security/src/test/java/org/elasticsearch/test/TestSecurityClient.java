@@ -426,6 +426,19 @@ public class TestSecurityClient {
         return new Tuple<>(Objects.toString(response.get("access_token"), null), response);
     }
 
+    /**
+     * Uses the REST API to create an application privilege
+     * @see org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction
+     */
+    public void putApplicationPrivilege(String applicationName, String privilegeName, String[] actions) throws IOException {
+        final String endpoint = "/_security/privilege/";
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        final Map<String, Object> body = Map.of(applicationName, Map.of(privilegeName, Map.of("actions", List.of(actions))));
+        request.setJsonEntity(toJson(body));
+        execute(request);
+    }
+
     private static String toJson(Map<String, ? extends Object> map) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
         final BytesReference bytes = BytesReference.bytes(builder);

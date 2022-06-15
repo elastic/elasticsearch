@@ -125,7 +125,7 @@ public class FetchPhase {
         LeafNestedDocuments leafNestedDocuments = null;
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
         boolean hasSequentialDocs = hasSequentialDocs(docs);
-        SourceLoader sourceLoader = context.getSearchExecutionContext().newSourceLoader();
+        SourceLoader sourceLoader = context.newSourceLoader();
         SourceLoader.Leaf leafSourceLoader = null;
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {

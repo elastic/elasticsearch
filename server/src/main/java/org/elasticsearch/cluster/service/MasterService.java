@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.Scheduler;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -474,22 +476,13 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
         @Override
+        @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
         public ClusterState execute(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts) throws Exception {
             assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
             final var taskContext = taskContexts.get(0);
             final var task = taskContext.getTask();
             final var newState = task.execute(currentState);
-            final var publishListener = new ActionListener<ClusterState>() {
-                @Override
-                public void onResponse(ClusterState publishedState) {
-                    task.clusterStateProcessed(currentState, publishedState);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    task.onFailure(e);
-                }
-            };
+            final Consumer<ClusterState> publishListener = publishedState -> task.clusterStateProcessed(currentState, publishedState);
             if (task instanceof ClusterStateAckListener ackListener) {
                 taskContext.success(publishListener, ackListener);
             } else {
@@ -751,8 +744,11 @@ public class MasterService extends AbstractLifecycleComponent {
     private static class ExecutionResult<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         final Batcher.UpdateTask updateTask;
 
-        @Nullable // if the task is incomplete or failed
-        ActionListener<ClusterState> publishListener;
+        @Nullable // if the task is incomplete or failed or onPublicationSuccess supplied
+        Consumer<ClusterState> publishedStateConsumer;
+
+        @Nullable // if the task is incomplete or failed or publishedStateConsumer supplied
+        Runnable onPublicationSuccess;
 
         @Nullable // if the task is incomplete or failed or doesn't listen for acks
         ClusterStateAckListener clusterStateAckListener;
@@ -773,7 +769,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private boolean incomplete() {
             assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
                 : Thread.currentThread().getName();
-            return publishListener == null && failure == null;
+            return publishedStateConsumer == null && onPublicationSuccess == null && failure == null;
         }
 
         // [HISTORICAL NOTE] In the past, tasks executed by the master service would automatically be notified of acks if they implemented
@@ -790,20 +786,38 @@ public class MasterService extends AbstractLifecycleComponent {
         // ClusterStateUpdateTask or an AckedClusterStateUpdateTask.
 
         @Override
-        public void success(ActionListener<ClusterState> publishListener) {
+        public void success(Runnable onPublicationSuccess) {
             assert getTask() instanceof ClusterStateAckListener == false // see [HISTORICAL NOTE] above
                 : "tasks that implement ClusterStateAckListener must explicitly supply themselves as the ack listener";
             assert incomplete();
-            this.publishListener = Objects.requireNonNull(publishListener);
+            this.onPublicationSuccess = Objects.requireNonNull(onPublicationSuccess);
         }
 
         @Override
-        public void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener) {
+        public void success(Consumer<ClusterState> publishListener) {
+            assert getTask() instanceof ClusterStateAckListener == false // see [HISTORICAL NOTE] above
+                : "tasks that implement ClusterStateAckListener must explicitly supply themselves as the ack listener";
+            assert incomplete();
+            this.publishedStateConsumer = Objects.requireNonNull(publishListener);
+        }
+
+        @Override
+        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {
             assert getTask() == clusterStateAckListener || getTask() instanceof ClusterStateAckListener == false
                 // see [HISTORICAL NOTE] above
                 : "tasks that implement ClusterStateAckListener must not supply a separate clusterStateAckListener";
             assert incomplete();
-            this.publishListener = Objects.requireNonNull(publishListener);
+            this.onPublicationSuccess = Objects.requireNonNull(onPublicationSuccess);
+            this.clusterStateAckListener = Objects.requireNonNull(clusterStateAckListener);
+        }
+
+        @Override
+        public void success(Consumer<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener) {
+            assert getTask() == clusterStateAckListener || getTask() instanceof ClusterStateAckListener == false
+                // see [HISTORICAL NOTE] above
+                : "tasks that implement ClusterStateAckListener must not supply a separate clusterStateAckListener";
+            assert incomplete();
+            this.publishedStateConsumer = Objects.requireNonNull(publishListener);
             this.clusterStateAckListener = Objects.requireNonNull(clusterStateAckListener);
         }
 
@@ -816,41 +830,49 @@ public class MasterService extends AbstractLifecycleComponent {
         void onBatchFailure(Exception failure) {
             // if the whole batch resulted in an exception then this overrides any task-level results whether successful or not
             this.failure = Objects.requireNonNull(failure);
-            this.publishListener = null;
+            this.publishedStateConsumer = null;
             this.clusterStateAckListener = null;
         }
 
         void onPublishSuccess(ClusterState newClusterState) {
-            if (publishListener == null) {
+            if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
-                publishListener.onResponse(newClusterState);
+                if (onPublicationSuccess == null) {
+                    publishedStateConsumer.accept(newClusterState);
+                } else {
+                    onPublicationSuccess.run();
+                }
             } catch (Exception e) {
                 logger.error(() -> format("exception thrown by listener while notifying of new cluster state:\n%s", newClusterState), e);
             }
         }
 
         void onClusterStateUnchanged(ClusterState clusterState) {
-            if (publishListener == null) {
+            if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
-                publishListener.onResponse(clusterState);
+                if (onPublicationSuccess == null) {
+                    publishedStateConsumer.accept(clusterState);
+                } else {
+                    onPublicationSuccess.run();
+                }
             } catch (Exception e) {
                 logger.error(() -> format("exception thrown by listener while notifying of unchanged cluster state:\n%s", clusterState), e);
             }
         }
 
         void onPublishFailure(FailedToCommitClusterStateException e) {
-            if (publishListener == null) {
+            if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
-                publishListener.onFailure(e);
+                getTask().onFailure(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error("exception thrown by listener notifying of failure", inner);

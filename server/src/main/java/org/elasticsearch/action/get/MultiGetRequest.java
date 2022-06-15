@@ -256,6 +256,15 @@ public class MultiGetRequest extends ActionRequest
         items = in.readList(Item::new);
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(preference);
+        out.writeBoolean(refresh);
+        out.writeBoolean(realtime);
+        out.writeList(items);
+    }
+
     public List<Item> getItems() {
         return this.items;
     }
@@ -539,15 +548,6 @@ public class MultiGetRequest extends ActionRequest
     @Override
     public Iterator<Item> iterator() {
         return Collections.unmodifiableCollection(items).iterator();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(preference);
-        out.writeBoolean(refresh);
-        out.writeBoolean(realtime);
-        out.writeList(items);
     }
 
     @Override

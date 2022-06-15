@@ -744,9 +744,8 @@ public class IndexSettingsTests extends ESTestCase {
             .put(TIME_SERIES_START_TIME.getKey(), startTime)
             .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();
-        IndexMetadata metadata = newIndexMeta("test", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
 

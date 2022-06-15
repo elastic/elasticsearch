@@ -369,7 +369,7 @@ details have contents and a structure that is unique to each indicator.
     (int) The number of index lifecycle policies that the system is managing.
 
 [[health-api-response-details-slm]]
-===== ilm
+===== slm
 
 `slm_status`::
     (string) The current status of the Snapshot Lifecycle Management feature. Either `STOPPED`, `STOPPING`, or `RUNNING`.

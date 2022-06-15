@@ -32,7 +32,7 @@ public class ApmIT extends ESRestTestCase {
 
     /**
      * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server. The traces are generated in
-     * a separate Docker container, which continually fetches `/_notes/stats`.
+     * a separate Docker container, which continually fetches `/_nodes/stats`.
      */
     public void testCapturesTracesForHttpTraffic() throws Exception {
         checkTracesDataStream();

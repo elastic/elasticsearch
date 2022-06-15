@@ -152,14 +152,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         return Optional.empty();
     }
 
-    boolean supportsOperatorSetState() {
-        return operatorHandlerName().isPresent();
-    }
-
     protected Set<String> modifiedKeys(Request request) {
         return Collections.emptySet();
     }
 
+    // package private for testing
     void validateForOperatorState(Request request, ClusterState state) {
         Optional<String> handlerName = operatorHandlerName();
         assert handlerName.isPresent();
@@ -175,16 +172,21 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         if (errors.isEmpty() == false) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 format("Failed to process request [%s] with errors: %s", request, String.join(System.lineSeparator(), errors))
             );
         }
     }
 
+    // package private for testing
+    boolean supportsOperatorMode() {
+        return operatorHandlerName().isPresent();
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
-        if (supportsOperatorSetState()) {
+        if (supportsOperatorMode()) {
             validateForOperatorState(request, state);
         }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());

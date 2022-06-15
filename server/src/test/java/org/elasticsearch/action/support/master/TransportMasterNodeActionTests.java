@@ -258,6 +258,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return null; // default implementation, overridden in specific tests
         }
+    }
+
+    class OperatorAction extends Action {
+        OperatorAction(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+            super(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+        }
 
         @Override
         protected Optional<String> operatorHandlerName() {
@@ -769,6 +775,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         Action noHandler = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME);
 
+        assertFalse(noHandler.supportsOperatorMode());
+
+        noHandler = new OperatorAction("internal:testOpAction", transportService, clusterService, threadPool);
+
+        assertTrue(noHandler.supportsOperatorMode());
+
         // nothing should happen here, since the request doesn't touch any of the operator key
         noHandler.validateForOperatorState(new Request(), clusterState);
 
@@ -784,8 +796,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             ThreadPool.Names.SAME
         );
 
+        assertTrue(action.supportsOperatorMode());
+
         assertTrue(
-            expectThrows(IllegalStateException.class, () -> action.validateForOperatorState(request, clusterState)).getMessage()
+            expectThrows(IllegalArgumentException.class, () -> action.validateForOperatorState(request, clusterState)).getMessage()
                 .contains("with errors: [a] set in operator mode by [namespace_one]\n" + "[e] set in operator mode by [namespace_two]")
         );
 

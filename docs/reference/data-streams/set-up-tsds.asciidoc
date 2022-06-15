@@ -215,6 +215,8 @@ specify:
 using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
 naming scheme].
 
+* That the template is data stream enabled.
+
 * An `index.mode` object set to `time_series`.
 
 * Optional: The `index.routing_path` index setting. The setting value should

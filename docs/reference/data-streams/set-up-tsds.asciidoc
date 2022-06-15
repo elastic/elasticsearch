@@ -36,7 +36,7 @@ for any TSDS you create or convert. To roll over a TSDS, you must have the
 ==== Create an index lifecycle policy
 
 While optional, we recommend using {ilm-init} to automate the management of your
-TSDS’s backing indices. {ilm-init} requires an index lifecycle policy.
+TSDS's backing indices. {ilm-init} requires an index lifecycle policy.
 
 We recommend you specify a `max_age` criteria for the `rollover` action in the
 policy. This ensures the <<time-bound-indices,`@timestamp` ranges>> for the
@@ -215,7 +215,7 @@ specify:
 using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
 naming scheme].
 
-* A `data_stream` object with an `index_mode` of `time_series`.
+* An `index.mode` object set to `time_series`.
 
 * Optional: The `index.routing_path` index setting. The setting value should
 only match plain `keyword` dimension fields and should be set directly in the

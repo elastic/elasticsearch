@@ -1848,9 +1848,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final var allDataStreams = dataStreamMetadata.dataStreams();
             // Adding data stream aliases:
             for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
-                if (indexAliases.contains(dataStreamAlias)) {
-                    duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
-                }
                 if (indicesMap.containsKey(dataStreamAlias)) {
                     aliasDuplicatesWithIndices.add(dataStreamAlias);
                 }

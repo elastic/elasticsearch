@@ -227,12 +227,10 @@ setups['tsds_template'] = '''
         name: my-weather-sensor-index-template
         body: |
           {
-            "index_patterns": [ "metrics-weather_sensors-*" ],
-            "data_stream": {
-              "index_mode": "time_series"
-            },
+            "index_patterns": [ "metrics-weather_sensors-*" ]
             "template": {
               "settings": {
+                "index.mode": "time_series",
                 "index.routing_path": [ "sensor_id", "location" ]
               },
               "mappings": {

@@ -11,9 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -106,31 +103,13 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
         final var joiningDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
 
-        final var discoveryNodes = DiscoveryNodes.builder();
-
-        for (DesiredNodeWithStatus actualizedDesiredNode : actualizedDesiredNodes) {
-            assertThat(actualizedDesiredNode.actualized(), is(equalTo(true)));
-
-            discoveryNodes.add(newDiscoveryNode(actualizedDesiredNode.externalId()));
-        }
-
-        for (DesiredNodeWithStatus joiningDesiredNode : joiningDesiredNodes) {
-            assertThat(joiningDesiredNode.pending(), is(equalTo(true)));
-
-            discoveryNodes.add(newDiscoveryNode(joiningDesiredNode.externalId()));
-        }
-
-        // Add some nodes in the cluster that are not part of the desired nodes
-        for (int i = 0; i < randomInt(5); i++) {
-            discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
-        }
-
-        final var desiredNodes = createDesiredNodes(actualizedDesiredNodes, concatLists(pendingDesiredNodes, joiningDesiredNodes));
-
-        final var clusterState = ClusterState.builder(new ClusterName("test"))
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)).build())
-            .build();
+        final var clusterState = createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            joiningDesiredNodes,
+            true,
+            true
+        );
 
         final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(clusterState);
         assertThat(updatedClusterState, is(not(sameInstance(clusterState))));
@@ -146,63 +125,16 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
         final var actualizedDesiredNodes = randomList(1, 5, this::createActualizedDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
 
-        final var discoveryNodes = DiscoveryNodes.builder();
-        for (DesiredNodeWithStatus actualizedDesiredNode : actualizedDesiredNodes) {
-            assertThat(actualizedDesiredNode.actualized(), is(equalTo(true)));
-
-            discoveryNodes.add(newDiscoveryNode(actualizedDesiredNode.externalId()));
-        }
-
-        // Add some nodes in the cluster that are not part of the desired nodes
-        for (int i = 0; i < randomInt(5); i++) {
-            discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
-        }
-
-        final var desiredNodes = createDesiredNodes(actualizedDesiredNodes, pendingDesiredNodes);
-
-        final var clusterState = ClusterState.builder(new ClusterName("test"))
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)).build())
-            .build();
+        final var clusterState = createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            Collections.emptyList(),
+            true,
+            true
+        );
 
         final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(clusterState);
         assertThat(updatedClusterState, is(sameInstance(clusterState)));
-    }
-
-    public void testNewDesiredNodesAreStoredInClusterStateIfTheyChange() {
-        final var metadata = Metadata.builder();
-
-        DesiredNodes previousDesiredNodes = null;
-        if (randomBoolean()) {
-            final var actualizedDesiredNodes = randomList(1, 5, this::createActualizedDesiredNode);
-            final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
-
-            previousDesiredNodes = createDesiredNodes(actualizedDesiredNodes, pendingDesiredNodes);
-
-            metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(previousDesiredNodes));
-        }
-
-        final var clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata.build()).build();
-
-        final DesiredNodes newDesiredNodes;
-        if (previousDesiredNodes != null) {
-            newDesiredNodes = DesiredNodes.createIncludingStatusFromPreviousVersion(
-                previousDesiredNodes.historyID(),
-                previousDesiredNodes.version() + 1,
-                previousDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList(),
-                previousDesiredNodes
-            );
-        } else {
-            newDesiredNodes = createDesiredNodes(
-                randomList(1, 5, this::createActualizedDesiredNode),
-                randomList(0, 5, this::createPendingDesiredNode)
-            );
-        }
-
-        final var updatedClusterState = DesiredNodes.updateDesiredNodesStatusIfNeeded(clusterState, newDesiredNodes);
-
-        assertThat(updatedClusterState, is(not(sameInstance(clusterState))));
-        assertThat(DesiredNodes.latestFromClusterState(updatedClusterState), is(equalTo(newDesiredNodes)));
     }
 
     public void testNodesStatusIsCarriedOverInNewVersions() {
@@ -242,17 +174,6 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
         assertThat(pending.stream().allMatch(DesiredNodeWithStatus::pending), is(true));
         final List<DesiredNodeWithStatus> desiredNodes = concatLists(actualized, pending);
         return DesiredNodes.create(randomAlphaOfLength(10), randomInt(10), desiredNodes);
-    }
-
-    private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

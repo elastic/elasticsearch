@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +44,6 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -502,78 +500,76 @@ public class JoinTaskExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-
         final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var actualizedDesiredNodes = randomList(0, 5, this::createActualizedDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
         final var joiningDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
 
-        final var masterNode = newDiscoveryNode("master");
-        final var discoveryNodes = DiscoveryNodes.builder()
-            .add(masterNode)
-            .localNodeId(masterNode.getId())
-            .masterNodeId(masterNode.getId());
-
-        for (DesiredNodeWithStatus actualizedDesiredNode : actualizedDesiredNodes) {
-            discoveryNodes.add(newDiscoveryNode(actualizedDesiredNode.externalId()));
-        }
-
         final List<DiscoveryNode> joiningNodes = joiningDesiredNodes.stream()
-            .map(desiredNode -> newDiscoveryNode(desiredNode.externalId()))
+            .map(desiredNode -> DesiredNodesTestCase.newDiscoveryNode(desiredNode.externalId()))
             .toList();
 
-        // Add some nodes in the cluster that are not part of the desired nodes
-        for (int i = 0; i < randomInt(5); i++) {
-            discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
-        }
-
-        final var desiredNodes = DesiredNodes.create(
-            randomAlphaOfLength(10),
-            randomInt(10),
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes, joiningDesiredNodes)
+        final var clusterState = DesiredNodesTestCase.createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            joiningDesiredNodes,
+            true,
+            false
         );
-
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)))
-            .build();
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
         var tasks = joiningNodes.stream().map(node -> JoinTask.singleNode(node, "join", NOT_COMPLETED_LISTENER, 0L)).toList();
 
-        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, joinTaskExecutor, tasks);
+        final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, joinTaskExecutor, tasks);
 
         final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         assertThat(updatedDesiredNodes, is(notNullValue()));
 
         assertThat(updatedDesiredNodes.nodes(), hasSize(desiredNodes.nodes().size()));
         assertDesiredNodesStatusIsCorrect(
-            clusterState,
+            updatedClusterState,
             Stream.concat(actualizedDesiredNodes.stream(), joiningDesiredNodes.stream()).map(DesiredNodeWithStatus::desiredNode).toList(),
             pendingDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList()
         );
     }
 
-    @SafeVarargs
-    private List<DesiredNodeWithStatus> concatLists(List<DesiredNodeWithStatus>... nodeLists) {
-        assertThat(nodeLists.length, is(greaterThan(0)));
+    public void testDesiredNodesMembershipIsUpgradedWhenANewMasterIsElected() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
-        List<DesiredNodeWithStatus> concatList = new ArrayList<>();
-        for (List<DesiredNodeWithStatus> desiredNodeWithStatuses : nodeLists) {
-            concatList.addAll(desiredNodeWithStatuses);
-        }
+        final var actualizedDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
+        final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
 
-        return Collections.unmodifiableList(concatList);
-    }
+        final var clusterState = DesiredNodesTestCase.createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            Collections.emptyList(),
+            false,
+            false
+        );
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
-    private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+        final var completingElectionTask = JoinTask.completingElection(
+            clusterState.nodes().stream().map(node -> new JoinTask.NodeJoinTask(node, "test", NOT_COMPLETED_LISTENER)),
+            1L
+        );
+
+        final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            joinTaskExecutor,
+            List.of(completingElectionTask)
+        );
+
+        final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(updatedClusterState);
+        assertThat(updatedDesiredNodes, is(notNullValue()));
+
+        assertThat(updatedDesiredNodes.nodes(), hasSize(desiredNodes.nodes().size()));
+        assertDesiredNodesStatusIsCorrect(
+            updatedClusterState,
+            actualizedDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList(),
+            pendingDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList()
         );
     }
 

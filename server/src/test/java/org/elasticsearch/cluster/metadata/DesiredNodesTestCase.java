@@ -10,14 +10,20 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -116,6 +122,59 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             UUIDs.randomBase64UUID(random()),
             randomLongBetween(0, Long.MAX_VALUE - 1000),
             randomList(1, 100, DesiredNodesTestCase::randomDesiredNode)
+        );
+    }
+
+    public static ClusterState createClusterStateWithDiscoveryNodesAndDesiredNodes(
+        List<DesiredNodeWithStatus> actualizedDesiredNodes,
+        List<DesiredNodeWithStatus> pendingDesiredNodes,
+        List<DesiredNodeWithStatus> joiningDesiredNodes,
+        boolean withElectedMaster,
+        boolean withJoiningNodesInDiscoveryNodes
+    ) {
+        final var masterNode = newDiscoveryNode("master");
+        final var discoveryNodes = DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId());
+
+        if (withElectedMaster) {
+            discoveryNodes.masterNodeId(masterNode.getId());
+        }
+
+        for (DesiredNodeWithStatus actualizedDesiredNode : actualizedDesiredNodes) {
+            discoveryNodes.add(newDiscoveryNode(actualizedDesiredNode.externalId()));
+        }
+
+        if (withJoiningNodesInDiscoveryNodes) {
+            for (DesiredNodeWithStatus joiningDesiredNode : joiningDesiredNodes) {
+                discoveryNodes.add(newDiscoveryNode(joiningDesiredNode.externalId()));
+            }
+        }
+
+        // Add some nodes in the cluster that are not part of the desired nodes
+        int extraNodesCount = randomInt(5);
+        for (int i = 0; i < extraNodesCount; i++) {
+            discoveryNodes.add(newDiscoveryNode(UUIDs.randomBase64UUID(random())));
+        }
+
+        final var desiredNodes = DesiredNodes.create(
+            randomAlphaOfLength(10),
+            randomInt(10),
+            concatLists(concatLists(actualizedDesiredNodes, pendingDesiredNodes), joiningDesiredNodes)
+        );
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes)))
+            .build();
+    }
+
+    public static DiscoveryNode newDiscoveryNode(String nodeName) {
+        return new DiscoveryNode(
+            nodeName,
+            UUIDs.randomBase64UUID(random()),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
         );
     }
 }

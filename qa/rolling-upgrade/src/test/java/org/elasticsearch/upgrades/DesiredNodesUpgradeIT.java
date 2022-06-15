@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
@@ -69,6 +70,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
         Map<String, Object> responseMap = responseAsMap(response);
         List<Map<String, Object>> nodes = extractValue(responseMap, "metadata.desired_nodes.latest.nodes");
+        assertThat(nodes.size(), is(greaterThan(0)));
         for (Map<String, Object> desiredNode : nodes) {
             final int status = extractValue(desiredNode, "status");
             assertThat((short) status, is(equalTo(DesiredNodeWithStatus.Status.ACTUALIZED.getValue())));

@@ -44,6 +44,9 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
                 (ByteSizeValue) args[4],
                 (Version) args[5]
             ),
+            // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
+            // the desired node status would be populated when a node in the newer version is elected as
+            // master, the desired nodes status update happens in JoinTaskExecutor.
             args[6] == null ? Status.PENDING : (Status) args[6]
         )
     );

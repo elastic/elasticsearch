@@ -174,7 +174,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
-            var desiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+            var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
 
                 final var previousDesiredNodes = desiredNodes;
@@ -191,12 +192,14 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 );
             }
 
-            return DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState, desiredNodes);
+            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState.nodes(), desiredNodes);
+
+            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
         }
 
         @Override
         public void clusterStatePublished(ClusterState newClusterState) {
-            rerouteService.reroute("desired nodes updated", Priority.URGENT, REROUTE_LISTENER);
+            rerouteService.reroute("desired nodes updated", Priority.HIGH, REROUTE_LISTENER);
         }
     }
 }

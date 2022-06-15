@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -249,16 +250,21 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     public static ClusterState updateDesiredNodesStatusIfNeeded(ClusterState clusterState) {
         final var desiredNodes = latestFromClusterState(clusterState);
 
-        return updateDesiredNodesStatusIfNeeded(clusterState, desiredNodes);
+        final var updatedDesiredNodes = updateDesiredNodesStatusIfNeeded(clusterState.nodes(), desiredNodes);
+        return desiredNodes == updatedDesiredNodes
+            ? clusterState
+            : clusterState.copyAndUpdateMetadata(
+                metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
+            );
     }
 
-    public static ClusterState updateDesiredNodesStatusIfNeeded(ClusterState clusterState, DesiredNodes desiredNodes) {
+    public static DesiredNodes updateDesiredNodesStatusIfNeeded(DiscoveryNodes discoveryNodes, DesiredNodes desiredNodes) {
         if (desiredNodes == null) {
-            return clusterState;
+            return null;
         }
 
         Map<String, DesiredNodeWithStatus> desiredNodesWithUpdatedStatus = null;
-        for (DiscoveryNode discoveryNode : clusterState.nodes()) {
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
             final var desiredNode = desiredNodes.find(discoveryNode.getExternalId());
             if (desiredNode != null && desiredNode.pending()) {
                 if (desiredNodesWithUpdatedStatus == null) {
@@ -271,15 +277,8 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
             }
         }
 
-        if (desiredNodesWithUpdatedStatus != null || desiredNodes != latestFromClusterState(clusterState)) {
-            final var updatedDesiredNodes = desiredNodesWithUpdatedStatus == null
-                ? desiredNodes
-                : new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesWithUpdatedStatus);
-            return clusterState.copyAndUpdateMetadata(
-                metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
-            );
-        } else {
-            return clusterState;
-        }
+        return desiredNodesWithUpdatedStatus == null
+            ? desiredNodes
+            : new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesWithUpdatedStatus);
     }
 }

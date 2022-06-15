@@ -15,32 +15,46 @@ import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -78,7 +92,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(LocalStateSearchableSnapshots.class, MockRepository.Plugin.class))
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(LocalStateSearchableSnapshots.class, CustomMockRepositoryPlugin.class))
             .toList();
     }
 
@@ -138,13 +152,13 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return nbIndices;
     }
 
-    private void createRepository(String name, String type) {
+    private void createRepository(String name, String type, int nbIndices) {
         assertAcked(
             client().admin()
                 .cluster()
                 .preparePutRepository(name)
                 .setType(type)
-                .setSettings(Settings.builder().put("location", randomRepoPath()).build())
+                .setSettings(Settings.builder().put("location", randomRepoPath()).put("mock.nbIndices", nbIndices).build())
         );
     }
 
@@ -193,7 +207,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final int nbIndices = createIndices();
 
         final String repositoryName = "repository";
-        createRepository(repositoryName, FsRepository.TYPE);
+        createRepository(repositoryName, FsRepository.TYPE, nbIndices);
 
         final String snapshot = "snapshot";
         createSnapshot(repositoryName, snapshot, nbIndices);
@@ -278,7 +292,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         int nbIndices = createIndices();
 
         String repositoryName = "repository";
-        createRepository(repositoryName, "mock");
+        createRepository(repositoryName, CustomMockRepositoryPlugin.TYPE, nbIndices);
 
         String snapshotName = "snapshot";
         createSnapshot(repositoryName, snapshotName, nbIndices);
@@ -350,5 +364,68 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             .collect(
                 Collectors.toUnmodifiableMap(s -> s.getShardRouting().getIndexName(), s -> s.getStats().getStore().sizeInBytes(), Long::sum)
             );
+    }
+
+    public static class CustomMockRepositoryPlugin extends MockRepository.Plugin {
+
+        public static final String TYPE = "custommock";
+        public static final Setting<Integer> NB_INDICES = Setting.intSetting("mock.nbIndices", 0, Setting.Property.NodeScope);
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(TYPE, metadata -> {
+                return new CustomMockRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    new CountDownLatch(NB_INDICES.getDefault(metadata.settings()))
+                );
+            });
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(NB_INDICES);
+        }
+    }
+
+    public static class CustomMockRepository extends MockRepository {
+
+        private final CountDownLatch countDownLatch;
+
+        public CustomMockRepository(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            CountDownLatch countDownLatch
+        ) {
+            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            this.countDownLatch = countDownLatch;
+        }
+
+        @Override
+        public void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+            System.out.println("getSnapshotInfo " + snapshotId);
+            super.getSnapshotInfo(snapshotId, listener);
+        }
+
+        @Override
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index)
+            throws IOException {
+            System.out.println("getSnapshotIndexMetaData " + snapshotId);
+            return super.getSnapshotIndexMetaData(repositoryData, snapshotId, index);
+        }
     }
 }

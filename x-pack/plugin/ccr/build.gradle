@@ -25,7 +25,7 @@ tasks.named('internalClusterTest').configure {
   exclude noSecurityManagerITClasses
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 dependencies {
   compileOnly project(":server")

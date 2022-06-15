@@ -424,6 +424,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                 logger.info("--> blackholing leader {}", leader);
                 leader.disconnect();
                 cluster.stabilise();
+                leader.heal(); // putting it back in the cluster after another leader has been elected so that we always keep a quorum
             }
 
             final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();

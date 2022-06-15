@@ -1,0 +1,42 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-esql'
+  description 'The plugin that powers ESQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
+  extendedPlugins = ['x-pack-ql', 'lang-painless']
+}
+
+ext {
+  // ESQL dependency versions
+  antlrVersion = "4.9.2"
+}
+
+archivesBaseName = 'x-pack-esql'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless:spi'))
+  compileOnly project(xpackModule('ql'))
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+
+  internalClusterTestImplementation project(":client:rest-high-level")
+}
+
+
+/****************************************************************
+ *  Enable QA/rest integration tests for snapshot builds only   *
+ *  TODO: Enable for all builds upon this feature release       *
+ ****************************************************************/
+if (BuildParams.isSnapshotBuild()) {
+  addQaCheckDependencies(project)
+}
+

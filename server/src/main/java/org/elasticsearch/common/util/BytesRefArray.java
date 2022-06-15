@@ -27,6 +27,14 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
 
+    // used when ownership is passed, see {@link #takeOwnershipOf()}
+    private static final LongArray LONG_ARRAY_DUMMY = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, false);
+    private static final ByteArray BYTE_ARRAY_DUMMY = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(0, false);
+
+    static {
+        LONG_ARRAY_DUMMY.set(0, 0);
+    }
+
     private final BigArrays bigArrays;
     private LongArray startOffsets;
     private ByteArray bytes;
@@ -117,9 +125,9 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
 
         // don't leave a broken array behind, although it isn't used any longer
-        other.startOffsets = other.bigArrays.newLongArray(1, false);
-        other.startOffsets.set(0, 0);
-        other.bytes = other.bigArrays.newByteArray(1, false);
+        // on append both arrays get re-allocated
+        other.startOffsets = LONG_ARRAY_DUMMY;
+        other.bytes = BYTE_ARRAY_DUMMY;
         other.size = 0;
 
         return b;

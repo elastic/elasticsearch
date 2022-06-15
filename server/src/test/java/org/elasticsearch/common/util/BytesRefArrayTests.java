@@ -66,7 +66,17 @@ public class BytesRefArrayTests extends ESTestCase {
         assertEquals(0, array.size());
         assertEquals(size, newOwnerOfArray.size());
 
-        // although technically the array should not be re-used after transferring ownership, it should be possible
+        array.close();
+        newOwnerOfArray.close();
+    }
+
+    // test that the array stays usable after transferring ownership, although this isn't recommended
+    public void testUseArrayAfterTakeOwnership() {
+        // can't use mocked big array for this test, due to the dummies used after reset
+        BytesRefArray array = randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), BigArrays.NON_RECYCLING_INSTANCE);
+        long size = array.size();
+        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
+
         BytesRefBuilder refBuilder = new BytesRefBuilder();
         String str = randomUnicodeOfLengthBetween(4, 20);
         refBuilder.copyChars(str);

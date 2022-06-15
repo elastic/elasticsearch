@@ -883,10 +883,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
-        Long version = indexRequest.version();
+        long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
             totalMetrics.postIngest(ingestTimeInNanos);

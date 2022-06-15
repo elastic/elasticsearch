@@ -65,7 +65,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
                 tp,
                 listener
             );
-
+            action.init();
             action.onTimeout();
             action.run();
             verify(resultProcessor, times(1)).ignoreResponseWithoutNotifying("1");
@@ -84,6 +84,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
                 tp,
                 listener
             );
+            action.init();
 
             action.onFailure(new IllegalStateException());
             action.run();
@@ -122,6 +123,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
             tp,
             listener
         );
+        action.init();
 
         action.run();
 

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -241,8 +242,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertNull(settings.get("index.frozen"));
     }
 
-    public void testForceMergeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+    public void checkForceMergeAction(String codec) throws Exception {
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, codec));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -260,11 +261,20 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+            assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
+            assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testForceMergeAction() throws Exception {
+        checkForceMergeAction(null);
+    }
+
+    public void testForceMergeActionWithCompressionCodec() throws Exception {
+        checkForceMergeAction("best_compression");
     }
 
     @SuppressWarnings("unchecked")

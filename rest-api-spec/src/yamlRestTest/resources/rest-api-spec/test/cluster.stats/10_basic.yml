@@ -166,3 +166,21 @@
   - match: { indices.mappings.runtime_field_types.1.doc_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.doc_total: 0 }
 
+---
+"mappings sizes reported in get cluster stats":
+  - skip:
+      version: " - 8.3.99"
+      reason:  "mapping sizes reported from 8.4 onwards"
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          mappings:
+            "properties":
+              "field":
+                "type": "keyword"
+
+  - do: {cluster.stats: {}}
+  - gt: { indices.mappings.total_field_count: 0 }
+  - gt: { indices.mappings.total_deduplicated_field_count: 0 }
+  - gt: { indices.mappings.total_deduplicated_mapping_size_in_bytes: 0 }

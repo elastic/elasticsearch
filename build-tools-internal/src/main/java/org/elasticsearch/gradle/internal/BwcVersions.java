@@ -321,8 +321,8 @@ public class BwcVersions {
             .map(v -> Version.fromString(v, Version.Mode.RELAXED))
             .orElse(null);
 
-        // glibc version 2.35 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
-        if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.35", Version.Mode.RELAXED))) {
+        // glibc version 2.34 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
+        if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.34", Version.Mode.RELAXED))) {
             if (version.before(Version.fromString("7.17.5"))) {
                 return false;
             } else if (version.getMajor() > 7 && version.before(Version.fromString("8.2.2"))) {

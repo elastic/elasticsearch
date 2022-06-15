@@ -153,6 +153,8 @@ public class PrecompiledCharMapNormalizer {
         // We need to iterate actual Unicode graphemes (this includes surrogate pairs, etc.)
         // I would much rather translate the entire input string text into utf-8 bytes, and then iterate to the appropriate
         // break points from there. But, this seemed the easiest way for now
+        //
+        // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
         int start = b.first();
@@ -160,8 +162,12 @@ public class PrecompiledCharMapNormalizer {
         // we could pre-populate the known length here.
         BytesRefBuilder strBuilder = new BytesRefBuilder();
         for (int end = b.next(); end != BreakIterator.DONE; start = end, end = b.next()) {
+            // TODO: It would be awesome if we could translate these starts and ends to byte positions, if we could performance would be
+            // dramatically improved
             String unicodeStr = str.substring(start, end);
             byte[] unicode = unicodeStr.getBytes(StandardCharsets.UTF_8);
+            // The trie only go up to a depth of 5 bytes.
+            // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
             if (unicode.length < 6) {
                 Optional<BytesRef> subStr = normalizePart(unicode, 0, unicode.length);
                 if (subStr.isPresent()) {

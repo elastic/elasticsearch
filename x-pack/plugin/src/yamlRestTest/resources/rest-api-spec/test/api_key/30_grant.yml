@@ -70,7 +70,7 @@ teardown:
         ignore: 404
 
 ---
-"Test grant api key":
+"Test grant api key with password":
 
   - do:
       headers:

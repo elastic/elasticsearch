@@ -88,12 +88,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return getHealthIndicatorResult(stableMasterResult, explain);
     }
 
-    private HealthIndicatorResult getHealthIndicatorResult(StableMasterService.StableMasterResult stableMasterResult, boolean explain) {
+    /**
+     * Transforms a StableMasterService.StableMasterResult into a HealthIndicatorResult.
+     * @param stableMasterResult The StableMasterResult from the StableMasterService to be transformed
+     * @param explain If false, the details and user actions returned will be empty
+     * @return The HealthIndicatorResult
+     */
+    // Non-private for testing
+    HealthIndicatorResult getHealthIndicatorResult(StableMasterService.StableMasterResult stableMasterResult, boolean explain) {
         HealthStatus status = stableMasterResult.status();
-        boolean statusIsGreen = status.equals(HealthStatus.GREEN);
         HealthIndicatorDetails details = getDetails(stableMasterResult.details(), explain);
-        Collection<HealthIndicatorImpact> impacts = statusIsGreen ? List.of() : UNSTABLE_MASTER_IMPACTS;
-        List<UserAction> userActions = statusIsGreen ? List.of() : getContactSupportUserActions(explain);
+        Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
+        List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
         return createIndicator(status, stableMasterResult.summary(), details, impacts, userActions);
     }
 

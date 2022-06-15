@@ -1085,6 +1085,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private MasterHistoryService masterHistoryService;
+            StableMasterService stableMasterService;
             StableMasterHealthIndicatorService stableMasterHealthIndicatorService;
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
@@ -1222,9 +1223,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(
-                    new StableMasterService(clusterService, masterHistoryService)
-                );
+                stableMasterService = new StableMasterService(clusterService, masterHistoryService);
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(stableMasterService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );

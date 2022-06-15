@@ -69,8 +69,8 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     private final String historyID;
     private final long version;
     private final Map<String, DesiredNodeWithStatus> nodes;
-    private final List<DesiredNode> actualized;
-    private final List<DesiredNode> pending;
+    private final Set<DesiredNode> actualized;
+    private final Set<DesiredNode> pending;
 
     private DesiredNodes(String historyID, long version, Map<String, DesiredNodeWithStatus> nodes) {
         assert historyID != null && historyID.isBlank() == false;
@@ -83,8 +83,12 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
             .stream()
             .filter(DesiredNodeWithStatus::actualized)
             .map(DesiredNodeWithStatus::desiredNode)
-            .toList();
-        this.pending = nodes.values().stream().filter(DesiredNodeWithStatus::pending).map(DesiredNodeWithStatus::desiredNode).toList();
+            .collect(Collectors.toUnmodifiableSet());
+        this.pending = nodes.values()
+            .stream()
+            .filter(DesiredNodeWithStatus::pending)
+            .map(DesiredNodeWithStatus::desiredNode)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     public static DesiredNodes readFrom(StreamInput in) throws IOException {
@@ -203,15 +207,15 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         return version;
     }
 
-    public List<DesiredNodeWithStatus> nodes() {
-        return List.copyOf(nodes.values());
+    public Set<DesiredNodeWithStatus> nodes() {
+        return Set.copyOf(nodes.values());
     }
 
-    public List<DesiredNode> actualized() {
+    public Set<DesiredNode> actualized() {
         return actualized;
     }
 
-    public List<DesiredNode> pending() {
+    public Set<DesiredNode> pending() {
         return pending;
     }
 

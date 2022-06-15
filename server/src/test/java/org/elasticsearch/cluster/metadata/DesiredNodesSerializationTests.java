@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
@@ -40,8 +41,8 @@ public class DesiredNodesSerializationTests extends AbstractSerializingTestCase<
     public static DesiredNodes mutateDesiredNodes(DesiredNodes instance) {
         final var mutationBranch = randomInt(3);
         return switch (mutationBranch) {
-            case 0 -> DesiredNodes.create(randomAlphaOfLength(10), instance.version(), instance.nodes());
-            case 1 -> DesiredNodes.create(instance.historyID(), instance.version() + 1, instance.nodes());
+            case 0 -> DesiredNodes.create(randomAlphaOfLength(10), instance.version(), List.copyOf(instance.nodes()));
+            case 1 -> DesiredNodes.create(instance.historyID(), instance.version() + 1, List.copyOf(instance.nodes()));
             case 2 -> DesiredNodes.create(
                 instance.historyID(),
                 instance.version(),

@@ -22,11 +22,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public abstract class DesiredNodesTestCase extends ESTestCase {
     public static DesiredNodes randomDesiredNodes() {
@@ -113,8 +116,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         List<DesiredNode> expectedActualizedNodes,
         List<DesiredNode> expectedPendingNodes
     ) {
-        assertThat(desiredNodes.actualized(), containsInAnyOrder(expectedActualizedNodes.toArray(new DesiredNode[0])));
-        assertThat(desiredNodes.pending(), containsInAnyOrder(expectedPendingNodes.toArray(new DesiredNode[0])));
+        assertThat(expectedActualizedNodes, hasSize(desiredNodes.actualized().size()));
+        assertThat(desiredNodes.actualized(), is(equalTo(Set.copyOf(expectedActualizedNodes))));
+
+        assertThat(expectedPendingNodes, hasSize(desiredNodes.pending().size()));
+        assertThat(desiredNodes.pending(), is(equalTo(Set.copyOf(expectedPendingNodes))));
     }
 
     public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest() {

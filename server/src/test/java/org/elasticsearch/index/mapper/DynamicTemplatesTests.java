@@ -1239,7 +1239,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
               ]
             }
             """)));
-        assertEquals("Tried to add subobject [object] to object [_doc] which does not support subobjects", err.getRootCause().getMessage());
+        assertEquals("Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {
@@ -1379,7 +1379,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
         assertEquals(
-            "Object [__dynamic__test] has subobjects set to false hence it does not support nested object [time]",
+            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
         );
     }

@@ -88,8 +88,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
     setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
-    requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
-
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
     // the assertion, but this is impossible for released versions.
@@ -124,7 +122,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
@@ -159,7 +157,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
     }
     systemProperty 'tests.rest.blacklist', excludeList.join(',')
@@ -180,7 +178,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
@@ -199,7 +197,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      exclude '**/MlJobSnapshotUpgradeIT.class', '**/MlMappingsUpgradeIT.class', '**/MLModelDeploymentsUpgradeIT.class', '**/MlTrainedModelsUpgradeIT.class'
+      systemProperty 'tests.ml.skip', 'true'
       systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }

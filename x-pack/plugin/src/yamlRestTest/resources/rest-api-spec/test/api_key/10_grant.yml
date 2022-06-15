@@ -72,6 +72,9 @@ teardown:
 
 ---
 "Test grant api key with password":
+  - skip:
+      features: transform_and_set
+
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
@@ -85,7 +88,7 @@ teardown:
                 "role": {
                   "index": [
                     {
-                      "names": ["other-index"],
+                      "names": ["index"],
                       "privileges": ["read"]
                     }
                   ]
@@ -124,6 +127,9 @@ teardown:
 
 ---
 "Test grant api key with token":
+  - skip:
+      features: transform_and_set
+
   - do:
       security.get_token:
         body:
@@ -148,7 +154,7 @@ teardown:
                 "role": {
                   "index": [
                     {
-                      "names": ["other-index"],
+                      "names": ["index"],
                       "privileges": ["read"]
                     }
                   ]
@@ -186,6 +192,9 @@ teardown:
 
 ---
 "Test grant api key forbidden":
+  - skip:
+      features: transform_and_set
+
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user
@@ -200,7 +209,7 @@ teardown:
                 "role": {
                   "index": [
                     {
-                      "names": ["other-index"],
+                      "names": ["index"],
                       "privileges": ["read"]
                     }
                   ]

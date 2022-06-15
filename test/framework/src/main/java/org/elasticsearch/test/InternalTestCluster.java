@@ -2007,7 +2007,7 @@ public final class InternalTestCluster extends TestCluster {
     public String getHealthNodeName(@Nullable String viaNode) {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
-            ClusterState state = client.admin().cluster().prepareState().get().getState();
+            ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).get().getState();
             PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
             return task != null && task.isAssigned()

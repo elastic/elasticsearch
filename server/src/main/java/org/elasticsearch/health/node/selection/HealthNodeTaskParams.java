@@ -20,6 +20,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
+/**
+ * Encapsulates the parameters needed to start the health node task, currently no parameters are required.
+ */
 class HealthNodeTaskParams implements PersistentTaskParams {
 
     private static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();

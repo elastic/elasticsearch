@@ -47,7 +47,7 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
  */
 public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
 
-    private static final Logger logger = LogManager.getLogger(HealthNode.class);
+    private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "health.node.enabled",
@@ -61,6 +61,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
+    private volatile boolean enabled;
 
     public HealthNodeTaskExecutor(
         ClusterService clusterService,
@@ -73,7 +74,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
-        if (ENABLED_SETTING.get(settings)) {
+        this.enabled = ENABLED_SETTING.get(settings);
+        if (this.enabled) {
             clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);
         }
@@ -81,6 +83,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private void enable(boolean enabled) {
+        this.enabled = enabled;
         if (enabled) {
             clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);
@@ -95,8 +98,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     protected void nodeOperation(AllocatedPersistentTask task, HealthNodeTaskParams params, PersistentTaskState state) {
         HealthNode healthNode = (HealthNode) task;
         currentTask.set(healthNode);
-        String nodeId = clusterService.localNode().getId();
-        logger.info("Node [" + nodeId + "] is selected as the current health node.");
+        DiscoveryNode node = clusterService.localNode();
+        logger.info("Node {{{}{}}} is selected as the current health node.", node.getName(), node.getId());
     }
 
     @Override
@@ -146,6 +149,9 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                         if (t instanceof ResourceAlreadyExistsException == false) {
                             logger.error("Failed to create the health node task", e);
+                            if (enabled) {
+                                clusterService.addListener(taskStarter);
+                            }
                         }
                     })
                 );
@@ -155,9 +161,9 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        String nodeId = clusterService.localNode().getId();
-        if (isNodeShuttingDown(event, nodeId)) {
-            abortTaskIfApplicable("node [" + nodeId + "] shutting down");
+        DiscoveryNode node = clusterService.localNode();
+        if (isNodeShuttingDown(event, node.getId())) {
+            abortTaskIfApplicable("node {{" + node.getName() + "}{" + node.getId() + "}} shutting down");
         }
     }
 

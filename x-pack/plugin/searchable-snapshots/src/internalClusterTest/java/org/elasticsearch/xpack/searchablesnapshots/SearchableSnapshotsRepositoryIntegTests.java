@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -334,7 +335,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         createFullSnapshot(repository, snapshotOfIndices);
 
         final int nbMountedIndices = randomIntBetween(1, 3);
-        final Set<String> mountedIndices = new HashSet<>(nbMountedIndices);
+        final Set<String> mountedIndices = Sets.newHashSetWithExpectedSize(nbMountedIndices);
 
         final boolean deleteSnapshot = nbIndices == 1 && randomBoolean();
         final Settings indexSettings = deleteSnapshotIndexSettingsOrNull(deleteSnapshot);

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -178,7 +179,7 @@ public final class LeakTracker {
             buf.append("Recent access records: ").append('\n');
 
             int i = 1;
-            Set<String> seen = new HashSet<>(present);
+            Set<String> seen = Sets.newHashSetWithExpectedSize(present);
             for (; oldHead != Record.BOTTOM; oldHead = oldHead.next) {
                 String s = oldHead.toString();
                 if (seen.add(s)) {

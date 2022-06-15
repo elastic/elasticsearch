@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -121,7 +122,7 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 boolean hasNullValue = false;
-                Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
+                Set<Object> keyValues = Sets.newHashSetWithExpectedSize(BoxedQueryRequest.MAX_TERMS);
                 // check the given keys but make sure to double check for
                 // null as it translates to a different query (missing/not exists)
                 for (List<Object> value : values) {

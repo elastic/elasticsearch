@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -282,7 +283,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
 
     public void testSetOfLongs() throws IOException {
         final int size = randomIntBetween(0, 6);
-        final Set<Long> sourceSet = new HashSet<>(size);
+        final Set<Long> sourceSet = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             sourceSet.add(randomLongBetween(i * 1000, (i + 1) * 1000 - 1));
         }

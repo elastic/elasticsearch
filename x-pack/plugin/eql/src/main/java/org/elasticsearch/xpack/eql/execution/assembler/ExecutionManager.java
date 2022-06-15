@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -81,7 +82,7 @@ public class ExecutionManager {
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
             List<String> keyFields = new ArrayList<>(keyExtractors.size());
 
-            Set<String> optionalKeys = new LinkedHashSet<>(CollectionUtils.mapSize(keyExtractors.size()));
+            Set<String> optionalKeys = Sets.newLinkedHashSetWithExpectedSize(CollectionUtils.mapSize(keyExtractors.size()));
 
             // extract top-level fields used as keys to optimize query lookups
             // this process gets skipped for nested fields

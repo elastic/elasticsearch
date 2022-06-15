@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -136,7 +137,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }
-        Set<Long> terms = new HashSet<>(values.size());
+        Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {
             if (NumberType.hasDecimalPart(value)) {
                 continue;

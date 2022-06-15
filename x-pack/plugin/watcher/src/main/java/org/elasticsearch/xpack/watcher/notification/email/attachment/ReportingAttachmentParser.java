@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -235,7 +236,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                     body
                 );
             } else if (response.status() == 200) {
-                Set<String> warnings = new HashSet<>(1);
+                Set<String> warnings = Sets.newHashSetWithExpectedSize(1);
                 if (warningEnabled) {
                     WARNINGS.forEach((warningKey, defaultWarning) -> {
                         String[] text = response.header(warningKey);

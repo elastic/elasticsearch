@@ -15,6 +15,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -183,7 +184,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 } catch (Exception ex) {
                     logger.error(() -> "health check of [" + path + "] failed", ex);
                     if (currentUnhealthyPaths == null) {
-                        currentUnhealthyPaths = new HashSet<>(1);
+                        currentUnhealthyPaths = Sets.newHashSetWithExpectedSize(1);
                     }
                     currentUnhealthyPaths.add(path);
                 }

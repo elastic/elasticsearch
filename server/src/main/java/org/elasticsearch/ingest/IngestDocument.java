@@ -760,7 +760,7 @@ public final class IngestDocument {
             }
             return copy;
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = new HashSet<>(setValue.size());
+            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }

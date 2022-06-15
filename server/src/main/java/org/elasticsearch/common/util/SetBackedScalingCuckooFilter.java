@@ -13,6 +13,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,7 +97,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         if (fpp < 0) {
             throw new IllegalArgumentException("[fpp] must be a positive double");
         }
-        this.hashes = new HashSet<>(threshold);
+        this.hashes = Sets.newHashSetWithExpectedSize(threshold);
         this.threshold = threshold;
         this.rng = rng;
         this.capacity = FILTER_CAPACITY;

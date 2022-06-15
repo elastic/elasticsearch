@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.AbstractSet;
@@ -219,7 +220,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public Set<String> attributeNames() {
-        Set<String> s = new LinkedHashSet<>(size());
+        Set<String> s = Sets.newLinkedHashSetWithExpectedSize(size());
 
         for (AttributeWrapper aw : delegate.keySet()) {
             s.add(aw.attr.name());

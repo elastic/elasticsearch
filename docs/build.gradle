@@ -227,7 +227,7 @@ setups['tsds_template'] = '''
         name: my-weather-sensor-index-template
         body: |
           {
-            "index_patterns": [ "metrics-weather_sensors-*" ]
+            "index_patterns": [ "metrics-weather_sensors-*" ],
             "template": {
               "settings": {
                 "index.mode": "time_series",

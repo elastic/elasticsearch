@@ -58,6 +58,14 @@ by Elasticsearch when running a corresponding aggregation, the containment-check
 This side-steps any disconnect based on projection/datum difference between client and Elasticsearch.
 
 [discrete]
+[[ingest_performance_improvement]]
+=== Ingest performance improvement
+We have improved the pipeline execution logic for pipelines with processors that are synchronous
+by avoiding (deep) recursion.
+On our nightly benchmark that simulate a Logging use-case, this resulted in a 10% reduction of
+CPU time spent on ingest pipelines and a 3% overall ingestion speedup.
+
+[discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]
 === Add support for dots in field names for metrics usecases
 Metrics data can often be made of several fields with dots in their names,

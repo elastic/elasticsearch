@@ -284,7 +284,7 @@ text multi unified from vectors:
   - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
 
 ---
-text single fvh:
+text single fvh source order:
   - do:
       search:
         index: test
@@ -299,7 +299,7 @@ text single fvh:
   - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
-text multi fvh:
+text multi fvh source order:
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:
@@ -312,3 +312,35 @@ text multi fvh:
             fields:
               foo.vectors:
                 type: fvh
+
+---
+text single fvh score order:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+                order: score
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
+
+---
+text multi fvh score order:
+  - do:
+      catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+                order: score

@@ -650,7 +650,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 }
             } catch (Throwable t) {
                 final Exception authcFailed = new Exception("Authentication test failed.");
-                LOGGER.error(t.getMessage());
                 realmFailureExceptions.forEach(authcFailed::addSuppressed); // realm exceptions
                 authcFailed.addSuppressed(t); // final throwable (ex: assertThat)
                 LOGGER.error("Unexpected exception.", authcFailed);

@@ -19,6 +19,16 @@ public class AllocationActionListener<T> {
     private final SetOnce<T> response = new SetOnce<>();
     private final AtomicInteger listenersExecuted = new AtomicInteger(2);
 
+    /**
+     * This listener could be used when reroute completion (such as even balancing shards across the cluster) is not required for the
+     * completion of the caller operation.
+     *
+     * For example, it is required to compute the desired balance to properly allocate newly created index, but it is not when deleting one.
+     */
+    public static ActionListener<Void> rerouteCompletionIsNotRequired() {
+        return ActionListener.noop();
+    }
+
     public AllocationActionListener(ActionListener<T> delegate) {
         this.delegate = delegate;
     }

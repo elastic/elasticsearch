@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -169,7 +168,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             metadata.removeDataStream(ds);
         }
         currentState = ClusterState.builder(currentState).metadata(metadata).build();
-        return deleteIndexService.deleteIndices(currentState, backingIndicesToRemove, DesiredBalanceShardsAllocator.REMOVE_ME);
+        return deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
     }
 
     @Override

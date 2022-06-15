@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
+
 /**
  * Deletes indices.
  */
@@ -67,7 +69,7 @@ public class MetadataDeleteIndexService {
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    return deleteIndices(currentState, Sets.newHashSet(request.indices()), ActionListener.noop());
+                    return deleteIndices(currentState, Sets.newHashSet(request.indices()));
                 }
             }
         );
@@ -81,7 +83,7 @@ public class MetadataDeleteIndexService {
     /**
      * Delete some indices from the cluster state.
      */
-    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, ActionListener<Void> listener) {
+    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
         final Metadata meta = currentState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
         final Map<Index, DataStream> backingIndices = new HashMap<>();
@@ -162,7 +164,7 @@ public class MetadataDeleteIndexService {
                 .customs(customs)
                 .build(),
             "deleted indices [" + indices + "]",
-            listener
+            rerouteCompletionIsNotRequired() // it is not required to balance shard to report index deletion success
         );
     }
 }

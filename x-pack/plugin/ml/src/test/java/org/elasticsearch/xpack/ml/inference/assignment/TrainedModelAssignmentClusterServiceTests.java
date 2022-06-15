@@ -315,7 +315,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         latch.await();
     }
 
-    public void testShouldAllocateModels() {
+    public void testShouldRebalanceModels() {
         String model1 = "model-1";
         String model2 = "model-2";
         String mlNode1 = "ml-node-with-room";
@@ -334,7 +334,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // No metadata in the new state means no allocations, so no updates
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(randomFrom(stateWithOneNodeNotMl, stateWithOneNode, stateWithTwoNodes)).build(),
@@ -358,7 +358,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         // Even with metadata changes, unless there are node changes, do nothing
         ClusterState randomState = randomFrom(stateWithOneNodeNotMl, stateWithOneNode, stateWithTwoNodes);
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(randomState)
@@ -382,7 +382,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If the node removed is not even an ML node, we should not attempt to re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithOneNode)
@@ -416,7 +416,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If the node removed is an ML node, but no models are allocated to it, we should not attempt to re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithOneNode)
@@ -450,7 +450,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If a new ML node is added, we should attempt to re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithTwoNodes)
@@ -484,7 +484,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If a new ML node is added, but allocation is stopping, we should not re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithTwoNodes)
@@ -521,7 +521,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If a new ML node is added, but its shutting down, don't re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithTwoNodes)
@@ -556,7 +556,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If a ML node is removed and its routed to, re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithOneNode)
@@ -610,7 +610,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         // If a ML node is removed and its routed to, but the allocation is stopping, don't re-allocate
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(
                 new ClusterChangedEvent(
                     "test",
                     ClusterState.builder(stateWithOneNode)
@@ -664,7 +664,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
-    public void testShouldAllocateModels_WithNodeShutdowns() {
+    public void testShouldRebalanceModels_WithNodeShutdowns() {
         String clusterName = "testShouldAllocateModels_WithNodeShutdowns";
         String model1 = "model-1";
         DiscoveryNode mlNode1 = buildNode("ml-node-1", true, ByteSizeValue.ofGb(4).getBytes(), 8);
@@ -698,7 +698,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(true)
         );
 
@@ -714,7 +714,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -729,7 +729,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -741,7 +741,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(true)
         );
 
@@ -756,7 +756,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -771,7 +771,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -786,7 +786,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -801,7 +801,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(false)
         );
 
@@ -815,7 +815,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ).build();
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(true)
         );
 
@@ -825,7 +825,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         currentState = fullyAllocated;
 
         assertThat(
-            TrainedModelAssignmentClusterService.shouldAllocateModels(new ClusterChangedEvent("test", currentState, previousState)),
+            TrainedModelAssignmentClusterService.shouldRebalanceModels(new ClusterChangedEvent("test", currentState, previousState)),
             is(true)
         );
     }

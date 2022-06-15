@@ -110,6 +110,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+
         if (event.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
@@ -118,7 +122,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (event.localNodeMaster() && shouldAllocateModels(event)) {
+        if (shouldRebalanceModels(event)) {
             // TODO this has a weird side-effect for allocating to nodes
             // If the event indicates there were nodes added/removed, this method only looks at the current state and has
             // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
@@ -137,7 +141,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 ActionListener.wrap(
                     newMetadata -> logger.trace(
                         () -> format(
-                            "updated model assignments based on node changes in the cluster; new metadata [%s]",
+                            "rebalanced model assignments [%s]",
                             Strings.toString(TrainedModelAssignmentMetadata.fromState(event.state()), false, true)
                         )
                     ),
@@ -162,7 +166,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    logger.trace(
+                    logger.debug(
                         () -> format(
                             "updated model assignments based on node changes in the cluster; new metadata [%s]",
                             Strings.toString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
@@ -198,6 +202,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         for (TrainedModelAssignment assignment : metadata.modelAssignments().values()) {
             Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
             if (routedNodeIdsToRemove.isEmpty() == false) {
+                logger.debug(
+                    () -> format(
+                        "[%s] removing routing entries to nodes {} because they have been removed or are shutting down",
+                        assignment.getModelId(),
+                        routedNodeIdsToRemove
+                    )
+                );
                 TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
                 routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
                 builder.updateAssignment(assignment.getModelId(), assignmentBuilder.calculateAndSetAssignmentState());
@@ -210,6 +221,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         UpdateTrainedModelAssignmentRoutingInfoAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.trace(
+            () -> format(
+                "[%s] updating routing table entry for node [%s], update [%s]",
+                request.getModelId(),
+                request.getNodeId(),
+                request.getUpdate()
+            )
+        );
         submitUnbatchedTask("updating model routing for node assignment", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -398,6 +417,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
     ) {
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
+        logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             TrainedModelAssignmentMetadata.fromState(currentState),
@@ -503,7 +523,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             .build();
     }
 
-    static boolean shouldAllocateModels(final ClusterChangedEvent event) {
+    static boolean shouldRebalanceModels(final ClusterChangedEvent event) {
         // If there are no assignments created at all, there is nothing to update
         final TrainedModelAssignmentMetadata newMetadata = event.state().getMetadata().custom(TrainedModelAssignmentMetadata.NAME);
         if (newMetadata == null) {
@@ -548,24 +568,48 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 exitingShutDownNodes = Collections.emptySet();
             }
 
+            logger.trace(
+                () -> format(
+                    "added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    addedNodes,
+                    removedNodes,
+                    shuttingDownNodes,
+                    exitingShutDownNodes
+                )
+            );
             for (TrainedModelAssignment trainedModelAssignment : newMetadata.modelAssignments().values()) {
                 if (trainedModelAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
                     continue;
                 }
                 for (var nodeId : exitingShutDownNodes) {
                     if (trainedModelAssignment.isRoutedToNode(nodeId)) {
+                        logger.trace(
+                            () -> format(
+                                "should rebalance because model [%s] has allocations on shutting down node [%s]",
+                                trainedModelAssignment.getModelId(),
+                                nodeId
+                            )
+                        );
                         return true;
                     }
                 }
 
                 for (var nodeId : removedNodes) {
                     if (trainedModelAssignment.isRoutedToNode(nodeId) && shuttingDownNodes.contains(nodeId) == false) {
+                        logger.trace(
+                            () -> format(
+                                "should rebalance because model [%s] has allocations on removed node [%s]",
+                                trainedModelAssignment.getModelId(),
+                                nodeId
+                            )
+                        );
                         return true;
                     }
                 }
                 for (var nodeId : addedNodes) {
                     if (StartTrainedModelDeploymentAction.TaskParams.mayAssignToNode(event.state().nodes().get(nodeId))
                         && shuttingDownNodes.contains(nodeId) == false) {
+                        logger.trace(() -> format("should rebalance because ML eligible node [%s] was added", nodeId));
                         return true;
                     }
                 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -31,11 +33,15 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
     InferTrainedModelDeploymentAction.Request,
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     private final TrainedModelProvider provider;
 
@@ -93,14 +99,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
+        logger.trace(() -> format("[%s] selecting node from routing table: %s", assignment.getModelId(), assignment.getNodeRoutingTable()));
         assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
+            logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
             request.setNodes(node);
             super.doExecute(task, request, listener);
-        },
-            () -> listener.onFailure(
+        }, () -> {
+            logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
+            listener.onFailure(
                 ExceptionsHelper.conflictStatusException("Trained model [" + deploymentId + "] is not allocated to any nodes")
-            )
-        );
+            );
+        });
     }
 
     @Override

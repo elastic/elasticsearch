@@ -982,7 +982,10 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                otherSourceAndMetadata.put(
+                    randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(),
+                    randomAlphaOfLengthBetween(5, 10)
+                );
             }
             changed = true;
         }

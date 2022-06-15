@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 
@@ -191,7 +190,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
         expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
-        for (Map.Entry<String, Object> entry: expectedSourceAndMetadata.entrySet()) {
+        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
             assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
         }
     }
@@ -236,7 +235,7 @@ public class UriPartsProcessorTests extends ESTestCase {
         }
         expectedSourceAndMetadata.put("url", values);
 
-        for (Map.Entry<String, Object> entry: expectedSourceAndMetadata.entrySet()) {
+        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
             assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
         }
     }

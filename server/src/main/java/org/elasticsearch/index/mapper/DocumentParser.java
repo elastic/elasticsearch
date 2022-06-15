@@ -483,35 +483,15 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                if (parentObjectMapper.subobjects() == false) {
-                    if (dynamicObjectMapper instanceof NestedObjectMapper) {
-                        throw new IllegalArgumentException(
-                            "Object ["
-                                + parentObjectMapper.name()
-                                + "] has subobjects set to false hence it does not support nested object ["
-                                + dynamicObjectMapper.simpleName()
-                                + "]"
-                        );
-                    }
-                    if (dynamicObjectMapper instanceof ObjectMapper) {
-                        throw new IllegalArgumentException(
-                            "Object ["
-                                + parentObjectMapper.name()
-                                + "] has subobjects set to false hence it does not support inner object ["
-                                + dynamicObjectMapper.simpleName()
-                                + "]"
-                        );
-                    }
-                }
                 context.addDynamicMapper(dynamicObjectMapper);
             }
-            if (mapper.subobjects() == false) {
+            if (parentObjectMapper.subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
                     throw new MapperParsingException(
                         "Tried to add nested object ["
                             + dynamicObjectMapper.simpleName()
                             + "] to object ["
-                            + mapper.name()
+                            + parentObjectMapper.name()
                             + "] which does not support subobjects"
                     );
                 }
@@ -520,7 +500,7 @@ public final class DocumentParser {
                         "Tried to add subobject ["
                             + dynamicObjectMapper.simpleName()
                             + "] to object ["
-                            + mapper.name()
+                            + parentObjectMapper.name()
                             + "] which does not support subobjects"
                     );
                 }

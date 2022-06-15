@@ -242,6 +242,10 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return request.getMetricFields();
         }
 
+        public String[] getLabelFields() {
+            return request.getLabelFields();
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

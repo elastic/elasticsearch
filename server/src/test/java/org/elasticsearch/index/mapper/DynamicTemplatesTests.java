@@ -1206,7 +1206,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """)));
         assertEquals(
-            "Object [metrics] has subobjects set to false hence it does not support nested object [object]",
+            "Tried to add nested object [object] to object [metrics] which does not support subobjects",
             err.getRootCause().getMessage()
         );
     }
@@ -1239,10 +1239,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
               ]
             }
             """)));
-        assertEquals(
-            "Object [_doc] has subobjects set to false hence it does not support nested object [object]",
-            err.getRootCause().getMessage()
-        );
+        assertEquals("Tried to add subobject [object] to object [_doc] which does not support subobjects", err.getRootCause().getMessage());
     }
 
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {

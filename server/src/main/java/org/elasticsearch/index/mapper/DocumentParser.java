@@ -485,21 +485,21 @@ public final class DocumentParser {
             }
             if (mapper.subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
-                    throw new IllegalArgumentException(
-                        "Object ["
-                            + mapper.name()
-                            + "] has subobjects set to false hence it does not support nested object ["
+                    throw new MapperParsingException(
+                        "Tried to add nested object ["
                             + dynamicObjectMapper.simpleName()
-                            + "]"
+                            + "] to object ["
+                            + mapper.name()
+                            + "] which does not support subobjects"
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException(
-                        "Object ["
-                            + mapper.name()
-                            + "] has subobjects set to false hence it does not support inner object ["
+                    throw new MapperParsingException(
+                        "Tried to add subobject ["
                             + dynamicObjectMapper.simpleName()
-                            + "]"
+                            + "] to object ["
+                            + mapper.name()
+                            + "] which does not support subobjects"
                     );
                 }
             }

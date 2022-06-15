@@ -273,20 +273,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support inner object ["
+                            "Tried to add subobject ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support nested object ["
+                            "Tried to add nested object ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);

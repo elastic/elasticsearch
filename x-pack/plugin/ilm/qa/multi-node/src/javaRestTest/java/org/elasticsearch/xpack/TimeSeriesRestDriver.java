@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -420,5 +422,13 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    public static Template getTemplate(String policyName) {
+        return new Template(getLifecycleSettings(policyName), null, null);
+    }
+
+    public static Settings getLifecycleSettings(String policyName) {
+        return Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
     }
 }

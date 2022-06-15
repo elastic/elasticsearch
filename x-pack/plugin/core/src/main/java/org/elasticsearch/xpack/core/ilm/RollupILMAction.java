@@ -62,12 +62,8 @@ public class RollupILMAction implements LifecycleAction {
     }
 
     @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    RollupActionConfig config() {
-        return config;
+    public void writeTo(StreamOutput out) throws IOException {
+        config.writeTo(out);
     }
 
     @Override
@@ -79,8 +75,12 @@ public class RollupILMAction implements LifecycleAction {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        config.writeTo(out);
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    public RollupActionConfig config() {
+        return config;
     }
 
     @Override
@@ -104,7 +104,6 @@ public class RollupILMAction implements LifecycleAction {
             ROLLUP_INDEX_PREFIX,
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
-
         Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
         return List.of(checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
     }
@@ -115,7 +114,6 @@ public class RollupILMAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
 
         RollupILMAction that = (RollupILMAction) o;
-
         return Objects.equals(this.config, that.config);
     }
 

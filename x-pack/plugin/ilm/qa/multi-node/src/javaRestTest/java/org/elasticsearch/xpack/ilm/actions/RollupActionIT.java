@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.ilm.actions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -20,17 +23,18 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,8 +42,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.hamcrest.Matchers.is;
 
 public class RollupActionIT extends ESRestTestCase {
 
@@ -47,8 +54,39 @@ public class RollupActionIT extends ESRestTestCase {
     private String policy;
     private String alias;
 
+    private static final String TEMPLATE = """
+        {
+            "index_patterns": ["%s*"],
+            "template": {
+                "settings":{
+                    "index": {
+                        "number_of_replicas": 0,
+                        "number_of_shards": 1,
+                        "mode": "time_series"
+                    },
+                    "index.lifecycle.name": "%s"
+                },
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "volume": {
+                            "type": "double",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            },
+            "data_stream": { }
+        }""";
+
     @Before
-    public void refreshIndex() throws IOException {
+    public void refreshAbstractions() {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
@@ -60,7 +98,7 @@ public class RollupActionIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("dim_field1"))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
@@ -72,7 +110,7 @@ public class RollupActionIT extends ESRestTestCase {
             .startObject("@timestamp")
             .field("type", "date")
             .endObject()
-            .startObject("dim_field1")
+            .startObject("metricset")
             .field("type", "keyword")
             .field("time_series_dimension", true)
             .endObject()
@@ -83,17 +121,15 @@ public class RollupActionIT extends ESRestTestCase {
             .endObject()
             .endObject();
         String mapping = Strings.toString(builder);
-
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
     public void testRollupIndex() throws Exception {
         createIndex(index, alias);
-        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        RollupActionConfig rollupConfig = RollupActionConfigTests.randomConfig();
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(rollupConfig));
+        createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(RollupActionConfigTests.randomConfig()));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)));
@@ -104,12 +140,11 @@ public class RollupActionIT extends ESRestTestCase {
 
     public void testRollupIndexInTheHotPhase() throws Exception {
         createIndex(index, alias);
-        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
-        RollupActionConfig rollupConfig = RollupActionConfigTests.randomConfig();
+        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(rollupConfig))
+            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(RollupActionConfigTests.randomConfig()))
         );
         assertTrue(
             e.getMessage().contains("the [rollup] action(s) may not be used in the [hot] phase without an accompanying [rollover] action")
@@ -149,7 +184,7 @@ public class RollupActionIT extends ESRestTestCase {
 
         // then create the index and index a document to trigger rollover
         createIndex(originalIndex, alias);
-        index(client(), originalIndex, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "dim_field1", randomAlphaOfLength(5));
+        index(client(), originalIndex, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(originalIndex)), 30, TimeUnit.SECONDS);
         String rollupIndex = getRollupIndexName(originalIndex);
@@ -157,6 +192,48 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(originalIndex)), 30, TimeUnit.SECONDS);
         // assertBusy(() -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+    }
+
+    public void testTsdbDataStreams() throws Exception {
+        final String dataStream = "k8s-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Create the ILM policy
+        createNewSingletonPolicy(client(), policy, "warm", new RollupILMAction(RollupActionConfigTests.randomConfig()));
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(TEMPLATE.formatted(dataStream, policy));
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+        index(client(), dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), backingIndexName).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+//        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
+        waitUntil(() -> {
+            try {
+                String rollupIndex = getRollupIndexName(backingIndexName);
+                return rollupIndex != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        String rollupIndex = getRollupIndexName(backingIndexName);
+
+        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -167,7 +244,9 @@ public class RollupActionIT extends ESRestTestCase {
      * @throws IOException if request fails
      */
     private String getRollupIndexName(String index) throws IOException {
-        Response response = client().performRequest(new Request("GET", "/" + RollupILMAction.ROLLUP_INDEX_PREFIX + "*-" + index));
+        Response response = client().performRequest(
+            new Request("GET", "/" + RollupILMAction.ROLLUP_INDEX_PREFIX + "*-" + index + "/?expand_wildcards=all")
+        );
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];

@@ -90,6 +90,7 @@ public final class IngestDocument {
         if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime zdt) {
             ts = zdt;
         }
+        sourceAndMetadata.putIfAbsent("_version", 1); // _version is required so add it so tests don't have to mock it everywhere
         this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, ts);
         this.ingestMetadata = ingestMetadata;
     }

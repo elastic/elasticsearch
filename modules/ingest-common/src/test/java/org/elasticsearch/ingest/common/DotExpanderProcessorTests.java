@@ -46,7 +46,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         document = new IngestDocument(source, Collections.emptyMap());
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().size(), equalTo(1));
+        assertThat(document.getSourceAndMetadata().size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar", List.class).size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar.0", String.class), equalTo("baz2"));
         assertThat(document.getFieldValue("foo.bar.1", String.class), equalTo("baz1"));
@@ -57,7 +57,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         document = new IngestDocument(source, Collections.emptyMap());
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().size(), equalTo(1));
+        assertThat(document.getSourceAndMetadata().size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar", List.class).size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar.0", Integer.class), equalTo(1));
         assertThat(document.getFieldValue("foo.bar.1", String.class), equalTo("2"));

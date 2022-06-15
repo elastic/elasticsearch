@@ -35,6 +35,9 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        while (Metadata.isMetadata(fieldName)) {
+            fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        }
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);

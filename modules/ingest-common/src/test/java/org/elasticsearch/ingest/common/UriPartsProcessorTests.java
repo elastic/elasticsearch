@@ -16,6 +16,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class UriPartsProcessorTests extends ESTestCase {
 
@@ -190,7 +191,9 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
         expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
-        assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
+        for (Map.Entry<String, Object> entry: expectedSourceAndMetadata.entrySet()) {
+            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        }
     }
 
     public void testInvalidUri() {
@@ -233,7 +236,9 @@ public class UriPartsProcessorTests extends ESTestCase {
         }
         expectedSourceAndMetadata.put("url", values);
 
-        assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
+        for (Map.Entry<String, Object> entry: expectedSourceAndMetadata.entrySet()) {
+            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        }
     }
 
 }

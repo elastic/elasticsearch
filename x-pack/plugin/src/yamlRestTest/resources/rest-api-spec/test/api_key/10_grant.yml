@@ -9,7 +9,7 @@ setup:
 
   - do:
       security.put_role:
-        name: "admin_role"
+        name: "api_key_granter_role"
         body:  >
             {
               "cluster": ["grant_api_key"]
@@ -34,7 +34,7 @@ setup:
         body:  >
           {
             "password" : "x-pack-test-password",
-            "roles" : [ "admin_role" ],
+            "roles" : [ "api_key_granter_role" ],
             "full_name" : "API key granter"
           }
 
@@ -52,7 +52,7 @@ setup:
 teardown:
   - do:
       security.delete_role:
-        name: "admin_role"
+        name: "api_key_granter_role"
         ignore: 404
 
   - do:

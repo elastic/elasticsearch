@@ -38,7 +38,7 @@ public class XContentUtilsTests extends ESTestCase {
     public void testAddStoredHeaderInfoWithRoles() throws IOException {
         String[] roles = generateRandomStringArray(4, randomIntBetween(5, 15), false, false);
         User user = new User(randomAlphaOfLengthBetween(5, 15), roles);
-        AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().user(user);
+        AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().realm().user(user);
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(
@@ -56,6 +56,15 @@ public class XContentUtilsTests extends ESTestCase {
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(json, equalTo("{\"run_as\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
+    }
+
+    public void testAddStoredHeaderInfoWithServiceAccount() throws IOException {
+        String account = "elastic/" + randomFrom("kibana", "fleet-server", "enterprise-search-server");
+        User user = new User(account);
+        AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().serviceAccount(user);
+        Authentication authentication = builder.build();
+        String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(json, equalTo("{\"run_as\":{\"service_account\":\"" + account + "\"}}"));
     }
 
     private String generateJson(Map<String, String> headers) throws IOException {

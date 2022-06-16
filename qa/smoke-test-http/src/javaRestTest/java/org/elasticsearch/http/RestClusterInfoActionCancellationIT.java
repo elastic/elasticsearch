@@ -9,6 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,21 +38,28 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
+public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
     public void testGetMappingsCancellation() throws Exception {
+        runTest(GetMappingsAction.NAME, "/test/_mappings");
+    }
+
+    public void testGetIndicesCancellation() throws Exception {
+        runTest(GetIndexAction.NAME, "/test");
+    }
+
+    private void runTest(String actionName, String endpoint) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
         createIndex("test");
         ensureGreen("test");
-        final String actionName = GetMappingsAction.NAME;
         // Add a retryable cluster block that would block the request execution
         updateClusterState(currentState -> {
             ClusterBlock clusterBlock = new ClusterBlock(
                 1000,
-                "Get mappings cancellation test cluster block",
+                actionName + " cancellation test cluster block",
                 true,
                 false,
                 false,
@@ -62,7 +70,7 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
             return ClusterState.builder(currentState).blocks(ClusterBlocks.builder().addGlobalBlock(clusterBlock).build()).build();
         });
 
-        final Request request = new Request(HttpGet.METHOD_NAME, "/test/_mappings");
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final PlainActionFuture<Response> future = new PlainActionFuture<>();
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 

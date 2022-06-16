@@ -83,7 +83,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+        return Metadata.API_AND_GATEWAY;
     }
 
     @Override

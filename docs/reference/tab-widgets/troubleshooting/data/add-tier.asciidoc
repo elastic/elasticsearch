@@ -40,7 +40,7 @@ and go to **Dev Tools > Console**.
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. Inspect which tier is an index targeting for assignment. <<indices-get-settings, Retrieve>>
+. Determine which tier an index expects for assignment. <<indices-get-settings, Retrieve>>
 the configured value for the `index.routing.allocation.include._tier_preference`
 setting:
 +

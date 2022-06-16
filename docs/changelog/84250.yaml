@@ -4,3 +4,11 @@ area: Ingest
 type: enhancement
 issues:
  - 84274
+highlight:
+  title: Ingest performance improvement
+  body: |-
+    We have improved the pipeline execution logic for pipelines with processors that are synchronous
+    by avoiding (deep) recursion.
+    On our nightly benchmark that simulates a Logging use-case, this resulted in a 10% reduction of
+    CPU time spent on ingest pipelines and a 3% overall ingestion speedup.
+  notable: true

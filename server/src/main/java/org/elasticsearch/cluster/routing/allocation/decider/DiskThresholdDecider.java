@@ -175,7 +175,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Map<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -421,7 +421,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Map<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -468,7 +468,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
         final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -642,7 +642,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
 
-    private Decision earlyTerminate(RoutingAllocation allocation, Map<String, DiskUsage> usages) {
+    private Decision earlyTerminate(Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return YES_DISABLED;

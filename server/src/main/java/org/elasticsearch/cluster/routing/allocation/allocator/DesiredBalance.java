@@ -27,4 +27,8 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
     public static boolean hasChanges(DesiredBalance a, DesiredBalance b) {
         return Objects.equals(a.assignments, b.assignments) == false;
     }
+
+    public static DesiredBalance initial() {
+        return new DesiredBalance(-1, Map.of());
+    }
 }

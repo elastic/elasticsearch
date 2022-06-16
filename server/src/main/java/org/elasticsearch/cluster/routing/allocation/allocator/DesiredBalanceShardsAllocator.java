@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceService} and then takes
+ * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterStateListener {
@@ -53,7 +53,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     };
 
     private final ShardsAllocator delegateAllocator;
-    private final DesiredBalanceService desiredBalanceService;
+    private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
@@ -75,7 +75,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.delegateAllocator = delegateAllocator;
-        this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
+        this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -83,7 +83,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
+                var shouldReroute = desiredBalanceComputer.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 var isFresh = isFresh(desiredBalanceInput);
                 var lastConvergedIndex = getCurrentDesiredBalance().lastConvergedIndex();
 
@@ -171,7 +171,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     }
 
     DesiredBalance getCurrentDesiredBalance() {
-        return desiredBalanceService.getCurrentDesiredBalance();
+        return desiredBalanceComputer.getCurrentDesiredBalance();
     }
 
     public boolean isIdle() {

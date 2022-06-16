@@ -34,38 +34,37 @@ import java.util.stream.Collectors;
 /**
  * Holds the desired balance and updates it as the cluster evolves.
  */
-public class DesiredBalanceService {
+public class DesiredBalanceComputer {
 
-    private static final Logger logger = LogManager.getLogger(DesiredBalanceService.class);
+    private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(-1, Map.of());
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.initial();
 
-    public DesiredBalanceService(ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
     }
 
     // TODO reset desired balance to empty if new master is elected?
 
-    /**
-     * @return {@code true} if the desired balance changed, in which case reconciliation may be necessary so the the caller should schedule
-     * another reroute.
-     */
-    boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
+    public DesiredBalance compute(
+        DesiredBalance previousDesiredBalance,
+        DesiredBalanceInput desiredBalanceInput,
+        Predicate<DesiredBalanceInput> isFresh
+    ) {
 
         logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
         final var ignoredShards = new HashSet<>(desiredBalanceInput.ignoredShards());
-        final var desiredBalance = currentDesiredBalance;
         final var changes = routingAllocation.changes();
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
         if (routingNodes.isEmpty()) {
-            return setCurrentDesiredBalance(new DesiredBalance(desiredBalanceInput.index(), Map.of()));
+            return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 
         // we assume that all ongoing recoveries will complete
@@ -116,7 +115,7 @@ public class DesiredBalanceService {
 
             // treesets so that we are consistent about the order of future relocations
             final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
-            final var assignment = desiredBalance.getAssignment(shardId);
+            final var assignment = previousDesiredBalance.getAssignment(shardId);
 
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
@@ -257,9 +256,12 @@ public class DesiredBalanceService {
                 : "desired balance computation converged"
         );
 
-        assert desiredBalance == currentDesiredBalance;
-        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return setCurrentDesiredBalance(new DesiredBalance(lastConvergedIndex, assignments));
+        long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
+        return new DesiredBalance(lastConvergedIndex, assignments);
+    }
+
+    boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
+        return setCurrentDesiredBalance(compute(currentDesiredBalance, desiredBalanceInput, isFresh));
     }
 
     private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {

@@ -428,7 +428,7 @@ public class RecoverySettingsTests extends ESTestCase {
 
             clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), true).build());
 
-            final var releasable = recoverySettings.tryAcquireSnapshotDownloadPermits();
+            final Releasable releasable = recoverySettings.tryAcquireSnapshotDownloadPermits();
             assertThat(releasable, is(notNullValue()));
             releasable.close();
 

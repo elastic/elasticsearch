@@ -21,6 +21,7 @@ dependencies {
   api project(':libs:elasticsearch-dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  testImplementation project(':server')
 }
 
 restResources {

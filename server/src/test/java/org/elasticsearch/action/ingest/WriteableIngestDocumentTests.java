@@ -152,6 +152,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             }
         }
 
+        // this is testing xcontent parsing so use the wire constructor
         IngestDocument serializedIngestDocument = IngestDocument.fromWire(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }

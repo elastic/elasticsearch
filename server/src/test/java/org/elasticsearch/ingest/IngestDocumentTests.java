@@ -969,6 +969,7 @@ public class IngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
+        // this is testing equality so use the wire constructor
         IngestDocument ingestDocument = IngestDocument.fromWire(sourceAndMetadata, ingestMetadata);
 
         boolean changed = false;
@@ -1069,6 +1070,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
+        // this is testing copy so use the wire constructor
         IngestDocument copiedDoc = IngestDocument.fromWire(
             IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
             IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())

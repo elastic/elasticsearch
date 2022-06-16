@@ -12,9 +12,14 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.OperatorHandlerProvider;
+import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,6 +32,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -38,6 +44,9 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
@@ -652,6 +661,66 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
     }
 
+    public void testLoadServiceProviders() throws ClassNotFoundException {
+        FakeClassLoader fakeClassLoader = new FakeClassLoader();
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.findClass(FakePlugin.class.getName());
+
+        FakeClassLoader fakeClassLoader1 = new FakeClassLoader();
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.findClass(FakePlugin.class.getName());
+
+        assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
+
+        OperatorHandlerProvider provider1 = () -> List.of(new OperatorHandler<Integer>() {
+            @Override
+            public String name() {
+                return "integer";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) {
+                return prevState;
+            }
+        });
+
+        OperatorHandlerProvider provider2 = () -> List.of(new OperatorHandler<String>() {
+            @Override
+            public String name() {
+                return "string";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) {
+                return prevState;
+            }
+        });
+        PluginsService service = spy(newMockPluginsService(List.of(fakePluginClass, fakePluginClass1)));
+
+        doReturn(List.of(provider1).iterator()).when(service).providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader));
+        doReturn(List.of(provider2).iterator()).when(service).providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader1));
+
+        List<? extends OperatorHandlerProvider> providers = service.loadServiceProviders(OperatorHandlerProvider.class);
+        assertEquals(2, providers.size());
+        List<String> handlers = providers.stream().map(p -> p.handlers()).flatMap(l -> l.stream()).map(h -> h.name()).toList();
+
+        assertThat(handlers, containsInAnyOrder("string", "integer"));
+
+        doReturn(Collections.emptyList().iterator()).when(service)
+            .providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader));
+        doReturn(List.of(provider2).iterator()).when(service).providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader1));
+
+        assertEquals(1, service.loadServiceProviders(OperatorHandlerProvider.class).size());
+
+        doReturn(Collections.emptyList().iterator()).when(service)
+            .providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader));
+        doReturn(Collections.emptyList().iterator()).when(service)
+            .providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader1));
+
+        assertEquals(0, service.loadServiceProviders(OperatorHandlerProvider.class).size());
+
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
 
@@ -689,6 +758,25 @@ public class PluginsServiceTests extends ESTestCase {
     public static class ThrowingConstructorExtension implements TestExtensionPoint {
         public ThrowingConstructorExtension() {
             throw new IllegalArgumentException("test constructor failure");
+        }
+    }
+
+    static class FakeClassLoader extends ClassLoader {
+        @Override
+        public Class<?> findClass(String name) throws ClassNotFoundException {
+            byte[] classBytes = fromFile(getClass().getClassLoader(), name);
+            return defineClass(name, classBytes, 0, classBytes.length);
+        }
+
+        private static byte[] fromFile(ClassLoader realLoader, String fileName) {
+            try {
+                InputStream input = realLoader.getResourceAsStream(
+                    Strings.format("%s.class", fileName.replace(".", PathUtils.get(".").getFileSystem().getSeparator()))
+                );
+                return input.readAllBytes();
+            } catch (Exception x) {
+                throw new IllegalStateException("Error loading class", x);
+            }
         }
     }
 }

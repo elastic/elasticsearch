@@ -585,7 +585,7 @@ public class ConvertProcessorTests extends ESTestCase {
     }
 
     public void testTargetField() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         int randomInt = randomInt();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, String.valueOf(randomInt));
         String targetField = fieldName + randomAlphaOfLength(5);

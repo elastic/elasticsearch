@@ -50,7 +50,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
-        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
+        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(
+            IngestDocument.testFromSourceAndIngest(sourceAndMetadata, ingestMetadata)
+        );
 
         boolean changed = false;
         Map<String, Object> otherSourceAndMetadata;
@@ -81,7 +83,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(
-            new IngestDocument(otherSourceAndMetadata, otherIngestMetadata)
+            IngestDocument.testFromSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
         );
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
@@ -91,7 +93,10 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
             WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
-                new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata))
+                IngestDocument.testFromSourceAndIngest(
+                    Collections.unmodifiableMap(sourceAndMetadata),
+                    Collections.unmodifiableMap(ingestMetadata)
+                )
             );
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
@@ -111,7 +116,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(
-            new IngestDocument(sourceAndMetadata, ingestMetadata)
+            IngestDocument.testFromSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -147,7 +152,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             }
         }
 
-        IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
+        IngestDocument serializedIngestDocument = IngestDocument.fromWire(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 

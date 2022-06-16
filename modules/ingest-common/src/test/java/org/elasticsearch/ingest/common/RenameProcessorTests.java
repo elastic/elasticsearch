@@ -147,7 +147,7 @@ public class RenameProcessorTests extends ESTestCase {
         };
         source.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(source);
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -171,7 +171,7 @@ public class RenameProcessorTests extends ESTestCase {
         };
         source.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(source);
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -186,7 +186,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameLeafIntoBranch() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
-        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(source);
         Processor processor1 = createRenameProcessor("foo", "foo.bar", false);
         processor1.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));

@@ -99,7 +99,7 @@ public class SplitProcessorTests extends ESTestCase {
         Processor splitProcessor = (new SplitProcessor.Factory()).create(null, null, null, splitConfig);
         Map<String, Object> source = new HashMap<>();
         source.put("flags", "new|hot|super|fun|interesting");
-        IngestDocument ingestDocument = new IngestDocument(source, new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(source);
         splitProcessor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
         List<String> flags = (List<String>) ingestDocument.getFieldValue("flags", List.class);

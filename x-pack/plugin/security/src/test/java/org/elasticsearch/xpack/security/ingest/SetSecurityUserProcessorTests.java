@@ -57,7 +57,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -101,7 +101,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final SecurityContext mockSecurityContext = mock(SecurityContext.class);
         when(mockSecurityContext.getAuthentication()).thenReturn(authentication);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -120,7 +120,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     public void testNoCurrentUser() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -138,7 +138,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testSecurityDisabled() throws Exception {
         Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -161,7 +161,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -182,7 +182,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -207,7 +207,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -228,7 +228,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -253,7 +253,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -287,7 +287,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             EnumSet.of(Property.USERNAME)
         );
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         ingestDocument.setFieldValue("_field", "test");
         processor.execute(ingestDocument);
 
@@ -296,7 +296,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result, aMapWithSize(1));
         assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
 
-        ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        ingestDocument = IngestDocument.testEmptyIngestDocument();
         ingestDocument.setFieldValue("_field.other", "test");
         ingestDocument.setFieldValue("_field.username", "test");
         processor.execute(ingestDocument);
@@ -329,7 +329,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         );
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -378,9 +378,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             .build();
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(
-            IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7)))),
-            new HashMap<>()
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(
+            IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))))
         );
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
@@ -407,7 +406,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,

@@ -250,7 +250,9 @@ public class MatchProcessorTests extends ESTestCase {
             1
         );
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")), Map.of());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(
+            new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld"))
+        );
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -280,7 +282,7 @@ public class MatchProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("domain", "elastic.co");
         source.put("tld", null);
-        IngestDocument ingestDocument = new IngestDocument(source, Map.of());
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(source);
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {

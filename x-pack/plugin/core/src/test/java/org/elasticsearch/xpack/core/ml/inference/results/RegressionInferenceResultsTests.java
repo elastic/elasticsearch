@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,7 +42,7 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
             .limit(5)
             .collect(Collectors.toList());
         RegressionInferenceResults result = new RegressionInferenceResults(0.3, new RegressionConfig("predicted_value", 3), importanceList);
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = IngestDocument.testEmptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));

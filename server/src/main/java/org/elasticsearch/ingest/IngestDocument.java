@@ -82,14 +82,30 @@ public final class IngestDocument {
         this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
     }
 
-    /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
-     */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    private IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
+    }
+
+    public static IngestDocument fromWire(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
+    }
+
+    /**
+     * These two test static factory methods are needed for testing and allows to the creation of a new {@link IngestDocument} given the
+     * provided elasticsearch metadata, source and ingest metadata. This is needed because the ingest metadata will be initialized with the
+     * current timestamp at init time, which makes equality comparisons impossible in tests.
+     */
+    public static IngestDocument testFromSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
+        return new IngestDocument(sourceAndMetadata, new HashMap<>());
+    }
+
+    public static IngestDocument testFromSourceAndIngest(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
+    }
+
+    public static IngestDocument testEmptyIngestDocument() {
+        return new IngestDocument(new HashMap<>(), new HashMap<>());
     }
 
     /**

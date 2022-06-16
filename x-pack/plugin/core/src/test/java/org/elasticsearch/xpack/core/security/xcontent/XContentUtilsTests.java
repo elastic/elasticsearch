@@ -43,7 +43,7 @@ public class XContentUtilsTests extends ESTestCase {
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(
             json,
-            equalTo("{\"run_as\":{\"roles\":" + Arrays.stream(roles).collect(Collectors.joining("\",\"", "[\"", "\"]")) + "}}")
+            equalTo("{\"authorization\":{\"roles\":" + Arrays.stream(roles).collect(Collectors.joining("\",\"", "[\"", "\"]")) + "}}")
         );
     }
 
@@ -55,7 +55,7 @@ public class XContentUtilsTests extends ESTestCase {
             .metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, apiKeyName));
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
-        assertThat(json, equalTo("{\"run_as\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
+        assertThat(json, equalTo("{\"authorization\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
     }
 
     public void testAddStoredHeaderInfoWithServiceAccount() throws IOException {
@@ -64,7 +64,7 @@ public class XContentUtilsTests extends ESTestCase {
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().serviceAccount(user);
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
-        assertThat(json, equalTo("{\"run_as\":{\"service_account\":\"" + account + "\"}}"));
+        assertThat(json, equalTo("{\"authorization\":{\"service_account\":\"" + account + "\"}}"));
     }
 
     private String generateJson(Map<String, String> headers) throws IOException {

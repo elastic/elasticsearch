@@ -217,7 +217,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
         // Confirm the roles were recorded as expected in the stored headers
         @SuppressWarnings("unchecked")
         Map<String, Object> transformConfig = ((List<Map<String, Object>>) transforms.get("transforms")).get(0);
-        assertThat(transformConfig.get("run_as"), equalTo(Map.of("roles", List.of("transform_admin", DATA_ACCESS_ROLE_2))));
+        assertThat(transformConfig.get("authorization"), equalTo(Map.of("roles", List.of("transform_admin", DATA_ACCESS_ROLE_2))));
 
         // create a 2nd, identical one
         createTransformRequest_2.setJsonEntity(config);

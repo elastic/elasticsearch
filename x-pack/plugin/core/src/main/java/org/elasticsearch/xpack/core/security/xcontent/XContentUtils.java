@@ -93,7 +93,7 @@ public class XContentUtils {
         if (authKey == null) {
             return;
         }
-        builder.startObject(RoleDescriptor.Fields.RUN_AS.getPreferredName());
+        builder.startObject("authorization");
         Subject authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
         switch (authenticationSubject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());

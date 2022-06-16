@@ -26,6 +26,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_OPENJDK = "openjdk";
+    public static final String VENDOR_ZULU = "zulu";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -124,6 +125,17 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + "/"
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+            }
+        } else if (jdk.getVendor().equals(VENDOR_ZULU)) {
+            repoUrl = "https://cdn.azul.com";
+            if (jdk.getMajor().equals("8")) {
+                artifactPattern = "zulu/bin/zulu"
+                    + jdk.getDistributionVersion()
+                    + "-ca-jdk"
+                    + jdk.getBaseVersion().replace("u", ".0.")
+                    + "-[module]x_[classifier].[ext]";
+            } else {
+                throw new GradleException("JDK vendor zulu is supported only for JDK8 on MacOS with Apple Silicon.");
             }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");

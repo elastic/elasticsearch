@@ -27,7 +27,7 @@ streams with an empty **Health** in the **Data Streams** tab.
 image::images/troubleshooting/data/kibana-index-management-select-red-indices.png[{kib} indices,align="center"]
 +
 [role="screenshot"]
-image::images/troubleshooting/data/kibana-index-management-select-red-data-streams.png[{kib} data streams,align="center"]
+image::images/troubleshooting/data/kibana-index-management-select-red-data-steams.png[{kib} data streams,align="center"]
 +
 . Use the left side menu to go to **Snapshot and Restore**, there you can verify that you have a snapshot to restore
 the target indices and data streams from. By clicking on every snapshot you can see the indices and data streams it

@@ -304,11 +304,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         ensureStableCluster(3);
 
         String coldNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
-        logger.info(
-            "--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node",
-            coldNodeName,
-            coldNodeId
-        );
+        logger.info("--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node", coldNodeName, coldNodeId);
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
         Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
             .stream()
@@ -350,7 +346,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
-            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.STARTED).size(), equalTo(0));
+            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         });
 
         logger.info("--> Unlocking the initialized shards");
@@ -360,6 +356,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             assertThat(
                 state.routingTable()
                     .allShards()

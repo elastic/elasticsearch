@@ -1,5 +1,6 @@
 // tag::cloud[]
 In order to restore the indices and data streams that are missing data:
+
 **Use {kib}**
 
 //tag::kibana-api-ex[]
@@ -14,10 +15,10 @@ If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
 If your deployment doesn't include {kib}, all you need to do is
 {cloud}/ec-access-kibana.html[enable it first].
-
++
 . Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
 and go to **Stack Management > Index Management**.
-
++
 . In this step we are going to find all the indices and data streams missing data. If you already have that information
 you could skip this. Go in the **Indices** tab, enable **Include hidden indices** toggle and find all the open indices
 that have an empty **Health** and empty **Data stream**, keep their names somewhere handy. Then, go to the
@@ -41,7 +42,7 @@ image::images/troubleshooting/data/kibana-restore-snapshot-content.png[{kib} sna
 delete all the indices that have noted, by selecting them and then using the **Manage index** button
 choose delete index. In the **Data Streams** tab repeat the same by selecting the `red` data streams and then
 clicking **Delete data steam**.
-
++
 . Use the left side menu to go back to **Snapshot and Restore**, click on the snapshot that you would like to restore
 from then click **Restore**. In the next page disable the toggle *All data streams and indices, including system
 indices*, deselect all and then choose the indices and data streams you would like to restore.
@@ -52,7 +53,7 @@ image::images/troubleshooting/data/kibana-restore-snapshot-select-resources.png[
 . Click **Next** twice to continue without changing anything else and finally click **Restore Snapshot**.
 +
 [role="screenshot"]
-image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,width=25%]
+image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,width=30%]
 +
 . When the process will be complete you will see in the **Restore Status** tab the result of your restore.
 +
@@ -67,7 +68,7 @@ For more guidance on creating and restoring snapshots see
 
 // tag::self-managed[]
 In order to restore the indices that are missing shards:
-
++
 . View the affected indices shards using the <<cat-indices,cat indices API>>.
 +
 [source,console]
@@ -84,12 +85,10 @@ index                                status health
 kibana_sample_data_flights           open   red
 ----
 // TEST[skip:illustration purposes only]
-
 +
 The `red` health of the indices above indicates that these indices are missing primary shards,
 meaning they are missing data.
 +
-
 . In order to restore the data we need to find a snapshot that contains these two indices.To find
 such a snapshot use the
 <<get-snapshot-api,get snapshot API>>.
@@ -170,7 +169,7 @@ index                                status health
 .ds-my-data-stream-2022.06.13-000001 close   red
 kibana_sample_data_flights           close   red
 ----
-
++
 . The indices are closed, now we can restore the, from snapshots without causing
 any complications using the <<restore-snapshot-api, restore snapshot API>>:
 +
@@ -205,7 +204,6 @@ index                                status health
 kibana_sample_data_flights           open   green
 ----
 // TEST[skip:illustration purposes only]
-
 +
 As we can see above the indices are `green` and open. The issue is resolved.
 +

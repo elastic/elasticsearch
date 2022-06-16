@@ -37,6 +37,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -350,9 +351,9 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
-            ActionListener<RepositoryData> listener
+            SnapshotDeleteListener listener
         ) {
-            listener.onResponse(null);
+            listener.onFailure(new UnsupportedOperationException());
         }
 
         @Override

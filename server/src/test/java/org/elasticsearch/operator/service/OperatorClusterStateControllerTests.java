@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.OperatorErrorMetadata;
+import org.elasticsearch.cluster.metadata.OperatorHandlerMetadata;
 import org.elasticsearch.cluster.metadata.OperatorMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,6 +36,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -246,7 +249,80 @@ public class OperatorClusterStateControllerTests extends ESTestCase {
         assertThat(operatorMetadata.errorMetadata().errors(), contains("some parse error", "some io error"));
     }
 
-    public void testcheckMetadataVersion() {
+    public void testUpdateTaskDuplicateError() {
+        OperatorHandler<ClusterUpdateSettingsRequest> dummy = new OperatorHandler<>() {
+            @Override
+            public String name() {
+                return "one";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                throw new Exception("anything");
+            }
+        };
+
+        OperatorUpdateStateTask task = spy(
+            new OperatorUpdateStateTask(
+                "namespace_one",
+                new OperatorClusterStateController.SettingsFile(
+                    Map.of("one", "two"),
+                    new OperatorStateVersionMetadata(1L, Version.CURRENT)
+                ),
+                Map.of("one", dummy),
+                List.of(dummy.name()),
+                (errorState) -> {},
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                }
+            )
+        );
+
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
+
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
+            .errors(List.of("Test error 1", "Test error 2"))
+            .build();
+
+        OperatorMetadata operatorMetadata = OperatorMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .version(1L)
+            .putHandler(hmOne)
+            .build();
+
+        Metadata metadata = Metadata.builder().putOperatorState(operatorMetadata).build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        // We exit on duplicate errors before we update the cluster state error metadata
+        assertEquals(
+            "Not updating error state because version [1] is less or equal to the last operator error version [1]",
+            expectThrows(OperatorClusterStateController.IncompatibleVersionException.class, () -> task.execute(state)).getMessage()
+        );
+
+        emOne = new OperatorErrorMetadata.Builder().version(0L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
+            .errors(List.of("Test error 1", "Test error 2"))
+            .build();
+
+        // If we are writing with older error metadata, we should get proper IllegalStateException
+        operatorMetadata = OperatorMetadata.builder("namespace_one").errorMetadata(emOne).version(0L).putHandler(hmOne).build();
+
+        metadata = Metadata.builder().putOperatorState(operatorMetadata).build();
+        ClusterState newState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        // We exit on duplicate errors before we update the cluster state error metadata
+        assertEquals(
+            "Error processing state change request for namespace_one",
+            expectThrows(IllegalStateException.class, () -> task.execute(newState)).getMessage()
+        );
+    }
+
+    public void testCheckMetadataVersion() {
         OperatorMetadata operatorMetadata = OperatorMetadata.builder("test").version(123L).build();
 
         assertTrue(

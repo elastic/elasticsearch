@@ -93,6 +93,22 @@ public class OperatorUpdateStateTask implements ClusterStateTaskListener {
         }
 
         if (errors.isEmpty() == false) {
+            // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
+            // version hasn't been updated.
+            if (existingMetadata != null
+                && existingMetadata.errorMetadata() != null
+                && existingMetadata.errorMetadata().version() >= stateVersionMetadata.version()) {
+                logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
+
+                throw new OperatorClusterStateController.IncompatibleVersionException(
+                    format(
+                        "Not updating error state because version [%s] is less or equal to the last operator error version [%s]",
+                        stateVersionMetadata.version(),
+                        existingMetadata.errorMetadata().version()
+                    )
+                );
+            }
+
             recordErrorState.accept(
                 new OperatorClusterStateController.OperatorErrorState(
                     namespace,

@@ -549,8 +549,13 @@ public final class TokenService {
                     return;
                 }
                 final String accessToken = in.readString();
-                final String userTokenId = hashTokenString(accessToken);
-                getUserTokenFromId(userTokenId, version, listener);
+                // TODO Remove this conditional after backporting to 7.x
+                if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
+                    final String userTokenId = hashTokenString(accessToken);
+                    getUserTokenFromId(userTokenId, version, listener);
+                } else {
+                    getUserTokenFromId(accessToken, version, listener);
+                }
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -1014,8 +1019,13 @@ public final class TokenService {
                     logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
                     listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                 } else {
-                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    // TODO Remove this conditional after backporting to 7.x
+                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    } else {
+                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
                 }
             }
         }

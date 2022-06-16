@@ -90,7 +90,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
                 setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
-                var isFresh = isFresh(desiredBalanceInput);// needs to happen before publishing current desired state?
+                var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
                     if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {

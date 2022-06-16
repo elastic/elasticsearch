@@ -20,8 +20,8 @@ and go to **Stack Management > Index Management**.
 
 . In this step we are going to find all the indices and data streams missing data. If you already have that information
 you could skip this. Go in the **Indices** tab, enable **Include hidden indices** toggle and find all the open indices
-that have an empty **Health** and empty **Data stream**, keep their names somewhere handy. Do the same for in the data
-streams with an empty **Health** in the **Data Streams** tab.
+that have an empty **Health** and empty **Data stream**, keep their names somewhere handy. Then, go to the
+**Data Streams** tab and keep the name of all the data streams whose **Health** is `red`.
 +
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-index-management-select-red-indices.png[{kib} indices,align="center"]
@@ -37,13 +37,9 @@ to restore your indices you can proceed.
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-restore-snapshot-content.png[{kib} snapshots,align="center"]
 +
-. Go back to **Index Management** via the left side menu. In **Indices** delete all the indices and data streams you
-have noted, by selecting them and then using the **Manage index** button choose delete index. In the **Data Streams**
-tab repeat the same by selecting the affected data streams and then clicking **Delete data steam**.
-
 . Go back to **Index Management** via the left side menu. In **Indices** enable **Include hidden indices** toggle and
-delete all the indices and data streams you have noted, by selecting them and then using the **Manage index** button
-choose delete index. In the **Data Streams** tab repeat the same by selecting the affected data streams and then
+delete all the indices that have noted, by selecting them and then using the **Manage index** button
+choose delete index. In the **Data Streams** tab repeat the same by selecting the `red` data streams and then
 clicking **Delete data steam**.
 
 . Use the left side menu to go back to **Snapshot and Restore**, click on the snapshot that you would like to restore

@@ -214,3 +214,77 @@ teardown:
   - match: { "error.type": "security_exception" }
   - match:
       "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+
+---
+"Test grant api key forbidden with manage_own_api_key privilege":
+  # give api_key_grant_target_user `manage_own_api_key` privilege
+  - do:
+      security.put_role:
+        name: "api_key_grant_target_role"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "indices": [
+              {
+                "names": "index",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  # Can create for self
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "my-api-key"
+          }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - set: { id: api_key_id }
+
+  # Can't grant to others
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user
+      catch: forbidden
+      security.grant_api_key:
+        body:  >
+          {
+            "api_key": {
+              "name": "my-api-key"
+            },
+            "grant_type": "password",
+            "username": "api_key_granter",
+            "password": "x-pack-test-password"
+          }
+  - match: { "error.type": "security_exception" }
+  - match:
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+
+  # Can't grant to self
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user
+      catch: forbidden
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "my-api-key"
+            },
+            "grant_type": "password",
+            "username": "api_key_grant_target_user",
+            "password": "x-pack-test-password-2"
+          }
+  - match: { "error.type": "security_exception" }
+  - match:
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant] is unauthorized for user [api_key_grant_target_user] with roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "${api_key_id}"
+
+  - match: { _nodes.failed: 0 }

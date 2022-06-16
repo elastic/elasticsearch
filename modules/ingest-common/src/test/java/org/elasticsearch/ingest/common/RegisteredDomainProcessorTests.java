@@ -53,7 +53,13 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             "content-autofill"
         );
         // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("global.ssl.fastly.net"), "global.ssl.fastly.net", "global.ssl.fastly.net", "ssl.fastly.net", null);
+        testRegisteredDomainProcessor(
+            buildEvent("global.ssl.fastly.net"),
+            "global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "ssl.fastly.net",
+            null
+        );
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",

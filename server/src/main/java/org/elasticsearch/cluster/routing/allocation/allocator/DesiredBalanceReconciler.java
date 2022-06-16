@@ -26,7 +26,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -368,12 +367,12 @@ public class DesiredBalanceReconciler {
     private DiscoveryNode findRelocationTarget(
         ShardRouting shardRouting,
         Set<String> desiredNodeIds,
-        BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
+        AllocateDecider allocateDecider
     ) {
         for (final var nodeId : desiredNodeIds) {
             if (nodeId.equals(shardRouting.currentNodeId()) == false) {
                 final var currentNode = routingNodes.node(nodeId);
-                if (canAllocateDecider.apply(shardRouting, currentNode).type() == Decision.Type.YES) {
+                if (allocateDecider.canAllocate(shardRouting, currentNode).type() == Decision.Type.YES) {
                     return currentNode.node();
                 }
             }
@@ -390,4 +389,8 @@ public class DesiredBalanceReconciler {
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 
+    @FunctionalInterface
+    private interface AllocateDecider {
+        Decision canAllocate(ShardRouting shardRouting, RoutingNode target);
+    }
 }

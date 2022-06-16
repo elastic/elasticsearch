@@ -41,10 +41,10 @@ final class StartupException {
             cause = getFirstGuiceCause((CreationException) cause);
         }
 
-        String message = cause.toString();
-        err.println(message);
-
         if (cause != null) {
+            String message = cause.toString();
+            err.println(message);
+
             // walk to the root cause
             while (cause.getCause() != null) {
                 cause = cause.getCause();

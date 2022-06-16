@@ -96,8 +96,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                         IngestDocument document1 = new IngestDocument(
                             "index",
                             "id",
-                            "routing",
                             1L,
+                            "routing",
                             VersionType.EXTERNAL,
                             Map.of("_field", "89.160.20.128")
                         );
@@ -106,8 +106,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                         IngestDocument document2 = new IngestDocument(
                             "index",
                             "id",
-                            "routing",
                             1L,
+                            "routing",
                             VersionType.EXTERNAL,
                             Map.of("_field", "89.160.20.128")
                         );

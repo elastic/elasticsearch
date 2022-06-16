@@ -345,7 +345,7 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
         assertBusy(() -> {
             final var shardWriteLoadDistributionsForDataStreams = getShardWriteLoadDistributionsForDataStreams(
                 timestampBeforeIndexingDocs,
-                timestampAfterIndexingDocs,
+                null, // unbounded
                 List.of(dataStream)
             );
             assertThat(shardWriteLoadDistributionsForDataStreams, is(not(empty())));

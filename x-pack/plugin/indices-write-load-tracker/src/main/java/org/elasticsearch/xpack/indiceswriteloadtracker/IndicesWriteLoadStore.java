@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.indiceswriteloadtracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -41,6 +40,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -153,7 +153,7 @@ class IndicesWriteLoadStore implements Closeable {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 long items = request.numberOfActions();
-                logger.warn(new ParameterizedMessage("Failed to index {} items into indices write load index", items), failure);
+                logger.warn(String.format(Locale.ROOT, "Failed to index %s items into indices write load index", items), failure);
             }
         }, threadPool, threadPool, () -> {})
             .setBulkActions(MAX_DOCUMENTS_PER_BULK_SETTING.get(settings))
@@ -175,8 +175,9 @@ class IndicesWriteLoadStore implements Closeable {
                 bulkProcessor.add(request);
             } catch (IOException exception) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "failed to queue indices write load distribution item in index [{}]: [{}]",
+                    String.format(
+                        Locale.ROOT,
+                        "failed to queue indices write load distribution item in index [%s]: [%s]",
                         INDICES_WRITE_LOAD_DATA_STREAM,
                         shardWriteLoadHistogramSnapshot
                     ),

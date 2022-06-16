@@ -1452,7 +1452,7 @@ public class InternalEngine extends Engine {
                 assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
             }
-            deleteResult.setTook(System.nanoTime() - delete.startTime());
+            deleteResult.setTook(relativeTimeInNanosSupplier.getAsLong() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
             try {

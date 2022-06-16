@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.indiceswriteloadtracker;
 
-import org.HdrHistogram.DoubleHistogram;
+import org.HdrHistogram.ShortCountsHistogram;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -109,9 +109,9 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         private final boolean primary;
         private final LongSupplier relativeTimeInNanosSupplier;
         private final Object histogramsLock = new Object();
-        private DoubleHistogram indexingTimeHistogram;
-        private DoubleHistogram mergeTimeHistogram;
-        private DoubleHistogram refreshTimeHistogram;
+        private final Histogram indexingTimeHistogram;
+        private final Histogram mergeTimeHistogram;
+        private final Histogram refreshTimeHistogram;
         private long lastTotalIndexingTimeSample;
         private long lastTotalMergeTimeSample;
         private long lastTotalRefreshTimeSample;
@@ -183,19 +183,47 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
                     parentDataStreamNameSupplier.get(),
                     indexShard.shardId(),
                     primary,
-                    HistogramSnapshot.fromHistogram(indexingTimeHistogram),
-                    HistogramSnapshot.fromHistogram(mergeTimeHistogram),
-                    HistogramSnapshot.fromHistogram(refreshTimeHistogram)
+                    HistogramSnapshot.takeSnapshot(indexingTimeHistogram),
+                    HistogramSnapshot.takeSnapshot(mergeTimeHistogram),
+                    HistogramSnapshot.takeSnapshot(refreshTimeHistogram)
                 );
-                indexingTimeHistogram = createHistogram();
-                mergeTimeHistogram = createHistogram();
-                refreshTimeHistogram = createHistogram();
+                indexingTimeHistogram.reset();
+                mergeTimeHistogram.reset();
+                refreshTimeHistogram.reset();
                 return indexLoadSummary;
             }
         }
 
-        static DoubleHistogram createHistogram() {
-            return new DoubleHistogram(1);
+        static Histogram createHistogram() {
+            return new Histogram(2);
+        }
+    }
+
+    public static class Histogram {
+        private static final double ADJUST_FACTOR = 100.f;
+
+        // This kind of histogram as a lower memory footprint than a DoubleHistogram,
+        // and provides enough granularity for our use case
+        private final ShortCountsHistogram delegate;
+
+        Histogram(int numberOfSignificantValueDigits) {
+            this.delegate = new ShortCountsHistogram(numberOfSignificantValueDigits);
+        }
+
+        void recordValue(double value) {
+            delegate.recordValue((int) (value * ADJUST_FACTOR));
+        }
+
+        void reset() {
+            delegate.reset();
+        }
+
+        public double getValueAtPercentile(double percentile) {
+            return delegate.getValueAtPercentile(percentile) / ADJUST_FACTOR;
+        }
+
+        public double getMaxValue() {
+            return delegate.getMaxValue() / ADJUST_FACTOR;
         }
     }
 }

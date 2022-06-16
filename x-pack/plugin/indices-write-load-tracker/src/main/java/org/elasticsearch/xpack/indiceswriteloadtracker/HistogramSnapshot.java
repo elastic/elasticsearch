@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.indiceswriteloadtracker;
 
-import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -70,7 +69,7 @@ public record HistogramSnapshot(double p50, double p90, double p95, double p99, 
         out.writeDouble(max);
     }
 
-    public static HistogramSnapshot fromHistogram(DoubleHistogram histogram) {
+    public static HistogramSnapshot takeSnapshot(IndicesWriteLoadStatsCollector.Histogram histogram) {
         return new HistogramSnapshot(
             histogram.getValueAtPercentile(50),
             histogram.getValueAtPercentile(90),

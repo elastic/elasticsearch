@@ -155,8 +155,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 assertThat(shardLoadHistogramSnapshots, hasSize(1));
                 final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
                 final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
-                // TODO: the underlying histogram do not have enough precision
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 3.0)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 0.5)));
                 assertThat(indexingLoadHistogramSnapshot.p90(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.max())));
                 assertThat(indexingLoadHistogramSnapshot.p50(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.p90())));
             }

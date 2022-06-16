@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -212,14 +211,7 @@ public class ClusterFormationFailureHelper {
                 in.readLong(),
                 in.readBoolean(),
                 readStatusInfo(in),
-                in.readList(
-                    in1 -> new JoinStatus(
-                        new DiscoveryNode(in1),
-                        in1.readLong(),
-                        in1.readString(),
-                        new TimeValue(in1.readLong(), TimeUnit.valueOf(in1.readString()))
-                    )
-                )
+                in.readList(JoinStatus::new)
             );
         }
 
@@ -398,13 +390,7 @@ public class ClusterFormationFailureHelper {
             out.writeBoolean(hasDiscoveredQuorum);
             out.writeString(statusInfo.status().name());
             out.writeString(statusInfo.info());
-            out.writeCollection(inFlightJoinStatuses, (streamOut, inFlightJoinStatus) -> {
-                inFlightJoinStatus.remoteNode().writeTo(streamOut);
-                streamOut.writeLong(inFlightJoinStatus.term());
-                streamOut.writeString(inFlightJoinStatus.message());
-                streamOut.writeLong(inFlightJoinStatus.age().duration());
-                streamOut.writeString(inFlightJoinStatus.age().timeUnit().name());
-            });
+            out.writeCollection(inFlightJoinStatuses);
         }
     }
 }

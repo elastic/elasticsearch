@@ -139,6 +139,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "monitor",
                         GetLifecycleAction.NAME,
                         PutLifecycleAction.NAME,
+                        RolloverAction.NAME,
                         "cluster:monitor/xpack/watcher/watch/get",
                         "cluster:admin/xpack/watcher/watch/put",
                         "cluster:admin/xpack/watcher/watch/delete" },

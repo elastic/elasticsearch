@@ -303,5 +303,4 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         });
     }
 
-
 }

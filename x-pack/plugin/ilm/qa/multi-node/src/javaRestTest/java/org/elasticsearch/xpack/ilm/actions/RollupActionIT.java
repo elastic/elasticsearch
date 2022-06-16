@@ -221,7 +221,7 @@ public class RollupActionIT extends ESRestTestCase {
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
-//        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
+        // assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
         waitUntil(() -> {
             try {
                 String rollupIndex = getRollupIndexName(backingIndexName);

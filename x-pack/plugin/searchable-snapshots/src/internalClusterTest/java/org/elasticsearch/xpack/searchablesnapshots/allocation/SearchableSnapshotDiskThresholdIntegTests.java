@@ -283,7 +283,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         });
     }
 
-    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
+    public void testHighWatermarkCanNotBeExceededWithInitializingSearchableSnapshots() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startNode(onlyRole(DATA_HOT_NODE_ROLE));
 

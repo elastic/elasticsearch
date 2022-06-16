@@ -217,7 +217,7 @@ teardown:
 
 ---
 "Test grant api key forbidden with manage_own_api_key privilege":
-  # give api_key_grant_target_user manage_own_api_key privilege
+  # Give api_key_grant_target_user manage_own_api_key privilege
   - do:
       security.put_role:
         name: "api_key_grant_target_role"

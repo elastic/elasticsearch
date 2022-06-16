@@ -923,9 +923,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 true,
                 Map.of()
             ),
-            oneOf(
-                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
-                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []",
+            equalTo(
                 "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
                     + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
             )

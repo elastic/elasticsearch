@@ -1,0 +1,5 @@
+pr: 87732
+summary: Fix possible NPE in startup exception handling
+area: Infra/Core
+type: bug
+issues: []

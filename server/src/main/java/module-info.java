@@ -233,6 +233,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.get;
     exports org.elasticsearch.index.mapper;
     exports org.elasticsearch.index.mapper.flattened;
+    exports org.elasticsearch.index.mapper.vectors;
     exports org.elasticsearch.index.merge;
     exports org.elasticsearch.index.query;
     exports org.elasticsearch.index.query.functionscore;
@@ -293,6 +294,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.search;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
+    exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
@@ -346,6 +348,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
+
+    exports org.elasticsearch.search.vectors;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

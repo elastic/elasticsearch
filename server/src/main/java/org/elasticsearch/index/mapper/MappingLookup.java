@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -257,8 +258,8 @@ public final class MappingLookup {
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper fieldMapper = fieldMappers.get(field);
-        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
-            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
+        if (fieldMapper instanceof DenseVectorFieldMapper) {
+            return ((DenseVectorFieldMapper) fieldMapper).getKnnVectorsFormatForField();
         } else {
             return null;
         }

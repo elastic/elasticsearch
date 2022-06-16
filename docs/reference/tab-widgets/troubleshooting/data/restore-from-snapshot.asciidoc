@@ -51,7 +51,7 @@ continue without changing anything else and finally click **Restore Snapshot**.
 image::images/troubleshooting/data/kibana-restore-snapshot-select-resources.png[{kib} select resources to restore,align="center"]
 +
 [role="screenshot"]
-image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,align="center"]
+image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,width=40%]
 +
 . When the process will be complete you will see in the **Restore Status** tab the result of your restore.
 +

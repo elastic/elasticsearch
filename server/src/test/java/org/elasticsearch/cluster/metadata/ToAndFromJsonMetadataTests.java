@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
@@ -44,6 +45,23 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     public void testSimpleJsonFromAndTo() throws IOException {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
         IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
+
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
+        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata.Builder("two").keys(Set.of("c", "d")).build();
+
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
+            .errors(List.of("Test error 1", "Test error 2"))
+            .build();
+
+        OperatorMetadata operatorMetadata = OperatorMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .putHandler(hmOne)
+            .putHandler(hmTwo)
+            .build();
+
+        OperatorMetadata operatorMetadata1 = OperatorMetadata.builder("namespace_two").putHandler(hmTwo).build();
+
         Metadata metadata = Metadata.builder()
             .put(
                 IndexTemplateMetadata.builder("foo")
@@ -107,6 +125,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
+            .put(operatorMetadata)
+            .put(operatorMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -180,6 +200,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
+
+        // operator metadata
+        assertEquals(operatorMetadata, parsedMetadata.operatorMetadata(operatorMetadata.namespace()));
+        assertEquals(operatorMetadata1, parsedMetadata.operatorMetadata(operatorMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """
@@ -246,7 +270,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -341,7 +366,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id), Strings.toString(builder));
     }
@@ -405,7 +431,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -507,7 +534,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "operator" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -615,6 +643,181 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
+                },
+                "operator" : { }
+              }
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+    }
+
+    public void testToXContentAPIOperatorMetadata() throws IOException {
+        Map<String, String> mapParams = new HashMap<>() {
+            {
+                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
+                put("flat_settings", "false");
+                put("reduce_mappings", "true");
+            }
+        };
+
+        Metadata metadata = buildMetadata();
+
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
+        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata.Builder("two").keys(Set.of("c", "d")).build();
+        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata.Builder("three").keys(Set.of("e", "f")).build();
+
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
+            .errors(List.of("Test error 1", "Test error 2"))
+            .build();
+
+        OperatorErrorMetadata emTwo = new OperatorErrorMetadata.Builder().version(2L)
+            .errorKind(OperatorErrorMetadata.ErrorKind.TRANSIENT)
+            .errors(List.of("Test error 3", "Test error 4"))
+            .build();
+
+        OperatorMetadata omOne = OperatorMetadata.builder("namespace_one").errorMetadata(emOne).putHandler(hmOne).putHandler(hmTwo).build();
+
+        OperatorMetadata omTwo = OperatorMetadata.builder("namespace_two").errorMetadata(emTwo).putHandler(hmThree).build();
+
+        metadata = Metadata.builder(metadata).put(omOne).put(omTwo).build();
+
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        builder.endObject();
+
+        assertEquals("""
+            {
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index" : {
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : { },
+                    "aliases" : { }
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "version" : 2,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index" : {
+                        "number_of_shards" : "1",
+                        "number_of_replicas" : "2",
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "type1" : {
+                          "key" : "value"
+                        }
+                      }
+                    },
+                    "aliases" : [
+                      "alias"
+                    ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info" : {
+                      "rolloveAlias" : {
+                        "met_conditions" : { },
+                        "time" : 1
+                      }
+                    },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                },
+                "operator" : {
+                  "namespace_one" : {
+                    "version" : 0,
+                    "handlers" : {
+                      "one" : {
+                        "keys" : [
+                          "a",
+                          "b"
+                        ]
+                      },
+                      "two" : {
+                        "keys" : [
+                          "c",
+                          "d"
+                        ]
+                      }
+                    },
+                    "errors" : {
+                      "version" : 1,
+                      "error_kind" : "validation",
+                      "errors" : [
+                        "Test error 1",
+                        "Test error 2"
+                      ]
+                    }
+                  },
+                  "namespace_two" : {
+                    "version" : 0,
+                    "handlers" : {
+                      "three" : {
+                        "keys" : [
+                          "e",
+                          "f"
+                        ]
+                      }
+                    },
+                    "errors" : {
+                      "version" : 2,
+                      "error_kind" : "transient",
+                      "errors" : [
+                        "Test error 3",
+                        "Test error 4"
+                      ]
+                    }
+                  }
                 }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));

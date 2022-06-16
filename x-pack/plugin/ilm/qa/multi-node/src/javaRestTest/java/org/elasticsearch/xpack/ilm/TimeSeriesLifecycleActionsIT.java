@@ -105,8 +105,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.include._name", "javaRestTest-0")
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // create policy
@@ -140,8 +139,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_READ_ONLY, true)
-                .put("index.lifecycle.name", policy),
-            null
+                .put("index.lifecycle.name", policy)
         );
 
         assertBusy(
@@ -168,8 +166,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_READ_ONLY, true)
-                .put("index.lifecycle.name", policy),
-            null
+                .put("index.lifecycle.name", policy)
         );
 
         assertBusy(
@@ -200,8 +197,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.lifecycle.name", policy),
-            null
+                .put("index.lifecycle.name", policy)
         );
 
         assertBusy(
@@ -217,8 +213,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
         AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName), null, null);
@@ -243,8 +238,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas),
-            null
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
         );
         AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null, null);
         String endPhase = randomFrom("warm", "cold");
@@ -262,8 +256,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
@@ -308,8 +301,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
@@ -335,8 +327,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
@@ -415,8 +406,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
         updatePolicy(client(), index, policy);
@@ -428,8 +418,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueHours(1));
         updatePolicy(client(), index, policy);
@@ -465,8 +454,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         // index document so snapshot actually does something
         indexDocument(client(), index);
@@ -490,8 +478,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client(),
             index,
             alias,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             Request request = new Request("PUT", index + "/_doc/" + i);
@@ -531,8 +518,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100),
-            null
+                .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100)
         );
         int priority = randomIntBetween(0, 99);
         createNewSingletonPolicy(client(), policy, "warm", new SetPriorityAction(priority));
@@ -552,8 +538,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100),
-            null
+                .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100)
         );
         createNewSingletonPolicy(client(), policy, "warm", new SetPriorityAction((Integer) null));
         updatePolicy(client(), index, policy);
@@ -718,8 +703,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // Index a document
@@ -757,8 +741,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLengthBetween(5, 15)),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLengthBetween(5, 15))
         );
 
         Request stopILMRequest = new Request("POST", "_ilm/stop");
@@ -904,8 +887,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false),
-            null
+                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
         );
 
         updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));

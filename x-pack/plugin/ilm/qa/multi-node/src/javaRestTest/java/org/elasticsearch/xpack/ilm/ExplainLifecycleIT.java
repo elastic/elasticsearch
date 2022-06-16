@@ -159,8 +159,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
         createIndexWithSettings(
             client(),
@@ -169,15 +168,13 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
         createIndexWithSettings(
             client(),
             unmanagedIndex,
             alias + unmanagedIndex,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         String missingPolicyName = "missing_policy_";
         createIndexWithSettings(
@@ -187,8 +184,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName)
         );
 
         assertBusy(() -> {

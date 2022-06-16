@@ -63,8 +63,7 @@ public class RolloverActionIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // create policy
@@ -92,8 +91,7 @@ public class RolloverActionIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
@@ -144,8 +142,7 @@ public class RolloverActionIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         index(client(), originalIndex, "_id", "foo", "bar");
@@ -173,8 +170,7 @@ public class RolloverActionIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         index(client(), originalIndex, "_id", "foo", "bar");

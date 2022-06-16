@@ -90,7 +90,7 @@ In order to get the shards assigned you can add more nodes to your {es} cluster
 and assign the index's target tier <<assign-data-tier, node role>> to the new 
 nodes. 
 
-To inspect which tier is an index targeting for assignment, use the <<indices-get-settings, get index setting>>
+To determine which tier an index requires for assignment, use the <<indices-get-settings, get index setting>>
 API to retrieve the configured value for the `index.routing.allocation.include._tier_preference`
 setting:
 

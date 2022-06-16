@@ -22,13 +22,19 @@ public class JoinStatusTests extends ESTestCase {
     public void testSerialization() throws Exception {
         JoinStatus joinStatus = new JoinStatus(
             new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
-            randomIntBetween(0, 1000),
+            randomLongBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 100),
             randomNonNegativeTimeValue()
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             joinStatus,
             history -> copyWriteable(joinStatus, writableRegistry(), JoinStatus::new),
+            this::mutateJoinStatus
+        );
+        JoinStatus joinStatusWithNulls = new JoinStatus(null, randomLongBetween(0, 1000), null, null);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            joinStatusWithNulls,
+            history -> copyWriteable(joinStatusWithNulls, writableRegistry(), JoinStatus::new),
             this::mutateJoinStatus
         );
     }

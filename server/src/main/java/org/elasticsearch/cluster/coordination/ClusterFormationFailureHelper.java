@@ -210,15 +210,9 @@ public class ClusterFormationFailureHelper {
                 in.readImmutableList(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
-                readStatusInfo(in),
+                new StatusInfo(in),
                 in.readList(JoinStatus::new)
             );
-        }
-
-        private static StatusInfo readStatusInfo(StreamInput in) throws IOException {
-            String statusName = in.readString();
-            String statusInfoString = in.readString();
-            return new StatusInfo(StatusInfo.Status.valueOf(statusName), statusInfoString);
         }
 
         /**
@@ -388,8 +382,7 @@ public class ClusterFormationFailureHelper {
             out.writeList(foundPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
-            out.writeString(statusInfo.status().name());
-            out.writeString(statusInfo.info());
+            statusInfo.writeTo(out);
             out.writeCollection(inFlightJoinStatuses);
         }
     }

@@ -110,12 +110,10 @@ public class OperatorILMControllerTests extends ESTestCase {
         String badPolicyJSON = """
             {
                 "my_timeseries_lifecycle": {
-                    "polcy": {
-                        "phases": {
-                            "warm": {
-                                "min_age": "10s",
-                                "actions": {
-                                }
+                    "phase": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
                             }
                         }
                     }
@@ -123,7 +121,7 @@ public class OperatorILMControllerTests extends ESTestCase {
             }""";
 
         assertEquals(
-            "[1:2] [put_lifecycle_request] unknown field [polcy] did you mean [policy]?",
+            "[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?",
             expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
@@ -148,28 +146,24 @@ public class OperatorILMControllerTests extends ESTestCase {
         String twoPoliciesJSON = """
             {
                 "my_timeseries_lifecycle": {
-                    "policy": {
-                        "phases": {
-                            "warm": {
-                                "min_age": "10s",
-                                "actions": {
-                                }
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
                             }
                         }
                     }
                 },
                 "my_timeseries_lifecycle1": {
-                    "policy": {
-                        "phases": {
-                            "warm": {
-                                "min_age": "10s",
-                                "actions": {
-                                }
-                            },
-                            "delete": {
-                                "min_age": "30s",
-                                "actions": {
-                                }
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
+                            }
+                        },
+                        "delete": {
+                            "min_age": "30s",
+                            "actions": {
                             }
                         }
                     }
@@ -187,12 +181,10 @@ public class OperatorILMControllerTests extends ESTestCase {
         String onePolicyRemovedJSON = """
             {
                 "my_timeseries_lifecycle": {
-                    "policy": {
-                        "phases": {
-                            "warm": {
-                                "min_age": "10s",
-                                "actions": {
-                                }
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
                             }
                         }
                     }
@@ -208,12 +200,10 @@ public class OperatorILMControllerTests extends ESTestCase {
         String onePolicyRenamedJSON = """
             {
                 "my_timeseries_lifecycle2": {
-                    "policy": {
-                        "phases": {
-                            "warm": {
-                                "min_age": "10s",
-                                "actions": {
-                                }
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
                             }
                         }
                     }
@@ -250,17 +240,15 @@ public class OperatorILMControllerTests extends ESTestCase {
                      },
                      "ilm": {
                          "my_timeseries_lifecycle": {
-                             "policy": {
-                                 "phases": {
-                                     "warm": {
-                                         "min_age": "10s",
-                                         "actions": {
-                                         }
-                                     },
-                                     "delete": {
-                                         "min_age": "30s",
-                                         "actions": {
-                                         }
+                             "phases": {
+                                 "warm": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
                                      }
                                  }
                              }

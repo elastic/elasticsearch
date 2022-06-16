@@ -15,6 +15,7 @@ import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.ilm.action.TransportDeleteLifecycleAction;
@@ -30,9 +31,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * TODO: Add docs
+ * This {@link OperatorHandler} is responsible for CRUD operations on ILM policies in
+ * operator mode, e.g. file based settings. Internally it uses {@link TransportPutLifecycleAction} and
+ * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleAction.Request> {
+public class OperatorLifecycleAction implements OperatorHandler<LifecyclePolicy> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -61,7 +64,8 @@ public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleActi
             Map<String, ?> content = (Map<String, ?>) source.get(name);
             var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
             try (XContentParser parser = mapToXContentParser(config, content)) {
-                PutLifecycleAction.Request request = PutLifecycleAction.Request.parseRequest(name, parser);
+                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+                PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
                 validate(request);
                 result.add(request);
             }

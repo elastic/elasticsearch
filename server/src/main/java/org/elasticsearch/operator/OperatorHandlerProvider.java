@@ -8,8 +8,6 @@
 
 package org.elasticsearch.operator;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-
 import java.util.Collection;
 
 /**
@@ -23,5 +21,5 @@ public interface OperatorHandlerProvider {
      *
      * @return a list of ${@link OperatorHandler}s
      */
-    Collection<OperatorHandler<? extends MasterNodeRequest<?>>> handlers();
+    Collection<OperatorHandler<?>> handlers();
 }

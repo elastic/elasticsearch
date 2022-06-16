@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.operator;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.OperatorHandlerProvider;
 
@@ -19,14 +18,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * ILM Provider implementation for the OperatorHandlerProvider service interface
  */
 public class ILMOperatorHandlerProvider implements OperatorHandlerProvider {
-    private static final Set<OperatorHandler<? extends MasterNodeRequest<?>>> handlers = ConcurrentHashMap.newKeySet();
+    private static final Set<OperatorHandler<?>> handlers = ConcurrentHashMap.newKeySet();
 
     @Override
-    public Collection<OperatorHandler<? extends MasterNodeRequest<?>>> handlers() {
+    public Collection<OperatorHandler<?>> handlers() {
         return handlers;
     }
 
-    public static void handler(OperatorHandler<? extends MasterNodeRequest<?>> handler) {
+    public static void handler(OperatorHandler<?> handler) {
         handlers.add(handler);
     }
 }

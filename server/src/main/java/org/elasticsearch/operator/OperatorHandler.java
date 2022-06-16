@@ -28,7 +28,7 @@ import java.util.Map;
  * that we have a separate update handler interface to the REST handlers. This interface declares
  * the basic contract for implementing cluster state update handlers in operator mode.
  */
-public interface OperatorHandler<T extends MasterNodeRequest<?>> {
+public interface OperatorHandler<T> {
     String CONTENT = "content";
 
     /**
@@ -78,7 +78,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
      *
      * @param request the master node request that we base this operator handler on
      */
-    default void validate(T request) {
+    default void validate(MasterNodeRequest<?> request) {
         ActionRequestValidationException exception = request.validate();
         if (exception != null) {
             throw new IllegalStateException("Validation error", exception);

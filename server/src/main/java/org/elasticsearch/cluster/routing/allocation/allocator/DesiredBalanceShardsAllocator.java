@@ -20,9 +20,12 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -32,7 +35,7 @@ import java.util.function.Supplier;
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterStateListener {
 
-    private final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
+    private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
 
@@ -86,7 +89,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                currentDesiredBalance = desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh);
+                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
                 var isFresh = isFresh(desiredBalanceInput);// needs to happen before publishing current desired state?
 
                 if (isFresh) {
@@ -165,7 +168,38 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return delegateAllocator.decideShardAllocation(shard, allocation);
     }
 
-    DesiredBalance getCurrentDesiredBalance() {
-        return currentDesiredBalance;
+    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
+        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
+        if (logger.isTraceEnabled()) {
+            if (hasChanges) {
+                logChanges(currentDesiredBalance, newDesiredBalance);
+                logger.trace("desired balance changed : {}", newDesiredBalance);
+            } else {
+                logger.trace("desired balance unchanged: {}", newDesiredBalance);
+            }
+        }
+        currentDesiredBalance = newDesiredBalance;
+        return hasChanges;
+    }
+
+    private static void logChanges(DesiredBalance old, DesiredBalance updated) {
+        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
+        var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
+
+        var newLine = System.lineSeparator();
+        var builder = new StringBuilder();
+        for (ShardId shardId : intersection) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
+                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+            }
+        }
+        for (ShardId shardId : diff) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+        }
+        logger.trace("desired balance updated: {}", builder.append(newLine).toString());
     }
 }

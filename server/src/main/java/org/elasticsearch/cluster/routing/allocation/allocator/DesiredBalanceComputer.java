@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -25,7 +24,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -258,40 +256,5 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments);
-    }
-
-    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
-        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
-        if (logger.isTraceEnabled()) {
-            if (hasChanges) {
-                logChanges(currentDesiredBalance, newDesiredBalance);
-                logger.trace("desired balance changed : {}", newDesiredBalance);
-            } else {
-                logger.trace("desired balance unchanged: {}", newDesiredBalance);
-            }
-        }
-        currentDesiredBalance = newDesiredBalance;
-        return hasChanges;
-    }
-
-    private static void logChanges(DesiredBalance old, DesiredBalance updated) {
-        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
-        var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
-
-        var newLine = System.lineSeparator();
-        var builder = new StringBuilder();
-        for (ShardId shardId : intersection) {
-            var oldAssignment = old.getAssignment(shardId);
-            var updatedAssignment = updated.getAssignment(shardId);
-            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
-                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
-            }
-        }
-        for (ShardId shardId : diff) {
-            var oldAssignment = old.getAssignment(shardId);
-            var updatedAssignment = updated.getAssignment(shardId);
-            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
-        }
-        logger.trace("desired balance updated: {}", builder.append(newLine).toString());
     }
 }

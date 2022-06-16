@@ -333,7 +333,8 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(Arrays.asList(doc1.rootDoc(), doc2.rootDoc())), reader -> {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
-                (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
+                mapperService.mappingLookup()::sourcePaths
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));

@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -49,7 +50,11 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup) -> fieldData);
+        lookup = new SearchLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ignored, _lookup) -> fieldData,
+            field -> field.equals("field") ? Set.of("field") : null
+        );
     }
 
     private TermsSetQueryScript.LeafFactory compile(String expression) {

@@ -31,8 +31,8 @@ setup:
 ---
 "Key exists, no missing values":
   - skip:
-      version: " - 7.17.4, 8.0.0 - 8.3.0"
-      reason: "fixed in 7.17.5 and 8.3.1"
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -55,8 +55,8 @@ setup:
 ---
 "Key exists, missing values, missing specified":
   - skip:
-      version: " - 7.17.4, 8.0.0 - 8.3.0"
-      reason: "fixed in 7.17.5 and 8.3.1"
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -80,8 +80,8 @@ setup:
 ---
 "Key exists, missing values, missing not specified":
   - skip:
-      version: " - 7.17.4, 8.0.0 - 8.3.0"
-      reason: "fixed in 7.17.5 and 8.3.1"
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -101,8 +101,8 @@ setup:
 ---
 "Key does not exist, missing specified":
   - skip:
-      version: " - 7.17.4, 8.0.0 - 8.3.0"
-      reason: "fixed in 7.17.5 and 8.3.1"
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -121,8 +121,8 @@ setup:
 ---
 "Key does not exist, missing not specified":
   - skip:
-      version: " - 7.17.4, 8.0.0 - 8.3.0"
-      reason: "fixed in 7.17.5 and 8.3.1"
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
   - do:
       search:
         rest_total_hits_as_int: true

@@ -281,12 +281,13 @@ public class DesiredBalanceReconciler {
 
             final var moveTarget = findRelocationTarget(allocation, shardRouting, assignment.nodeIds());
             if (moveTarget != null) {
-                allocation.routingNodes().relocateShard(
-                    shardRouting,
-                    moveTarget.getId(),
-                    allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                    allocation.changes()
-                );
+                allocation.routingNodes()
+                    .relocateShard(
+                        shardRouting,
+                        moveTarget.getId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        allocation.changes()
+                    );
             }
         }
     }
@@ -330,12 +331,13 @@ public class DesiredBalanceReconciler {
 
             final var rebalanceTarget = findRelocationTarget(allocation, shardRouting, assignment.nodeIds(), this::decideCanAllocate);
             if (rebalanceTarget != null) {
-                allocation.routingNodes().relocateShard(
-                    shardRouting,
-                    rebalanceTarget.getId(),
-                    allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                    allocation.changes()
-                );
+                allocation.routingNodes()
+                    .relocateShard(
+                        shardRouting,
+                        rebalanceTarget.getId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        allocation.changes()
+                    );
             }
         }
     }

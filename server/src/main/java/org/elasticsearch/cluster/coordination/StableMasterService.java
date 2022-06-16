@@ -35,8 +35,8 @@ import java.util.stream.Collectors;
  * confirmed by checking with the last-known master), then this will report YELLOW.
  * If we have not had a master within the last 30 seconds, then this will will report RED with one exception. That exception is when:
  * (1) no node is elected master, (2) this node is not master eligible, (3) some node is master eligible, (4) we ask a master-eligible node
- * to run this indicator, and (5) it comes back with a result that is not RED.
- * Since this indicator needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
+ * to run this service, and (5) it comes back with a result that is not RED.
+ * Since this service needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
  * requires the existence of a master).
  */
 public class StableMasterService implements ClusterStateListener {
@@ -154,7 +154,7 @@ public class StableMasterService implements ClusterStateListener {
             localMasterHistory.getMaxHistoryAge()
         );
         StableMasterDetails details = getDetails(explain, localMasterHistory);
-        return createIndicator(stableMasterStatus, summary, details);
+        return new StableMasterResult(stableMasterStatus, summary, details);
     }
 
     /**
@@ -182,7 +182,7 @@ public class StableMasterService implements ClusterStateListener {
      * in the last 30 minutes). This method attemtps to use the master history from a remote node to confirm what we are seeing locally.
      * If the information from the remote node confirms that the master history has been unstable, a YELLOW status is returned. If the
      * information from the remote node shows that the master history has been stable, then we assume that the problem is with this node
-     * and a GREEN status is returned (the problems with this node will be covered in a different health indicator). If there had been
+     * and a GREEN status is returned (the problems with this node will be covered in a separate health indicator). If there had been
      * problems fetching the remote master history, the exception seen will be included in the details of the result.
      * @param localMasterHistory The master history as seen from the local machine
      * @param explain Whether to calculate and include the details in the result
@@ -230,7 +230,7 @@ public class StableMasterService implements ClusterStateListener {
                 localMasterHistory,
                 remoteHistoryException
             );
-            return createIndicator(HealthStatus.YELLOW, summary, details);
+            return new StableMasterResult(HealthStatus.YELLOW, summary, details);
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
             return getMasterIsStableResult(explain, localMasterHistory);
@@ -238,7 +238,7 @@ public class StableMasterService implements ClusterStateListener {
     }
 
     /**
-     * Returns the health indicator details for the calculateOnMasterHasFlappedNull method. This method populates the StableMasterDetails
+     * Returns the details for the calculateOnMasterHasFlappedNull method. This method populates the StableMasterDetails
      * with the currentMaster, and optionally the remoteExceptionMessage and remoteExceptionStackTrace.
      * @param explain If false, nothing is calculated and StableMasterDetails.EMPTY is returned
      * @param localMasterHistory The localMasterHistory
@@ -264,7 +264,7 @@ public class StableMasterService implements ClusterStateListener {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
         StableMasterDetails details = getDetails(explain, localMasterHistory);
-        return createIndicator(HealthStatus.GREEN, summary, details);
+        return new StableMasterResult(HealthStatus.GREEN, summary, details);
     }
 
     /**
@@ -277,11 +277,7 @@ public class StableMasterService implements ClusterStateListener {
         // NOTE: The logic in this method will be implemented in a future PR
         String summary = "No master has been observed recently";
         StableMasterDetails details = StableMasterDetails.EMPTY;
-        return createIndicator(HealthStatus.RED, summary, details);
-    }
-
-    private StableMasterResult createIndicator(HealthStatus status, String summary, StableMasterDetails details) {
-        return new StableMasterResult(status, summary, details);
+        return new StableMasterResult(HealthStatus.RED, summary, details);
     }
 
     /**
@@ -301,7 +297,7 @@ public class StableMasterService implements ClusterStateListener {
      * history as seen from the most recent master node so that it is ready in case a health API request comes in. The request to the
      * MasterHistoryService is made asynchronously, and populates the value that MasterHistoryService.getRemoteMasterHistory() will return.
      * The remote master history is ordinarily returned very quickly if it is going to be returned, so the odds are very good it will be
-     * in place by the time a request for it comes in. If not, this indicator will briefly switch to yellow.
+     * in place by the time a request for it comes in. If not, this service's status will briefly switch to yellow.
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {

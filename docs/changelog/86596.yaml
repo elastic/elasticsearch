@@ -9,9 +9,9 @@ highlight:
   body: |-
     With the geo grid query, you can now natively return all the documents that overlap a specific geo tile.
     There is no need to reconstruct the geometry or the actual boundaries of the spatial cluster as Elasticsearch
-    can do this for you which saves you time and reduces complexity.
-    This is especially useful when geometries are spread across tiles like on a soccer ball football.
-    While hexagon tiles line the sphere each tile is not exactly straight forward to calculate its boundary.
+    can do this for you, which saves you time and reduces complexity.
+    This is especially useful when geometries are spread across tiles like on a soccer ball or football.
+    While hexagon tiles line the sphere, calculating the boundary of each tile is not straightforward.
 
     ```
     GET /example/_search

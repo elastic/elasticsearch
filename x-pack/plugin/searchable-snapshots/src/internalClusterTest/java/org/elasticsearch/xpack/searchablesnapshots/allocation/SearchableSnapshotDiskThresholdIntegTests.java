@@ -356,7 +356,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         logger.info("--> Unlocking the initialized shards");
         var mockRepository = (CustomMockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository(repositoryName);
-        mockRepository.unlock();
+        mockRepository.unlockRestore();
 
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
@@ -415,7 +415,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
-        private void unlock() {
+        private void unlockRestore() {
             RESTORE_SHARD_LATCH.countDown();
         }
 

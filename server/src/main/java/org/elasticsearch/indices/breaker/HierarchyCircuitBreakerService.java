@@ -467,6 +467,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         } else {
             // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just creating an exception message here, so we
             // should keep going if we're running in production.
+            logger.error("negative value in circuit breaker: {}", stringBuilder);
             assert permitNegativeValues : stringBuilder.toString();
         }
     }

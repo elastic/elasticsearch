@@ -93,6 +93,8 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
             // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just writing out stats here, so we should keep
             // going if we're running in production.
             assert HierarchyCircuitBreakerService.permitNegativeValues : this;
+            //noinspection ResultOfMethodCallIgnored - we call toString() to log a warning
+            toString();
             builder.field(humanFieldName, "");
         }
     }

@@ -125,7 +125,6 @@ public class FetchPhase {
         LeafNestedDocuments leafNestedDocuments = null;
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
         boolean hasSequentialDocs = hasSequentialDocs(docs);
-        SourceLoader sourceLoader = context.newSourceLoader();
         SourceLoader.Leaf leafSourceLoader = null;
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
@@ -150,7 +149,7 @@ public class FetchPhase {
                         } else {
                             fieldReader = currentReaderContext.reader()::document;
                         }
-                        leafSourceLoader = sourceLoader.leaf(currentReaderContext.reader());
+                        leafSourceLoader = fetchContext.sourceLoader().leaf(currentReaderContext.reader());
                         for (FetchSubPhaseProcessor processor : processors) {
                             processor.setNextReader(currentReaderContext);
                         }

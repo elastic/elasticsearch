@@ -38,13 +38,9 @@ public class DesiredBalanceComputer {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
-
     public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
     }
-
-    // TODO reset desired balance to empty if new master is elected?
 
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,

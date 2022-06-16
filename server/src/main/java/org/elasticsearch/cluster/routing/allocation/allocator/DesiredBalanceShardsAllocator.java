@@ -159,6 +159,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             logger.trace("Executing listeners up to [{}] after cluster state was committed", queue.getCompletedIndex());
             queue.resume();
         } else {
+            reset();
             queue.completeAllAsNotMaster();
         }
     }
@@ -166,6 +167,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     @Override
     public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
         return delegateAllocator.decideShardAllocation(shard, allocation);
+    }
+
+    private void reset() {
+        if (indexGenerator.getAndSet(-1) != -1) {
+            currentDesiredBalance = DesiredBalance.INITIAL;
+            appliedDesiredBalance = DesiredBalance.INITIAL;
+        }
     }
 
     private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {

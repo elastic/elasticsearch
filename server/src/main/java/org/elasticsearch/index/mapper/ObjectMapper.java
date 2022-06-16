@@ -346,6 +346,23 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return merged;
     }
 
+    public Mapper mergeInObject(Mapper mergeWith, MergeReason reason) {
+        if ((mergeWith instanceof ObjectMapper) == false) {
+            if(this.enabled.explicit())
+                return mergeWith;
+            else
+                throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
+        }
+        if (mergeWith instanceof NestedObjectMapper) {
+            // TODO stop NestedObjectMapper extending ObjectMapper?
+            throw new IllegalArgumentException("can't merge a nested mapping [" + mergeWith.name() + "] with a non-nested mapping");
+        }
+        ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
+        ObjectMapper merged = clone();
+        merged.doMerge(mergeWithObject, reason);
+        return merged;
+    }
+
     protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
 
         if (mergeWith.dynamic != null) {
@@ -368,7 +385,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper) {
                 ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
-                merged = objectMapper.merge(mergeWithMapper, reason);
+                merged = objectMapper.mergeInObject(mergeWithMapper, reason);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {

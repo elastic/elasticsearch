@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -67,6 +68,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     );
 
     protected final String fieldName;
+    protected final Set<String> sourcePaths;
     protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
 
@@ -75,6 +77,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
 
         this.fieldName = fieldName;
         Map<String, Object> docAsMap = docAsMap();
+        this.sourcePaths = searchLookup.sourcePaths(fieldName);
         this.sourceLookup = (SourceLookup) docAsMap.get("_source");
         params = new HashMap<>(params);
         params.put("_source", sourceLookup);
@@ -108,6 +111,14 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final void emitFromSource() {
         for (Object v : extractFromSource(fieldName)) {
             emitFromObject(v);
+        }
+    }
+
+    protected final void emitFromSourcePaths() {
+        for (String sourcePath : sourcePaths) {
+            for (Object v : extractFromSource(sourcePath)) {
+                emitFromObject(v);
+            }
         }
     }
 

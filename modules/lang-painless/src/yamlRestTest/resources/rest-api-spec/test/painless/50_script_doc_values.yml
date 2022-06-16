@@ -19,6 +19,9 @@ setup:
                             type: ip
                         keyword:
                             type: keyword
+                        keyword_no_doc_values:
+                            type: keyword
+                            doc_values: false
                         long:
                             type: long
                         integer:
@@ -57,6 +60,7 @@ setup:
                 geo_point: 41.12,-71.34
                 ip: 192.168.0.19
                 keyword: not split at all
+                keyword_no_doc_values: no doc values
                 long: 12348732141234
                 integer: 134134566
                 short: 1324
@@ -86,6 +90,7 @@ setup:
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
               geo_point: [[-71.34,41.12],[60.32,21.25]]
               keyword: ["one string", "another string"]
+              keyword_no_doc_values: ["no doc values 0", "no doc values 1", "no doc values 2"]
               long: [1152921504606846976, 576460752303423488]
               integer: [5, 17, 29]
               short: [6, 18, 30, 45]
@@ -210,7 +215,6 @@ setup:
                         script:
                             source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
-
 
 ---
 "date":
@@ -862,6 +866,83 @@ setup:
     - match: { hits.hits.0.fields.field.0: "not split at all" }
     - match: { hits.hits.1.fields.field.0: "" }
     - match: { hits.hits.2.fields.field.0: "another string, one string" }
+
+---
+"keyword_no_doc_values":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_no_doc_values'].get(0)"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_no_doc_values'].value"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_no_doc_values').get('missing')"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" } # doc values are sorted
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('keyword_no_doc_values', 'missing')"
+  # same as `field('keyword').get('missing')`
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_no_doc_values').get(1, 'dne')"
+  - match: { hits.hits.0.fields.field.0: "dne" }
+  - match: { hits.hits.1.fields.field.0: "dne" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 1" } # doc values are sorted
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String.join(', ', field('keyword_no_doc_values'))"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
 
 ---
 "long":

@@ -43,6 +43,23 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         }
     };
 
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE_PATHS = new Factory() {
+        @Override
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new StringFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSourcePaths();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
+        }
+    };
+
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
         return (leafFieldName, params, searchLookup) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);

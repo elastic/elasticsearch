@@ -121,8 +121,16 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
         recoveryStarted.await();
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
-        // AllocationService only calls GatewayAllocator if there're unassigned shards
-        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
+        // AllocationService only calls GatewayAllocator if there are unassigned shards
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("dummy-index")
+                // make sure the new index does not get allocated to the node with the existing replica to prevent rebalancing from
+                // randomly moving the replica off of this node after the noop recovery
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeWithReplica))
+                .setWaitForActiveShards(0)
+        );
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(nodeWithReplica));
         assertNoOpRecoveries(indexName);

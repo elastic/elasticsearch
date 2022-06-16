@@ -1684,15 +1684,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         /**
-         * Returns the {@link OperatorMetadata} for a given namespace
-         * @param namespace the namespace we are looking for operator metadata
-         * @return {@link OperatorMetadata} or null
-         */
-        public OperatorMetadata operatorMetadata(String namespace) {
-            return operatorMetadata.get(namespace);
-        }
-
-        /**
          * Adds a map of namespace to {@link OperatorMetadata} into the metadata builder
          * @param operatorMetadata a map of namespace to {@link OperatorMetadata}
          * @return {@link Builder}

@@ -40,7 +40,7 @@ public class DesiredBalanceComputer {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.initial();
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
 
     public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -260,10 +260,6 @@ public class DesiredBalanceComputer {
         return new DesiredBalance(lastConvergedIndex, assignments);
     }
 
-    boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
-        return setCurrentDesiredBalance(compute(currentDesiredBalance, desiredBalanceInput, isFresh));
-    }
-
     private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
         if (logger.isTraceEnabled()) {
@@ -297,9 +293,5 @@ public class DesiredBalanceComputer {
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         logger.trace("desired balance updated: {}", builder.append(newLine).toString());
-    }
-
-    public DesiredBalance getCurrentDesiredBalance() {
-        return currentDesiredBalance;
     }
 }

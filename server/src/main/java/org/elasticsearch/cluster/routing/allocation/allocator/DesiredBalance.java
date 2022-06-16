@@ -28,7 +28,5 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return Objects.equals(a.assignments, b.assignments) == false;
     }
 
-    public static DesiredBalance initial() {
-        return new DesiredBalance(-1, Map.of());
-    }
+    public static DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 }

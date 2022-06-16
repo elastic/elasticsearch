@@ -69,6 +69,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return allocator;
     }
 
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
+
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
@@ -83,22 +86,18 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                var shouldReroute = desiredBalanceComputer.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
-                var isFresh = isFresh(desiredBalanceInput);
-                var lastConvergedIndex = getCurrentDesiredBalance().lastConvergedIndex();
+                if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
+                    logger.info("--> Current [{}], Applied [{}]", currentDesiredBalance, appliedDesiredBalance);
+                }
 
-                logger.trace(
-                    "Computed balance for [{}], isFresh={}, shouldReroute={}, lastConvergedIndex={}",
-                    desiredBalanceInput.index(),
-                    isFresh,
-                    shouldReroute,
-                    lastConvergedIndex
-                );
+                currentDesiredBalance = desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh);
+                var isFresh = isFresh(desiredBalanceInput);// needs to happen before publishing current desired state?
 
                 if (isFresh) {
-                    if (shouldReroute) {
+                    if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
                         rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                     } else {
+                        var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
                         logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
                         // TODO desired balance this still does not guarantee the correct behaviour in case there is
                         // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
@@ -142,10 +141,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.
 
-        DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
-        new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
+        appliedDesiredBalance = currentDesiredBalance;
+        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
 
-        queue.complete(currentDesiredBalance.lastConvergedIndex());
+        queue.complete(appliedDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {
             logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
             // Execute listeners after cluster state is applied
@@ -171,10 +170,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     }
 
     DesiredBalance getCurrentDesiredBalance() {
-        return desiredBalanceComputer.getCurrentDesiredBalance();
-    }
-
-    public boolean isIdle() {
-        return desiredBalanceComputation.isActive() == false;
+        return currentDesiredBalance;
     }
 }

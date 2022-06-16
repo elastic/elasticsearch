@@ -28,7 +28,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     private final long version;
     private final List<DesiredNode> nodes;
 
-    private static final ParseField NODES_FIELD = new ParseField("nodes");
+    public static final ParseField NODES_FIELD = new ParseField("nodes");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<List<DesiredNode>, Void> PARSER = new ConstructingObjectParser<>(

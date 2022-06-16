@@ -16,11 +16,11 @@ esplugin {
 
 dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:7.2'
-  api 'org.ow2.asm:asm-commons:7.2'
-  api 'org.ow2.asm:asm-tree:7.2'
-  api 'org.ow2.asm:asm-analysis:7.2'
+  runtimeOnly 'org.antlr:antlr4-runtime:4.5.1-1'
+  runtimeOnly 'org.ow2.asm:asm:7.2'
+  runtimeOnly 'org.ow2.asm:asm-commons:7.2'
+  runtimeOnly 'org.ow2.asm:asm-tree:7.2'
+  runtimeOnly 'org.ow2.asm:asm-analysis:7.2'
 }
 restResources {
   restApi {

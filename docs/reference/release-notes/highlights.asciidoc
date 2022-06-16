@@ -19,19 +19,49 @@ Other versions:
 // tag::notable-highlights[]
 
 [discrete]
-[[reading_indices_from_older_elasticsearch_versions]]
-=== Reading indices from older Elasticsearch versions
-Elasticsearch has full query and write support for indices created in the previous major
-version. If you have indices created in Elasticsearch versions 5 or 6, you can now use
-the archive functionality to import and query these indices as well.
-The archive functionality provides slower read-only access to older data,
-for compliance or regulatory reasons, the occasional lookback or investigation,
-or to rehydrate parts of it. Access to the data is expected to be infrequent,
-and can therefore happen with limited performance and query capabilities.
+[[ingest_performance_improvement]]
+=== {es-pull}84250[Ingest performance improvement]
+We have improved the pipeline execution logic for pipelines with processors that are synchronous
+by avoiding (deep) recursion.
+On our nightly benchmark that simulates a Logging use-case, this resulted in a 10% reduction of
+CPU time spent on ingest pipelines and a 3% overall ingestion speedup.
+
+[discrete]
+[[execute_self_reference_checks_once_per_pipeline]]
+=== {es-pull}85926[Execute self-reference checks once per pipeline]
+Ingest pipelines have a mechanism to prevent circular references in the records
+they process, so that they are serializable. Prior to this change, this check was
+performed after each `script` processor execution, and was ignorable.
+
+Because of this check, a script processor configured with
+```
+"source": """
+    def x = ctx;
+    ctx.x = x;
+"""
+```
+
+...would error with `"type" : "illegal_argument_exception", "reason" : "Iterable
+object is self-referencing itself (ingest script)"`.
+
+If the script processor also had
+```
+"ignore_failure" true
+```
+
+...then the handling thread would actually crash from an unrecoverable
+StackOverflowError when trying to serialize the resulting event.
+
+Now, this check is performed once per pipeline, remediating the potential for
+a StackOverflowError. There are some side effects also:
+
+- The resulting error message specifies which pipeline is causing the issue.
+- There is a slight speed up for pipelines with multiple scripts, and a slight
+slowdown for pipelines without scripts.
 
 [discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]
-=== Add support for dots in field names for metrics usecases
+=== {es-pull}86166[Add support for dots in field names for metrics usecases]
 Metrics data can often be made of several fields with dots in their names,
 sharing common prefixes, like in the following example:
 
@@ -71,37 +101,43 @@ without expanding dots in field names to the corresponding object structure.
 That makes it possible to store the metrics document above.
 
 [discrete]
-[[execute_self_reference_checks_once_per_pipeline]]
-=== Execute self-reference checks once per pipeline
-Ingest pipelines have a mechanism to prevent circular references in the records
-they process, so that they are serializable. Prior to this change, this check was
-performed after each `script` processor execution, and was ignorable.
+[[reading_indices_from_older_elasticsearch_versions]]
+=== {es-pull}86261[Reading indices from older Elasticsearch versions]
+Elasticsearch has full query and write support for indices created in the previous major
+version. If you have indices created in Elasticsearch versions 5 or 6, you can now use
+the archive functionality to import and query these indices as well.
+The archive functionality provides slower read-only access to older data,
+for compliance or regulatory reasons, the occasional lookback or investigation,
+or to rehydrate parts of it. Access to the data is expected to be infrequent,
+and can therefore happen with limited performance and query capabilities.
 
-Because of this check, a script processor configured with
+[discrete]
+[[new_geo_grid_query]]
+=== {es-pull}86596[New geo_grid query]
+With the geo grid query, you can now natively return all the documents that overlap a specific geo tile.
+There is no need to reconstruct the geometry or the actual boundaries of the spatial cluster as Elasticsearch
+can do this for you, which saves you time and reduces complexity.
+This is especially useful when geometries are spread across tiles like on a soccer ball or football.
+While hexagon tiles line the sphere, calculating the boundary of each tile is not straightforward.
+
 ```
-"source": """
-    def x = ctx;
-    ctx.x = x;
-"""
+GET /example/_search
+{
+  "query": {
+    "geo_grid" :{
+      "location" : {
+        "geotile" : "6/32/22"
+      }
+    }
+  }
+}
 ```
 
-...would error with `"type" : "illegal_argument_exception", "reason" : "Iterable
-object is self-referencing itself (ingest script)"`.
-
-If the script processor also had
-```
-"ignore_failure" true
-```
-
-...then the handling thread would actually crash from an unrecoverable
-StackOverflowError when trying to serialize the resulting event.
-
-Now, this check is performed once per pipeline, remediating the potential for
-a StackOverflowError. There are some side effects also:
-
-- The resulting error message specifies which pipeline is causing the issue.
-- There is a slight speed up for pipelines with multiple scripts, and a slight
-slowdown for pipelines without scripts.
+Geo grid query can also help determine the single source of truth of containment.
+With geo grid query, you can match exactly the intersection-test of Elasticsearch.
+As an example, if a client has bounds for a grid-cell at a higher (or lower) precision than what is used
+by Elasticsearch when running a corresponding aggregation, the containment-check might be slightly different.
+This side-steps any disconnect based on projection/datum difference between client and Elasticsearch.
 
 // end::notable-highlights[]
 

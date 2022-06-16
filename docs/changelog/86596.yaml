@@ -1,0 +1,34 @@
+pr: 86596
+summary: New geo_grid query to be used with geogrid aggregations
+area: Geo
+type: feature
+issues:
+ - 85727
+highlight:
+  title: New geo_grid query
+  body: |-
+    With the geo grid query, you can now natively return all the documents that overlap a specific geo tile.
+    There is no need to reconstruct the geometry or the actual boundaries of the spatial cluster as Elasticsearch
+    can do this for you, which saves you time and reduces complexity.
+    This is especially useful when geometries are spread across tiles like on a soccer ball or football.
+    While hexagon tiles line the sphere, calculating the boundary of each tile is not straightforward.
+
+    ```
+    GET /example/_search
+    {
+      "query": {
+        "geo_grid" :{
+          "location" : {
+            "geotile" : "6/32/22"
+          }
+        }
+      }
+    }
+    ```
+
+    Geo grid query can also help determine the single source of truth of containment.
+    With geo grid query, you can match exactly the intersection-test of Elasticsearch.
+    As an example, if a client has bounds for a grid-cell at a higher (or lower) precision than what is used
+    by Elasticsearch when running a corresponding aggregation, the containment-check might be slightly different.
+    This side-steps any disconnect based on projection/datum difference between client and Elasticsearch.
+  notable: true

@@ -117,6 +117,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.IsNull.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -334,6 +335,31 @@ public class TokenServiceTests extends ESTestCase {
             anotherService.tryAuthenticateToken(bearerToken, future);
             assertNull(future.get());
         }
+    }
+
+    public void testGetTokenWhenKeyCacheHasExpired() throws Exception {
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
+        // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
+        if (null == oldNode) {
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
+        }
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
+
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
+        String accessToken = tokenFuture.get().getAccessToken();
+        assertThat(accessToken, notNullValue());
+
+        tokenService.clearActiveKeyCache();
+
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
+        accessToken = tokenFuture.get().getAccessToken();
+        assertThat(accessToken, notNullValue());
     }
 
     public void testInvalidatedToken() throws Exception {

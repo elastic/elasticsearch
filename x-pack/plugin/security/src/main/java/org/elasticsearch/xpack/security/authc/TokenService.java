@@ -2443,6 +2443,13 @@ public final class TokenService {
         }
     }
 
+    /**
+     * Package private for testing
+     */
+    void clearActiveKeyCache() {
+        this.keyCache.activeKeyCache.keyCache.invalidateAll();
+    }
+
     static final class KeyAndCache implements Closeable {
         private final KeyAndTimestamp keyAndTimestamp;
         private final Cache<BytesKey, SecretKey> keyCache;

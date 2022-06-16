@@ -241,7 +241,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void shutdownThreadpool() throws InterruptedException {
+    public static void shutdownThreadpool() {
         terminate(threadPool);
         threadPool = null;
     }
@@ -679,7 +679,7 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
-    private void storeTokenHeader(ThreadContext requestContext, String tokenString) throws IOException, GeneralSecurityException {
+    private void storeTokenHeader(ThreadContext requestContext, String tokenString) {
         requestContext.putHeader("Authorization", "Bearer " + tokenString);
     }
 
@@ -1142,14 +1142,13 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
-        final UserToken userToken = new UserToken(
+        return new UserToken(
             possiblyHashedUserTokenId,
             tokenVersion,
             tokenAuth,
             tokenService.getExpirationTime(),
             metadata
         );
-        return userToken;
     }
 
     private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {

@@ -53,8 +53,6 @@ jar-contains-source usr/share/elasticsearch/modules/repository-gcs/api-common*.j
 # varies between `lintian` versions.
 unknown-field elasticsearch-*.deb License
 unknown-field License
-mismatched-override unknown-field * *
-mismatched-override unknown-field *
 
 # Intel MKL libraries are not linked directly to libc. They are linked
 # indirectly to libc via libdl. This might not be best practice but we

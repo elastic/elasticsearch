@@ -298,16 +298,16 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
 
-        String otherDataNode = internalCluster().startNode(
+        String coldNodeName = internalCluster().startNode(
             Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName()).build()
         );
         ensureStableCluster(3);
 
-        String otherDataNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(otherDataNode).getId();
+        String coldNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
         logger.info(
             "--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node",
-            otherDataNode,
-            otherDataNodeId
+            coldNodeName,
+            coldNodeId
         );
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
         Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
@@ -315,7 +315,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             .filter(e -> e.getKey().equals(indexToSkip) == false)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         long totalSpace = indicesToBeMounted.values().stream().mapToLong(e -> e).sum() + WATERMARK_BYTES + 1024L;
-        getTestFileStore(otherDataNode).setTotalSpace(totalSpace);
+        getTestFileStore(coldNodeName).setTotalSpace(totalSpace);
 
         logger.info("--> refreshing cluster info");
         InternalClusterInfoService masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
@@ -323,7 +323,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         ClusterInfoServiceUtils.refresh(masterInfoService);
         assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
+            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId).getTotalBytes(),
             equalTo(totalSpace)
         );
 
@@ -338,7 +338,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     .stream()
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
                     .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
-                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                    .filter(s -> coldNodeId.equals(s.currentNodeId()))
                     .filter(s -> s.state() == ShardRoutingState.INITIALIZING)
                     .count(),
                 equalTo((long) indicesToBeMounted.size())
@@ -366,7 +366,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     .stream()
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
                     .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
-                    .filter(s -> otherDataNodeId.equals(s.currentNodeId()))
+                    .filter(s -> coldNodeId.equals(s.currentNodeId()))
                     .filter(s -> s.state() == ShardRoutingState.STARTED)
                     .count(),
                 equalTo((long) indicesToBeMounted.size())

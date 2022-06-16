@@ -97,7 +97,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             0L
         );
 
-        reconcile(routingAllocation, new DesiredBalance(1, Map.of()));
+        new DesiredBalanceReconciler().reconcile(new DesiredBalance(1, Map.of()), routingAllocation);
         assertFalse(routingAllocation.routingNodesChanged());
     }
 
@@ -167,18 +167,16 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             );
         }
 
-        reconcile(
-            routingAllocation,
-            new DesiredBalance(
-                1,
-                randomBoolean()
-                    ? Map.of()
-                    : Map.of(
-                        new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
-                        new ShardAssignment(Set.of("node-0"), 0, 0)
-                    )
-            )
+        DesiredBalance desiredBalance = new DesiredBalance(
+            1,
+            randomBoolean()
+                ? Map.of()
+                : Map.of(
+                    new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
+                    new ShardAssignment(Set.of("node-0"), 0, 0)
+                )
         );
+        new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation);
         assertTrue(routingAllocation.routingNodesChanged());
 
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
@@ -227,7 +225,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         );
 
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(settings, clusterSettings),
@@ -310,7 +308,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
 
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(settings, clusterSettings)
@@ -404,7 +402,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var assignReplicas = new AtomicBoolean(false);
 
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(settings, clusterSettings),
@@ -512,7 +510,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> randomBoolean());
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
@@ -603,7 +601,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             () -> clusterInfo,
             () -> snapshotShardSizeInfo,
             new SameShardAllocationDecider(settings, clusterSettings),
@@ -643,7 +641,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var replicaDecision = randomFrom(Decision.THROTTLE, Decision.NO);
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
@@ -702,7 +700,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var nonYesDecision = randomFrom(Decision.THROTTLE, Decision.NO);
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
@@ -764,7 +762,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var desiredBalance = new AtomicReference<>(desiredBalance(clusterState, (shardId, nodeId) -> true));
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance.get(), routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(settings, clusterSettings),
@@ -883,7 +881,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-0") || nodeId.equals("node-1"))
         );
         final var allocationService = createTestAllocationService(
-            routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
+            routingAllocation -> new DesiredBalanceReconciler().reconcile(desiredBalance.get(), routingAllocation),
             new SameShardAllocationDecider(settings, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(settings, clusterSettings),
@@ -938,10 +936,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var reroutedState = allocationService.reroute(clusterState, "test");
         assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
-    }
-
-    private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(desiredBalance, routingAllocation).run();
     }
 
     private static AllocationService createTestAllocationService(

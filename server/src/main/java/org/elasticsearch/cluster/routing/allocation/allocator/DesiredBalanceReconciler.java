@@ -36,15 +36,7 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
-    private final DesiredBalance desiredBalance;
-    private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
-
-    DesiredBalanceReconciler(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
-        this.desiredBalance = desiredBalance;
-        this.allocation = routingAllocation;
-    }
-
-    void run() {
+    public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
 
         logger.trace("starting to reconcile current allocation with desired balance {}", desiredBalance);
 
@@ -66,20 +58,20 @@ public class DesiredBalanceReconciler {
 
         // 1. allocate unassigned shards first
         logger.trace("Reconciler#allocateUnassigned");
-        allocateUnassigned();
-        assert allocateUnassignedInvariant();
+        allocateUnassigned(desiredBalance, allocation);
+        assert allocateUnassignedInvariant(allocation);
 
         // 2. move any shards that cannot remain where they are
         logger.trace("Reconciler#moveShards");
-        moveShards();
+        moveShards(desiredBalance, allocation);
         // 3. move any other shards that are desired elsewhere
         logger.trace("Reconciler#balance");
-        balance();
+        balance(desiredBalance, allocation);
 
         logger.trace("done");
     }
 
-    private boolean allocateUnassignedInvariant() {
+    private boolean allocateUnassignedInvariant(RoutingAllocation allocation) {
         // after allocateUnassigned, every shard must be either assigned or ignored
 
         assert allocation.routingNodes().unassigned().isEmpty();
@@ -137,7 +129,7 @@ public class DesiredBalanceReconciler {
         }
     }
 
-    private void allocateUnassigned() {
+    private void allocateUnassigned(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         if (logger.isTraceEnabled()) {
             logger.trace("Start allocating unassigned shards");
@@ -251,7 +243,7 @@ public class DesiredBalanceReconciler {
         } while (primaryLength > 0);
     }
 
-    private void moveShards() {
+    private void moveShards(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
         // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
         // offloading the shards.
@@ -287,7 +279,7 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
+            final var moveTarget = findRelocationTarget(allocation, shardRouting, assignment.nodeIds());
             if (moveTarget != null) {
                 allocation.routingNodes().relocateShard(
                     shardRouting,
@@ -299,7 +291,7 @@ public class DesiredBalanceReconciler {
         }
     }
 
-    private void balance() {
+    private void balance(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
             return;
         }
@@ -336,7 +328,7 @@ public class DesiredBalanceReconciler {
                 continue;
             }
 
-            final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
+            final var rebalanceTarget = findRelocationTarget(allocation, shardRouting, assignment.nodeIds(), this::decideCanAllocate);
             if (rebalanceTarget != null) {
                 allocation.routingNodes().relocateShard(
                     shardRouting,
@@ -348,8 +340,8 @@ public class DesiredBalanceReconciler {
         }
     }
 
-    private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {
-        final var moveDecision = findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanAllocate);
+    private DiscoveryNode findRelocationTarget(RoutingAllocation allocation, ShardRouting shardRouting, Set<String> desiredNodeIds) {
+        final var moveDecision = findRelocationTarget(allocation, shardRouting, desiredNodeIds, this::decideCanAllocate);
         if (moveDecision != null) {
             return moveDecision;
         }
@@ -357,12 +349,13 @@ public class DesiredBalanceReconciler {
         final var shutdown = allocation.nodeShutdowns().get(shardRouting.currentNodeId());
         final var shardsOnReplacedNode = shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
         if (shardsOnReplacedNode) {
-            return findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanForceAllocateForVacate);
+            return findRelocationTarget(allocation, shardRouting, desiredNodeIds, this::decideCanForceAllocateForVacate);
         }
         return null;
     }
 
     private DiscoveryNode findRelocationTarget(
+        RoutingAllocation allocation,
         ShardRouting shardRouting,
         Set<String> desiredNodeIds,
         AllocateDecider allocateDecider
@@ -370,7 +363,7 @@ public class DesiredBalanceReconciler {
         for (final var nodeId : desiredNodeIds) {
             if (nodeId.equals(shardRouting.currentNodeId()) == false) {
                 final var currentNode = allocation.routingNodes().node(nodeId);
-                if (allocateDecider.canAllocate(shardRouting, currentNode).type() == Decision.Type.YES) {
+                if (allocateDecider.canAllocate(allocation, shardRouting, currentNode).type() == Decision.Type.YES) {
                     return currentNode.node();
                 }
             }
@@ -379,16 +372,16 @@ public class DesiredBalanceReconciler {
         return null;
     }
 
-    private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+    private Decision decideCanAllocate(RoutingAllocation allocation, ShardRouting shardRouting, RoutingNode target) {
         return allocation.deciders().canAllocate(shardRouting, target, allocation);
     }
 
-    private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
+    private Decision decideCanForceAllocateForVacate(RoutingAllocation allocation, ShardRouting shardRouting, RoutingNode target) {
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 
     @FunctionalInterface
     private interface AllocateDecider {
-        Decision canAllocate(ShardRouting shardRouting, RoutingNode target);
+        Decision canAllocate(RoutingAllocation allocation, ShardRouting shardRouting, RoutingNode target);
     }
 }

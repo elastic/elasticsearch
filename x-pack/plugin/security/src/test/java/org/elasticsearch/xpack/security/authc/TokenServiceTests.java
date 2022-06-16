@@ -1142,13 +1142,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
-        return new UserToken(
-            possiblyHashedUserTokenId,
-            tokenVersion,
-            tokenAuth,
-            tokenService.getExpirationTime(),
-            metadata
-        );
+        return new UserToken(possiblyHashedUserTokenId, tokenVersion, tokenAuth, tokenService.getExpirationTime(), metadata);
     }
 
     private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {

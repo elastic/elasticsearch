@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.health.ClusterStateHealth.getHealthStatus;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 /**
@@ -168,7 +169,7 @@ public class AllocationService {
         }
         final ClusterState newState = newStateBuilder.build();
 
-        logClusterHealthStateChange(new ClusterStateHealth(oldState), new ClusterStateHealth(newState), reason);
+        logClusterHealthStateChange(oldState, newState, reason);
 
         return newState;
     }
@@ -496,12 +497,19 @@ public class AllocationService {
     }
 
     private static void logClusterHealthStateChange(
-        ClusterStateHealth previousStateHealth,
-        ClusterStateHealth newStateHealth,
+        final ClusterState previousState,
+        final ClusterState newState,
         String reason
     ) {
-        ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
-        ClusterHealthStatus currentHealth = newStateHealth.getStatus();
+        ClusterHealthStatus previousHealth = getHealthStatus(
+            previousState.routingTable(),
+            previousState.getRoutingNodes(),
+            logger);
+        ClusterHealthStatus currentHealth = getHealthStatus(
+            newState.routingTable(),
+            newState.getRoutingNodes(),
+            logger);
+
         if (previousHealth.equals(currentHealth) == false) {
             logger.info(
                 new ESLogMessage("Cluster health status changed from [{}] to [{}] (reason: [{}]).").argAndField(

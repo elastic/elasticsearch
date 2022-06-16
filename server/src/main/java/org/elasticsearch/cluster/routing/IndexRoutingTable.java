@@ -61,17 +61,21 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
     // shards with state set to UNASSIGNED
     private final IndexShardRoutingTable[] shards;
-
+    // total shard count of this index
+    private final int totalShardCount;
     private final List<ShardRouting> allActiveShards;
 
     IndexRoutingTable(Index index, IndexShardRoutingTable[] shards) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = shards;
+        int totalShardCount = 0;
         List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IndexShardRoutingTable shard : shards) {
             allActiveShards.addAll(shard.activeShards());
+            totalShardCount += shard.size();
         }
+        this.totalShardCount = totalShardCount;
         this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }
 
@@ -215,6 +219,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
      */
     public boolean allPrimaryShardsActive() {
         return primaryShardsActive() == shards.length;
+    }
+
+    public boolean allShardsActive() {
+        return totalShardCount == allActiveShards.size();
     }
 
     /**

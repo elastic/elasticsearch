@@ -116,7 +116,7 @@ public class CircleProcessorTests extends ESTestCase {
         map.put("field", circleMap);
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         assertThat(expectedPoly, instanceOf(Polygon.class));
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
         processor.execute(ingestDocument);
         Map<String, Object> polyMap = ingestDocument.getFieldValue("field", Map.class);
@@ -135,7 +135,7 @@ public class CircleProcessorTests extends ESTestCase {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", WellKnownText.toWKT(circle));
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 2, GEO_SHAPE);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
@@ -145,7 +145,7 @@ public class CircleProcessorTests extends ESTestCase {
     public void testInvalidWKT() {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", "invalid");
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("invalid circle definition"));
@@ -167,7 +167,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("radius", "10m");
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, 4.0, "not_circle" }) {
@@ -183,7 +183,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("radius", "10m");
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "not_circle" }) {
@@ -199,7 +199,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("coordinates", List.of(100.0, 1.0));
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = IngestDocument.testEmptyIngestDocument();
+        IngestDocument ingestDocument = IngestDocument.testFromSourceAndMetadata(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "NotNumber", "10.0fs" }) {

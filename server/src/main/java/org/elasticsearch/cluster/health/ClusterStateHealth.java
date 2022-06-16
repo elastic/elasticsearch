@@ -151,9 +151,11 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         this.indices = indices;
     }
 
-    public static ClusterHealthStatus getHealthStatus(final RoutingTable routingTable,
-                                                      final RoutingNodes routingNodes,
-                                                      final Logger logger) {
+    public static ClusterHealthStatus getHealthStatus(
+        final RoutingTable routingTable,
+        final RoutingNodes routingNodes,
+        final Logger logger
+    ) {
         ClusterHealthStatus computeStatus;
         if (routingNodes.unassigned().size() == 0 && routingNodes.hasInactiveShards() == false) {
             // no unassigned, inactive shards
@@ -171,7 +173,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
                 // skip GREEN index
                 continue;
             }
-            for (int i=0; i<indexRoutingTable.size(); i++) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
                 ShardRouting primary = indexShardRoutingTable.primaryShard();
                 if (primary.active()) {
@@ -179,8 +181,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
                 }
                 computeStatus = getInactivePrimaryHealth(primary);
                 if (computeStatus == ClusterHealthStatus.RED) {
-                    logger.debug("One of inactive primary shard {} causes cluster state RED.",
-                        primary.shardId());
+                    logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
                     return ClusterHealthStatus.RED;
                 }
             }

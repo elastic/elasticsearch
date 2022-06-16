@@ -195,6 +195,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        return mockContext(allowExpensiveQueries, mappedFieldType, true);
+    }
+
+    protected static SearchExecutionContext mockContext(
+        boolean allowExpensiveQueries,
+        MappedFieldType mappedFieldType,
+        boolean canReloadSource
+    ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -202,7 +210,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
+            canReloadSource
         );
         when(context.lookup()).thenReturn(lookup);
         return context;

@@ -111,8 +111,8 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
         ValueFetcher fetcher = fieldType.valueFetcher(null, null);
 
-        SourceLookup missingValueLookup = new SourceLookup();
-        SourceLookup nullValueLookup = new SourceLookup();
+        SourceLookup missingValueLookup = new SourceLookup.Static();
+        SourceLookup nullValueLookup = new SourceLookup.Static();
         nullValueLookup.setSource(Collections.singletonMap("field", null));
 
         List<Object> ignoredValues = new ArrayList<>();

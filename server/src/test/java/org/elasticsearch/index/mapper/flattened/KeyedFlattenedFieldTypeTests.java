@@ -180,7 +180,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 
         ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup();
+        SourceLookup lookup = new SourceLookup.Static();
         lookup.setSource(Collections.singletonMap("field", sourceValue));
 
         assertEquals(List.of("value"), fetcher.fetchValues(lookup, new ArrayList<Object>()));

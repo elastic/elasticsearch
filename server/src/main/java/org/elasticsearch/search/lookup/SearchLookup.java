@@ -53,7 +53,22 @@ public class SearchLookup {
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        this.sourceLookup = new SourceLookup();
+        this.sourceLookup = new SourceLookup.Static();
+        this.fieldDataLookup = fieldDataLookup;
+    }
+
+    public SearchLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        boolean canReloadSource
+    ) {
+        this.fieldTypeLookup = fieldTypeLookup;
+        this.fieldChain = Collections.emptySet();
+        if (canReloadSource) {
+            this.sourceLookup = new SourceLookup.Loading();
+        } else {
+            this.sourceLookup = new SourceLookup.Static();
+        }
         this.fieldDataLookup = fieldDataLookup;
     }
 

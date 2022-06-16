@@ -81,7 +81,7 @@ public class FetchSourcePhaseBenchmark {
 
     @Benchmark
     public BytesReference filterObjects() throws IOException {
-        SourceLookup lookup = new SourceLookup();
+        SourceLookup lookup = new SourceLookup.Static();
         lookup.setSource(sourceBytes);
         Object value = lookup.filter(fetchContext);
         return FetchSourcePhase.objectToBytes(value, XContentType.JSON, Math.min(1024, lookup.internalSourceRef().length()));

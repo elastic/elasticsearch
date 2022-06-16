@@ -39,7 +39,7 @@ public class SourceLookupTests extends ESTestCase {
             try (IndexReader reader = iw.getReader()) {
                 LeafReaderContext readerContext = reader.leaves().get(0);
 
-                SourceLookup sourceLookup = new SourceLookup();
+                SourceLookup sourceLookup = new SourceLookup.Loading();
                 sourceLookup.setSegmentAndDocument(readerContext, 42);
                 sourceLookup.setSource(
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject())

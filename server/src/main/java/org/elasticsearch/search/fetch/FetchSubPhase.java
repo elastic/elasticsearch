@@ -31,7 +31,7 @@ public interface FetchSubPhase {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = new SourceLookup();
+            this.sourceLookup = new SourceLookup.Loading();
             sourceLookup.setSegmentAndDocument(context, docId);
         }
 

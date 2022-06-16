@@ -339,7 +339,7 @@ public class UpdateHelper {
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
         if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookup sourceLookup = new SourceLookup.Static();
             sourceLookup.setSource(source);
             Object value = sourceLookup.filter(request.fetchSource());
             try {

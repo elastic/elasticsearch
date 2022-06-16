@@ -272,7 +272,7 @@ public class TermVectorsService {
         }
         if (source != null) {
             MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookup sourceLookup = new SourceLookup.Static();
             sourceLookup.setSource(source);
             for (String field : fields) {
                 if (values.containsKey(field) == false) {

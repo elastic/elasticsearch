@@ -51,8 +51,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.co")
         );
@@ -106,8 +106,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
@@ -153,8 +153,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
@@ -201,7 +201,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
             IngestDocument[] holder = new IngestDocument[1];
@@ -222,7 +222,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
             IngestDocument[] resultHolder = new IngestDocument[1];
             Exception[] exceptionHolder = new Exception[1];
             processor.execute(ingestDocument, (result, e) -> {
@@ -306,7 +306,7 @@ public class MatchProcessorTests extends ESTestCase {
             "domain",
             1
         );
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of("domain", 2));
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -346,8 +346,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", List.of("1", "2"))
         );

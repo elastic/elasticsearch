@@ -33,16 +33,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -137,7 +133,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -2441,59 +2436,9 @@ public final class TokenService {
         }
     }
 
-    synchronized String getActiveKeyHash() {
-        return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
-    }
-
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
-        logger.info("rotate keys on master");
-        TokenMetadata tokenMetadata = generateSpareKey();
-        submitUnbatchedTask(
-            "publish next key to prepare key rotation",
-            new TokenMetadataPublishAction(tokenMetadata, ActionListener.wrap((res) -> {
-                if (res.isAcknowledged()) {
-                    TokenMetadata metadata = rotateToSpareKey();
-                    submitUnbatchedTask("publish next key to prepare key rotation", new TokenMetadataPublishAction(metadata, listener));
-                } else {
-                    listener.onFailure(new IllegalStateException("not acked"));
-                }
-            }, listener::onFailure))
-        );
-    }
-
-    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
-
-        private final TokenMetadata tokenMetadata;
-
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
-            super(new AckedRequest() {
-                @Override
-                public TimeValue ackTimeout() {
-                    return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-                }
-
-                @Override
-                public TimeValue masterNodeTimeout() {
-                    return AcknowledgedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-                }
-            }, listener);
-            this.tokenMetadata = tokenMetadata;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-
-            if (tokenMetadata.equals(currentState.custom(TokenMetadata.TYPE))) {
-                return currentState;
-            }
-            return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
-        }
     }
 
     private void initialize(ClusterService clusterService) {

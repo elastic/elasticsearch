@@ -180,8 +180,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policyName),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
         );
 
         // Check the index is on the check-rollover-ready step

@@ -126,13 +126,13 @@ public class RollupActionIT extends ESRestTestCase {
 
     public void testRollupIndex() throws Exception {
         createIndex(index, alias);
-        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(RollupActionConfigTests.randomConfig()));
         updatePolicy(client(), index, policy);
 
-        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)));
+        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)), 30, TimeUnit.SECONDS);
         String rollupIndex = getRollupIndexName(index);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)), 30, TimeUnit.SECONDS);
@@ -140,7 +140,7 @@ public class RollupActionIT extends ESRestTestCase {
 
     public void testRollupIndexInTheHotPhase() throws Exception {
         createIndex(index, alias);
-        index(client(), index, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         ResponseException e = expectThrows(
             ResponseException.class,
@@ -184,7 +184,18 @@ public class RollupActionIT extends ESRestTestCase {
 
         // then create the index and index a document to trigger rollover
         createIndex(originalIndex, alias);
-        index(client(), originalIndex, "", "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(
+            client(),
+            originalIndex,
+            true,
+            null,
+            "@timestamp",
+            "2020-01-01T05:10:00Z",
+            "volume",
+            11.0,
+            "metricset",
+            randomAlphaOfLength(5)
+        );
 
         assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(originalIndex)), 30, TimeUnit.SECONDS);
         String rollupIndex = getRollupIndexName(originalIndex);
@@ -206,7 +217,7 @@ public class RollupActionIT extends ESRestTestCase {
         assertOK(client().performRequest(createIndexTemplateRequest));
 
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
-        index(client(), dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(
@@ -221,17 +232,9 @@ public class RollupActionIT extends ESRestTestCase {
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
-        // assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
-        waitUntil(() -> {
-            try {
-                String rollupIndex = getRollupIndexName(backingIndexName);
-                return rollupIndex != null;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS);
-        String rollupIndex = getRollupIndexName(backingIndexName);
+        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
 
+        String rollupIndex = getRollupIndexName(backingIndexName);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
     }

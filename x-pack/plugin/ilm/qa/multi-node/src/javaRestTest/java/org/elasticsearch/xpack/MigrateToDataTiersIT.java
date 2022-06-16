@@ -126,8 +126,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .putNull(DataTier.TIER_PREFERENCE)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // wait for the index to advance to the warm phase
@@ -157,8 +156,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e.
                     // data_content)
-                    .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i),
-                null
+                    .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
 
             // the tier preference will have defaulted to data_content, set it back to null
@@ -403,8 +401,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e. data_content)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // wait for the index to advance to the warm phase

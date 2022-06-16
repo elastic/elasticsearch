@@ -205,7 +205,6 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null,
             true
         );
 

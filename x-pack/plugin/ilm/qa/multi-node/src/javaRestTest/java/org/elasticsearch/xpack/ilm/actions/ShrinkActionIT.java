@@ -235,7 +235,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         client().performRequest(createTemplateRequest);
 
         // then create the index and index a document to trigger rollover
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), null, true);
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), true);
         index(client(), originalIndex, "_id", "foo", "bar");
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), originalIndex);

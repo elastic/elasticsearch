@@ -115,12 +115,16 @@ public final class TimeSeriesRestDriver {
     }
 
     public static void index(RestClient client, String index, String id, Object... fields) throws IOException {
+        index(client, index, false, id, fields);
+    }
+
+    public static void index(RestClient client, String index, boolean refresh, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        final Request request = new Request("POST", "/" + index + "/_doc/" + (id != null ? id : "") + (refresh ? "?refresh" : ""));
         request.setJsonEntity(Strings.toString(document));
         assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
@@ -289,9 +293,24 @@ public final class TimeSeriesRestDriver {
         }
     }
 
+    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings)
+        throws IOException {
+        createIndexWithSettings(client, index, alias, settings, null);
+    }
+
     public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings, String mapping)
         throws IOException {
         createIndexWithSettings(client, index, alias, settings, mapping, randomBoolean());
+    }
+
+    public static void createIndexWithSettings(
+        RestClient client,
+        String index,
+        String alias,
+        Settings.Builder settings,
+        boolean useWriteIndex
+    ) throws IOException {
+        createIndexWithSettings(client, index, alias, settings, null, useWriteIndex);
     }
 
     public static void createIndexWithSettings(

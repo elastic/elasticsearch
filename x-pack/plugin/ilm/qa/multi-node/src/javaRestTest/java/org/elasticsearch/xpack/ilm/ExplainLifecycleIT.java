@@ -92,8 +92,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             Settings.builder()
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            null
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
         createIndexWithSettings(
             client(),

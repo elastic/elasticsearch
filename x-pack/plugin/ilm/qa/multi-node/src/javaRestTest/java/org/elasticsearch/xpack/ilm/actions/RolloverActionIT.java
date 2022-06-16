@@ -208,7 +208,6 @@ public class RolloverActionIT extends ESRestTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.blocks.read_only", true),
-            null,
             true
         );
 
@@ -256,7 +255,6 @@ public class RolloverActionIT extends ESRestTestCase {
             originalIndex,
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null,
             true
         );
 
@@ -306,7 +304,6 @@ public class RolloverActionIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null,
             false
         );
 
@@ -319,7 +316,6 @@ public class RolloverActionIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null,
             true
         );
 
@@ -390,7 +386,6 @@ public class RolloverActionIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null,
             true
         );
 

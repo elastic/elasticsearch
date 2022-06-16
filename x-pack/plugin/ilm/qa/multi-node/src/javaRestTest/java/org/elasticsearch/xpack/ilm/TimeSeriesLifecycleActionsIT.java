@@ -789,7 +789,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            null,
             true
         );
 
@@ -837,7 +836,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
-        createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), null, true);
+        createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), true);
 
         // Index a document
         index(client(), index + "-1", "1", "foo", "bar");
@@ -855,7 +854,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testHistoryIsWrittenWithFailure() throws Exception {
-        createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), null, false);
+        createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), false);
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         updatePolicy(client(), index + "-1", policy);
 
@@ -874,7 +873,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testHistoryIsWrittenWithDeletion() throws Exception {
         // Index should be created and then deleted by ILM
-        createIndexWithSettings(client(), index, alias, Settings.builder(), null, false);
+        createIndexWithSettings(client(), index, alias, Settings.builder(), false);
         createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
         updatePolicy(client(), index, policy);
 
@@ -952,7 +951,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             index + "-1",
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
-            null,
             true
         );
 
@@ -983,7 +981,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            null,
             randomBoolean()
         );
 
@@ -1041,7 +1038,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy),
-            null,
             randomBoolean()
         );
 

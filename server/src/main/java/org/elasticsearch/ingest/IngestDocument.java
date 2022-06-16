@@ -82,11 +82,17 @@ public final class IngestDocument {
         this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
     }
 
+    /**
+     * Constructor to create an IngestDocument from its constituent maps
+     */
     IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
 
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
     public static IngestDocument fromWire(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }

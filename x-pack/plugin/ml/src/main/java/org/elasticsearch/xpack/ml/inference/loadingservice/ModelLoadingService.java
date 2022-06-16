@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
@@ -60,6 +59,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
@@ -565,10 +565,10 @@ public class ModelLoadingService implements ClusterStateListener {
     private void cacheEvictionListener(RemovalNotification<String, ModelAndConsumer> notification) {
         try {
             if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-                MessageSupplier msg = () -> new ParameterizedMessage(
+                Supplier<String> msg = () -> Strings.format(
                     "model cache entry evicted."
-                        + "current cache [{}] current max [{}] model size [{}]. "
-                        + "If this is undesired, consider updating setting [{}] or [{}].",
+                        + "current cache [%s] current max [%s] model size [%s]. "
+                        + "If this is undesired, consider updating setting [%s] or [%s].",
                     ByteSizeValue.ofBytes(localModelCache.weight()).getStringRep(),
                     maxCacheSize.getStringRep(),
                     ByteSizeValue.ofBytes(notification.getValue().model.ramBytesUsed()).getStringRep(),
@@ -781,14 +781,14 @@ public class ModelLoadingService implements ClusterStateListener {
         return changedAliases;
     }
 
-    private void auditIfNecessary(String modelId, MessageSupplier msg) {
+    private void auditIfNecessary(String modelId, Supplier<String> msg) {
         if (shouldNotAudit.contains(modelId)) {
-            logger.trace(() -> format("[%s] %s", modelId, msg.get().getFormattedMessage()));
+            logger.trace(() -> format("[%s] %s", modelId, msg.get()));
             return;
         }
-        auditor.info(modelId, msg.get().getFormattedMessage());
+        auditor.info(modelId, msg.get());
         shouldNotAudit.add(modelId);
-        logger.info("[{}] {}", modelId, msg.get().getFormattedMessage());
+        logger.info("[{}] {}", modelId, msg.get());
     }
 
     private void loadModelsForPipeline(Set<String> modelIds) {

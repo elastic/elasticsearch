@@ -99,7 +99,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         HealthNode healthNode = (HealthNode) task;
         currentTask.set(healthNode);
         DiscoveryNode node = clusterService.localNode();
-        logger.info("Node {{{}{}}} is selected as the current health node.", node.getName(), node.getId());
+        logger.info("Node [{{}{}}] is selected as the current health node.", node.getName(), node.getId());
     }
 
     @Override
@@ -163,7 +163,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     void shuttingDown(ClusterChangedEvent event) {
         DiscoveryNode node = clusterService.localNode();
         if (isNodeShuttingDown(event, node.getId())) {
-            abortTaskIfApplicable("node {{" + node.getName() + "}{" + node.getId() + "}} shutting down");
+            abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
         }
     }
 

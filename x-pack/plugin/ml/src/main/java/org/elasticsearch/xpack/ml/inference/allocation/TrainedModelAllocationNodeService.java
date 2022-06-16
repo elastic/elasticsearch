@@ -247,7 +247,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         updateStoredState(
             task.getModelId(),
             new RoutingStateAndReason(RoutingState.STOPPING, reason),
-            ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
+            ActionListener.wrap(success -> stopDeploymentAsync(task, reason, notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
                         () -> new ParameterizedMessage(

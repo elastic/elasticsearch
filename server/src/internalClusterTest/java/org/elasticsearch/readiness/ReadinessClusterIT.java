@@ -132,9 +132,12 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
             public Settings onNodeStopped(String nodeName) throws Exception {
                 expectMasterNotFound();
 
+                logger.info("--> master node [{}] stopped", nodeName);
+
                 for (String dataNode : dataNodes) {
+                    logger.info("--> checking data node [{}] for readiness", dataNode);
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-                    boolean awaitSuccessful = s.listenerThreadLatch.await(30, TimeUnit.SECONDS);
+                    boolean awaitSuccessful = s.listenerThreadLatch.await(10, TimeUnit.SECONDS);
                     assertTrue(awaitSuccessful);
                     tcpReadinessProbeFalse(s);
                 }

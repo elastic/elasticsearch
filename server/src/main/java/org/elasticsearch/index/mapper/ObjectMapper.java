@@ -148,15 +148,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                if (subobjects.value() == false && mapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException(
-                        "Object ["
-                            + context.buildFullName(name)
-                            + "] has subobjects set to false hence it does not support inner object ["
-                            + mapper.simpleName()
-                            + "]"
-                    );
-                }
+                assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper, mapperBuilderContext);
@@ -280,12 +272,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support inner object ["
+                        throw new MapperParsingException(
+                            "Tried to add subobject ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
+                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add nested object ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);

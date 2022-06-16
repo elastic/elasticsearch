@@ -18,9 +18,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
- * Loads source {@code _source} during the a GET or {@code _search}.
+ * Loads source {@code _source} during a GET or {@code _search}.
  */
 public interface SourceLoader {
+    /**
+     * Does this {@link SourceLoader} reorder field values?
+     */
+    boolean reordersFieldValues();
+
     /**
      * Build the loader for some segment.
      */
@@ -44,6 +49,11 @@ public interface SourceLoader {
      */
     SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
         @Override
+        public boolean reordersFieldValues() {
+            return false;
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader) {
             return new Leaf() {
                 @Override
@@ -60,8 +70,13 @@ public interface SourceLoader {
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
-        Synthetic(RootObjectMapper root) {
-            loader = root.syntheticFieldLoader();
+        public Synthetic(Mapping mapping) {
+            loader = mapping.getRoot().syntheticFieldLoader();
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return true;
         }
 
         @Override

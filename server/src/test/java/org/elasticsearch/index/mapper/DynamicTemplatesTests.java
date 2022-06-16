@@ -1175,6 +1175,73 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNoSubobjects(mapperService);
     }
 
+    public void testSubobjectFalseDynamicNestedNotAllowed() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("nested");
+                {
+                    b.field("match", "object");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "nested");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            b.startObject("metrics").field("type", "object").field("subobjects", false).endObject();
+            b.endObject();
+        }));
+
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+            {
+              "metrics.object" : [
+                {}
+              ]
+            }
+            """)));
+        assertEquals(
+            "Tried to add nested object [object] to object [metrics] which does not support subobjects",
+            err.getRootCause().getMessage()
+        );
+    }
+
+    public void testRootSubobjectFalseDynamicNestedNotAllowed() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("nested");
+                {
+                    b.field("match", "object");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "nested");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+            {
+              "object" : [
+                {}
+              ]
+            }
+            """)));
+        assertEquals("Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
+    }
+
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
@@ -1274,5 +1341,46 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertFalse(service.subobjects());
         assertEquals(1, service.mappers.size());
         assertNotNull(service.getMapper("time"));
+    }
+
+    public void testSubobjectsFalseWithInnerNestedFromDynamicTemplate() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "metric");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "object").field("subobjects", false);
+                            b.startObject("properties");
+                            {
+                                b.startObject("time");
+                                b.field("type", "nested");
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertEquals(
+            "Failed to parse mapping: dynamic template [test] has invalid content [{\"match\":\"metric\",\"mapping\":"
+                + "{\"properties\":{\"time\":{\"type\":\"nested\"}},\"subobjects\":false,\"type\":\"object\"}}], "
+                + "attempted to validate it with the following match_mapping_type: [object, string, long, double, boolean, date, binary]",
+            exception.getMessage()
+        );
+        assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
+        assertEquals(
+            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
+            exception.getRootCause().getMessage()
+        );
     }
 }

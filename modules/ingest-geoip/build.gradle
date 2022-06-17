@@ -39,15 +39,7 @@ restResources {
   }
 }
 
-compileJava {
-  options.compilerArgs << '-Xlint:-classfile'
-}
-
-compileTestJava {
-  options.compilerArgs << '-Xlint:-classfile'
-}
-
-tasks.named("compileInternalClusterTestJava").configure {
+tasks.withType(JavaCompile).configureEach {
   options.compilerArgs << '-Xlint:-classfile'
 }
 

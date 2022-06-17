@@ -183,7 +183,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, createHttpsServer);
+        final int algsCount = randomIntBetween(1,12);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, algsCount, 1, 1, 1, createHttpsServer);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);

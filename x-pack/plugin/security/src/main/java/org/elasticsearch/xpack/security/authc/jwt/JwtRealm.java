@@ -175,12 +175,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
-    private Boolean rotateJwksAlgs(final Boolean isJwtAlgHmac) {
+    private boolean rotateJwksAlgs(final boolean isJwtAlgHmac) {
         try {
             if (isJwtAlgHmac) {
                 final JwtRealm.JwksAlgs newJwksAlgsHmac = this.parseJwksAlgsHmac();
                 if (this.jwksAlgsHmac != null && this.jwksAlgsHmac.equals(newJwksAlgsHmac) == false) {
-                    LOGGER.info("Rotated JWKSet HMAC detected: JWKs [{}]. Algorithms [{}].",
+                    LOGGER.warn("Rotated JWKSet HMAC detected: JWKs [{}]. Algorithms [{}].",
                                 newJwksAlgsHmac.jwks.size(), String.join(",", newJwksAlgsHmac.algs()));
                     this.jwksAlgsHmac = newJwksAlgsHmac;
                     this.expireAll();

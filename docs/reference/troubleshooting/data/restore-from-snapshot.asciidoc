@@ -5,6 +5,9 @@ Elasticsearch is using snapshots to store a copy of your data outside a cluster.
 indices and data streams for which there are no copies of the shards in the cluster. This can happen after a deletion or
 hardware failure.
 
-In order to restore a snapshot in your deployment use the following steps:
+IMPORTANT: Restoring the missing data requires you to have a usable backup of the affected indices and data streams. Please do not
+proceed without confirming this.
+
+The following steps will guide you through this process.
 
 include::{es-repo-dir}/tab-widgets/troubleshooting/data/restore-from-snapshot-widget.asciidoc[]

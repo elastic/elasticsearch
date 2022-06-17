@@ -10,8 +10,7 @@ In order to restore the indices and data streams that are missing data:
 . On the **Elasticsearch Service** panel, click the name of your deployment.
 +
 
-NOTE:
-If the name of your deployment is disabled your {kib} instances might be
+NOTE: If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
 If your deployment doesn't include {kib}, all you need to do is
 {cloud}/ec-access-kibana.html[enable it first].
@@ -32,8 +31,8 @@ image::images/troubleshooting/data/kibana-index-management-select-red-data-steam
 +
 . Use the left side menu to go to **Snapshot and Restore**, there you can verify that you have a snapshot to restore
 the target indices and data streams from. By clicking on every snapshot you can see the indices and data streams it
-contains. Not all resources need to be restored from the same snapshot. Given that you have found one or more snapshots
-to restore your indices you can proceed.
+contains. Not all resources need to be restored from the same snapshot. **Do not proceed** there is no workable
+backup of the affected resources in a snapshot, this will result in further data loss.
 +
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-restore-snapshot-content.png[{kib} snapshots,align="center"]

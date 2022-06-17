@@ -708,15 +708,15 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
+                final TimeValue connectionTtl = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL);
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig)
                     .setKeepAliveStrategy((response, context) -> {
-                        final TimeValue timeValue = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL);
-                        if (TimeValue.MINUS_ONE.equals(timeValue)) {
+                        if (TimeValue.MINUS_ONE.equals(connectionTtl)) {
                             return DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
                         } else {
-                            return timeValue.millis();
+                            return connectionTtl.millis();
                         }
                     });
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {

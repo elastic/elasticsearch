@@ -25,10 +25,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -151,7 +152,14 @@ public class MetadataMigrateToDataStreamService {
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
-        return createDataStream(metadataCreateIndexService, currentState, req, backingIndices, currentState.metadata().index(writeIndex));
+        return createDataStream(
+            metadataCreateIndexService,
+            currentState,
+            req,
+            backingIndices,
+            currentState.metadata().index(writeIndex),
+            DesiredBalanceShardsAllocator.REMOVE_ME
+        );
     }
 
     // package-visible for testing

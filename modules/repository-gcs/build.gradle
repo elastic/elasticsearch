@@ -39,7 +39,7 @@ dependencies {
   api 'org.threeten:threetenbp:1.5.1'
   api 'com.google.protobuf:protobuf-java-util:3.17.3'
   api 'com.google.protobuf:protobuf-java:3.21.1'
-  api 'com.google.code.gson:gson:2.9.0'
+  api 'com.google.code.gson:gson:2.8.9'
   api 'com.google.api.grpc:proto-google-common-protos:2.3.2'
   api 'com.google.api.grpc:proto-google-iam-v1:1.0.14'
   api 'com.google.auth:google-auth-library-credentials:1.0.0'

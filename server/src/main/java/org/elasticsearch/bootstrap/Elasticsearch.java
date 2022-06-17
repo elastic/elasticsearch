@@ -123,9 +123,9 @@ class Elasticsearch {
             initSecurityProperties();
 
             /*
-             * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-             * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
-             * forces such policies to take effect immediately.
+             * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on
+             * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
+             * This forces such policies to take effect immediately.
              */
             org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
                 @Override

@@ -40,8 +40,25 @@ CONTAINS "term":{"int":{"value":5
 
 TermEqualityForDate
 SELECT some.string FROM test WHERE date = 5;
-"term":{"date":{"value":5
+"range":{"date":{"gte":"1970-01-01T00:00:00.005Z","lte":"1970-01-01T00:00:00.005Z"
 ;
+
+TermEqualityForDateWithConversion
+SELECT some.string FROM test WHERE date = '2000-01-05||/y';
+"range":{"date":{"gte":"2000-01-01T00:00:00.000Z","lte":"2000-12-31T23:59:59.999Z"
+;
+
+TermEqualityForDatesWithInAndConversion
+SELECT some.string FROM test WHERE date IN ('2000-01-05||/y', '2003-01-05||/y');
+{"bool":{"should":[{"range":{"date":{"gte":"2000-01-01T00:00:00.000Z","lte":"2000-12-31T23:59:59.999Z"
+{"range":{"date":{"gte":"2003-01-01T00:00:00.000Z","lte":"2003-12-31T23:59:59.999Z"
+;
+
+TermEqualityForDateWithBetweenAndConversion
+SELECT some.string FROM test WHERE date BETWEEN '2000-01-05||/y' AND '2003-01-05||/y';
+"range":{"date":{"gte":"2000-01-01T00:00:00.000Z","lte":"2003-12-31T23:59:59.999Z"
+;
+
 
 EqualsAndInOnTheSameField
 SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2;

@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -25,9 +27,20 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -55,6 +68,7 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
@@ -89,9 +103,12 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -141,6 +158,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceFoldableAttributes(),
             new FoldNull(),
             new ReplaceAggregationsInLocalRelations(),
+            new ConvertTypes(),
             new ConstantFolding(),
             new SimplifyConditional(),
             new SimplifyCase(),
@@ -1262,6 +1280,241 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 e = ((Alias) e).child();
             }
             return e.foldable();
+        }
+
+    }
+
+    public static class ConvertTypes extends OptimizerExpressionRule<ScalarFunction> {
+
+        public ConvertTypes() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        public Expression rule(ScalarFunction e) {
+            if (e instanceof BinaryComparison predicate && predicate.right().foldable()) {
+                return convertBinaryComparison(predicate);
+            } else if (e instanceof Range range) {
+                return convertRange(range);
+            } else if (e instanceof In in) {
+                return convertIn(in);
+            }
+            return e;
+        }
+
+        private Expression convertIn(In in) {
+            if (in.list().isEmpty()) {
+                return in;
+            }
+            List<Expression> newRight = new ArrayList<>();
+            List<Expression> additionalConditions = new ArrayList<>();
+            DataType type = in.value().dataType();
+            boolean converted = false;
+            for (Expression exp : in.list()) {
+                if (type == exp.dataType() || exp.foldable() == false || DataTypes.areCompatible(type, exp.dataType())) {
+                    newRight.add(exp);
+                } else {
+                    converted = true;
+                    Object foldedValue = exp.fold();
+                    if (DataTypes.isDateTime(type) && DataTypes.isString(exp.dataType())) {
+                        try {
+                            // try date math first
+                            Tuple<Long, Long> range = DateFieldMapper.DateFieldType.toTimestampRange(
+                                foldedValue,
+                                foldedValue,
+                                true,
+                                true,
+                                ZoneOffset.UTC,
+                                DateUtils.DATE_MATH_PARSER,
+                                DateFieldMapper.Resolution.MILLISECONDS,
+                                () -> System.currentTimeMillis()
+                            );
+                            if (range.v1() < range.v2()) {
+                                /*
+                                treat it as a date range
+                                eg. the following
+                                something IN (<daterange>, <somethingElse1>, <somethingElse2>)
+                                becomes
+                                something BETWEEN <min(daterange)> AND <max(daterange)> OR someting IN (<somethingElse1>, <somethingElse2>)
+                                */
+                                additionalConditions.add(
+                                    new Range(
+                                        in.source(),
+                                        in.value(),
+                                        tryCast(exp, range.v1(), type),
+                                        true,
+                                        tryCast(exp, range.v2(), type),
+                                        true,
+                                        in.zoneId()
+                                    )
+                                );
+                            } else {
+                                newRight.add(tryCast(exp, foldedValue, DataTypes.DATETIME));
+                            }
+                        } catch (ElasticsearchParseException | DateTimeParseException e) {
+                            // the date parsing just failed, use the original expression
+                            newRight.add(exp);
+                        }
+                    } else {
+                        newRight.add(tryCast(exp, foldedValue, type));
+                    }
+                }
+            }
+            if (converted == false) {
+                return in;
+            }
+            if (newRight.size() == 1) {
+                additionalConditions.add(new Equals(in.source(), in.value(), newRight.remove(0)));
+            }
+
+            if (newRight.size() > 0 && additionalConditions.size() > 0) {
+                return new Or(
+                    in.source(),
+                    new In(in.source(), in.value(), newRight, in.zoneId()),
+                    toOrTree(in.source(), additionalConditions)
+                );
+            } else if (newRight.size() > 0) {
+                return new In(in.source(), in.value(), newRight, in.zoneId());
+            } else if (additionalConditions.size() > 0) {
+                return toOrTree(in.source(), additionalConditions);
+            }
+
+            return in;
+        }
+
+        private Expression toOrTree(Source source, List<Expression> items) {
+            if (items.size() == 1) {
+                return items.get(0);
+            }
+            if (items.size() == 2) {
+                return new Or(source, items.get(0), items.get(1));
+            }
+
+            int half = items.size() / 2;
+            return new Or(source, toOrTree(source, items.subList(0, half)), toOrTree(source, items.subList(half, items.size())));
+        }
+
+        private Expression convertBinaryComparison(BinaryComparison predicate) {
+            Object rightValue = predicate.right().fold();
+            if (rightValue == null && predicate instanceof NullEquals) {
+                return new IsNull(predicate.source(), predicate.left());
+            } else if (rightValue != null) {
+                try {
+                    if (DataTypes.isDateTime(predicate.left().dataType()) && DataTypes.isString(predicate.right().dataType())) {
+                        Tuple<Long, Long> range = DateFieldMapper.DateFieldType.toTimestampRange(
+                            rightValue,
+                            rightValue,
+                            true,
+                            true,
+                            ZoneOffset.UTC,
+                            DateUtils.DATE_MATH_PARSER,
+                            DateFieldMapper.Resolution.MILLISECONDS,
+                            () -> System.currentTimeMillis()
+                        );
+                        if (range.v1() < range.v2()) { // It was a date math, treat it as a special case
+                            if (predicate instanceof Equals || predicate instanceof NotEquals || predicate instanceof NullEquals) {
+                                Range newRange = new Range(
+                                    predicate.source(),
+                                    predicate.left(),
+                                    tryCast(predicate.right(), range.v1(), DataTypes.DATETIME),
+                                    true,
+                                    tryCast(predicate.right(), range.v2(), DataTypes.DATETIME),
+                                    true,
+                                    null
+                                );
+                                return predicate instanceof NotEquals ? new Not(predicate.source(), newRange) : newRange;
+                            } else if (predicate instanceof GreaterThan || predicate instanceof LessThanOrEqual) {
+                                return predicate.replaceChildren(
+                                    List.of(predicate.left(), tryCast(predicate.right(), range.v2(), DataTypes.DATETIME))
+                                );
+                            } else if (predicate instanceof GreaterThanOrEqual || predicate instanceof LessThan) {
+                                return predicate.replaceChildren(
+                                    List.of(predicate.left(), tryCast(predicate.right(), range.v1(), DataTypes.DATETIME))
+                                );
+                            }
+                        }
+                    }
+                    if (DataTypes.areCompatible(predicate.left().dataType(), predicate.right().dataType()) == false) {
+                        return predicate.replaceChildren(
+                            List.of(predicate.left(), tryCast(predicate.right(), rightValue, predicate.left().dataType()))
+                        );
+                    }
+                } catch (ElasticsearchParseException | DateTimeParseException e) {
+                    // do nothing, the date parsing just failed
+                }
+            }
+
+            return predicate;
+        }
+
+        private Range convertRange(Range range) {
+            if (DataTypes.areCompatible(range.value().dataType(), range.lower().dataType()) == false && range.lower().foldable()) {
+                try {
+                    Object lowerValue = range.lower().fold();
+
+                    if (range.value().dataType() == DataTypes.DATETIME && DataTypes.isString(range.lower().dataType())) {
+                        // handle date math
+                        Tuple<Long, Long> lowerRange = DateFieldMapper.DateFieldType.toTimestampRange(
+                            lowerValue,
+                            lowerValue,
+                            true,
+                            true,
+                            ZoneOffset.UTC,
+                            DateUtils.DATE_MATH_PARSER,
+                            DateFieldMapper.Resolution.MILLISECONDS,
+                            () -> System.currentTimeMillis()
+                        );
+                        if (lowerRange.v1() < lowerRange.v2()) {
+                            lowerValue = range.includeLower() ? lowerRange.v1() : lowerRange.v2();
+                        }
+                    }
+
+                    range = (Range) range.replaceChildren(
+                        List.of(range.value(), tryCast(range.lower(), lowerValue, range.value().dataType()), range.upper())
+                    );
+                } catch (ElasticsearchParseException | DateTimeParseException e) {
+                    // do nothing, the date parsing just failed
+                }
+            }
+
+            if (DataTypes.areCompatible(range.value().dataType(), range.upper().dataType()) == false && range.upper().foldable()) {
+                try {
+                    Object upperValue = range.upper().fold();
+                    if (range.value().dataType() == DataTypes.DATETIME && DataTypes.isString(range.upper().dataType())) {
+                        // handle date math
+                        Tuple<Long, Long> upperRange = DateFieldMapper.DateFieldType.toTimestampRange(
+                            upperValue,
+                            upperValue,
+                            true,
+                            true,
+                            ZoneOffset.UTC,
+                            DateUtils.DATE_MATH_PARSER,
+                            DateFieldMapper.Resolution.MILLISECONDS,
+                            () -> System.currentTimeMillis()
+                        );
+                        if (upperRange.v1() < upperRange.v2()) {
+                            upperValue = range.includeUpper() ? upperRange.v2() : upperRange.v1();
+                        }
+                    }
+                    range = (Range) range.replaceChildren(
+                        List.of(range.value(), range.lower(), tryCast(range.upper(), upperValue, range.value().dataType()))
+                    );
+                } catch (ElasticsearchParseException | DateTimeParseException e) {
+                    // do nothing, the date parsing just failed
+                }
+            }
+            return range;
+        }
+
+        private Expression tryCast(Expression original, Object foldedValue, DataType targetType) {
+            if (SqlDataTypeConverter.canConvert(original.dataType(), targetType) == false) {
+                return original;
+            }
+            try {
+                return new Literal(original.source(), SqlDataTypeConverter.convert(foldedValue, targetType), targetType);
+            } catch (Exception e) {
+                return original;
+            }
         }
 
     }

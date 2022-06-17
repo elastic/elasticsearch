@@ -1,0 +1,370 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests regarding automatic type conversion
+//
+
+
+
+// dates
+
+stringToDate_constantDateEqualities
+SELECT '1986-06-26T00:00:00.000Z'::DATETIME = '1986-06-26T00:00:00.000Z' as a, '1986-06-26T00:00:00.000Z' = '1986-06-26T00:00:00.000Z'::DATETIME as b,
+'1986-06-26T00:00:00.000Z'::DATETIME = '1986-08-26T00:00:00.000Z' as c, '1986-06-26T00:00:00.000Z' = '1986-08-26T00:00:00.000Z'::DATETIME as d;
+
+  a    |  b    |  c    |  d    
+-------+-------+-------+-------
+true  | true   | false | false
+
+;
+
+
+stringToDate_equalsInProjection
+SELECT emp_no, hire_date, hire_date = '1986-06-26T00:00:00Z' as h1, hire_date = '1986-06-26' as h2, hire_date = '1986-01-01||/y' as h3   
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b  
+----------+------------------------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | true  | true  | true  
+10002     |  1985-11-21T00:00:00Z  | false | false | false 
+
+;
+
+
+stringToDate_inequalitiesInProjection
+SELECT emp_no, hire_date, 
+hire_date > '1986-06-26T00:00:00Z' as h1, hire_date >= '1986-06-26T00:00:00Z' as h2,
+hire_date < '1986-06-26T00:00:00Z' as h3, hire_date <= '1986-06-26T00:00:00Z' as h4,
+hire_date != '1986-06-26T00:00:00Z' as h5, hire_date <=> '1986-06-26T00:00:00Z' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | false | true  | false | true  | false | true  
+10002     |  1985-11-21T00:00:00Z  | false | false | true  | true  | true  | false 
+10003     |  1986-08-28T00:00:00Z  | true  | true  | false | false | true  | false   
+
+;
+
+
+stringToDate_inequalitiesInFunctions
+SELECT emp_no, hire_date, 
+IIF(hire_date > '1986-06-26T00:00:00Z', 'y', 'n') as h1, IIF(hire_date >= '1986-06-26T00:00:00Z', 'y', 'n') as h2,
+IIF(hire_date < '1986-06-26T00:00:00Z', 'y', 'n') as h3, IIF(hire_date <= '1986-06-26T00:00:00Z', 'y', 'n') as h4,
+IIF(hire_date != '1986-06-26T00:00:00Z', 'y', 'n') as h5, IIF(hire_date <=> '1986-06-26T00:00:00Z', 'y', 'n') as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:s |  h2:s |  h3:s |  h4:s |  h5:s |  h6:s
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | n     | y     | n     | y     | n     | y     
+10002     |  1985-11-21T00:00:00Z  | n     | n     | y     | y     | y     | n     
+10003     |  1986-08-28T00:00:00Z  | y     | y     | n     | n     | y     | n       
+
+;
+
+
+stringToDate_inequalitiesInProjection_math_date
+SELECT emp_no, hire_date, 
+hire_date > '1986-06-26' as h1, hire_date >= '1986-06-26' as h2,
+hire_date < '1986-06-26' as h3, hire_date <= '1986-06-26' as h4,
+hire_date != '1986-06-26' as h5, hire_date <=> '1986-06-26' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | false | true  | false | true  | false | true  
+10002     |  1985-11-21T00:00:00Z  | false | false | true  | true  | true  | false 
+10003     |  1986-08-28T00:00:00Z  | true  | true  | false | false | true  | false   
+
+;
+
+
+stringToDate_inequalitiesInProjection_math_day
+SELECT emp_no, hire_date, 
+hire_date > '1986-06-26T12:00:00Z||/d' as h1, hire_date >= '1986-06-26T12:00:00Z||/d' as h2,
+hire_date < '1986-06-26T12:00:00Z||/d' as h3, hire_date <= '1986-06-26T12:00:00Z||/d' as h4,
+hire_date != '1986-06-26T12:00:00Z||/d' as h5, hire_date <=> '1986-06-26T12:00:00Z||/d' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | false | true  | false | true  | false | true  
+10002     |  1985-11-21T00:00:00Z  | false | false | true  | true  | true  | false 
+10003     |  1986-08-28T00:00:00Z  | true  | true  | false | false | true  | false   
+
+;
+
+
+stringToDate_inequalitiesInProjection_math_complex
+SELECT emp_no, hire_date, 
+hire_date > '1986-08-26T12:00:00Z||-2M/d' as h1, hire_date >= '1986-08-26T12:00:00Z||-2M/d' as h2,
+hire_date < '1986-08-26T12:00:00Z||-2M/d' as h3, hire_date <= '1986-08-26T12:00:00Z||-2M/d' as h4,
+hire_date != '1986-08-26T12:00:00Z||-2M/d' as h5, hire_date <=> '1986-08-26T12:00:00Z||-2M/d' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | false | true  | false | true  | false | true  
+10002     |  1985-11-21T00:00:00Z  | false | false | true  | true  | true  | false 
+10003     |  1986-08-28T00:00:00Z  | true  | true  | false | false | true  | false   
+
+;
+
+
+stringToDate_inequalitiesInProjection_math_now
+SELECT emp_no, hire_date, 
+hire_date > 'now' as h1, hire_date >= 'now' as h2,
+hire_date < 'now' as h3, hire_date <= 'now' as h4,
+hire_date != 'now' as h5, hire_date <=> 'now' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | false | false | true  | true  | true  | false  
+
+;
+
+
+stringToDate_inequalitiesInProjection_math_nowMath
+SELECT emp_no, hire_date, 
+hire_date > 'now-100y' as h1, hire_date >= 'now-100y' as h2,
+hire_date < 'now-100y' as h3, hire_date <= 'now-100y' as h4,
+hire_date != 'now-100y' as h5, hire_date <=> 'now-100y' as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | true  | true  | false | false | true  | false  
+
+;
+
+
+// disabled because CSV reader evaluates a boolean null to false, so the test fails comparing it to the null (correctly) returned by the query
+stringToDate_inequalitiesInProjection_invalid-Ignore
+SELECT emp_no, hire_date, 
+hire_date > 'foo' as h1, hire_date >= 'foo' as h2,
+hire_date < 'foo' as h3, hire_date <= 'foo' as h4,
+hire_date != 'foo' as h5, hire_date <=> 'foo' as h6,
+hire_date = 'foo' as h7
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b |  h7:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------+--------
+10001     |  1986-06-26T00:00:00Z  | null  | null  | null  | null  | null  | null  | null
+
+;
+
+
+stringToDate_inInProjection
+SELECT emp_no, hire_date, 
+hire_date IN ('1986-06-26T00:00:00Z', '1986-08-28T00:00:00Z') as h1,
+hire_date IN ('1986-06-26', '1986-08-28') as h2,
+hire_date IN ('1986-06-26T00:00:00Z', '1985-11-01||/M') as h3,
+hire_date IN ('1990-06-26||-4y/y') as h4,
+hire_date IN ('1986-08-28T12:00:00Z||/d', '1986-11-21T12:00:00Z||-1y/d') as h5
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b  
+----------+------------------------+-------+-------+-------+-------+---------
+10001     |  1986-06-26T00:00:00Z  | true  | true  | true  | true  | false
+10002     |  1985-11-21T00:00:00Z  | false | false | true  | false | true
+10003     |  1986-08-28T00:00:00Z  | true  | true  | false | true  | true
+
+;
+
+
+stringToDate_betweenInProjection
+SELECT emp_no, hire_date, 
+hire_date BETWEEN 'now-100y' AND 'now' as h1,
+hire_date BETWEEN '1986-06-25T00:00:00Z' AND '1986-08-29T00:00:00Z' as h2,
+hire_date BETWEEN '1986-06-26' AND '1986-08-28' as h3,
+hire_date BETWEEN '1986-06-27T00:00:00Z' AND '1986-08-28T00:00:00Z' as h4,
+hire_date BETWEEN '1986-06-26T12:00:00Z' AND '1986-08-27T00:00:00Z' as h5,
+hire_date BETWEEN '1986-06-01||/M' AND '1986-08-01||/M' as h6,
+hire_date BETWEEN '1986-06-01||/M' AND 'now' as h7
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b |  h7:b 
+----------+------------------------+-------+-------+-------+-------+-------+-------+-------
+10001     |  1986-06-26T00:00:00Z  | true  | true  | true  | false | false | true  | true 
+10002     |  1985-11-21T00:00:00Z  | true  | false | false | false | false | false | false 
+10003     |  1986-08-28T00:00:00Z  | true  | true  | true  | true  | false | true  | true 
+
+;
+
+
+stringToDate_complexInProjection
+SELECT emp_no, hire_date, 
+(hire_date >= '1986-06-26T00:00:00Z' AND hire_date < 'now') as h1,
+(hire_date > '1986-06-26T00:00:00Z' AND hire_date < '1989-06-26') as h2,
+(hire_date >= '1990-06-26T00:00:00Z||-4y' AND hire_date < '1990-06-26T00:00:00Z||-2y') as h3,
+(hire_date > 'now-100y' AND hire_date BETWEEN '1985-11-21T00:00:00Z' AND '1986-06-26T00:00:00Z') as h4,
+(hire_date = '1986-01-01||/y' AND hire_date  = '1986-08-01||/M') as h5,
+(hire_date = '1985-01-01||/y' OR hire_date  = '1986-08-01||/M') as h6
+FROM test_emp WHERE hire_date = '1986-06-26T00:00:00Z' OR hire_date = '1985-11-21T00:00:00Z' OR hire_date = '1986-08-28T00:00:00Z'
+ORDER BY emp_no ASC;
+
+
+emp_no:i  | hire_date:ts           |  h1:b |  h2:b |  h3:b |  h4:b |  h5:b |  h6:b  
+----------+------------------------+-------+-------+-------+-------+-------+--------
+10001     |  1986-06-26T00:00:00Z  | true  | false | true  | true  | false | false
+10002     |  1985-11-21T00:00:00Z  | false | false | false | true  | false | true
+10003     |  1986-08-28T00:00:00Z  | true  | true  | true  | false | true  | true
+
+;
+
+
+stringToDate_having
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING max(hire_date) < '1999-06-05||/y' ORDER BY 1;
+
+ gender |           dt
+--------+------------------------
+F       | 1997-05-19 00:00:00.000Z
+M       | 1996-11-05 00:00:00.000Z
+;
+
+
+
+
+// numbers
+
+
+stingToNumber_constantInteger
+SELECT 1 = '1' as a, 1 = '2' as b, 1 > '2' as c, 1 < '2' as d;
+
+ a     |  b    |  c    |  d    
+-------+-------+-------+-------
+ true  | false | false | true
+
+;
+
+
+stingToNumber_constantFp
+SELECT 1.0 = '1.0' as a, 1.0 = '2.0' as b;
+
+ a     |  b
+-------+-------
+ true  | false
+
+;
+
+
+
+stringToNumber_projections
+SELECT emp_no, 
+emp_no = 10001 as a, emp_no = '10001' as b,
+emp_no > 10002 as c, emp_no > '10002' as d,
+emp_no >= 10002 as e, emp_no >= '10002' as f,
+emp_no < 10002 as g, emp_no < '10002' as h,
+emp_no <= 10002 as i, emp_no <= '10002' as j,
+emp_no != 10002 as k, emp_no != '10002' as l,
+emp_no <=> 10002 as m, emp_no <=> '10002' as n
+FROM test_emp WHERE emp_no IN (10001, 10002, '10003') ORDER BY emp_no ASC;
+
+emp_no:i  |  a:b  |  b:b  |  c:b  |  d:b  |  e:b  |  f:b  |  g:b  |  h:b  |  i:b  |  j:b  |  k:b  |  l:b  |  m:b  |  n:b
+----------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------    
+10001     | true  | true  | false | false | false | false | true  | true  | true  | true  | true  | true  | false | false 
+10002     | false | false | false | false | true  | true  | false | false | true  | true  | false | false | true  | true  
+10003     | false | false | true  | true  | true  | true  | false | false | false | false | true  | true  | false | false 
+
+;
+
+
+stringToNumber_between
+SELECT emp_no, 
+emp_no BETWEEN 10001 AND 10002 as a, 
+emp_no BETWEEN '10001' AND '10002' as b
+FROM test_emp WHERE emp_no IN (10001, '10002', 10003) ORDER BY emp_no ASC;
+
+emp_no:i  |  a:b  |  b:b  
+----------+-------+-------    
+10001     | true  | true          
+10002     | true  | true       
+10003     | false | false       
+
+;
+
+
+stringToNumber_in
+SELECT emp_no, 
+emp_no IN (10001, 10002, 10005) as a, 
+emp_no IN ('10001', '10002', '10005') as b
+FROM test_emp WHERE emp_no IN ('10001', 10002, 10003) ORDER BY emp_no ASC;
+
+emp_no:i  |  a:b  |  b:b  
+----------+-------+-------    
+10001     | true  | true          
+10002     | true  | true       
+10003     | false | false       
+
+;
+
+
+stringToNumber_functions
+SELECT emp_no, 
+IIF(emp_no = 10001, 'y', 'n') as a, IIF(emp_no = '10001', 'y', 'n') as b,
+IIF(emp_no > 10002, 'y', 'n') as c, IIF(emp_no > '10002', 'y', 'n') as d,
+IIF(emp_no >= 10002, 'y', 'n') as e, IIF(emp_no >= '10002', 'y', 'n') as f,
+IIF(emp_no < 10002, 'y', 'n') as g, IIF(emp_no < '10002', 'y', 'n') as h,
+IIF(emp_no <= 10002, 'y', 'n') as i, IIF(emp_no <= '10002', 'y', 'n') as j,
+IIF(emp_no != 10002, 'y', 'n') as k, IIF(emp_no != '10002', 'y', 'n') as l,
+IIF(emp_no <=> 10002, 'y', 'n') as m, IIF(emp_no <=> '10002', 'y', 'n') as n
+FROM test_emp WHERE emp_no IN (10001, 10002, 10003) ORDER BY emp_no ASC;
+
+emp_no:i  |  a:s  |  b:s  |  c:s  |  d:s  |  e:s  |  f:s  |  g:s  |  h:s  |  i:s  |  j:s  |  k:s  |  l:s  |  m:s  |  n:s
+----------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+-------    
+10001     | y     | y     | n     | n     | n     | n     | y     | y     | y     | y     | y     | y     | n     | n     
+10002     | n     | n     | n     | n     | y     | y     | n     | n     | y     | y     | n     | n     | y     | y     
+10003     | n     | n     | y     | y     | y     | y     | n     | n     | n     | n     | y     | y     | n     | n     
+
+;
+
+
+stringToNumber_having
+SELECT max(emp_no) as x, gender FROM test_emp GROUP BY gender HAVING max(emp_no) > '10099';
+
+   x     | gender
+---------+---------
+10100    | F
+
+;
+
+
+
+// booleans
+
+
+stringToBoolean_constant
+
+SELECT true = 'true' as a, false = 'false' as b, true = 'false' as c;
+
+  a     |   b    |   c
+--------+--------+---------
+ true   | true   | false
+
+;
+
+

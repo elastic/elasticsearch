@@ -82,7 +82,7 @@ public class RangeTests extends ESTestCase {
                 "now-100y",
                 randomTextType(),
                 randomBoolean(),
-                false },
+                true },
             { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), true, false },
             { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), false, "2021-01-01", randomTextType(), true, true },
             { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), false, true },

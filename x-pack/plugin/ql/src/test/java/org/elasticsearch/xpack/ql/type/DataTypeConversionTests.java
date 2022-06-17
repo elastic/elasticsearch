@@ -168,6 +168,10 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(-818587277999679L), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
             assertEquals(asDateTime(-818587277999679L), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
 
+            assertEquals(asDateTime(0L), conversion.convert("1970-10-05||/y"));
+            assertEquals(asDateTime(0L), conversion.convert("1970-01-05||/M"));
+            assertEquals(asDateTime(1483228800000L), conversion.convert("2019-04-01T00:00:00Z||-2y-3M"));
+
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestSourceAndMetadata;
+import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -23,11 +23,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -43,21 +42,18 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
-            HashMap<String, Object> sourceAndMetadata = new HashMap<>();
-            sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
-            sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
-            if (a[2] != null) {
-                sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), a[2]);
-            }
-            if (a[3] != null) {
-                sourceAndMetadata.put(Metadata.VERSION.getFieldName(), a[3]);
-            }
-            if (a[4] != null) {
-                sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
-            }
-            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
             return new WriteableIngestDocument(
-                new IngestDocument(new IngestSourceAndMetadata(sourceAndMetadata, null), (Map<String, Object>) a[6])
+                new IngestDocument(
+                    new IngestSourceAndMetadata.Builder().index(a[0])
+                        .id(a[1])
+                        .routing(a[2])
+                        .version(a[3])
+                        .versionType(a[4])
+                        .source(a[5])
+                        .timestamp(a[6])
+                        .build(),
+                    (Map<String, Object>) a[6]
+                )
             );
         }
     );
@@ -92,6 +88,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
+        // TODO(stu); needs to split
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
@@ -108,18 +105,16 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(DOC_FIELD);
-        Map<Metadata, Object> metadataMap = ingestDocument.getMetadata();
-        for (Map.Entry<Metadata, Object> metadata : metadataMap.entrySet()) {
+        Map<String, Object> metadataMap = ingestDocument.getMetadata();
+        for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
             if (metadata.getValue() != null) {
-                builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
+                builder.field(metadata.getKey(), metadata.getValue().toString());
             }
         }
         if (builder.getRestApiVersion() == RestApiVersion.V_7) {
             builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
-        Map<String, Object> source = IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata());
-        metadataMap.keySet().forEach(mD -> source.remove(mD.getFieldName()));
-        builder.field(SOURCE_FIELD, source);
+        builder.field(SOURCE_FIELD, ingestDocument.getSource());
         builder.field(INGEST_FIELD, ingestDocument.getIngestMetadata());
         builder.endObject();
         return builder;

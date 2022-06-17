@@ -960,9 +960,9 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
+        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -980,12 +980,9 @@ public class IngestDocumentTests extends ESTestCase {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
         }
         if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestSourceAndMetadata.Metadata.values().length);
+            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(
-                    randomFrom(IngestSourceAndMetadata.Metadata.values()).getFieldName(),
-                    randomAlphaOfLengthBetween(5, 10)
-                );
+                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         }
@@ -1103,11 +1100,11 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testIsMetadata() {
-        assertTrue(IngestSourceAndMetadata.Metadata.isMetadata("_type"));
-        assertTrue(IngestSourceAndMetadata.Metadata.isMetadata("_index"));
-        assertTrue(IngestSourceAndMetadata.Metadata.isMetadata("_version"));
-        assertFalse(IngestSourceAndMetadata.Metadata.isMetadata("name"));
-        assertFalse(IngestSourceAndMetadata.Metadata.isMetadata("address"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_type"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_index"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_version"));
+        assertFalse(IngestDocument.Metadata.isMetadata("name"));
+        assertFalse(IngestDocument.Metadata.isMetadata("address"));
     }
 
 }

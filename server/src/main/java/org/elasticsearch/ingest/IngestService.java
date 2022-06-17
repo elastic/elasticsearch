@@ -55,6 +55,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -897,6 +898,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
+                // TODO(stu): do we need to leak IngestSourceAndMetadata here?
                 IngestSourceAndMetadata sourceAndMetadata = ingestDocument.getSourceAndMetadata();
 
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
@@ -917,7 +919,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(sourceAndMetadata.extractSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    indexRequest.source(sourceAndMetadata.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.

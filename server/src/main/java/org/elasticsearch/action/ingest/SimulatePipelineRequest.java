@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);

@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestSourceAndMetadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -69,7 +68,7 @@ public final class RemoveProcessor extends AbstractProcessor {
     private void fieldsToKeepProcessor(IngestDocument document) {
         IngestDocument.getAllFields(document.getSourceAndMetadata())
             .stream()
-            .filter(documentField -> IngestSourceAndMetadata.Metadata.isMetadata(documentField) == false)
+            .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
             .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
             .forEach(documentField -> removeWhenPresent(document, documentField));
     }

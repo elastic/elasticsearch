@@ -8,13 +8,19 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.script.field.IngestSourceAndMetadata;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -23,7 +29,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -32,8 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-
-import static org.elasticsearch.ingest.IngestSourceAndMetadata.Metadata;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -68,6 +72,7 @@ public final class IngestDocument {
         if (versionType != null) {
             rawSourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
+        // TODO(stu): can be split
         this.sourceAndMetadata = new IngestSourceAndMetadata(rawSourceAndMetadata, ZonedDateTime.now(ZoneOffset.UTC));
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
@@ -77,7 +82,14 @@ public final class IngestDocument {
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(new IngestSourceAndMetadata(deepCopyMap(other.sourceAndMetadata), other.getTimestamp()), deepCopyMap(other.ingestMetadata));
+        this(
+            new IngestSourceAndMetadata(deepCopyMap(other.sourceAndMetadata), getTimestamp(other.ingestMetadata)),
+            deepCopyMap(other.ingestMetadata)
+        );
+    }
+
+    public void fillIngestMetadata(Map<String, Object> ingestMetadata) {
+        this.ingestMetadata.putAll(ingestMetadata);
     }
 
     /**
@@ -90,8 +102,9 @@ public final class IngestDocument {
         if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime zdt) {
             ts = zdt;
         }
-        sourceAndMetadata.putIfAbsent("_version", 1); // _version is required so add it so tests don't have to mock it everywhere
-        this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, ts);
+        // TODO(stu): fix for tests
+        // sourceAndMetadata.putIfAbsent("_version", 1); // _version is required so add it so tests don't have to mock it everywhere
+        this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
         this.ingestMetadata = ingestMetadata;
     }
 
@@ -705,15 +718,24 @@ public final class IngestDocument {
     }
 
     /**
-     * Get all Metadata values in a Map, unless {@link IngestSourceAndMetadata#extractSource()} has been called, in
-     * which case the metadata fields will not be present anymore.
+     * Get source and metadata map
      */
-    public Map<IngestSourceAndMetadata.Metadata, Object> getMetadata() {
-        Map<IngestSourceAndMetadata.Metadata, Object> metadataMap = new EnumMap<>(IngestSourceAndMetadata.Metadata.class);
-        for (IngestSourceAndMetadata.Metadata metadata : IngestSourceAndMetadata.Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.get(metadata));
-        }
-        return metadataMap;
+    public IngestSourceAndMetadata getSourceAndMetadata() {
+        return sourceAndMetadata;
+    }
+
+    /**
+     * Get all Metadata values in a Map
+     */
+    public Map<String, Object> getMetadata() {
+        return sourceAndMetadata.getMetadata();
+    }
+
+    /**
+     * Get all source values in a Map
+     */
+    public Map<String, Object> getSource() {
+        return sourceAndMetadata.getSource();
     }
 
     /**
@@ -725,19 +747,10 @@ public final class IngestDocument {
     }
 
     /**
-     * Returns the document including its metadata fields, unless {@link IngestSourceAndMetadata#extractSource()} has been called, in
-     * which case the metadata fields will not be present anymore.
-     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
-     */
-    public IngestSourceAndMetadata getSourceAndMetadata() {
-        return this.sourceAndMetadata;
-    }
-
-    /**
      * Fetch the timestamp from the ingestMetadata, if it exists
      * @return the timestamp for the document or null
      */
-    public ZonedDateTime getTimestamp() {
+    static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
         if (ingestMetadata == null) {
             return null;
         }
@@ -891,6 +904,39 @@ public final class IngestDocument {
     @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+    }
+
+    /**
+     * Metadata keys that may be present in this map.
+     */
+    public enum Metadata {
+        INDEX(IndexFieldMapper.NAME),
+        TYPE("_type"),
+        ID(IdFieldMapper.NAME),
+        ROUTING(RoutingFieldMapper.NAME),
+        VERSION(VersionFieldMapper.NAME),
+        VERSION_TYPE("_version_type"),
+        IF_SEQ_NO("_if_seq_no"),
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
+
+        public static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
+        private final String fieldName;
+
+        Metadata(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        public static boolean isMetadata(String field) {
+            return METADATA_NAMES.contains(field);
+        }
+
+        public String getFieldName() {
+            return fieldName;
+        }
     }
 
     private class FieldPath {

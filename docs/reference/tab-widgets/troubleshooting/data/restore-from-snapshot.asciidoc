@@ -68,7 +68,7 @@ For more guidance on creating and restoring snapshots see
 
 // tag::self-managed[]
 In order to restore the indices that are missing shards:
-+
+
 . View the affected indices shards using the <<cat-indices,cat indices API>>.
 +
 [source,console]
@@ -81,7 +81,7 @@ The response will look like this:
 [source,console-result]
 ----
 index                                status health
-.ds-my-data-stream-2022.06.13-000001 open   red
+.ds-my-data-stream-2022.06.17-000001 open   red
 kibana_sample_data_flights           open   red
 ----
 // TEST[skip:illustration purposes only]
@@ -106,15 +106,15 @@ The response will look like this:
 {
   "snapshots" : [
     {
-      "snapshot" : "snapshot-20200613",                                     <1>
+      "snapshot" : "snapshot-20200617",                                     <1>
       "uuid" : "dZyPs1HyTwS-cnKdH08EPg",
       "repository" : "snap-repo",                                           <2>
       "indices" : [                                                         <3>
         ".apm-agent-configuration",
         ".apm-custom-link",
-        ".ds-.logs-deprecation.elasticsearch-default-2022.06.13-000001",
-        ".ds-ilm-history-5-2022.06.13-000001",
-        ".ds-my-data-stream-2022.06.13-000001",
+        ".ds-.logs-deprecation.elasticsearch-default-2022.06.17-000001",
+        ".ds-ilm-history-5-2022.06.17-000001",
+        ".ds-my-data-stream-2022.06.17-000001",
         ".geoip_databases",
         ".kibana-event-log-8.2.2-000001",
         ".kibana_8.2.2_001",
@@ -141,14 +141,14 @@ The response will look like this:
 +
 <4> If the snapshot was successful.
 
-. The snapshot `snapshot-20200613` contains the two indices we want to restore.
+. The snapshot `snapshot-20200617` contains the two indices we want to restore.
 You might have multiple snapshots from which you could restore the target indices.The explanation in our case indicates the index allocation configurations are not correct.
 Choose the latest one. Now that we found a snapshot, we will close the target indices via the
 To review your allocation settings, use the <<indices-close, close indices API>>.
 +
 [source,console]
 ----
-POST kibana_sample_data_flights,.ds-my-data-stream-2022.06.13-000001/_close
+POST kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001/_close
 ----
 // TEST[skip:illustration purposes only]
 +
@@ -166,7 +166,7 @@ The response will look like this:
 [source,console-result]
 ----
 index                                status health
-.ds-my-data-stream-2022.06.13-000001 close   red
+.ds-my-data-stream-2022.06.17-000001 close   red
 kibana_sample_data_flights           close   red
 ----
 +
@@ -175,9 +175,9 @@ any complications using the <<restore-snapshot-api, restore snapshot API>>:
 +
 [source,console]
 ----
-POST _snapshot/snap-repo/snapshot-20200613/_restore
+POST _snapshot/snap-repo/snapshot-20200617/_restore
 {
-  "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.13-000001", <1>
+  "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001", <1>
   "include_aliases": true                                                       <2>
 }
 ----
@@ -191,7 +191,7 @@ POST _snapshot/snap-repo/snapshot-20200613/_restore
 +
 [source,console]
 ----
-GET _cat/indices?v&index=.ds-my-data-stream-2022.06.13-000001,kibana_sample_data_flightsh=index,status,health
+GET _cat/indices?v&index=.ds-my-data-stream-2022.06.17-000001,kibana_sample_data_flightsh=index,status,health
 ----
 // TEST[skip:illustration purposes only]
 +
@@ -200,7 +200,7 @@ The response will look like this:
 [source,console-result]
 ----
 index                                status health
-.ds-my-data-stream-2022.06.13-000001 open   green
+.ds-my-data-stream-2022.06.17-000001 open   green
 kibana_sample_data_flights           open   green
 ----
 // TEST[skip:illustration purposes only]

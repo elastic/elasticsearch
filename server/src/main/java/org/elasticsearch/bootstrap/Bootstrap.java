@@ -16,10 +16,8 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
-import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -37,10 +35,7 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -263,7 +258,7 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
     static void init(final boolean foreground, final Environment initialEnv, SecureString keystorePassword, Path pidFile)
-        throws BootstrapException, NodeValidationException, UserException {
+        throws BootstrapException, NodeValidationException, IOException, UserException {
 
         INSTANCE = new Bootstrap();
 
@@ -280,12 +275,8 @@ final class Bootstrap {
 
         INSTANCE.setup(environment, pidFile);
 
-        try {
-            // any secure settings must be read during node construction
-            IOUtils.close(keystore);
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
+        // any secure settings must be read during node construction
+        IOUtils.close(keystore);
 
         INSTANCE.start();
 

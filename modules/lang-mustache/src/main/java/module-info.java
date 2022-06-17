@@ -13,5 +13,5 @@ module org.elasticsearch.mustache {
     requires org.apache.logging.log4j;
     requires com.github.mustachejava;
 
-    exports org.elasticsearch.script.mustache;
+    exports org.elasticsearch.script.mustache; // TODO: remove once the HLRC is removed
 }

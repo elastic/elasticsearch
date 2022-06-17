@@ -48,6 +48,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -190,6 +191,39 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return this.jwtIssuerAndRealms;
     }
 
+    protected void rotateInvalidJWKsJwtIssuer(
+        final JwtIssuer jwtIssuer
+    ) throws Exception {
+        // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
+        final Set<String> allAlgs = new HashSet<>() {
+        };
+        allAlgs.addAll(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        allAlgs.addAll(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
+        final Set<String> algs = new HashSet<>(allAlgs.stream().filter(a -> jwtIssuer.algorithmsAll.contains(a) == false).toList());
+        final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
+        final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+        final List<JwtIssuer.AlgJwkPair> algJwkPairsPkc = JwtTestCase.randomJwks(algsPkc);
+        // Key setting vs JWKSet setting are mutually exclusive, do not populate both
+        final List<JwtIssuer.AlgJwkPair> algJwkPairsHmac = new ArrayList<>(JwtTestCase.randomJwks(algsHmac)); // allow remove/add below
+        final JwtIssuer.AlgJwkPair algJwkPairHmacOidc;
+        if ((algJwkPairsHmac.size() == 0) || (randomBoolean())) {
+            algJwkPairHmacOidc = null; // list(0||1||N) => Key=null and JWKSet(N)
+        } else {
+            // Change one of the HMAC random bytes keys to an OIDC UTF8 key. Put it in either the Key setting or JWKSet setting.
+            final JwtIssuer.AlgJwkPair algJwkPairRandomBytes = algJwkPairsHmac.get(0);
+            final OctetSequenceKey jwkHmacRandomBytes = JwtTestCase.conditionJwkHmacForOidc((OctetSequenceKey) algJwkPairRandomBytes.jwk());
+            final JwtIssuer.AlgJwkPair algJwkPairUtf8Bytes = new JwtIssuer.AlgJwkPair(algJwkPairRandomBytes.alg(), jwkHmacRandomBytes);
+            if ((algJwkPairsHmac.size() == 1) && (randomBoolean())) {
+                algJwkPairHmacOidc = algJwkPairUtf8Bytes; // list(1) => Key=OIDC and JWKSet(0)
+                algJwkPairsHmac.remove(0);
+            } else {
+                algJwkPairHmacOidc = null; // list(N) => Key=null and JWKSet(OIDC+N-1)
+                algJwkPairsHmac.set(0, algJwkPairUtf8Bytes);
+            }
+        }
+        jwtIssuer.rotate(algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc);
+    }
+
     protected void rotateJWKsJwtIssuer(
         final JwtIssuer jwtIssuer
     ) throws Exception {
@@ -228,12 +262,13 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final int audiencesCount,
         final int userCount,
         final int roleCount,
-        final boolean createHttpsServer
+        final boolean createHttpsServer,
+        final List<String> algorithms
     ) throws Exception {
         final String issuer = "iss" + (i + 1) + "_" + randomIntBetween(0, 9999);
 
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
-        final List<String> algs = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final List<String> algs = randomOfMinMaxNonUnique(algsCount, algsCount, algorithms);
         final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
         final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
         final List<JwtIssuer.AlgJwkPair> algJwkPairsPkc = JwtTestCase.randomJwks(algsPkc);
@@ -269,6 +304,27 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             algJwkPairsHmac,
             algJwkPairHmacOidc,
             createHttpsServer
+        );
+    }
+
+    protected JwtIssuer createJwtIssuer(
+        final int i,
+        final String principalClaimName,
+        final int algsCount,
+        final int audiencesCount,
+        final int userCount,
+        final int roleCount,
+        final boolean createHttpsServer
+    ) throws Exception {
+        return createJwtIssuer(
+            i,
+            principalClaimName,
+            algsCount,
+            audiencesCount,
+            userCount,
+            roleCount,
+            createHttpsServer,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
         );
     }
 
@@ -490,9 +546,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + ", realm.aud="
                 + jwtRealm.allowedAudiences
                 + ", HMAC alg="
-                + jwtRealm.jwksAlgsHmac.algs()
+                + jwtRealm.stringAndJwksAlgsHmac.algs().algs()
                 + ", PKC alg="
-                + jwtRealm.jwksAlgsPkc.algs()
+                + jwtRealm.stringAndJwksAlgsPkc.algs().algs()
                 + ", client=["
                 + jwtRealm.clientAuthenticationType
                 + "], meta=["
@@ -652,6 +708,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 final Exception authcFailed = new Exception("Authentication test failed.");
                 realmFailureExceptions.forEach(authcFailed::addSuppressed); // realm exceptions
                 authcFailed.addSuppressed(t); // final throwable (ex: assertThat)
+                LOGGER.error(t.getMessage());
                 LOGGER.error("Unexpected exception.", authcFailed);
                 throw authcFailed;
             } finally {
@@ -670,8 +727,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return user;
     }
 
-    protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
-        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.algAndJwksAll);
+    protected SecureString generateJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user, JwtIssuer.AlgJwkPair algJwkPair) throws Exception {
         LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -696,6 +752,17 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final SecureString signedJWT = JwtValidateUtil.signJwt(algJwkPair.jwk(), unsignedJwt);
         assertThat(JwtValidateUtil.verifyJwt(algJwkPair.jwk(), SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
         return signedJWT;
+    }
+
+    protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user, Set<String> algs) throws Exception {
+        final List<JwtIssuer.AlgJwkPair> algJwkPairs = jwtIssuerAndRealm.issuer.algAndJwksAll.stream().filter(p -> algs.contains(p.alg())).toList();
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(algJwkPairs);
+        return generateJwt(jwtIssuerAndRealm, user, algJwkPair);
+    }
+
+    protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.algAndJwksAll);
+        return generateJwt(jwtIssuerAndRealm, user, algJwkPair);
     }
 
 }

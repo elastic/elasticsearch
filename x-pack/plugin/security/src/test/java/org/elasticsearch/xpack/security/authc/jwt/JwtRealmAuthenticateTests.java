@@ -32,7 +32,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -173,18 +175,18 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
-     * Verify that a JWT realm successfully handles rotating JWKSets.
+     * Verify what the JWTRealm does in degraded state and automatically recovers
      *
      * @throws Exception Unexpected test failure
      */
-    public void testJwkSetRotationHttps() throws Exception {
+    public void testPKCJwkSetFailureRotationHttps() throws Exception {
         final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
-        final int algsCount = randomIntBetween(1,12);
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, algsCount, 1, 1, 1, createHttpsServer);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 3, 1, 1, 1, createHttpsServer, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
@@ -196,37 +198,135 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
 
             final User user = this.randomUser(jwtIssuerAndRealm.issuer());
-            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
+            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuer.algAndJwksPkc);
+            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
             final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
             final MinMax jwtAuthcRange = new MinMax(2, 3);
 
             // Indirectly verify authentication works
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
 
-            // Rotate
+            // First do a valid JWKSet Rotation
             this.rotateJWKsJwtIssuer(jwtIssuer);
 
-            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user);
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, rotatedJwt, clientSecret, jwtAuthcRange);
+
+            // Rotate invalid JWKSet of a not allowed algorithm
+            this.rotateInvalidJWKsJwtIssuer(jwtIssuer);
+
+            // Force Rotation Using Allowed Algorithm but wrong signature, throw realm in degraded state
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
+
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            final Set<String> invalidPKcAlgs = new HashSet<>(jwtIssuer.algAndJwksPkc.stream().map(JwtIssuer.AlgJwkPair::alg).toList());
+            SecureString invalidRotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, invalidPKcAlgs);
+            // Verify Realm in degraded state
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, invalidRotatedJwt, clientSecret);
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, rotatedJwt, clientSecret);
+
+            // Attempt to recover automatically
+            // Reset possible algorithms for jwtIssuer and rotate using new algs
+            assert pkcAlgorithms != jwtIssuer.algorithmsAll;
+            jwtIssuer.algorithmsAll = pkcAlgorithms;
+            this.rotateJWKsJwtIssuer(jwtIssuer);
+
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            SecureString validRotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
+            // Should work again
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, validRotatedJwt, clientSecret, jwtAuthcRange);
+
+            // Test rotation with no server connection
+            this.rotateJWKsJwtIssuer(jwtIssuer);
+            jwtIssuer.httpsServer.close();
+
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            SecureString brokenRotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
+            // As the JWKSet is not loaded and cannot be loaded in the JWTRealm this will break
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, brokenRotatedJwt, clientSecret);
+            // But old JWT's from previous rotation/JWKSet should still work
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, validRotatedJwt, clientSecret, jwtAuthcRange);
+        } finally {
+            jwtIssuer.close();
+        }
+    }
+
+    /**
+     * Verify that a JWT realm successfully handles rotating JWKSets via HTTPS
+     *
+     * @throws Exception Unexpected test failure
+     */
+    public void testPKCJwkSetRotationHttps() throws Exception {
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
+
+        final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
+        final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
+        final int algsCount = randomIntBetween(6, 12);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, algsCount, 1, 1, 1,
+            createHttpsServer, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
+        assertThat(jwtIssuer.httpsServer, is(notNullValue()));
+        try {
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
+            this.jwtIssuerAndRealms = new ArrayList<>(1);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder);
+            final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
+
+            jwtRealm.initialize(allRealms, super.licenseState);
+            this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
+
+            final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuer.algAndJwksAll);
+            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
+            final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
+            final MinMax jwtAuthcRange = new MinMax(2, 3);
+
+            // Indirectly verify authentication works
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+
+            List<JwtIssuer.AlgJwkPair> oldAlgAndJwksAll = new ArrayList<>(jwtIssuer.algAndJwksAll);
+            // Rotate
+            this.rotateJWKsJwtIssuer(jwtIssuer);
+            assert oldAlgAndJwksAll.equals(jwtIssuer.algAndJwksAll) == false;
+
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
             // Verify authentication works before performing any failure scenarios
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, rotatedJwt, clientSecret, jwtAuthcRange);
 
             // Should fail as we are using an old token and have rotated
-            expectThrows(
-                Exception.class,
-                () -> this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange)
-            );
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
 
         } finally {
             jwtIssuer.close();
         }
     }
 
-    public void testJwkSetRotationLocal() throws Exception {
+    /**
+     * Verify that a JWT realm successfully handles rotating JWKSets via Local filesystem
+     *
+     * @throws Exception Unexpected test failure
+     */
+    public void testPKCJwkSetRotationLocal() throws Exception {
         final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         final String realmName = "realm_" + jwtIssuer.issuerClaimValue;
         try {
             this.jwtIssuerAndRealms = new ArrayList<>(1);
@@ -254,18 +354,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             }
             // JWT authc realm secure settings
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            if (Strings.hasText(jwtIssuer.encodedJwkSetHmac)) {
-                secureSettings.setString(
-                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_JWKSET),
-                    jwtIssuer.encodedJwkSetHmac
-                );
-            }
-            if (Strings.hasText(jwtIssuer.encodedKeyHmacOidc)) {
-                secureSettings.setString(
-                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_KEY),
-                    jwtIssuer.encodedKeyHmacOidc
-                );
-            }
             final String rawClientSecret = randomAlphaOfLength(64);
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
@@ -275,14 +363,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, authcSettings);
             final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder);
 
-
             final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
 
             jwtRealm.initialize(allRealms, super.licenseState);
             this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
 
             final User user = this.randomUser(jwtIssuerAndRealm.issuer());
-            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
+            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuer.algAndJwksPkc);
+            SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
             final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
             final MinMax jwtAuthcRange = new MinMax(4, 5);
 
@@ -290,10 +378,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
 
             // Rotate
+            List<JwtIssuer.AlgJwkPair> oldAlgAndJwksAll = new ArrayList<>(jwtIssuer.algAndJwksAll);
+            // Rotate
             this.rotateJWKsJwtIssuer(jwtIssuer);
+            assert oldAlgAndJwksAll.equals(jwtIssuer.algAndJwksAll) == false;
+
             if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
                 if (filePath == null) {
-                    filePath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
+                    super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
                 } else {
                     Path of = Path.of(filePath);
                     Files.delete(of);
@@ -301,15 +393,15 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 }
             }
 
-            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user);
+            // Generate Rotated JWT Using the same algorithm type PCK or HMAC as the first JWT
+            // This is because once we use this rotated JWT using JWKSets that the JWTRealm has not seen
+            // it will try to refresh only that specific algorithm type.
+            SecureString rotatedJwt = this.randomJwt(jwtIssuerAndRealm, user, pkcAlgorithms);
             // Verify authentication works before performing any failure scenarios
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, rotatedJwt, clientSecret, jwtAuthcRange);
 
             // Should fail as we are using an old token and have rotated
-            expectThrows(
-                Exception.class,
-                () -> this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange)
-            );
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
 
         } finally {
             jwtIssuer.close();
@@ -400,16 +492,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
             final String mixupAlg; // Check if there are any algorithms available in the realm for attempting a flip test
             if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(validHeader.getAlgorithm().getName())) {
-                if (jwtIssuerAndRealm.realm().jwksAlgsPkc.algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().stringAndJwksAlgsPkc.algs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip HMAC to PKC (no PKC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().jwksAlgsPkc.algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().stringAndJwksAlgsPkc.algs().algs()); // flip HMAC to PKC
                 }
             } else {
-                if (jwtIssuerAndRealm.realm().jwksAlgsHmac.algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().stringAndJwksAlgsHmac.algs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip PKC to HMAC (no HMAC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().jwksAlgsHmac.algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().stringAndJwksAlgsHmac.algs().algs()); // flip HMAC to PKC
                 }
             }
             // This check can only be executed if there is a flip algorithm available in the realm

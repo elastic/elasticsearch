@@ -124,7 +124,10 @@ public class JwtValidateUtil {
     public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedAlgorithms) throws Exception {
         final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
         if ((algorithm == null) || (allowedAlgorithms.contains(algorithm.getName()) == false)) {
-            throw new Exception("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
+            // JWT algorithm does not match one of the algorithms in the JWKSet. Could be explained by a rotated JKWSet,
+            // we should check if we have the latest JWKSet.
+            // That is, only, when the given algorithm is also in the allowed Algorithms in the settings of the JWTRealm.
+            throw new JWKSetValidationError("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
         }
     }
 
@@ -311,11 +314,10 @@ public class JwtValidateUtil {
             }
         }
 
-        if (jwksStrength.isEmpty()) {
-            throw new Exception("No JWKs matched the JWT Algorithm [" + alg.getName() + "] and JWT KID [" + id + "].");
-        }
-
-        throw new InvalidSignatureException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        // Either jwksStrength is empty because the given JWT does not match possible algorithms and KID combinations
+        // which could be that the given JWKSet has rotated. Or no jkwsStrength matches with give JWT token.
+        // Which could also be explained by a rotated JWKSet.
+        throw new JWKSetValidationError("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -377,9 +379,10 @@ public class JwtValidateUtil {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public static class InvalidSignatureException extends Exception { 
-        public InvalidSignatureException(String errorMessage) {
+    public static class JWKSetValidationError extends Exception {
+        public JWKSetValidationError(String errorMessage) {
             super(errorMessage);
         }
     }
+
 }

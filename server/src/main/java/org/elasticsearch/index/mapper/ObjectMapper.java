@@ -121,10 +121,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
-                String firstImmediateChild = name.substring(0, firstDotIndex);
-                String firstImmediateChildFullName = prefix == null ? firstImmediateChild : prefix + "." + firstImmediateChild;
-                ObjectMapper.Builder parentBuilder = findObjectBuilder(firstImmediateChildFullName, context);
-                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), firstImmediateChildFullName, mapper, context);
+                String immediateChild = name.substring(0, firstDotIndex);
+                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                 add(parentBuilder);
             }
         }

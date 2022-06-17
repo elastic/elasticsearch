@@ -485,7 +485,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) throws IOException {
+    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);

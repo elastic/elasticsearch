@@ -82,7 +82,6 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -708,19 +707,22 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
-                final TimeValue connectionTtl = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL);
+                final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig)
                     .setKeepAliveStrategy((response, context) -> {
                         var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
-                        if (TimeValue.MINUS_ONE.equals(connectionTtl)) {
-                            return serverKeepAlive
-                        } else if (serverKeepAlive == -1) {
-                            return connectionTtl.millis();
+                        final long actualKeepAlive;
+                        if (serverKeepAlive == -1) {
+                            actualKeepAlive = userConfiguredKeepAlive;
+                        } else if (userConfiguredKeepAlive == -1) {
+                            actualKeepAlive = serverKeepAlive;
                         } else {
-                            return Math.min(serverKeepAlive, connectionTtl.millis());
+                            actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
                         }
+                        LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
+                        return actualKeepAlive;
                     });
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(

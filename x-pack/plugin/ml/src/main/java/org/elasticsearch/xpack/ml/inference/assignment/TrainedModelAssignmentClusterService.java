@@ -260,8 +260,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
-            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.build())
-                .removeCustom(TrainedModelAssignmentMetadata.NAME);
+            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.build());
         }
         return ClusterState.builder(currentState).metadata(metadata).build();
     }

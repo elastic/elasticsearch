@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
@@ -335,7 +336,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     public RestoreInProgress(StreamInput in) throws IOException {
         int count = in.readVInt();
-        final Map<String, Entry> entriesBuilder = new HashMap<>(count);
+        final Map<String, Entry> entriesBuilder = Maps.newHashMapWithExpectedSize(count);
         for (int i = 0; i < count; i++) {
             final String uuid;
             uuid = in.readString();

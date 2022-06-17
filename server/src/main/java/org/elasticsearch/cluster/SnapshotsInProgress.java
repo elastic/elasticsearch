@@ -761,7 +761,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert shardStatusByRepoShardId == null || shardStatusByRepoShardId.isEmpty()
                     : "Provided explict repo shard id statuses [" + shardStatusByRepoShardId + "] but no source";
                 final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
-                final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = new HashMap<>(shards.size());
+                final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
                 for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final IndexId indexId = indices.get(shardId.getIndexName());

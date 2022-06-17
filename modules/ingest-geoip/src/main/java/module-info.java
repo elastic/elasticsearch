@@ -12,9 +12,6 @@ module org.elasticsearch.ingest.geoip {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
-    requires com.fasterxml.jackson.annotation;
-    requires com.fasterxml.jackson.core;
-    requires com.fasterxml.jackson.databind;
     requires geoip2;
     requires maxmind.db;
 

@@ -129,14 +129,6 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
     }
 
-    public void testMissingConfigFile() {
-        final Path configDir = getDataPath("does_not_exist");
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        final Environment environment = new Environment(settings, configDir);
-        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment, true));
-        assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
-    }
-
     public void testLoggingLevelsFromSettings() throws IOException, UserException {
         final Level rootLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
         final Level fooLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);

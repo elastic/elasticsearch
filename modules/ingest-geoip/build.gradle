@@ -43,6 +43,10 @@ compileJava {
   options.compilerArgs << '-Xlint:-classfile'
 }
 
+compileTestJava {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 def useFixture = providers.environmentVariable("geoip_use_service")
   .map { s -> Boolean.parseBoolean(s) == false }
   .getOrElse(true)

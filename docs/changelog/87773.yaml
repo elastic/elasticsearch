@@ -1,0 +1,5 @@
+pr: 87773
+summary: Add setting for keep-alive duration for oidc back-channel
+area: Security
+type: enhancement
+issues: []

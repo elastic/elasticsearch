@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -99,9 +99,10 @@ public class MetadataMigrateToDataStreamService {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
+        var delegate = new AllocationActionListener<>(listener);
         submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -111,7 +112,7 @@ public class MetadataMigrateToDataStreamService {
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
-                    }, request, metadataCreateIndexService);
+                    }, request, metadataCreateIndexService, delegate.reroute());
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
@@ -128,7 +129,8 @@ public class MetadataMigrateToDataStreamService {
         ClusterState currentState,
         Function<IndexMetadata, MapperService> mapperSupplier,
         MigrateToDataStreamClusterStateUpdateRequest request,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
@@ -158,7 +160,7 @@ public class MetadataMigrateToDataStreamService {
             req,
             backingIndices,
             currentState.metadata().index(writeIndex),
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            listener
         );
     }
 

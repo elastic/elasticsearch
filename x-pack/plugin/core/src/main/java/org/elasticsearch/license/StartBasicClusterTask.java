@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -74,13 +73,11 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
                 Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
                     taskContext.success(
-                        listener.delegateFailure(
-                            (delegate, ignored) -> delegate.onResponse(
-                                new PostStartBasicResponse(
-                                    PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
-                                    ackMessageMap,
-                                    ACKNOWLEDGEMENT_HEADER
-                                )
+                        () -> listener.onResponse(
+                            new PostStartBasicResponse(
+                                PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
+                                ackMessageMap,
+                                ACKNOWLEDGEMENT_HEADER
                             )
                         )
                     );
@@ -96,13 +93,13 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         final var responseStatus = newLicenseGenerated
             ? PostStartBasicResponse.Status.GENERATED_BASIC
             : PostStartBasicResponse.Status.ALREADY_USING_BASIC;
-        taskContext.success(listener.delegateFailure((l, s) -> l.onResponse(new PostStartBasicResponse(responseStatus))));
+        taskContext.success(() -> listener.onResponse(new PostStartBasicResponse(responseStatus)));
         return updatedLicensesMetadata;
     }
 
     @Override
     public void onFailure(@Nullable Exception e) {
-        logger.error(new ParameterizedMessage("unexpected failure during [{}]", description), e);
+        logger.error(() -> "unexpected failure during [" + description + "]", e);
         listener.onFailure(e);
     }
 

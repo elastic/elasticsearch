@@ -16,19 +16,28 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.27',
-  'pdfbox': '2.0.24',
-  'poi'   : '4.1.2',
+  'tika'  : '2.4.0',
+  'pdfbox': '2.0.26',
+  'poi'   : '5.2.2',
   'mime4j': '0.8.5'
 ]
 
 dependencies {
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
-  // build against Jackson 2.9.5, but still works on our current version
-  api "org.apache.tika:tika-parsers:${versions.tika}"
+  api "org.apache.tika:tika-langdetect:${versions.tika}"
+  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
+  api "org.apache.tika:tika-parser-html-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
+  api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api 'org.tukaani:xz:1.8'
-  api 'commons-io:commons-io:2.6'
+  api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -47,10 +56,10 @@ dependencies {
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
+  api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:3.0.1'
+  api 'org.apache.xmlbeans:xmlbeans:5.0.3'
   api 'org.apache.commons:commons-collections4:4.1'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
@@ -75,6 +84,7 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
+  mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -90,6 +100,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   // 2 new tika metadata fields are returned in v8
   task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .doc file")
   task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .docx file")
+  // Tika 2.4.0 adds an extra newline for each embedded attachment, making the content_length larger
+  task.replaceValueInMatch("_source.attachment.content_length", 20, "Test ingest attachment processor with .docx file")
 }
 
 tasks.named("thirdPartyAudit").configure {

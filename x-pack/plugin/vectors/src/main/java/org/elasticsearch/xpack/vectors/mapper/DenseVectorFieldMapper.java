@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -124,8 +123,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(dims, indexed, similarity, indexOptions, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { dims, indexed, similarity, indexOptions, meta };
         }
 
         @Override
@@ -528,7 +527,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene91HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene92HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

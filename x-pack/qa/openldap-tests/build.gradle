@@ -8,7 +8,7 @@ dependencies {
 
 testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"
 
-Project idpFixtureProject = xpackProject("test:idp-fixture")
+Project idpFixtureProject = project(":x-pack:test:idp-fixture")
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 def copyIdpTrust = tasks.register("copyIdpTrust", Copy) {
   from idpFixtureProject.file('openldap/certs/ca.jks');

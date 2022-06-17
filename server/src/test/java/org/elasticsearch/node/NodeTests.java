@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.shard.IndexShard;
@@ -29,6 +30,7 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -342,12 +344,17 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    /**
+     * TODO: Remove this test once classpath plugins are fully moved to MockNode.
+     * In production, plugin name clashes are checked in a completely different way.
+     * See {@link PluginsServiceTests#testPluginNameClash()}
+     */
     public void testNodeFailsToStartWhenThereAreMultipleRecoveryPlannerPluginsLoaded() {
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockRecoveryPlannerPlugin.class);
         plugins.add(MockRecoveryPlannerPlugin.class);
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
-        assertThat(exception.getMessage(), containsString("A single RecoveryPlannerPlugin was expected but got:"));
+        assertThat(exception.getMessage(), containsString("Duplicate key org.elasticsearch.node.NodeTests$MockRecoveryPlannerPlugin"));
     }
 
     public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {
@@ -445,6 +452,55 @@ public class NodeTests extends ESTestCase {
                 expectThrows(NamedObjectNotFoundException.class, () -> namedXContentRegistry.lookupParser(Integer.class, "name", p));
             }
         }
+    }
+
+    static class AdditionalSettingsPlugin1 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                .put("foo.bar", "1")
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
+                .build();
+        }
+    }
+
+    static class AdditionalSettingsPlugin2 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put("foo.bar", "2").build();
+        }
+    }
+
+    public void testAdditionalSettings() {
+        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("my.setting", "test")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
+
+        Settings newSettings = Node.mergePluginSettings(pluginMap, settings);
+        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
+        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
+        // does not override pre existing settings
+        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
+    }
+
+    public void testAdditionalSettingsClash() {
+        Map<String, Plugin> pluginMap = Map.of(
+            AdditionalSettingsPlugin1.class.getName(),
+            new AdditionalSettingsPlugin1(),
+            AdditionalSettingsPlugin2.class.getName(),
+            new AdditionalSettingsPlugin2()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Node.mergePluginSettings(pluginMap, Settings.EMPTY)
+        );
+        String msg = e.getMessage();
+        assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
     }
 
     private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {

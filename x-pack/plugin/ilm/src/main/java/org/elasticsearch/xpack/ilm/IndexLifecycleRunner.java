@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -41,10 +40,12 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
@@ -55,21 +56,25 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
-        currentState,
-        taskContexts) -> {
-        ClusterState state = currentState;
-        for (final var taskContext : taskContexts) {
-            try {
-                final var task = taskContext.getTask();
-                state = task.execute(state);
-                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
+    @SuppressWarnings("Convert2Lambda") // can't SuppressForbidden on a lambda
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
+        new ClusterStateTaskExecutor<>() {
+            @Override
+            @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
+            public ClusterState execute(ClusterState currentState, List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts) {
+                ClusterState state = currentState;
+                for (final var taskContext : taskContexts) {
+                    try {
+                        final var task = taskContext.getTask();
+                        state = task.execute(state);
+                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                }
+                return state;
             }
-        }
-        return state;
-    };
+        };
 
     IndexLifecycleRunner(
         PolicyStepsRegistry stepRegistry,
@@ -303,11 +308,7 @@ class IndexLifecycleRunner {
                     @Override
                     public void onFailure(Exception e) {
                         logger.error(
-                            new ParameterizedMessage(
-                                "retry execution of step [{}] for index [{}] failed",
-                                failedStep.getKey().getName(),
-                                index
-                            ),
+                            () -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().getName(), index),
                             e
                         );
                     }
@@ -515,12 +516,7 @@ class IndexLifecycleRunner {
      */
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
-                policy,
-                index.getName(),
-                currentStepKey
-            ),
+            () -> format("policy [%s] for index [%s] failed on step [%s]. Moving to ERROR step", policy, index.getName(), currentStepKey),
             e
         );
         submitUnlessAlreadyQueued(
@@ -575,8 +571,8 @@ class IndexLifecycleRunner {
      */
     private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
         logger.debug(
-            new ParameterizedMessage(
-                "unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
+            () -> format(
+                "unable to retrieve policy [%s] for index [%s], recording this in step_info for this index",
                 policyName,
                 index.getName()
             ),

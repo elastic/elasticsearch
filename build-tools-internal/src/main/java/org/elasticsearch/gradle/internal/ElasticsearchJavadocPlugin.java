@@ -46,6 +46,14 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
             javadoc.getOptions().setEncoding("UTF8");
             ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing", "-quiet");
+
+            // ensure that modular dependencies can be found on the module path
+            javadoc.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    javadoc.getOptions().modulePath(javadoc.getClasspath().getFiles().stream().toList());
+                }
+            });
         });
 
         // Relying on configurations introduced by the java plugin

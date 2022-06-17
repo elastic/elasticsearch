@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -50,6 +49,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata.fromState;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
@@ -129,9 +131,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "updated model assignments based on node changes in the cluster; new metadata [{}]",
-                            Strings.toString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
+                        () -> format(
+                            "updated model assignments based on node changes in the cluster; new metadata [%s]",
+                            Strings.toString(fromState(newState), false, true)
                         )
                     );
                 }
@@ -312,9 +314,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final String modelId = request.getModelId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        logger.trace(
-            () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
-        );
+        logger.trace(() -> format("[%s] [%s] current metadata before update %s", modelId, nodeId, Strings.toString(metadata)));
         final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment
@@ -332,8 +332,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] requested update from node [{}] to update route state to [{}]",
+                () -> format(
+                    "[%s] requested update from node [%s] to update route state to [%s]",
                     modelId,
                     nodeId,
                     request.getRoutingState()
@@ -531,9 +531,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
-                    new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
+                org.elasticsearch.core.Strings.format(
+                    "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
+                    load.getNumAssignedJobs(),
+                    MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
+                    maxOpenJobs
                 )
             );
         }
@@ -544,17 +546,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             : 0);
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node has insufficient available memory. Available memory for ML [{} ({})], "
-                        + "memory required by existing jobs and models [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
-                    new Object[] {
-                        load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
-                        load.getAssignedJobMemory(),
-                        ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
-                        requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
+                org.elasticsearch.core.Strings.format(
+                    "This node has insufficient available memory. Available memory for ML [%s (%s)], "
+                        + "memory required by existing jobs and models [%s (%s)], "
+                        + "estimated memory required for this model [%s (%s)].",
+
+                    load.getMaxMlMemory(),
+                    ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
+                    load.getAssignedJobMemory(),
+                    ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
+                    requiredMemory,
+                    ByteSizeValue.ofBytes(requiredMemory).toString()
                 )
             );
         }

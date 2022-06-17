@@ -30,12 +30,12 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -111,9 +111,8 @@ public class LogConfigurator {
      * @param useConsole whether a console appender should exist
      * @throws IOException   if there is an issue readings any log4j2.properties in the config
      *                       directory
-     * @throws UserException if there are no log4j2.properties in the specified configs path
      */
-    public static void configure(final Environment environment, boolean useConsole) throws IOException, UserException {
+    public static void configure(final Environment environment, boolean useConsole) throws IOException {
         Objects.requireNonNull(environment);
         try {
             // we are about to configure logging, check that the status logger did not log any error-level messages
@@ -122,7 +121,12 @@ public class LogConfigurator {
             // whether or not the error listener check failed we can remove the listener now
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
+        configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+    }
+
+    private static void configureESLogging() {
+        LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 
     /**
@@ -153,7 +157,7 @@ public class LogConfigurator {
     }
 
     private static void configure(final Settings settings, final Path configsPath, final Path logsPath, boolean useConsole)
-        throws IOException, UserException {
+        throws IOException {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
@@ -222,10 +226,7 @@ public class LogConfigurator {
                 return FileVisitResult.CONTINUE;
             }
         });
-
-        if (configurations.isEmpty()) {
-            throw new UserException(ExitCodes.CONFIG, "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
-        }
+        assert configurations.isEmpty() == false;
 
         context.start(new CompositeConfiguration(configurations));
 

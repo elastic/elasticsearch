@@ -10,9 +10,10 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -33,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TSDBIndexingIT extends ESSingleNodeTestCase {
@@ -82,21 +84,59 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testTimeRanges() throws Exception {
-        Settings templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
-        var request = new PutComposableIndexTemplateAction.Request("id");
-        request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(templateSettings, new CompressedXContent(MAPPING_TEMPLATE), null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
-        );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        var mappingTemplate = """
+            {
+              "_doc":{
+                "properties": {
+                  "metricset": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            }""";
+        var templateSettings = Settings.builder().put("index.mode", "time_series");
+        if (randomBoolean()) {
+            templateSettings.put("index.routing_path", "metricset");
+        }
+
+        if (randomBoolean()) {
+            var request = new PutComposableIndexTemplateAction.Request("id");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        } else {
+            var putComponentTemplateRequest = new PutComponentTemplateAction.Request("1");
+            putComponentTemplateRequest.componentTemplate(
+                new ComponentTemplate(new Template(null, new CompressedXContent(mappingTemplate), null), null, null)
+            );
+            client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet();
+
+            var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+            putTemplateRequest.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(templateSettings.build(), null, null),
+                    List.of("1"),
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
+        }
 
         // index doc
         Instant time = Instant.now();
@@ -182,34 +222,60 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }""";
-        var request = new PutComposableIndexTemplateAction.Request("id");
-        request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(
-                    Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
-                    new CompressedXContent(mappingTemplate),
+        {
+            var request = new PutComposableIndexTemplateAction.Request("id");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(
+                        Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
+                        new CompressedXContent(mappingTemplate),
+                        null
+                    ),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
                     null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
-        );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
-        );
-        assertThat(
-            e.getCause().getCause().getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
-                    + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
-            )
-        );
+                )
+            );
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+            );
+            assertThat(
+                e.getCause().getCause().getMessage(),
+                equalTo(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                        + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
+                )
+            );
+        }
+        {
+            var request = new PutComposableIndexTemplateAction.Request("id");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(
+                        Settings.builder().put("index.mode", "time_series").build(),
+                        new CompressedXContent(mappingTemplate),
+                        null
+                    ),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            var e = expectThrows(
+                InvalidIndexTemplateException.class,
+                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        }
     }
 
     public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
@@ -266,54 +332,28 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }""";
-        {
-            var request = new PutComposableIndexTemplateAction.Request("id");
-            request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+        var request = new PutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("k8s*"),
+                new Template(
+                    Settings.builder().put("index.routing_path", "metricset").build(),
+                    new CompressedXContent(mappingTemplate),
                     null
-                )
-            );
-            var e = expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
-        }
-        {
-            var request = new PutComposableIndexTemplateAction.Request("id");
-            request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(
-                        Settings.builder().put("index.routing_path", "metricset").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
-            );
-            var e = expectThrows(
-                IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
-        }
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            )
+        );
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+        );
+        assertThat(e.getCause().getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
     }
 
     public void testSkippingShards() throws Exception {

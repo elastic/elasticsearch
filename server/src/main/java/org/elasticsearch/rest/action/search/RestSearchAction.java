@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -35,7 +36,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
@@ -207,6 +209,9 @@ public class RestSearchAction extends BaseRestHandler {
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
             );
         }
+        if (IndexSettings.isTimeSeriesModeEnabled() && request.paramAsBoolean("force_synthetic_source", false)) {
+            searchRequest.setForceSyntheticSource(true);
+        }
 
         extraParamParser.accept(request, searchRequest);
     }
@@ -313,19 +318,44 @@ public class RestSearchAction extends BaseRestHandler {
         if (sStats != null) {
             searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
         }
+        SuggestBuilder suggestBuilder = parseSuggestUrlParameters(request);
+        if (suggestBuilder != null) {
+            searchSourceBuilder.suggest(suggestBuilder);
+        }
+    }
 
+    private static final String[] suggestQueryStringParams = new String[] { "suggest_text", "suggest_size", "suggest_mode" };
+
+    /**
+     * package private for testing
+     */
+    static SuggestBuilder parseSuggestUrlParameters(RestRequest request) {
         String suggestField = request.param("suggest_field");
         if (suggestField != null) {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
-            searchSourceBuilder.suggest(
-                new SuggestBuilder().addSuggestion(
-                    suggestField,
-                    termSuggestion(suggestField).text(suggestText).size(suggestSize).suggestMode(SuggestMode.resolve(suggestMode))
-                )
+            return new SuggestBuilder().addSuggestion(
+                suggestField,
+                termSuggestion(suggestField).text(suggestText)
+                    .size(suggestSize)
+                    .suggestMode(TermSuggestionBuilder.SuggestMode.resolve(suggestMode))
             );
+        } else {
+            List<String> unconsumedParams = Arrays.stream(suggestQueryStringParams).filter(key -> request.param(key) != null).toList();
+            if (unconsumedParams.isEmpty() == false) {
+                // this would lead to a non-descriptive error from RestBaseHandler#unrecognized later, so throw a better IAE here
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains parameters %s but missing 'suggest_field' parameter.",
+                        request.path(),
+                        unconsumedParams.toString()
+                    )
+                );
+            }
         }
+        return null;
     }
 
     static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {

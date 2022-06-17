@@ -17,8 +17,8 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public record ShardAssignment(Set<String> nodeIds, int unassigned, int ignored) {
 
-    public boolean isIgnored() {
-        return ignored > 0 && nodeIds.isEmpty();
+    public boolean isIgnored(boolean primary) {
+        return nodeIds.isEmpty() && (primary ? unassigned == ignored : ignored > 0);
     }
 
     public static ShardAssignment of(List<ShardRouting> routings) {

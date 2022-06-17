@@ -253,6 +253,7 @@ import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.ScoreDocQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1172,6 +1173,14 @@ public class SearchModule {
                 parser -> {
                     throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
                 }
+            )
+        );
+
+        registerQuery(
+            new QuerySpec<>(
+                ScoreDocQueryBuilder.NAME,
+                ScoreDocQueryBuilder::new,
+                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
             )
         );
 

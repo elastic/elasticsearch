@@ -713,10 +713,13 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig)
                     .setKeepAliveStrategy((response, context) -> {
+                        var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
                         if (TimeValue.MINUS_ONE.equals(connectionTtl)) {
-                            return DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
-                        } else {
+                            return serverKeepAlive
+                        } else if (serverKeepAlive == -1) {
                             return connectionTtl.millis();
+                        } else {
+                            return Math.min(serverKeepAlive, connectionTtl.millis());
                         }
                     });
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {

@@ -5,11 +5,11 @@
  * 2.0.
  */
 module org.elasticsearch.ilm {
-    requires org.apache.lucene.core;
-    requires org.elasticsearch.server;
     requires org.elasticsearch.base;
-    requires org.elasticsearch.xcore;
+    requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.xcore;
+    requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
 
     exports org.elasticsearch.xpack.ilm.action to org.elasticsearch.server;

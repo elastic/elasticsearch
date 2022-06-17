@@ -40,8 +40,8 @@ The {transform} applies changes related to either new or changed entities or
 time buckets to the destination index. The set of changes can be paginated. The
 {transform} performs a composite aggregation similarly to the batch {transform} 
 operation, however it also injects query filters based on the previous step to 
-reduce the amount of work. After all changes have been applied, the checkpoint is 
-complete.
+reduce the amount of work. After all changes have been applied, the checkpoint 
+is complete.
 --
 
 This checkpoint process involves both search and indexing activity on the
@@ -53,6 +53,55 @@ support both the composite aggregation search and the indexing of its results.
 
 TIP: If the cluster experiences unsuitable performance degradation due to the
 {transform}, stop the {transform} and refer to <<transform-performance>>.
+
+
+[discrete]
+[[sync-field-ingest-timestamp]]
+== Using the ingest timestamp for syncing the {transform}
+
+
+
+In most cases, it is strongly recommended to use the ingest timestamp of the 
+source indices for syncing the {transform}. This is the most optimal way for 
+{transforms} to be able to identify new changes. If your data source follows the 
+{ecs-ref}/ecs-reference.html[ECS standard], you might already have an 
+{ecs-ref}/ecs-event.html#field-event-ingested[`event.ingested`] field. In this 
+case, use `event.ingested` as the `sync`.`time`.`field` property of your 
+{transform}.
+
+If you don't have a `event.ingested` field or it isn't populated, you can set it 
+by using an ingest pipeline. Create an ingest pipeline either using the 
+<<put-pipeline-api, ingest pipeline API>> (like the example below) or via {kib} 
+under **Stack Management > Ingest Pipelines**. Use a 
+<<set-processor,`set` processor>> to set the field and associate it with the 
+value of the ingest timestamp.
+
+[source,console]
+----------------------------------
+PUT _ingest/pipeline/set_ingest_time
+{
+  "description": "Set ingest timestamp.",
+  "processors": [
+    {
+      "set": {
+        "field": "event.ingested",
+        "value": "{{{_ingest.timestamp}}}"
+      }
+    }
+  ]
+}
+----------------------------------
+
+After you created the ingest pipeline, apply it to the source indices of your 
+{transform}. The pipeline adds the field `event.ingested` to every document with 
+the value of the ingest timestamp. Configure the `sync`.`time`.`field` property 
+of your {transform} to use the field by using the 
+<<put-transform,create {transform} API>> for new {transforms} or the 
+<<update-transform, update {transform} API>> for existing {transforms}. The 
+`event.ingested` field is used for syncing the {transform}. 
+
+Refer to <<add-pipeline-to-indexing-request>> and <<ingest>> to learn more about 
+how to use an ingest pipeline.
 
 
 [discrete]

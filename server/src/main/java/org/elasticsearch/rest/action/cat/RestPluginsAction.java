@@ -78,7 +78,6 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
-        table.addCell("type", "alias:t;default:false;desc:plugin type");
         table.endHeaders();
         return table;
     }

@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class BytesRestResponseTests extends ESTestCase {
+public class RestResponseTests extends ESTestCase {
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {
@@ -51,7 +51,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = randomBoolean() ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 
-        BytesRestResponse response = new BytesRestResponse(channel, new WithHeadersException());
+        RestResponse response = new RestResponse(channel, new WithHeadersException());
         assertEquals(2, response.getHeaders().size());
         assertThat(response.getHeaders().get("n1"), notNullValue());
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
@@ -64,7 +64,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = new SimpleExceptionRestChannel(request);
 
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-        BytesRestResponse response = new BytesRestResponse(channel, t);
+        RestResponse response = new RestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("ElasticsearchException[an error occurred reading data]"));
         assertThat(text, not(containsString("FileNotFoundException")));
@@ -77,7 +77,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = new DetailedExceptionRestChannel(request);
 
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-        BytesRestResponse response = new BytesRestResponse(channel, t);
+        RestResponse response = new RestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("""
             {"type":"exception","reason":"an error occurred reading data"}"""));
@@ -90,7 +90,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = new SimpleExceptionRestChannel(request);
 
         Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-        BytesRestResponse response = new BytesRestResponse(channel, t);
+        RestResponse response = new RestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, not(containsString("UnknownException[an error occurred reading data]")));
         assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
@@ -104,7 +104,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = new DetailedExceptionRestChannel(request);
 
         Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-        BytesRestResponse response = new BytesRestResponse(channel, t);
+        RestResponse response = new RestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("""
             "type":"unknown_exception","reason":"an error occurred reading data\""""));
@@ -118,14 +118,14 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         {
             Exception e = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
+            RestResponse response = new RestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("""
                 {"root_cause":[{"type":"exception","reason":"an error occurred reading data"}]"""));
         }
         {
             Exception e = new FileNotFoundException("/foo/bar");
-            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
+            RestResponse response = new RestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("""
                 {"root_cause":[{"type":"file_not_found_exception","reason":"/foo/bar"}]"""));
@@ -136,7 +136,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
 
-        BytesRestResponse response = new BytesRestResponse(channel, null);
+        RestResponse response = new RestResponse(channel, null);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("\"error\":\"unknown\""));
         assertThat(text, not(containsString("error_trace")));
@@ -158,7 +158,7 @@ public class BytesRestResponseTests extends ESTestCase {
             "all shards failed",
             new ShardSearchFailure[] { failure, failure1 }
         );
-        BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
+        RestResponse response = new RestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().utf8ToString();
         String expected = """
             {
@@ -195,7 +195,7 @@ public class BytesRestResponseTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again
-        final BytesRestResponse response = new BytesRestResponse(channel, e);
+        final RestResponse response = new RestResponse(channel, e);
         assertNotNull(response.content());
         final String content = response.content().utf8ToString();
         assertThat(content, containsString("\"type\":\"illegal_argument_exception\""));
@@ -206,7 +206,7 @@ public class BytesRestResponseTests extends ESTestCase {
     public void testResponseWhenInternalServerError() throws IOException {
         final RestRequest request = new FakeRestRequest();
         final RestChannel channel = new DetailedExceptionRestChannel(request);
-        final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException("simulated"));
+        final RestResponse response = new RestResponse(channel, new ElasticsearchException("simulated"));
         assertNotNull(response.content());
         final String content = response.content().utf8ToString();
         assertThat(content, containsString("\"type\":\"exception\""));
@@ -330,11 +330,11 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = detailed ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 
-        BytesRestResponse response = new BytesRestResponse(channel, original);
+        RestResponse response = new RestResponse(channel, original);
 
         ElasticsearchException parsedError;
         try (XContentParser parser = createParser(xContentType.xContent(), response.content())) {
-            parsedError = BytesRestResponse.errorFromXContent(parser);
+            parsedError = RestResponse.errorFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -350,7 +350,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 builder.endObject();
 
                 try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
-                    BytesRestResponse.errorFromXContent(parser);
+                    RestResponse.errorFromXContent(parser);
                 }
             }
         });

@@ -16,12 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -125,7 +125,7 @@ public class SecurityRestFilter implements RestHandler {
         logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
+            channel.sendResponse(new RestResponse(channel, restStatus, e) {
 
                 @Override
                 protected boolean skipStackTrace() {

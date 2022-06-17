@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -387,7 +386,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                             + opaqueId
                             + "\\]\\["
                             + (badRequest ? "BAD_REQUEST" : "OK")
-                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"
+                            + "\\]\\["
+                            + RestResponse.TEXT_CONTENT_TYPE
+                            + "\\]\\[0\\] sent response to \\[.*"
                     )
                 );
 
@@ -687,22 +688,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private static RestResponse emptyResponse(RestStatus status) {
-        return new RestResponse() {
-            @Override
-            public String contentType() {
-                return null;
-            }
-
-            @Override
-            public BytesReference content() {
-                return BytesArray.EMPTY;
-            }
-
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-        };
+        return new RestResponse(status, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
     }
 
     private TransportAddress address(String host, int port) throws UnknownHostException {

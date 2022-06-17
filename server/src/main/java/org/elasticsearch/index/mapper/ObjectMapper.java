@@ -121,24 +121,24 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
-                String parentName = name.substring(0, firstDotIndex);
-                String fullParentName = prefix == null ? parentName : prefix + "." + parentName;
-                ObjectMapper.Builder parentBuilder = findParentBuilder(fullParentName, context);
-                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), fullParentName, mapper, context);
+                String firstImmediateChild = name.substring(0, firstDotIndex);
+                String firstImmediateChildFullName = prefix == null ? firstImmediateChild : prefix + "." + firstImmediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(firstImmediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), firstImmediateChildFullName, mapper, context);
                 add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findParentBuilder(String fullName, DocumentParserContext context) {
+        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
             // does the parent mapper already exist? if so, use that
-            ObjectMapper parent = context.mappingLookup().objectMappers().get(fullName);
-            if (parent != null) {
-                return parent.newBuilder(context.indexSettings().getIndexVersionCreated());
+            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // has the parent mapper been added as a dynamic update already?
-            parent = context.getDynamicObjectMapper(fullName);
-            if (parent != null) {
-                return parent.newBuilder(context.indexSettings().getIndexVersionCreated());
+            objectMapper = context.getDynamicObjectMapper(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             throw new IllegalStateException("Missing intermediate object " + fullName);
         }

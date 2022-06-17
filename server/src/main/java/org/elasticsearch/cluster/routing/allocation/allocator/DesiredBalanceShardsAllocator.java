@@ -94,6 +94,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 if (isFresh) {
                     if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
+                        logger.trace("Current desired balance is different from applied one, scheduling a reroute");
                         rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                     } else {
                         var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
@@ -141,6 +142,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // Otherwise we will have to do a second cluster state update straight away.
 
         appliedDesiredBalance = currentDesiredBalance;
+        logger.info("Allocating using balance [{}]", appliedDesiredBalance);
         new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
 
         queue.complete(appliedDesiredBalance.lastConvergedIndex());

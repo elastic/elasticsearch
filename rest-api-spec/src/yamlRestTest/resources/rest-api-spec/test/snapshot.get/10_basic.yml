@@ -124,7 +124,7 @@ setup:
   - is_true: snapshots
   - match: { snapshots.0.snapshot: test_snapshot_with_include_global_state }
   - match: { snapshots.0.state: SUCCESS }
-  - match: { snapshots.0.include_global_state: true }
+  - match: { snapshots.0.include_global_state: false }
 
   - do:
       snapshot.delete:

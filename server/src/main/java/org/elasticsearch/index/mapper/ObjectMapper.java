@@ -130,12 +130,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
-            // does the parent mapper already exist? if so, use that
+            // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
             if (objectMapper != null) {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            // has the parent mapper been added as a dynamic update already?
+            // has the object mapper been added as a dynamic update already?
             objectMapper = context.getDynamicObjectMapper(fullName);
             if (objectMapper != null) {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());

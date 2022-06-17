@@ -273,20 +273,6 @@ public class LogConfigurator {
         return appender;
     }
 
-    /**
-     * Temporarily removes the appender for the console, so that log messages go only to the log file.
-     * @param clazz a class to get a logger for
-     * @param callback The code to log while the appender is removed
-     */
-    public static void logWithoutConsole(Class<?> clazz, Consumer<Logger> callback) {
-        Appender appender = removeConsoleAppender();
-        Logger logger = LogManager.getLogger(clazz);
-        callback.accept(logger);
-        if (appender != null) {
-            Loggers.addAppender(LogManager.getRootLogger(), appender);
-        }
-    }
-
     private static void configureStatusLogger() {
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
         builder.setStatusLevel(Level.ERROR);

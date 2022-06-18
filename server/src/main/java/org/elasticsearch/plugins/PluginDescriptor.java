@@ -143,7 +143,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             if (out.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-                out.writeString("isolated");
+                out.writeString("ISOLATED");
                 out.writeOptionalString(null);
             }
             out.writeBoolean(isLicensed);

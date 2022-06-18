@@ -79,8 +79,12 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     }
 
     public TrainedModelAssignmentMetadata(Map<String, TrainedModelAssignment> modelRoutingEntries) {
+        this(modelRoutingEntries, NAME);
+    }
+
+    private TrainedModelAssignmentMetadata(Map<String, TrainedModelAssignment> modelRoutingEntries, String writeableName) {
         this.modelRoutingEntries = ExceptionsHelper.requireNonNull(modelRoutingEntries, NAME);
-        this.writeableName = NAME;
+        this.writeableName = writeableName;
     }
 
     private TrainedModelAssignmentMetadata(StreamInput in, String writeableName) throws IOException {
@@ -195,9 +199,17 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
 
         public TrainedModelAssignmentMetadata build() {
+            return build(NAME);
+        }
+
+        public TrainedModelAssignmentMetadata buildOld() {
+            return build(DEPRECATED_NAME);
+        }
+
+        private TrainedModelAssignmentMetadata build(String writeableName) {
             Map<String, TrainedModelAssignment> assignments = new LinkedHashMap<>();
             modelRoutingEntries.forEach((modelId, assignment) -> assignments.put(modelId, assignment.build()));
-            return new TrainedModelAssignmentMetadata(assignments);
+            return new TrainedModelAssignmentMetadata(assignments, writeableName);
         }
     }
 

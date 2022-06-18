@@ -15,4 +15,4 @@
                     component   .+   \n
                     version     .+   \n
                     description .+   \n
-               $/
+               .*$/

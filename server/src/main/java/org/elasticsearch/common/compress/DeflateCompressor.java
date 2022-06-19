@@ -58,11 +58,6 @@ public class DeflateCompressor implements Compressor {
         return true;
     }
 
-    @Override
-    public int headerLength() {
-        return HEADER.length;
-    }
-
     // Reusable inflater reference for streaming decompression
     private static final ThreadLocal<ReleasableReference<Inflater>> inflaterForStreamRef = ThreadLocal.withInitial(() -> {
         final Inflater inflater = new Inflater(true);

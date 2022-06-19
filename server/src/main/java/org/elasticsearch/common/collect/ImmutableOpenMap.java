@@ -465,15 +465,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             }
         }
 
-        /**
-         * Remove that can be used in the fluent pattern.
-         */
-        public Builder<KType, VType> fRemove(KType key) {
-            maybeCloneMap();
-            mutableMap.remove(key);
-            return this;
-        }
-
         public VType remove(KType key) {
             maybeCloneMap();
             return mutableMap.remove(key);
@@ -509,11 +500,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return new KeySet<>(mutableMap.keys());
         }
 
-        @SuppressWarnings("unchecked")
-        public <K, V> Builder<K, V> cast() {
-            return (Builder) this;
-        }
-
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
             maybeCloneMap();
             return mutableMap.removeAll(predicate::test);
@@ -522,11 +508,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         public int indexOf(KType key) {
             maybeCloneMap();
             return mutableMap.indexOf(key);
-        }
-
-        public boolean indexExists(int index) {
-            maybeCloneMap();
-            return mutableMap.indexExists(index);
         }
 
         public void release() {

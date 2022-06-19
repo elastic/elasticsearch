@@ -6,20 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.blobstore;
+package org.elasticsearch.common.blobstore.support;
 
 /**
- * An interface for providing basic metadata about a blob.
+ * Blob name and size.
+ *
+ * @param name name of the blob
+ * @param length byte size of the blob
  */
-public interface BlobMetadata {
-
-    /**
-     * Gets the name of the blob.
-     */
-    String name();
-
-    /**
-     * Gets the size of the blob in bytes.
-     */
-    long length();
-}
+public record BlobMetadata(String name, long length) {}

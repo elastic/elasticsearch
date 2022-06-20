@@ -54,10 +54,6 @@ public class ByteArrayStreamInput extends StreamInput {
         limit = offset + len;
     }
 
-    public int length() {
-        return limit;
-    }
-
     public void skipBytes(long count) {
         pos += count;
     }

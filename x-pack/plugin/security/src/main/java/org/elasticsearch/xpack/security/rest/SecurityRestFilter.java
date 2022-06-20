@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -173,7 +172,7 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
+    private RestRequest maybeWrapRestRequest(RestRequest restRequest) {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);
         }

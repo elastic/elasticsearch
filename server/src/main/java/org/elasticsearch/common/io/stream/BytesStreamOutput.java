@@ -108,7 +108,6 @@ public class BytesStreamOutput extends BytesStream {
         // nothing to do
     }
 
-    @Override
     public void seek(long position) {
         ensureCapacity(position);
         count = (int) position;
@@ -170,14 +169,6 @@ public class BytesStreamOutput extends BytesStream {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-    }
-
-    /**
-     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
-     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
-     */
-    public long ramBytesUsed() {
-        return bytes.ramBytesUsed();
     }
 
     protected void ensureCapacity(long offset) {

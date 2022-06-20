@@ -23,7 +23,6 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 
 import java.io.PrintWriter;
@@ -33,7 +32,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -214,7 +212,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             masterChanges,
             localMasterHistory.getMaxHistoryAge()
         );
-        HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory, null);
         List<UserAction> userActions = getContactSupportUserActions(explain);
         return createIndicator(
             stableMasterStatus,
@@ -227,16 +225,23 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     /**
      * This returns HealthIndicatorDetails.EMPTY if explain is false, otherwise a HealthIndicatorDetails object containing only a
-     * "current_master" object and a "recent_masters" array. The "current_master" object will have "node_id" and "name" fields for the
-     * master node. Both will be null if the last-seen master was null. The "recent_masters" array will contain "recent_master" objects.
-     * Each "recent_master" object will have "node_id" and "name" fields for the master node. These fields will never be null because
-     * null masters are not written to this array.
+     * a "current_master" object and a "recent_masters" array, and optionally a "cluster_coordination" field. The "current_master" object
+     * will be will have "node_id" and "name" fields for the master node. Both will be null if the last-seen master was null. The
+     * "recent_masters" array will contain "recent_master" objects. Each "recent_master" object will have "node_id" and "name" fields for
+     * the master node. These fields will never be null because null masters are not written to this array. The "cluster_coordination"
+     * string will be the clusterCoordinationMessage passed in, and will not be present if clusterCoordinationMessage is null.
      * @param explain If true, the HealthIndicatorDetails will contain "current_master" and "recent_masters". Otherwise it will be empty.
      * @param localMasterHistory The MasterHistory object to pull current and recent master info from
+     * @param clusterCoordinationMessage The cluster coordination message to put in the returned details if there was a cluster
+     *                                   coordination problem
      * @return An empty HealthIndicatorDetails if explain is false, otherwise a HealthIndicatorDetails containing only "current_master"
      * and "recent_masters"
      */
-    private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory) {
+    private HealthIndicatorDetails getDetails(
+        boolean explain,
+        MasterHistory localMasterHistory,
+        @Nullable String clusterCoordinationMessage
+    ) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -263,32 +268,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     }
                 }
             });
+            if (clusterCoordinationMessage != null) {
+                builder.field("cluster_coordination", clusterCoordinationMessage);
+            }
             return builder.endObject();
         };
-    }
-
-    /**
-     * This returns HealthIndicatorDetails.EMPTY if explain is false, otherwise a HealthIndicatorDetails object containing only a
-     * "recent_masters" array and a "cluster_coordination" string. The "recent_masters" array will contain "recent_master" objects.
-     * Each "recent_master" object will have "node_id" and "name" fields for the master node. These fields will never be null because
-     * null masters are not written to this array. The "cluster_coordination" string will be the clusterCoordinationMessage passed in.
-     * @param explain If true, the HealthIndicatorDetails will contain "recent_masters" and "cluster_coordination". Otherwise it will be
-     *                empty.
-     * @param localMasterHistory The MasterHistory object to pull recent master info from
-     * @param clusterCoordinationMessage The cluster coordination message to put in the returned details
-     * @return An empty HealthIndicatorDetails if explain is false, otherwise a HealthIndicatorDetails containing only "recent_masters"
-     * and "cluster_coordination".
-     */
-    private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory, String clusterCoordinationMessage) {
-        if (explain == false) {
-            return HealthIndicatorDetails.EMPTY;
-        }
-        List<DiscoveryNode> recentNonNullMasters = localMasterHistory.getNodes().stream().filter(Objects::nonNull).toList();
-        List<Map<String, String>> recentMastersMaps = recentNonNullMasters.stream()
-            .map(recentMaster -> Map.of("node_id", recentMaster.getId(), "name", recentMaster.getName()))
-            .toList();
-        Map<String, Object> details = Map.of(DETAILS_RECENT_MASTERS, recentMastersMaps, "cluster_coordination", clusterCoordinationMessage);
-        return new SimpleHealthIndicatorDetails(details);
     }
 
     /**
@@ -429,7 +413,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = List.of();
         logger.trace("The cluster has a stable master node");
-        HealthIndicatorDetails details = getDetails(explain, localMasterHistory);
+        HealthIndicatorDetails details = getDetails(explain, localMasterHistory, null);
         return createIndicator(HealthStatus.GREEN, summary, details, impacts, userActions);
     }
 
@@ -444,10 +428,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         final HealthIndicatorResult result;
         boolean leaderHasBeenElected = coordinator.getPeerFinder().getLeader().isPresent();
         if (masterEligibleNodes.isEmpty() && leaderHasBeenElected == false) {
-            result = calculateOnNoMasterEligibleNodes(localMasterHistory, explain);
+            result = getIndicatorResultOnNoMasterEligibleNodes(localMasterHistory, explain);
         } else if (leaderHasBeenElected) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
-            result = calculateOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
+            result = getIndicatorResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else {
             // NOTE: The logic in this block will be implemented in a future PR
             result = createIndicator(
@@ -469,7 +453,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If true, details are returned
      * @return A HealthIndicatorResult with a RED status
      */
-    private HealthIndicatorResult calculateOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
+    private HealthIndicatorResult getIndicatorResultOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
         String summary = "No master eligible nodes found in the cluster";
         HealthIndicatorDetails details = getDetails(explain, localMasterHistory, coordinator.getClusterFormationState().getDescription());
         return createIndicator(HealthStatus.RED, summary, details, UNSTABLE_MASTER_IMPACTS, getContactSupportUserActions(explain));
@@ -485,7 +469,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If true, details are returned
      * @return A HealthIndicatorResult with a RED status
      */
-    private HealthIndicatorResult calculateOnCannotJoinLeader(
+    private HealthIndicatorResult getIndicatorResultOnCannotJoinLeader(
         MasterHistory localMasterHistory,
         DiscoveryNode currentMaster,
         boolean explain

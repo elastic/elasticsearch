@@ -1,0 +1,6 @@
+pr: 87841
+summary: Remove Blocks when disk threshold monitoring is disabled
+area: Allocation
+type: bug
+issues:
+ - 86383

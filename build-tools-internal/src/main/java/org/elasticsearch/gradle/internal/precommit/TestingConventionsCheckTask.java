@@ -11,7 +11,9 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.EmptyFileVisitor;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.FileVisitDetails;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
@@ -29,16 +31,10 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
-import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -105,13 +101,13 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            var testClassCandidates = getParameters().getClassDirectories()
-                .getFiles()
-                .stream()
-                .filter(File::exists)
-                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
-                .collect(Collectors.toList());
-            checkTestClasses(testClassCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffixes().get());
+            ClassLoadingFileVisitor fileVisitor = new ClassLoadingFileVisitor();
+            getParameters().getClassDirectories().getAsFileTree().visit(fileVisitor);
+            checkTestClasses(
+                fileVisitor.getTestClassCandidates(),
+                getParameters().getBaseClassesNames().get(),
+                getParameters().getSuffixes().get()
+            );
         }
 
         private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, List<String> suffixes) {
@@ -192,7 +188,6 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                         return true;
                     }
                 }
-
                 return false;
             } catch (NoClassDefFoundError e) {
                 // Include the message to get more info to get more a more useful message when running Gradle without -s
@@ -212,52 +207,6 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .anyMatch(presentAnnotation -> annotation.isAssignableFrom(presentAnnotation.getClass()));
         }
 
-        private List<String> walkPathAndLoadClasses(File testRoot) {
-            var classes = new ArrayList<String>();
-            try {
-                Files.walkFileTree(testRoot.toPath(), new FileVisitor<Path>() {
-                    private String packageName;
-
-                    @Override
-                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                        // First we visit the root directory
-                        if (packageName == null) {
-                            // And it package is empty string regardless of the directory name
-                            packageName = "";
-                        } else {
-                            packageName += dir.getFileName() + ".";
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                        // Go up one package by jumping back to the second to last '.'
-                        packageName = packageName.substring(0, 1 + packageName.lastIndexOf('.', packageName.length() - 2));
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        String filename = file.getFileName().toString();
-                        if (filename.endsWith(".class")) {
-                            String className = filename.substring(0, filename.length() - ".class".length());
-                            classes.add(packageName + className);
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                        throw new IOException("Failed to visit " + file, exc);
-                    }
-                });
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-            return classes;
-        }
-
         private static Class<?> loadClassWithoutInitializing(String name, ClassLoader classLoader) {
             try {
                 return Class.forName(
@@ -269,6 +218,28 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Failed to load class " + name + ". Incorrect classpath?", e);
             }
+        }
+    }
+
+    private static final class ClassLoadingFileVisitor extends EmptyFileVisitor {
+        private List<String> fullQualifiedClassNames = new ArrayList<>();
+
+        @Override
+        public void visitFile(FileVisitDetails fileVisitDetails) {
+            String fileName = fileVisitDetails.getName();
+            if (fileName.endsWith(".class")) {
+                String[] segments = fileVisitDetails.getRelativePath().getSegments();
+                String fullqualifiedClassName = Arrays.stream(segments)
+                    .takeWhile(s -> s.equals(fileName) == false)
+                    .collect(Collectors.joining("."))
+                    + "."
+                    + fileName.replace(".class", "");
+                fullQualifiedClassNames.add(fullqualifiedClassName);
+            }
+        }
+
+        public List<String> getTestClassCandidates() {
+            return fullQualifiedClassNames;
         }
     }
 

@@ -20,9 +20,7 @@ import spock.lang.Unroll
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
-//    def addTestMethodClosure = {->
-//
-//    }
+
     @ClassRule
     @Shared
     public TemporaryFolder repoFolder = new TemporaryFolder()

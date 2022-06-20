@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -145,7 +146,7 @@ abstract class MetricFieldProducer {
      * Metric implementation that computes the sum of all values of a field
      */
     static class Sum extends Metric {
-        private double sum = 0;
+        private final CompensatedSum kahanSummation = new CompensatedSum();
 
         Sum() {
             super("sum");
@@ -153,18 +154,17 @@ abstract class MetricFieldProducer {
 
         @Override
         void collect(double value) {
-            // TODO: switch to Kahan summation ?
-            this.sum += value;
+            kahanSummation.add(value);
         }
 
         @Override
         Number get() {
-            return sum;
+            return kahanSummation.value();
         }
 
         @Override
         void reset() {
-            sum = 0;
+            kahanSummation.reset(0, 0);
         }
     }
 

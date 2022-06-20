@@ -105,27 +105,27 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            var testClassesCandidates = getParameters().getClassDirectories()
+            var testClassCandidates = getParameters().getClassDirectories()
                 .getFiles()
                 .stream()
                 .filter(File::exists)
                 .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
                 .collect(Collectors.toList());
-            checkTestClasses(testClassesCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffixes().get());
+            checkTestClasses(testClassCandidates, getParameters().getBaseClassesNames().get(), getParameters().getSuffixes().get());
         }
 
         private void checkTestClasses(List<String> testClassesCandidates, List<String> baseClassNames, List<String> suffixes) {
-            var testClassesCandidate = testClassesCandidates.stream()
+            var testClassCandidates = testClassesCandidates.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .collect(Collectors.toCollection(ArrayList::new));
             var baseClasses = baseClassNames.stream()
                 .map(className -> loadClassWithoutInitializing(className, getClass().getClassLoader()))
                 .toList();
-            testClassesCandidate.removeAll(baseClasses);
-            var matchingBaseClass = getBaseClassMatching(testClassesCandidate, baseClasses);
+            testClassCandidates.removeAll(baseClasses);
+            var matchingBaseClass = getBaseClassMatching(testClassCandidates, baseClasses);
             assertMatchesSuffix(suffixes, matchingBaseClass);
-            testClassesCandidate.removeAll(matchingBaseClass);
-            assertNoMissmatchingTest(testClassesCandidate);
+            testClassCandidates.removeAll(matchingBaseClass);
+            assertNoMissmatchingTest(testClassCandidates);
         }
 
         private void assertNoMissmatchingTest(List<? extends Class<?>> testClassesCandidate) {
@@ -156,9 +156,9 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             }
         }
 
-        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassesCandidate, List<? extends Class<?>> baseClasses) {
+        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassCandidates, List<? extends Class<?>> baseClasses) {
             Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
-            return testClassesCandidate.stream()
+            return testClassCandidates.stream()
                 .filter(testClassDefaultPredicate)
                 .filter(extendsBaseClass)
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)

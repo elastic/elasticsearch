@@ -37,7 +37,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
 
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(SourceSet.TEST_SOURCE_SET_NAME);
-            setupTaskPerSourceSet(project, sourceSet, t -> {
+            setupTaskForSourceSet(project, sourceSet, t -> {
                 t.getSuffixes().convention(List.of("Tests"));
                 t.getBaseClasses().convention(List.of("org.apache.lucene.tests.util.LuceneTestCase"));
             });
@@ -45,7 +45,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
 
         project.getPlugins().withType(InternalYamlRestTestPlugin.class, yamlRestTestPlugin -> {
             NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
-            setupTaskPerSourceSet(project, sourceSet, t -> {
+            setupTaskForSourceSet(project, sourceSet, t -> {
                 t.getSuffixes().convention(List.of("IT"));
                 t.getBaseClasses().convention(List.of("org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase"));
             });
@@ -53,7 +53,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
 
         project.getPlugins().withType(InternalClusterTestPlugin.class, internalClusterTestPlugin -> {
             NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(InternalClusterTestPlugin.SOURCE_SET_NAME);
-            setupTaskPerSourceSet(project, sourceSet, t -> {
+            setupTaskForSourceSet(project, sourceSet, t -> {
                 // Unfortunately we see both in our build, so we by default support both for now.
                 t.getSuffixes().convention(List.of("IT", "Tests"));
                 t.getBaseClasses()
@@ -70,7 +70,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
 
         project.getPlugins().withType(InternalJavaRestTestPlugin.class, javaRestTestPlugin -> {
             NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(InternalJavaRestTestPlugin.SOURCE_SET_NAME);
-            setupTaskPerSourceSet(project, sourceSet, t -> {
+            setupTaskForSourceSet(project, sourceSet, t -> {
                 t.getSuffixes().convention(List.of("IT"));
                 t.getBaseClasses()
                     .convention(List.of("org.elasticsearch.test.ESIntegTestCase", "org.elasticsearch.test.rest.ESRestTestCase"));
@@ -84,7 +84,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
         });
     }
 
-    private void setupTaskPerSourceSet(
+    private void setupTaskForSourceSet(
         Project project,
         NamedDomainObjectProvider<SourceSet> sourceSetProvider,
         Action<TestingConventionsCheckTask> config

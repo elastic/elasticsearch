@@ -87,7 +87,7 @@ import static org.hamcrest.Matchers.oneOf;
 public class DesiredBalanceReconcilerTests extends ESTestCase {
 
     public void testNoChangesOnEmptyDesiredBalance() {
-        final var clusterState = DesiredBalanceServiceTests.getInitialClusterState();
+        final var clusterState = DesiredBalanceComputerTests.createInitialClusterState();
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
             clusterState.mutableRoutingNodes(),
@@ -102,7 +102,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     }
 
     public void testFailsNewPrimariesIfNoDataNodes() {
-        final var clusterState = ClusterState.builder(DesiredBalanceServiceTests.getInitialClusterState())
+        final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState())
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -174,7 +174,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                 randomBoolean()
                     ? Map.of()
                     : Map.of(
-                        new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
+                        new ShardId(clusterState.metadata().index(DesiredBalanceComputerTests.TEST_INDEX).getIndex(), 0),
                         new ShardAssignment(Set.of("node-0"), 0, 0)
                     )
             )

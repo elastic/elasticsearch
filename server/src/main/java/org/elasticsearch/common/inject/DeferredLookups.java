@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.ProviderLookup;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,13 +42,6 @@ class DeferredLookups implements Lookups {
     public void initialize(Errors errors) {
         injector.lookups = injector;
         new LookupProcessor(errors).process(injector, lookups);
-    }
-
-    @Override
-    public <T> Provider<T> getProvider(Key<T> key) {
-        ProviderLookup<T> lookup = new ProviderLookup<>(key, key);
-        lookups.add(lookup);
-        return lookup.getProvider();
     }
 
 }

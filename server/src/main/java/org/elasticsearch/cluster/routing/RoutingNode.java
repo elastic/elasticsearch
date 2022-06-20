@@ -213,27 +213,32 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Determine the shards with a specific state
-     * @param states set of states which should be listed
+     * @param state state which should be listed
      * @return List of shards
      */
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
-        if (states.length == 1) {
-            if (states[0] == ShardRoutingState.INITIALIZING) {
-                return new ArrayList<>(initializingShards);
-            } else if (states[0] == ShardRoutingState.RELOCATING) {
-                return new ArrayList<>(relocatingShards);
-            }
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
+        if (state == ShardRoutingState.INITIALIZING) {
+            return new ArrayList<>(initializingShards);
+        } else if (state == ShardRoutingState.RELOCATING) {
+            return new ArrayList<>(relocatingShards);
         }
-
         List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
+            if (shardEntry.state() == state) {
+                shards.add(shardEntry);
             }
         }
         return shards;
+    }
+
+    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
+
+    public ShardRouting[] initializing() {
+        return initializingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    }
+
+    public ShardRouting[] relocating() {
+        return relocatingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
     }
 
     /**

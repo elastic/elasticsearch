@@ -28,6 +28,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -44,6 +45,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ServerCliTests extends CommandTestCase {
+
+    @Before
+    public void setupMockConfig() throws IOException {
+        Files.createFile(configDir.resolve("log4j2.properties"));
+    }
 
     @Override
     protected void assertUsage(Matcher<String> matcher, String... args) throws Exception {
@@ -84,6 +90,13 @@ public class ServerCliTests extends CommandTestCase {
         assertOkWithOutput(versionOutput, emptyString(), "-V");
         terminal.reset();
         assertOkWithOutput(versionOutput, emptyString(), "--version");
+    }
+
+    public void testMissingLoggingConfig() throws Exception {
+        Files.delete(configDir.resolve("log4j2.properties"));
+        int status = executeMain();
+        assertThat(status, equalTo(ExitCodes.CONFIG));
+        assertThat(terminal.getErrorOutput(), containsString("Missing logging config file"));
     }
 
     public void testPositionalArgs() throws Exception {

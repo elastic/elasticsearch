@@ -120,8 +120,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
-            .node(maxShardSize, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .node(maxShardSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,
@@ -175,7 +175,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .stream()
             .filter(single -> single.type() == Decision.Type.NO)
             .filter(predicate)
-            .collect(Collectors.toList());
+            .toList();
 
         if (nos.size() == 1) {
             return Optional.ofNullable(nos.get(0).label());
@@ -431,8 +431,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
-            ClusterInfo clusterInfo = this.info;
-            DiskUsage diskUsage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
+            DiskUsage diskUsage = this.info.getNodeMostAvailableDiskUsages().get(nodeId);
             if (diskUsage == null) {
                 // do not want to scale up then, since this should only happen when node has just joined (clearly edge case).
                 return 0;
@@ -455,7 +454,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {
-            return nodeIds.stream().map(n -> routingNodes.node(n));
+            return nodeIds.stream().map(routingNodes::node);
         }
 
         private static class SingleForecast {
@@ -501,7 +500,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .map(IndexAbstraction.DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .toList();
             if (singleForecasts.isEmpty()) {
                 return this;
             }
@@ -659,11 +658,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             @Override
             public long getShardSize(ShardRouting shardRouting, long defaultValue) {
                 Long shardSize = super.getShardSize(shardRouting);
-                if (shardSize != null) {
-                    return shardSize;
-                } else {
-                    return delegate.getShardSize(shardRouting, defaultValue);
-                }
+                return Objects.requireNonNullElseGet(shardSize, () -> delegate.getShardSize(shardRouting, defaultValue));
             }
 
             @Override

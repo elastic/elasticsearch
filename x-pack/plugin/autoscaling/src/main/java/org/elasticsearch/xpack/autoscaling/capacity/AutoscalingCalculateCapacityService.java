@@ -23,12 +23,14 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryAndProcessorInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.MemoryAndProcessors;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -107,7 +109,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo,
+        AutoscalingMemoryAndProcessorInfo memoryInfo,
         Runnable ensureNotCancelled
     ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -134,7 +136,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo,
+        AutoscalingMemoryAndProcessorInfo memoryInfo,
         Runnable ensureNotCancelled
     ) {
         if (hasUnknownRoles(policy)) {
@@ -191,7 +193,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo,
+        AutoscalingMemoryAndProcessorInfo memoryInfo,
         Runnable ensureNotCancelled
     ) {
         return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled);
@@ -223,7 +225,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
         private final SnapshotShardSizeInfo snapshotShardSizeInfo;
-        private final AutoscalingMemoryInfo memoryInfo;
+        private final AutoscalingMemoryAndProcessorInfo memoryInfo;
         private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
@@ -234,7 +236,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             ClusterState state,
             ClusterInfo clusterInfo,
             SnapshotShardSizeInfo snapshotShardSizeInfo,
-            AutoscalingMemoryInfo memoryInfo,
+            AutoscalingMemoryAndProcessorInfo memoryInfo,
             Runnable ensureNotCancelled
         ) {
             this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
@@ -295,7 +297,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 }
             }
 
-            return memoryInfo.get(node) != null;
+            return memoryInfo.get(node).isPresent();
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {
@@ -319,10 +321,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 )
                 : 0L;
 
-            Long memory = memoryInfo.get(node);
+            Optional<MemoryAndProcessors> memoryAndProcessors = memoryInfo.get(node);
             return new AutoscalingCapacity.AutoscalingResources(
                 storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
-                memory == null ? ByteSizeValue.ZERO : new ByteSizeValue(memory)
+                memoryAndProcessors.map(MemoryAndProcessors::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
+                memoryAndProcessors.map(MemoryAndProcessors::processors).orElse(0)
             );
         }
 

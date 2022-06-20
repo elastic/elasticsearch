@@ -57,21 +57,25 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         boolean node = randomBoolean();
         boolean storage = randomBoolean();
         boolean memory = randomBoolean() || storage == false;
+        boolean processor = randomBoolean() || memory == false;
 
-        AutoscalingCapacity large = randomCapacity(node, storage, memory, 1000, 2000);
+        AutoscalingCapacity large = randomCapacity(node, storage, memory, processor, 1000, 2000);
 
         List<AutoscalingCapacity> autoscalingCapacities = new ArrayList<>();
         autoscalingCapacities.add(large);
-        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, 0, 1000)).forEach(autoscalingCapacities::add);
+        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 0, 1000)).forEach(autoscalingCapacities::add);
 
         Randomness.shuffle(autoscalingCapacities);
         verifyRequiredCapacity(large, autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
 
-        AutoscalingCapacity largerStorage = randomCapacity(node, true, false, 2000, 3000);
-        verifySingleMetricLarger(node, largerStorage, large, autoscalingCapacities, largerStorage);
+        AutoscalingCapacity largerStorage = randomCapacity(node, true, false, false, 2000, 3000);
+        verifySingleMetricLarger(node, largerStorage, large, large, autoscalingCapacities, largerStorage);
 
-        AutoscalingCapacity largerMemory = randomCapacity(node, false, true, 2000, 3000);
-        verifySingleMetricLarger(node, large, largerMemory, autoscalingCapacities, largerMemory);
+        AutoscalingCapacity largerMemory = randomCapacity(node, false, true, false, 2000, 3000);
+        verifySingleMetricLarger(node, large, largerMemory, large, autoscalingCapacities, largerMemory);
+
+        AutoscalingCapacity largerProcessor = randomCapacity(node, false, false, true, 2000, 3000);
+        verifySingleMetricLarger(node, large, large, largerProcessor, autoscalingCapacities, largerProcessor);
     }
 
     public void testToXContent() {
@@ -120,6 +124,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         boolean node,
         AutoscalingCapacity expectedStorage,
         AutoscalingCapacity expectedMemory,
+        AutoscalingCapacity expectedProcessor,
         List<AutoscalingCapacity> other,
         AutoscalingCapacity larger
     ) {
@@ -127,9 +132,13 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.total().storage(), expectedMemory.total().memory());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory(), expectedProcessor.total().getProcessors());
         if (node) {
-            expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
+            expectedBuilder.node(
+                expectedStorage.node().storage(),
+                expectedMemory.node().memory(),
+                expectedProcessor.node().getProcessors()
+            );
         }
         verifyRequiredCapacity(expectedBuilder.build(), autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
     }
@@ -152,11 +161,19 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         );
     }
 
-    private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, int lower, int upper) {
+    private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, boolean processor, int lower, int upper) {
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder();
-        builder.total(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
+        builder.total(
+            storage ? randomLongBetween(lower, upper) : null,
+            memory ? randomLongBetween(lower, upper) : null,
+            processor ? randomIntBetween(lower, upper) : null
+        );
         if (node) {
-            builder.node(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
+            builder.node(
+                storage ? randomLongBetween(lower, upper) : null,
+                memory ? randomLongBetween(lower, upper) : null,
+                processor ? randomIntBetween(lower, upper) : null
+            );
         }
         return builder.build();
     }

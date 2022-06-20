@@ -12,8 +12,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
-import java.io.IOException;
-
 public class AutoscalingCapacityWireSerializationTests extends AbstractWireSerializingTestCase<AutoscalingCapacity> {
     @Override
     protected Writeable.Reader<AutoscalingCapacity> instanceReader() {
@@ -26,27 +24,38 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
     }
 
     @Override
-    protected AutoscalingCapacity mutateInstance(AutoscalingCapacity instance) throws IOException {
+    protected AutoscalingCapacity mutateInstance(AutoscalingCapacity instance) {
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder().capacity(instance);
-
         if (randomBoolean()) {
             // mutate total
-            boolean hasBothStorageAndMemory = instance.total().memory() != null && instance.total().storage() != null;
+            boolean hasAllMetrics = instance.total().memory() != null
+                && instance.total().storage() != null
+                && instance.total().processors().isPresent();
             if (randomBoolean()) {
                 builder.total(
                     randomByteSize(
-                        hasBothStorageAndMemory && (instance.node() == null || instance.node().storage() == null),
+                        hasAllMetrics && (instance.node() == null || instance.node().storage() == null),
                         instance.total().storage()
                     ),
-                    instance.total().memory()
+                    instance.total().memory(),
+                    instance.total().getProcessors()
+                );
+            } else if (randomBoolean()) {
+                builder.total(
+                    instance.total().storage(),
+                    randomByteSize(
+                        hasAllMetrics && (instance.node() == null || instance.node().memory() == null),
+                        instance.total().memory()
+                    ),
+                    instance.total().getProcessors()
                 );
             } else {
                 builder.total(
                     instance.total().storage(),
-                    randomByteSize(
-                        hasBothStorageAndMemory && (instance.node() == null || instance.node().memory() == null),
-                        instance.total().memory()
-                    )
+                    instance.total().memory(),
+                    hasAllMetrics && (instance.node() == null || instance.node().processors().isEmpty()) && randomBoolean()
+                        ? null
+                        : randomIntBetween(1, 64) + instance.total().processors().orElse(0)
                 );
             }
         } else {
@@ -55,13 +64,50 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                 builder.node(
                     AutoscalingTestCase.randomNullValueAutoscalingResources(
                         instance.total().storage() != null,
-                        instance.total().memory() != null
+                        instance.total().memory() != null,
+                        instance.total().processors().isPresent()
                     )
                 );
-            } else if (randomBoolean() && instance.total().storage() != null || instance.total().memory() == null) {
-                builder.node(randomByteSize(instance.node().memory() != null, instance.node().storage()), instance.node().memory());
+            } else if (randomBoolean() && instance.total().storage() != null) {
+                builder.node(
+                    randomByteSize(instance.node().memory() != null || instance.node().processors().isPresent(), instance.node().storage()),
+                    instance.node().memory(),
+                    instance.node().getProcessors()
+                );
+            } else if (randomBoolean() && instance.total().memory() != null) {
+                builder.node(
+                    instance.node().storage(),
+                    randomByteSize(instance.node().storage() != null || instance.node().processors().isPresent(), instance.node().memory()),
+                    instance.node().getProcessors()
+                );
+            } else if (instance.total().processors().isPresent()) {
+                builder.node(
+                    instance.node().storage(),
+                    instance.node().memory(),
+                    randomBoolean()
+                        && (instance.node().storage() != null || instance.node().memory() != null)
+                        && instance.node().processors().isPresent()
+                            ? null
+                            : randomIntBetween(1, 64) + instance.node().processors().orElse(0)
+                );
             } else {
-                builder.node(instance.node().storage(), randomByteSize(instance.node().storage() != null, instance.node().memory()));
+                ByteSizeValue newStorage = instance.total().storage() != null
+                    ? randomByteSize(
+                        instance.node().memory() != null || instance.node().processors().isPresent(),
+                        instance.node().storage()
+                    )
+                    : null;
+                ByteSizeValue newMem = instance.total().memory() != null
+                    ? randomByteSize(newStorage != null || instance.node().processors().isPresent(), instance.node().memory())
+                    : null;
+                builder.node(
+                    newStorage,
+                    newMem,
+                    randomBoolean() && (newMem != null || newStorage != null) && instance.node().processors().isPresent() ? null
+                        : instance.total().processors().isPresent() && randomBoolean()
+                            ? randomIntBetween(1, 64) + instance.node().processors().orElse(0)
+                        : null
+                );
             }
         }
         return builder.build();

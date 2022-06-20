@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.autoscaling.capacity.memory;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-public interface AutoscalingMemoryInfo {
-    AutoscalingMemoryInfo EMPTY = n -> null;
+import java.util.Optional;
+
+public interface AutoscalingMemoryAndProcessorInfo {
+    AutoscalingMemoryAndProcessorInfo EMPTY = n -> Optional.empty();
 
     /**
-     * Get the memory use for the indicated node. Returns null if not available (new, fetching or failed).
+     * Get the memory and processor use for the indicated node. Returns null if not available (new, fetching or failed).
      * @param node the node to get info for
-     * @return info for node.
+     * @return memory and processor info for node if possible
      */
-    Long get(DiscoveryNode node);
+    Optional<MemoryAndProcessors> get(DiscoveryNode node);
 }

@@ -26,6 +26,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     public static final Setting<ByteSizeValue> STORAGE = Setting.byteSizeSetting("storage", ByteSizeValue.ofBytes(-1));
     public static final Setting<ByteSizeValue> MEMORY = Setting.byteSizeSetting("memory", ByteSizeValue.ofBytes(-1));
+    public static final Setting<Integer> PROCESSORS = Setting.intSetting("processors", 1, 0);
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
 
     @Inject
@@ -44,10 +45,11 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         AutoscalingCapacity requiredCapacity;
         ByteSizeValue storage = STORAGE.exists(configuration) ? STORAGE.get(configuration) : null;
         ByteSizeValue memory = MEMORY.exists(configuration) ? MEMORY.get(configuration) : null;
+        Integer processors = PROCESSORS.exists(configuration) ? PROCESSORS.get(configuration) : null;
         if (storage != null || memory != null) {
             requiredCapacity = AutoscalingCapacity.builder()
-                .total(totalCapacity(storage, nodes), totalCapacity(memory, nodes))
-                .node(storage, memory)
+                .total(totalCapacity(storage, nodes), totalCapacity(memory, nodes), totalCapacity(processors, nodes))
+                .node(storage, memory, processors)
                 .build();
         } else {
             requiredCapacity = null;
@@ -59,6 +61,14 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
             return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
+        } else {
+            return null;
+        }
+    }
+
+    private static Integer totalCapacity(Integer nodeCapacity, int nodes) {
+        if (nodeCapacity != null) {
+            return nodeCapacity * nodes;
         } else {
             return null;
         }

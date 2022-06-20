@@ -19,26 +19,15 @@ import java.util.concurrent.TimeUnit;
 
 public record JoinStatus(DiscoveryNode remoteNode, long term, String message, TimeValue age) implements Writeable {
     public JoinStatus(StreamInput in) throws IOException {
-        this(
-            in.readBoolean() ? new DiscoveryNode(in) : null,
-            in.readLong(),
-            in.readOptionalString(),
-            in.readBoolean() ? new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString())) : null
-        );
+        this(new DiscoveryNode(in), in.readLong(), in.readString(), new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString())));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(remoteNode != null);
-        if (remoteNode != null) {
-            remoteNode.writeTo(out);
-        }
+        remoteNode.writeTo(out);
         out.writeLong(term);
-        out.writeOptionalString(message);
-        out.writeBoolean(age != null);
-        if (age != null) {
-            out.writeLong(age.duration());
-            out.writeString(age.timeUnit().name());
-        }
+        out.writeString(message);
+        out.writeLong(age.duration());
+        out.writeString(age.timeUnit().name());
     }
 }

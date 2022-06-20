@@ -31,12 +31,6 @@ public class JoinStatusTests extends ESTestCase {
             history -> copyWriteable(joinStatus, writableRegistry(), JoinStatus::new),
             this::mutateJoinStatus
         );
-        JoinStatus joinStatusWithNulls = new JoinStatus(null, randomLongBetween(0, 1000), null, null);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            joinStatusWithNulls,
-            history -> copyWriteable(joinStatusWithNulls, writableRegistry(), JoinStatus::new),
-            this::mutateJoinStatus
-        );
     }
 
     private JoinStatus mutateJoinStatus(JoinStatus originalJoinStatus) {

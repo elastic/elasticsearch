@@ -21,7 +21,7 @@ import java.io.IOException;
 public record StatusInfo(Status status, String info) implements Writeable {
 
     public StatusInfo(StreamInput in) throws IOException {
-        this(readStatus(in), in.readOptionalString());
+        this(readStatus(in), in.readString());
     }
 
     public enum Status {
@@ -38,17 +38,14 @@ public record StatusInfo(Status status, String info) implements Writeable {
     }
 
     private static Status readStatus(StreamInput in) throws IOException {
-        String statusString = in.readOptionalString();
-        if (statusString == null) {
-            return null;
-        }
+        String statusString = in.readString();
         return Status.valueOf(statusString);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(status == null ? null : status.name());
-        out.writeOptionalString(info);
+        out.writeString(status == null ? null : status.name());
+        out.writeString(info);
     }
 
     @Override

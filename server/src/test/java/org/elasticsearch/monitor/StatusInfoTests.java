@@ -22,12 +22,6 @@ public class StatusInfoTests extends ESTestCase {
             history -> copyWriteable(statusInfo, writableRegistry(), StatusInfo::new),
             this::mutateStatusInfo
         );
-        StatusInfo statusInfoWithNulls = new StatusInfo(null, null);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            statusInfoWithNulls,
-            history -> copyWriteable(statusInfoWithNulls, writableRegistry(), StatusInfo::new),
-            this::mutateStatusInfo
-        );
     }
 
     private StatusInfo mutateStatusInfo(StatusInfo originalStatusInfo) {

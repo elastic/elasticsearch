@@ -6,20 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.blobstore;
+module org.elasticsearch.ingest.geoip {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
+    requires org.apache.logging.log4j;
+    requires org.apache.lucene.core;
+    requires geoip2;
+    requires maxmind.db;
 
-/**
- * An interface for providing basic metadata about a blob.
- */
-public interface BlobMetadata {
-
-    /**
-     * Gets the name of the blob.
-     */
-    String name();
-
-    /**
-     * Gets the size of the blob in bytes.
-     */
-    long length();
+    exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
 }

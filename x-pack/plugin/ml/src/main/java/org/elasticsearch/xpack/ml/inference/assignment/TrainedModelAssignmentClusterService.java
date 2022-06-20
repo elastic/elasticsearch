@@ -348,9 +348,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata updatedMetadata = modelAssignments.build();
         if (updatedMetadata.equals(previousMetadata)) {
-            return forceUpdate(currentState, modelAssignments);
-        } else {
             return currentState;
+        } else {
+            return forceUpdate(currentState, modelAssignments);
         }
     }
 

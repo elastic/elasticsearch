@@ -255,7 +255,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         updateStoredState(
             task.getModelId(),
             RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPING, reason)),
-            new RoutingStateAndReason(RoutingState.STOPPING, reason),
             ActionListener.wrap(success -> stopDeploymentAsync(task, reason, notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(

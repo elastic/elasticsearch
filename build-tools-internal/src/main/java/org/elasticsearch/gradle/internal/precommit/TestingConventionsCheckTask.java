@@ -232,7 +232,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 String packageName = Arrays.stream(fileVisitDetails.getRelativePath().getSegments())
                     .takeWhile(s -> s.equals(fileName) == false)
                     .collect(Collectors.joining("."));
-                String simpleClassName = fileName.replaceAll(CLASS_POSTFIX, "");
+                String simpleClassName = fileName.replace(CLASS_POSTFIX, "");
                 String fullQualifiedClassName = packageName + (packageName.isEmpty() ? "" : ".") + simpleClassName;
                 fullQualifiedClassNames.add(fullQualifiedClassName);
             }

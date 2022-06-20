@@ -86,7 +86,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<Mapper> dynamicMappers;
     private final Set<String> newFieldsSeen;
-    private final Map<String, ObjectMapper> dynamicObjectMappers;
+    private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
     private String id;
@@ -235,7 +235,7 @@ public abstract class DocumentParserContext {
             mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
         }
         if (mapper instanceof ObjectMapper objectMapper) {
-            dynamicObjectMappers.put(objectMapper.name(), objectMapper);
+            dynamicObjectMappers.put(objectMapper.name(), objectMapper.newBuilder(this.indexSettings.getIndexVersionCreated()));
             // dynamic object mappers may have been obtained from applying a dynamic template, in which case their definition may contain
             // sub-fields as well as sub-objects that need to be added to the mappings
             for (Mapper submapper : objectMapper.mappers.values()) {
@@ -265,13 +265,13 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Get a dynamic object mapper by name. Allows consumers to lookup objects that have been dynamically added as a result
+     * Get a dynamic object mapper builder by name. Allows consumers to lookup objects that have been dynamically added as a result
      * of parsing an incoming document. Used to find the parent object for new fields that are being dynamically mapped whose parent is
      * also not mapped yet. Such new fields will need to be dynamically added to their parent according to its dynamic behaviour.
-     * Holds a flat set of object mappers, meaning that an object field named <code>foo.bar</code> can be looked up directly with its
+     * Holds a flat set of object builders, meaning that an object field named <code>foo.bar</code> can be looked up directly with its
      * dotted name.
      */
-    final ObjectMapper getDynamicObjectMapper(String name) {
+    final ObjectMapper.Builder getDynamicObjectMapperBuilder(String name) {
         return dynamicObjectMappers.get(name);
     }
 

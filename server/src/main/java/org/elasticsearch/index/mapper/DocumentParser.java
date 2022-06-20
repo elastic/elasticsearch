@@ -700,13 +700,15 @@ public final class DocumentParser {
             parentMapper = context.mappingLookup().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
-                parentMapper = context.getDynamicObjectMapper(parentName);
-                if (parentMapper == null) {
+                ObjectMapper.Builder dynamicObjectMapperBuilder = context.getDynamicObjectMapperBuilder(parentName);
+                if (dynamicObjectMapperBuilder == null) {
                     // it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;
                 }
+                dynamic = dynamicObjectMapperBuilder.dynamic;
+            } else {
+                dynamic = parentMapper.dynamic();
             }
-            dynamic = parentMapper.dynamic();
         }
         if (dynamic == null) {
             return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();

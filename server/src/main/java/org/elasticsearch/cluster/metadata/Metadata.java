@@ -32,6 +32,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -359,6 +360,115 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             mappingsByHash,
             oldestIndexVersion
         );
+    }
+
+    public Metadata withAddedIndex(IndexMetadata index) {
+        final String indexName = index.getIndex().getName();
+        ensureNoNameCollision(indexName);
+        final Map<String, AliasMetadata> aliases = index.getAliases();
+        final ImmutableOpenMap<String, Set<Index>> updatedAliases;
+        if (aliases.isEmpty()) {
+            updatedAliases = aliasedIndices;
+        } else {
+            final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
+            for (String alias : aliases.keySet()) {
+                ensureNoNameCollision(alias);
+                final Set<Index> found = aliasesBuilder.get(alias);
+                final Set<Index> updated;
+                if (found == null) {
+                    updated = Set.of(index.getIndex());
+                } else {
+                    Sets
+                }
+            }
+        }
+
+        final String[] updatedAllIndices = ArrayUtils.concat(allIndices, indexName);
+
+        final String[] updatedVisibleIndices;
+        if (index.isHidden()) {
+            updatedVisibleIndices = visibleIndices;
+        } else {
+            updatedVisibleIndices = ArrayUtils.concat(visibleIndices, indexName);
+        }
+
+        final String[] updatedOpenIndices;
+        final String[] updatedClosedIndices;
+        final String[] updatedVisibleOpenIndices;
+        final String[] updatedVisibleClosedIndices;
+        if (index.getState() == IndexMetadata.State.OPEN) {
+            updatedOpenIndices = ArrayUtils.concat(allOpenIndices, indexName);
+            if (index.isHidden() == false) {
+                updatedVisibleOpenIndices = ArrayUtils.concat(visibleOpenIndices, indexName);
+            } else {
+                updatedVisibleOpenIndices = visibleOpenIndices;
+            }
+            updatedVisibleClosedIndices = visibleClosedIndices;
+            updatedClosedIndices = allClosedIndices;
+        } else if (index.getState() == IndexMetadata.State.CLOSE) {
+            updatedOpenIndices = allOpenIndices;
+            updatedClosedIndices = ArrayUtils.concat(allClosedIndices, indexName);
+            updatedVisibleOpenIndices = visibleOpenIndices;
+            if (index.isHidden() == false) {
+                updatedVisibleClosedIndices = ArrayUtils.concat(visibleClosedIndices, indexName);
+            } else {
+                updatedVisibleClosedIndices = visibleClosedIndices;
+            }
+        } else {
+            updatedOpenIndices = allOpenIndices;
+            updatedClosedIndices = allClosedIndices;
+            updatedVisibleOpenIndices = visibleOpenIndices;
+            updatedVisibleClosedIndices = visibleClosedIndices;
+        }
+
+        final MappingMetadata existingMapping = mappingsByHash.get(index.mapping().getSha256());
+        if (existingMapping != null) {
+            index = index.withMappingMetadata(existingMapping);
+        }
+
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(indexName, index);
+
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards + index.getTotalNumberOfShards(),
+            totalOpenIndexShards,
+            builder.build(),
+            updatedAliases,
+            templates,
+            customs,
+            updatedAllIndices,
+            updatedVisibleIndices,
+            updatedOpenIndices,
+            updatedVisibleOpenIndices,
+            updatedClosedIndices,
+            updatedVisibleClosedIndices,
+            null,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    private void ensureNoNameCollision(String indexName) {
+        if (indices.containsKey(indexName)) {
+            throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
+        }
+        if (dataStreams().containsKey(indexName)) {
+            throw new IllegalArgumentException("data stream with name [" + indexName + "] already exists");
+        }
+        if (dataStreamAliases().containsKey(indexName)) {
+            throw new IllegalArgumentException("data stream alias with name [" + indexName + "] already exists");
+        }
+        if (aliasedIndices.containsKey(indexName)) {
+            throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+        }
     }
 
     public long version() {

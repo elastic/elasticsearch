@@ -51,7 +51,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     // protected static final BiFunction<String, Object, Object> IDENTITY = (k, v) -> v;
 
     // map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value, otherwise return identity
-    private static final Map<String, BiFunction<String, Object, Object>> VALIDATORS = Map.of(
+    static final Map<String, BiFunction<String, Object, Object>> VALIDATORS = Map.of(
         IngestDocument.Metadata.INDEX.getFieldName(),
         IngestSourceAndMetadata::stringValidator,
         IngestDocument.Metadata.ID.getFieldName(),
@@ -69,32 +69,91 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
 
     protected final Map<String, Object> source;
     protected final Map<String, Object> metadata;
+    protected final Map<String, BiFunction<String, Object, Object>> validators;
     private EntrySet entrySet;
+
+    public IngestSourceAndMetadata(
+        String index,
+        String id,
+        long version,
+        String routing,
+        VersionType versionType,
+        ZonedDateTime timestamp,
+        Map<String, Object> source
+    ) {
+        this(new HashMap<>(source), metadataMap(index, id, version, routing, versionType), timestamp, VALIDATORS);
+    }
+
+    /**
+     * Creates an {@code IngestSourceAndMetadata} from the given source, metadata and timestamp
+     */
+    public IngestSourceAndMetadata(
+        Map<String, Object> source,
+        Map<String, Object> metadata,
+        ZonedDateTime timestamp
+    ) {
+        this(source, metadata, timestamp, VALIDATORS);
+    }
+
+    IngestSourceAndMetadata(
+        Map<String, Object> source,
+        Map<String, Object> metadata,
+        ZonedDateTime timestamp,
+        Map<String, BiFunction<String, Object, Object>> validators
+    ) {
+        this.source = source != null ? source : new HashMap<>();
+        this.metadata = metadata != null ? metadata : new HashMap<>();
+        this.timestamp = timestamp;
+        this.validators = validators;
+        validateMetadata();
+    }
 
     /**
      * Create a IngestSourceAndMetadata using the underlying map and set of validators.  The validators are applied to the map to ensure
      * the incoming map matches the invariants enforced by the validators.
-     * @param sourceAndMetadata the wrapped map.  Should not be externally modified after creation.
+     * @param sourceAndMetadata the wrapped map.  Should not be externally modified after creation.  This map is modified to remove
+     *                          metadata values and will become source
      * @param timestamp the timestamp of ingestion
      * @throws IllegalArgumentException if a validator fails for a given key
      */
-    public IngestSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
-        this.metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
-        for (String metadataName : VALIDATORS.keySet()) {
-            if (sourceAndMetadata.containsKey(metadataName)) {
-                this.metadata.put(metadataName, sourceAndMetadata.remove(metadataName));
-            }
-        }
-        this.source = sourceAndMetadata;
-        this.timestamp = timestamp;
-        validateMetadata();
+    public static IngestSourceAndMetadata fromMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
+        return new IngestSourceAndMetadata(extractMetadata(sourceAndMetadata), sourceAndMetadata, timestamp, VALIDATORS);
     }
 
-    public IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
-        this.source = source != null ? source : new HashMap<>();
-        this.metadata = metadata;
-        this.timestamp = timestamp;
-        validateMetadata();
+    /**
+     * Copy constructor
+     */
+    public static IngestSourceAndMetadata copy(IngestSourceAndMetadata ingestSourceAndMetadata) {
+        return new IngestSourceAndMetadata(
+            IngestDocument.deepCopyMap(ingestSourceAndMetadata.metadata),
+            IngestDocument.deepCopyMap(ingestSourceAndMetadata.source),
+            ingestSourceAndMetadata.timestamp,
+            ingestSourceAndMetadata.validators
+        );
+    }
+
+    protected static Map<String, Object> metadataMap(String index, String id, long version, String routing, VersionType versionType) {
+        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
+        metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), index);
+        metadata.put(IngestDocument.Metadata.ID.getFieldName(), id);
+        metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), version);
+        if (routing != null) {
+            metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), routing);
+        }
+        if (versionType != null) {
+            metadata.put(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+        }
+        return metadata;
+    }
+
+    public static Map<String, Object> extractMetadata(Map<String, Object> sourceAndMetadata) {
+        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
+        for (String metadataName : VALIDATORS.keySet()) {
+            if (sourceAndMetadata.containsKey(metadataName)) {
+                metadata.put(metadataName, sourceAndMetadata.remove(metadataName));
+            }
+        }
+        return metadata;
     }
 
     public Map<String, Object> getSource() {
@@ -172,15 +231,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     protected void validateMetadata() {
-        VALIDATORS.forEach((k, v) -> v.apply(k, metadata.get(k)));
-    }
-
-    protected static Object validate(String key, Object value) {
-        BiFunction<String, Object, Object> validator = VALIDATORS.get(key);
-        if (validator == null) {
-            return value;
-        }
-        return validator.apply(key, value);
+        validators.forEach((k, v) -> v.apply(k, metadata.get(k)));
     }
 
     /**
@@ -200,7 +251,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Object put(String key, Object value) {
-        BiFunction<String, Object, Object> validator = VALIDATORS.get(key);
+        BiFunction<String, Object, Object> validator = validators.get(key);
         if (validator != null) {
             return metadata.put(key, validator.apply(key, value));
         }
@@ -215,7 +266,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     public Object remove(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String strKey) {
-            BiFunction<String, Object, Object> validator = VALIDATORS.get(key);
+            BiFunction<String, Object, Object> validator = validators.get(key);
             if (validator != null) {
                 validator.apply(strKey, null);
             }
@@ -231,7 +282,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     @Override
     public void clear() {
         // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped map's clear
-        VALIDATORS.forEach((k, v) -> {
+        validators.forEach((k, v) -> {
             if (metadata.containsKey(k)) {
                 v.apply(k, null);
             }
@@ -261,7 +312,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     @Override
     public Object get(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
-        if (VALIDATORS.get(key) != null) {
+        if (validators.get(key) != null) {
             return metadata.get(key);
         }
         return source.get(key);
@@ -322,7 +373,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         public boolean remove(Object o) {
             if (o instanceof Map.Entry<?, ?> entry) {
                 if (entry.getKey()instanceof String key) {
-                    BiFunction<String, Object, Object> validator = VALIDATORS.get(key);
+                    BiFunction<String, Object, Object> validator = validators.get(key);
                     if (validator != null) {
                         validator.apply(key, entry.getValue());
                         return metadataSet.remove(o);
@@ -339,7 +390,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * {@link #remove()} is called by remove in {@link AbstractMap#values()}, {@link AbstractMap#keySet()}, {@link AbstractMap#clear()} via
      * {@link AbstractSet#clear()}
      */
-    static class EntrySetIterator implements Iterator<Map.Entry<String, Object>> {
+    class EntrySetIterator implements Iterator<Map.Entry<String, Object>> {
         final Iterator<Map.Entry<String, Object>> metadataIter;
         final Iterator<Map.Entry<String, Object>> sourceIter;
 
@@ -374,7 +425,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
             if (sourceCur) {
                 sourceIter.remove();
             } else {
-                BiFunction<String, Object, Object> validator = VALIDATORS.get(cur.getKey());
+                BiFunction<String, Object, Object> validator = validators.get(cur.getKey());
                 if (validator != null) {
                     validator.apply(cur.getKey(), null);
                 }
@@ -386,7 +437,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     /**
      * Wrapped Map.Entry that calls the key's validator on {@link #setValue(Object)}
      */
-    static class Entry implements Map.Entry<String, Object> {
+    class Entry implements Map.Entry<String, Object> {
         final Map.Entry<String, Object> entry;
         final boolean isSource;
 
@@ -412,7 +463,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         @Override
         public Object setValue(Object value) {
             if (isSource == false) {
-                BiFunction<String, Object, Object> validator = VALIDATORS.get(entry.getKey());
+                BiFunction<String, Object, Object> validator = validators.get(entry.getKey());
                 if (validator != null) {
                     validator.apply(entry.getKey(), value);
                 }
@@ -490,67 +541,5 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         throw new IllegalArgumentException(
             key + " must be a null or a Map but was [" + value + "] with type [" + value.getClass().getName() + "]"
         );
-    }
-
-    public static class Builder {
-        protected final Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(VALIDATORS.size());
-        protected Map<String, Object> source;
-        protected ZonedDateTime timestamp;
-
-        public Builder index(Object index) {
-            metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), index);
-            return this;
-        }
-
-        public Builder id(Object id) {
-            metadata.put(IngestDocument.Metadata.ID.getFieldName(), id);
-            return this;
-        }
-
-        public Builder routing(Object routing) {
-            metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), routing);
-            return this;
-        }
-
-        public Builder version(Object version) {
-            metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), version);
-            return this;
-        }
-
-        public Builder versionType(Object versionType) {
-            metadata.put(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), versionType);
-            return this;
-        }
-
-        @SuppressWarnings("unchecked")
-        public Builder source(Object source) {
-            Map<String, Object> map = (Map<String, Object>) source;
-            if (this.source == null) {
-                this.source = Maps.newHashMapWithExpectedSize(map.size());
-            }
-            this.source.putAll(map);
-            return this;
-        }
-
-        public Builder timestamp(ZonedDateTime timestamp) {
-            this.timestamp = timestamp;
-            return this;
-        }
-
-        public Builder timestamp(Object maybeIngestMap) {
-            if (maybeIngestMap instanceof ZonedDateTime ts) {
-                return timestamp(ts);
-            }
-            if (maybeIngestMap instanceof Map<?, ?> map) {
-                if (map.get("timestamp")instanceof ZonedDateTime ts) {
-                    return timestamp(ts);
-                }
-            }
-            return this;
-        }
-
-        public IngestSourceAndMetadata build() {
-            return new IngestSourceAndMetadata(metadata, source, timestamp);
-        }
     }
 }

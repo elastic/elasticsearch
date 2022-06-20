@@ -8,6 +8,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.field.TestIngestSourceAndMetadata;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,13 +34,24 @@ public class TestIngestDocument {
      * Create an IngestDocument for testing as in {@link #fromSourceAndIngest(Map, Map)} but pass an empty mutable map for ingestMetaata
      */
     public static IngestDocument fromSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
-        return new IngestDocument(sourceAndMetadata, new HashMap<>());
+        return new IngestDocument(TestIngestSourceAndMetadata.withoutVersionValidation(sourceAndMetadata), new HashMap<>());
     }
 
     /**
      * Create an empty ingest document for testing
      */
     public static IngestDocument emptyIngestDocument() {
-        return new IngestDocument(new HashMap<>(), new HashMap<>());
+        return new IngestDocument(TestIngestSourceAndMetadata.withoutVersionValidation(new HashMap<>()), new HashMap<>());
+    }
+
+    public static IngestDocument withoutValidation(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
+        return withoutValidation(new IngestDocument(index, id, version, routing, versionType, source));
+    }
+
+    public static IngestDocument withoutValidation(IngestDocument ingestDocument) {
+        return new IngestDocument(
+            TestIngestSourceAndMetadata.withoutVersionValidation(ingestDocument.getSourceAndMetadata()),
+            ingestDocument.getIngestMetadata()
+        );
     }
 }

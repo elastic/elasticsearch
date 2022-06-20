@@ -59,20 +59,15 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        // source + at max 5 extra fields
-        Map<String, Object> rawSourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
-        rawSourceAndMetadata.putAll(source);
-        rawSourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        rawSourceAndMetadata.put(Metadata.ID.getFieldName(), id);
-        rawSourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
-        if (routing != null) {
-            rawSourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (versionType != null) {
-            rawSourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
-        }
-        // TODO(stu): can be split
-        this.sourceAndMetadata = new IngestSourceAndMetadata(rawSourceAndMetadata, ZonedDateTime.now(ZoneOffset.UTC));
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            index,
+            id,
+            version,
+            routing,
+            versionType,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            source
+        );
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
     }
@@ -81,21 +76,23 @@ public final class IngestDocument {
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(
-            new IngestSourceAndMetadata(deepCopyMap(other.sourceAndMetadata), getTimestamp(other.ingestMetadata)),
-            deepCopyMap(other.ingestMetadata)
-        );
-    }
-
-    public void fillIngestMetadata(Map<String, Object> ingestMetadata) {
-        this.ingestMetadata.putAll(ingestMetadata);
+        this.sourceAndMetadata = IngestSourceAndMetadata.copy(other.sourceAndMetadata);
+        this.ingestMetadata = deepCopyMap(other.ingestMetadata);
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps
      */
     IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
+        this.sourceAndMetadata = IngestSourceAndMetadata.fromMixedSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
+        this.ingestMetadata = ingestMetadata;
+    }
+
+    /**
+     * Constructor to create an IngestDocument from its constituent maps
+     */
+    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
 
@@ -748,7 +745,7 @@ public final class IngestDocument {
      * Fetch the timestamp from the ingestMetadata, if it exists
      * @return the timestamp for the document or null
      */
-    static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
+    public static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
         if (ingestMetadata == null) {
             return null;
         }

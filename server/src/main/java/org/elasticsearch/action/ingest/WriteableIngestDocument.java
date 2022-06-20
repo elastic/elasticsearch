@@ -11,9 +11,11 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,7 +28,6 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -42,17 +43,22 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
+            Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(4);
+            metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), a[0]);
+            metadata.put(IngestDocument.Metadata.ID.getFieldName(), a[1]);
+            metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), a[2]);
+            if (a[3] != null) {
+                metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), a[3]);
+            }
+            if (a[4] != null) {
+                metadata.put(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), a[4]);
+            }
+            Map<String, Object> source = (Map<String, Object>) a[5];
+            Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
             return new WriteableIngestDocument(
                 IngestDocument.fromWire(
-                    new IngestSourceAndMetadata.Builder().index(a[0])
-                        .id(a[1])
-                        .routing(a[2])
-                        .version(a[3])
-                        .versionType(a[4])
-                        .source(a[5])
-                        .timestamp(a[6])
-                        .build(),
-                    (Map<String, Object>) a[6]
+                    new IngestSourceAndMetadata(metadata, source, IngestDocument.getTimestamp(ingestMetadata)),
+                    ingestMetadata
                 )
             );
         }

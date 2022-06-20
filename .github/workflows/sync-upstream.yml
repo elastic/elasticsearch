@@ -1,0 +1,50 @@
+# Synchronize all pushes to upstream 'master' branch local 'master' branch.
+# Create a PR that automatically merges master with the ESQL branch (esql/lang).
+# TODO: Create a PR that automatically merges master with the stateless branch (feature/stateless).
+name: "Sync upstream master into local development branches"
+on:
+  schedule:
+      - cron: '40 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync_latest_from_upstream:
+    runs-on: ubuntu-latest
+    name: Sync latest commits from upstream master
+
+    steps:
+      - name: Checkout target repo
+        id: checkout
+        uses: actions/checkout@v2.4.2
+        with:
+          ref: master
+
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.3
+        with:
+          target_sync_branch: master
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          upstream_sync_branch: master
+          upstream_sync_repo: elastic/elasticsearch
+
+      - name: Create PR
+        id: pr-create-esql
+        if: steps.sync.outputs.has_new_commits == 'true'
+        uses: thomaseizinger/create-pull-request@1.2.2
+        with:
+           head: master
+           base: esql/lang
+           title: "🤖 ESQL: Merge master to esql/lang"
+           body: ":robot: Generated PR to keep ESQL development branch up to date"
+           labels: "upstream-sync,auto-merge"
+           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge PR
+        id: pr-merge
+        if: steps.pr-create-esql.outputs.created == 'true'
+        uses: juliangruber/merge-pull-request-action@v1.1.0
+        with:
+           method: merge
+           number: ${{ steps.pr-create-esql.outputs.number }}
+           github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -742,6 +742,11 @@ public class OpenIdConnectAuthenticator {
         }
     }
 
+    // Package private for testing
+    CloseableHttpAsyncClient getHttpClient() {
+        return httpClient;
+    }
+
     /*
      * Creates an {@link IDTokenValidator} based on the current Relying Party configuration
      */

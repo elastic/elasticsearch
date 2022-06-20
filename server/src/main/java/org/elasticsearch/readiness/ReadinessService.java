@@ -183,6 +183,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     synchronized void stopListener() {
         assert enabled(environment);
         try {
+            logger.info(
+                "stopping readiness service on channel {}",
+                (this.serverChannel == null) ? "None" : this.serverChannel.getLocalAddress()
+            );
             if (this.serverChannel != null) {
                 this.serverChannel.close();
                 listenerThreadLatch.await();

@@ -64,6 +64,7 @@ import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.RestResponseTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -131,7 +132,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             .resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
             CancellableThreadsTests.CustomException.class,
-            org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
+            RestResponseTests.WithHeadersException.class,
             AbstractClientHeadersTestCase.InternalException.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {

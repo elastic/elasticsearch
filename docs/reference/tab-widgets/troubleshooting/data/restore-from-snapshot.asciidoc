@@ -141,7 +141,7 @@ The response will look like this:
 <4> If the snapshot was successful.
 
 . The snapshot `snapshot-20200617` contains the two indices we want to restore.
-You might have multiple snapshots from which you could restore the target indices.The explanation in our case indicates the index allocation configurations are not correct.
+You might have multiple snapshots from which you could restore the target indices.
 Choose the latest one. Now that we found a snapshot, we will close the target indices via the
 To review your allocation settings, use the <<indices-close, close indices API>>.
 +

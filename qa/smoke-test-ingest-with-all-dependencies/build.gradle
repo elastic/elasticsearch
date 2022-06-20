@@ -19,3 +19,12 @@ dependencies {
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
+
+tasks.named("yamlRestTestTestingConventions").configure {
+  baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}

@@ -42,6 +42,13 @@ dependencies {
   api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
@@ -50,7 +57,6 @@ tasks.named('forbiddenApisMain').configure {
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
@@ -111,7 +117,12 @@ tasks.named("test").configure {
 }
 
 tasks.register("integTest", Test) {
-  include "**/*IT.class"
+  testClassesDirs = sourceSets.integTest.output.classesDirs
+  classpath = sourceSets.integTest.runtimeClasspath
+}
+
+tasks.named('check').configure {
+  dependsOn 'integTest'
 }
 
 tasks.register("verifyVersions") {

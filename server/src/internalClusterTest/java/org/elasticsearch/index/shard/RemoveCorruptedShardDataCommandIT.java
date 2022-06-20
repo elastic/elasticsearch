@@ -137,10 +137,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final MockTerminal terminal = new MockTerminal();
         final OptionParser parser = command.getParser();
 
-        final Settings nodePathSettings = internalCluster().dataPathSettings(node);
+        final Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         final Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(nodePathSettings).build()
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
         );
         final OptionSet options = parser.parse("-index", indexName, "-shard-id", "0");
 
@@ -663,7 +663,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
             .map(
-                nodePath -> PathUtils.get(nodePath.getPath())
+                dataPath -> PathUtils.get(dataPath.getPath())
                     .resolve(NodeEnvironment.INDICES_FOLDER)
                     .resolve(shardId.getIndex().getUUID())
                     .resolve(Integer.toString(shardId.getId()))

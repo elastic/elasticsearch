@@ -65,7 +65,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * We keep around a list of plugins and modules
      */
-    private final List<Tuple<PluginInfo, Plugin>> plugins;
+    private final List<Tuple<PluginDescriptor, Plugin>> plugins;
     private final PluginsAndModules info;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
@@ -100,15 +100,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.settings = settings;
         this.configPath = configPath;
 
-        List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
-        List<PluginInfo> pluginsList = new ArrayList<>();
+        List<Tuple<PluginDescriptor, Plugin>> pluginsLoaded = new ArrayList<>();
+        List<PluginDescriptor> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
 
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
+            PluginDescriptor pluginDescriptor = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",
                 "NA",
@@ -122,15 +122,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 false
             );
             if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+                logger.trace("plugin loaded from classpath [{}]", pluginDescriptor);
             }
-            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
+            pluginsLoaded.add(new Tuple<>(pluginDescriptor, plugin));
+            pluginsList.add(pluginDescriptor);
+            pluginsNames.add(pluginDescriptor.getName());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
-        List<PluginInfo> modulesList = new ArrayList<>();
+        List<PluginDescriptor> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
@@ -162,7 +162,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
+        List<Tuple<PluginDescriptor, Plugin>> loaded = loadBundles(seenBundles);
         pluginsLoaded.addAll(loaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
@@ -194,12 +194,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
     }
 
-    private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {
-        assert pluginInfos != null;
-        if (pluginInfos.isEmpty()) {
+    private static void logPluginInfo(final List<PluginDescriptor> pluginDescriptors, final String type, final Logger logger) {
+        assert pluginDescriptors != null;
+        if (pluginDescriptors.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
+            for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
         }
@@ -208,7 +208,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.builder();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+        for (Tuple<PluginDescriptor, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
             for (String setting : settings.keySet()) {
                 String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
@@ -232,14 +232,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>();
-        for (final Tuple<PluginInfo, Plugin> plugin : plugins) {
+        for (final Tuple<PluginDescriptor, Plugin> plugin : plugins) {
             builders.addAll(plugin.v2().getExecutorBuilders(settings));
         }
         return builders;
     }
 
     public void onIndexModule(IndexModule indexModule) {
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+        for (Tuple<PluginDescriptor, Plugin> plugin : plugins) {
             plugin.v2().onIndexModule(indexModule);
         }
     }
@@ -254,12 +254,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // a "bundle" is a group of jars in a single classloader
     public static class Bundle {
-        public final PluginInfo plugin;
+        public final PluginDescriptor plugin;
         public final Set<URL> urls;
         public final Set<URL> spiUrls;
         public final Set<URL> allUrls;
 
-        public Bundle(PluginInfo plugin, Path dir) throws IOException {
+        public Bundle(PluginDescriptor plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
 
             Path spiDir = dir.resolve("spi");
@@ -341,7 +341,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
-    public static void verifyCompatibility(PluginInfo info) {
+    public static void verifyCompatibility(PluginDescriptor info) {
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
@@ -408,9 +408,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // get a bundle for a single plugin dir
     private static Bundle readPluginBundle(final Path plugin, String type) throws IOException {
-        final PluginInfo info;
+        final PluginDescriptor info;
         try {
-            info = PluginInfo.readFromProperties(plugin);
+            info = PluginDescriptor.readFromProperties(plugin);
         } catch (final IOException e) {
             throw new IllegalStateException(
                 "Could not load plugin descriptor for " + type + " directory [" + plugin.getFileName() + "]",
@@ -475,8 +475,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         sortedBundles.add(bundle);
     }
 
-    private List<Tuple<PluginInfo, Plugin>> loadBundles(Set<Bundle> bundles) {
-        List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
+    private List<Tuple<PluginDescriptor, Plugin>> loadBundles(Set<Bundle> bundles) {
+        List<Tuple<PluginDescriptor, Plugin>> plugins = new ArrayList<>();
         Map<String, Tuple<Plugin, ClassLoader>> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
@@ -494,11 +494,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // package-private for test visibility
-    static void loadExtensions(List<Tuple<PluginInfo, Plugin>> plugins) {
+    static void loadExtensions(List<Tuple<PluginDescriptor, Plugin>> plugins) {
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
-        for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
+        for (Tuple<PluginDescriptor, Plugin> pluginTuple : plugins) {
             if (pluginTuple.v2() instanceof ExtensiblePlugin) {
                 loadExtensionsForPlugin(
                     (ExtensiblePlugin) pluginTuple.v2(),

@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testCacheIndexWriter() throws Exception {
-        final NodeEnvironment.NodePath nodePath = randomFrom(nodeEnvironment.nodePaths());
+        final NodeEnvironment.DataPath dataPath = randomFrom(nodeEnvironment.dataPaths());
 
         int docId = 0;
         final Map<String, Integer> liveDocs = new HashMap<>();
@@ -72,15 +72,15 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
         for (int iter = 0; iter < 20; iter++) {
 
-            final Path snapshotCacheIndexDir = resolveCacheIndexFolder(nodePath);
+            final Path snapshotCacheIndexDir = resolveCacheIndexFolder(dataPath);
             assertThat(Files.exists(snapshotCacheIndexDir), equalTo(iter > 0));
 
             // load existing documents from persistent cache index before each iteration
             final Map<String, Document> documents = PersistentCache.loadDocuments(nodeEnvironment);
             assertThat(documents.size(), equalTo(liveDocs.size()));
 
-            try (PersistentCache.CacheIndexWriter writer = createCacheIndexWriter(nodePath)) {
-                assertThat(writer.nodePath(), sameInstance(nodePath));
+            try (PersistentCache.CacheIndexWriter writer = createCacheIndexWriter(dataPath)) {
+                assertThat(writer.dataPath(), sameInstance(dataPath));
 
                 // verify that existing documents are loaded
                 for (Map.Entry<String, Integer> liveDoc : liveDocs.entrySet()) {

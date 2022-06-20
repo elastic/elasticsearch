@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
@@ -225,6 +226,19 @@ public class TestSecurityClient {
     public void deleteRoleMapping(String mappingName) throws IOException {
         final String endpoint = "/_security/role_mapping/" + mappingName;
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        execute(request);
+    }
+
+    /**
+     * Uses the REST API to create an application privilege
+     * @see org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction
+     */
+    public void putApplicationPrivilege(String applicationName, String privilegeName, String[] actions) throws IOException {
+        final String endpoint = "/_security/privilege/";
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        final Map<String, Object> body = Map.of(applicationName, Map.of(privilegeName, Map.of("actions", List.of(actions))));
+        request.setJsonEntity(toJson(body));
         execute(request);
     }
 

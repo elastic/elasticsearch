@@ -1208,6 +1208,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
+    public static <T> List<T> randomNonEmptySubsetOf(Collection<T> collection) {
+        if (collection.isEmpty()) {
+            throw new IllegalArgumentException("Can't pick non-empty subset of an empty collection");
+        }
+        return randomSubsetOf(randomIntBetween(1, collection.size()), collection);
+    }
+
     /**
      * Returns size random values
      */

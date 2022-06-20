@@ -105,6 +105,7 @@ public final class AuthorizationUtils {
     public static void switchUserBasedOnActionOriginAndExecute(
         ThreadContext threadContext,
         SecurityContext securityContext,
+        Version version,
         Consumer<ThreadContext.StoredContext> consumer
     ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
@@ -115,7 +116,7 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -133,10 +134,10 @@ public final class AuthorizationUtils {
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsInternalUser(XPackUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

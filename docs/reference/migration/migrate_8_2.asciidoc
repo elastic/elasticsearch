@@ -9,14 +9,11 @@ your application to {es} 8.2.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking-changes-8.2]]
 === Breaking changes
 
-// NOTE: The notable-breaking-changes tagged regions are re-used in the
-// Installation and Upgrade Guide
-// tag::notable-breaking-changes[]
-
-There are no breaking changes for 8.2.0.
+There are no breaking changes in {es} 8.2.
 
 // end::notable-breaking-changes[]

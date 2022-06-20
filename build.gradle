@@ -155,8 +155,14 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-subprojects {
+subprojects { proj ->
   apply plugin: 'elasticsearch.base'
+
+  plugins.withType(JavaPlugin) {
+    if(proj.getPath().contains(":qa:") == false) {
+      project.apply plugin: 'elasticsearch.snyk-dependency-monitoring'
+    }
+  }
 }
 
 allprojects {

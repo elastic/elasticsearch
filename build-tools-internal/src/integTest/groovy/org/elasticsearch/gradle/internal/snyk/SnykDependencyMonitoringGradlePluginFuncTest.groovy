@@ -18,25 +18,8 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
         plugins {
             id 'elasticsearch.snyk-dependency-monitoring'
         }
-
-        def printGraph(Map entries, int depth = 0 ) {
-//            entries.each { k, v ->
-//                println k.indent(depth)
-//                println v.getClass()
-////                printGraph(v, depth++)
-//            }
-        }
-        
-        tasks.named('resolveSnykDependencyGraph').configure {
-            doLast {
-            println graph
-                printGraph(graph.nodes)        
-            }
-        }
-        
         """
         configurationCacheCompatible = false // configuration is not cc compliant
-
     }
 
     def "can calculate snyk dependency graph"() {
@@ -58,9 +41,126 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
             }
         """
         when:
-        def build = gradleRunner("resolveSnykDependencyGraph").build()
-        
+        def build = gradleRunner("generateSnykDependencyGraph", "-i", "--stacktrace").build()
         then:
         build.task(":resolveSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+
+        normalized(file("build/snyk/dependencies.json").text) == """{
+    "meta": {
+        "method": "custom gradle",
+        "id": "gradle",
+        "node": "v16.15.1",
+        "name": "gradle",
+        "plugin": "extern:gradle",
+        "pluginRuntime": "unknown",
+        "monitorGraph": true,
+        "version": "unspecified",
+        "versionBuildInfo": {
+            "gradleVersion": "7.4.2"
+        }
+    },
+    "depGraphJSON": {
+        "pkgManager": {
+            "version": "7.4.2",
+            "name": "gradle"
+        },
+        "schemaVersion": "1.2.0",
+        "graph": {
+            "rootNodeId": "root-node",
+            "nodes": [
+                {
+                    "nodeId": "root-node",
+                    "deps": [
+                        {
+                            "nodeId": "org.apache.lucene:lucene-monitor@9.2.0"
+                        }
+                    ],
+                    "pkgId": "hello-world@unspecified"
+                },
+                {
+                    "nodeId": "org.apache.lucene:lucene-monitor@9.2.0",
+                    "deps": [
+                        {
+                            "nodeId": "org.apache.lucene:lucene-memory@9.2.0"
+                        },
+                        {
+                            "nodeId": "org.apache.lucene:lucene-analysis-common@9.2.0"
+                        },
+                        {
+                            "nodeId": "org.apache.lucene:lucene-core@9.2.0"
+                        }
+                    ],
+                    "pkgId": "org.apache.lucene:lucene-monitor@9.2.0"
+                },
+                {
+                    "nodeId": "org.apache.lucene:lucene-memory@9.2.0",
+                    "deps": [
+                        {
+                            "nodeId": "org.apache.lucene:lucene-core@9.2.0"
+                        }
+                    ],
+                    "pkgId": "org.apache.lucene:lucene-memory@9.2.0"
+                },
+                {
+                    "nodeId": "org.apache.lucene:lucene-core@9.2.0",
+                    "deps": [
+                        
+                    ],
+                    "pkgId": "org.apache.lucene:lucene-core@9.2.0"
+                },
+                {
+                    "nodeId": "org.apache.lucene:lucene-analysis-common@9.2.0",
+                    "deps": [
+                        {
+                            "nodeId": "org.apache.lucene:lucene-core@9.2.0"
+                        }
+                    ],
+                    "pkgId": "org.apache.lucene:lucene-analysis-common@9.2.0"
+                }
+            ]
+        },
+        "pkgs": [
+            {
+                "id": "hello-world@unspecified",
+                "info": {
+                    "name": "hello-world",
+                    "version": "unspecified"
+                }
+            },
+            {
+                "id": "org.apache.lucene:lucene-monitor@9.2.0",
+                "info": {
+                    "name": "org.apache.lucene:lucene-monitor",
+                    "version": "9.2.0"
+                }
+            },
+            {
+                "id": "org.apache.lucene:lucene-memory@9.2.0",
+                "info": {
+                    "name": "org.apache.lucene:lucene-memory",
+                    "version": "9.2.0"
+                }
+            },
+            {
+                "id": "org.apache.lucene:lucene-core@9.2.0",
+                "info": {
+                    "name": "org.apache.lucene:lucene-core",
+                    "version": "9.2.0"
+                }
+            },
+            {
+                "id": "org.apache.lucene:lucene-analysis-common@9.2.0",
+                "info": {
+                    "name": "org.apache.lucene:lucene-analysis-common",
+                    "version": "9.2.0"
+                }
+            }
+        ]
+    },
+    "target": {
+        "remoteUrl": "http://github.com/elastic/elasticsearch.git",
+        "branch": "unknown"
+    }
+}"""
     }
 }

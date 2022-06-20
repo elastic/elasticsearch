@@ -10,7 +10,8 @@ package org.elasticsearch.gradle.internal.snyk;
 
 import com.google.common.collect.Maps;
 
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,17 +30,16 @@ public class SnykGraph {
         if (key == null) {
             return null;
         }
-
         if (nodes.containsKey(key)) {
             return (Map<String, Object>) this.nodes.get(key);
         }
-
         if (value == null) {
             return null;
         }
-        //
-        Map<String, Object> vertex = Map.of("name", value.get("name"), "version", value.get("version"), "parentIds", new HashSet<>());
-        //
+        Map<String, Object> vertex = Maps.newLinkedHashMapWithExpectedSize(3);
+        vertex.put("name", value.get("name"));
+        vertex.put("version", value.get("version"));
+        vertex.put("parentIds", new LinkedHashSet<>());
         return (Map<String, Object>) nodes.put(key, vertex);
 
     }
@@ -72,11 +72,33 @@ public class SnykGraph {
 
     @Override
     public String toString() {
-        String collect = nodes.entrySet().stream().map(stringObjectEntry -> stringObjectEntry.getKey() + ": " + stringObjectEntry.getValue()).collect(Collectors.joining("\n"));
+        String collect = nodes.entrySet()
+            .stream()
+            .map(stringObjectEntry -> stringObjectEntry.getKey() + ": " + stringObjectEntry.getValue())
+            .collect(Collectors.joining("\n"));
 
-        return "SnykGraph{" +
-                "nodes=\n" + collect +
-                ", rootId='" + rootId + '\'' +
-                '}';
+        return "SnykGraph{" + "nodes=\n" + collect + ", rootId='" + rootId + '\'' + '}';
+    }
+
+    public void toSnykApiGraph() {
+        Set<Map> pkgs = new LinkedHashSet();
+        Set<Map> nodes = new LinkedHashSet();
+        getNodes().forEach((nodeId, nodeData) -> {
+            LinkedHashMap<String, Object> pkg = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> pkgInfo = new LinkedHashMap<>();
+            pkgInfo.put("name", ((Map) nodeData).get("name"));
+            pkgInfo.put("version", ((Map) nodeData).get("version"));
+            pkg.put("id", nodeId);
+            pkg.put("info", pkgInfo);
+            pkgs.add(pkg);
+
+            LinkedHashMap<String, Object> node = new LinkedHashMap<>();
+            node.put("nodeId", nodeId);
+            node.put("pkgId", nodeId);
+
+            LinkedHashMap<String, Object> deps = new LinkedHashMap<>();
+            Object parentIds = ((Map<?, ?>) nodeData).get("parentIds");
+
+        });
     }
 }

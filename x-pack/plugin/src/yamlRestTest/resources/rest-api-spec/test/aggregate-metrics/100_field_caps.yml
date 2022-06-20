@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.15.99"
-      reason: introduced in 7.16.0
+      version: " - 8.3.99"
+      reason: aggregate_metric_double field caps changed in 8.4.0
 
   - do:
       indices.create:
@@ -18,7 +18,7 @@ setup:
 field capabilities:
   - skip:
       version: " - 8.3.99"
-      reason: aggregate_metric_double fields caps changed in 8.4.0
+      reason: aggregate_metric_double field caps changed in 8.4.0
 
   - do:
       field_caps:
@@ -34,7 +34,7 @@ field capabilities:
 field capabilities with conflict:
   - skip:
       version: " - 8.3.99"
-      reason: aggregate_metric_double fields caps changed in 8.4.0
+      reason: aggregate_metric_double field caps changed in 8.4.0
 
   - do:
       indices.create:

@@ -78,9 +78,7 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
-            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
-        }
+        validateConfig(options, env);
 
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
@@ -115,6 +113,17 @@ class ServerCli extends EnvironmentAwareCommand {
             JvmInfo.jvmInfo().version()
         );
         terminal.println(versionOutput);
+    }
+
+    private void validateConfig(OptionSet options, Environment env) throws UserException {
+        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        }
+
+        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        if (Files.exists(log4jConfig) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
+        }
     }
 
     private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {

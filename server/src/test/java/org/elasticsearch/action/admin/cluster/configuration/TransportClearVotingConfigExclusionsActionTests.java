@@ -160,7 +160,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
         assertThat(
             rootCause.getMessage(),
-            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. [")
+            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. [")
         );
     }
 

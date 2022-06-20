@@ -18,13 +18,11 @@ import org.gradle.testkit.runner.UnexpectedBuildSuccess;
 import java.io.File;
 import java.io.Writer;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-/**
- * A Gradle runner that delegates to another runner, optionally enabling the configuring cache parameter.
- */
 public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner {
     private GradleRunner delegate;
     private boolean ccCompatible;
@@ -76,11 +74,9 @@ public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner 
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        List<String> effectiveArgs = arguments;
-        if (ccCompatible) {
-            effectiveArgs = new ArrayList<>(arguments);
-            effectiveArgs.add("--configuration-cache");
-        }
+        List<String> effectiveArgs = ccCompatible
+            ? Stream.concat(arguments.stream(), Stream.of("--configuration-cache")).collect(Collectors.toList())
+            : arguments;
         delegate.withArguments(effectiveArgs);
         return this;
     }

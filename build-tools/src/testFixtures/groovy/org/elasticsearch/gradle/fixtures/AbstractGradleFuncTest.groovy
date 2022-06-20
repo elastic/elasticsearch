@@ -34,7 +34,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    boolean configurationCacheCompatible = false
+    public boolean configurationCacheCompatible = false
 
     def setup() {
         projectDir = testProjectDir.root
@@ -43,7 +43,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+                "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
     def cleanup() {
@@ -77,15 +77,13 @@ abstract class AbstractGradleFuncTest extends Specification {
                 new ConfigurationCacheCompatibleAwareGradleRunner(
                         new InternalAwareGradleRunner(
                                 GradleRunner.create()
-                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                                .toString().indexOf("-agentlib:jdwp") > 0
-                                        )
+                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
                                         .withProjectDir(projectDir)
                                         .withPluginClasspath()
                                         .forwardOutput()
-                        ), configurationCacheCompatible),
-                projectDir
-        ).withArguments(arguments)
+                        ),
+                        configurationCacheCompatible),
+                projectDir).withArguments(arguments)
     }
 
     def assertOutputContains(String givenOutput, String expected) {

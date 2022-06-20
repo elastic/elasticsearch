@@ -135,6 +135,10 @@ gradlePlugin {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
     }
+    snykDependenciesMonitoring {
+      id = 'elasticsearch.snyk-dependency-monitoring'
+      implementationClass = 'org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin'
+    }
     standaloneRestTest {
       id = 'elasticsearch.standalone-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'

@@ -31,8 +31,9 @@ image::images/troubleshooting/data/kibana-index-management-select-red-data-steam
 +
 . Use the left side menu to go to **Snapshot and Restore**, there you can verify that you have a snapshot to restore
 the target indices and data streams from. By clicking on every snapshot you can see the indices and data streams it
-contains. Not all resources need to be restored from the same snapshot. **Do not proceed** there is no workable
-backup of the affected resources in a snapshot, this will result in further data loss.
+contains. Not all resources need to be restored from the same snapshot. **Do not proceed** if there is no backup of the
+affected resources in a snapshot that is up-to-date enough for your use case, otherwise this will result in further data
+loss.
 +
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-restore-snapshot-content.png[{kib} snapshots,align="center"]
@@ -141,9 +142,9 @@ The response will look like this:
 <4> If the snapshot was successful.
 
 . The snapshot `snapshot-20200617` contains the two indices we want to restore.
-You might have multiple snapshots from which you could restore the target indices.
-Choose the latest one. Now that we found a snapshot, we will close the target indices via the
-To review your allocation settings, use the <<indices-close, close indices API>>.
+You might have multiple snapshots from which you could restore the target indices. Choose the latest one.
++
+. Now that we found a snapshot, we will close the target indices via the use the <<indices-close, close indices API>>.
 +
 [source,console]
 ----

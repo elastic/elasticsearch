@@ -689,6 +689,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+                return null;
+            }
+
+            @Override
             public void release() {}
 
             @Override

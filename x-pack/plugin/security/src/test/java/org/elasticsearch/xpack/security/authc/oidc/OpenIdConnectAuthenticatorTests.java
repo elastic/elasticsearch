@@ -1026,7 +1026,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         }
     }
 
-    public void testKeepAliveStrategy() throws URISyntaxException {
+    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
         final HttpResponse httpResponse = mock(HttpResponse.class);
         final int serverTimeoutInSeconds = randomIntBetween(-1, 300);
         final Iterator<BasicHeader> iterator = List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTimeoutInSeconds)).iterator();
@@ -1061,17 +1061,36 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         }
         final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
         authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
         try {
-            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
-            final int keepAliveDurationInSeconds = (int) keepAliveStrategy.getKeepAliveDuration(httpResponse, null) / 1000;
+            final int effectiveTtlInSeconds;
             if (serverTimeoutInSeconds == -1) {
-                assertThat(keepAliveDurationInSeconds, equalTo(clientTimeoutInSeconds));
+                effectiveTtlInSeconds = clientTimeoutInSeconds;
             } else if (clientTimeoutInSeconds == -1) {
-                assertThat(keepAliveDurationInSeconds, equalTo(serverTimeoutInSeconds));
+                effectiveTtlInSeconds = serverTimeoutInSeconds;
             } else {
-                assertThat(keepAliveDurationInSeconds, equalTo(Math.min(serverTimeoutInSeconds, clientTimeoutInSeconds)));
+                effectiveTtlInSeconds = Math.min(serverTimeoutInSeconds, clientTimeoutInSeconds);
             }
+            final long effectiveTtlInMs = effectiveTtlInSeconds == -1 ? -1L : effectiveTtlInSeconds * 1000L;
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "log",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "effective HTTP connection keep-alive: [" + effectiveTtlInMs + "]ms"
+                )
+            );
+            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
+            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
+            appender.assertAllExpectationsMatched();
         } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
             authenticator.close();
         }
     }

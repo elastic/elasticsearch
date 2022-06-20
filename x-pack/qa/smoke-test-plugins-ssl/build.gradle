@@ -92,3 +92,8 @@ tasks.named("processYamlRestTestResources").configure {
     filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}

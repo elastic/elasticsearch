@@ -32,11 +32,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
-        Map<String, Integer> currentAllocationByNodeId
+        Map<String, Integer> currentAllocationsByNodeId
     ) {
 
         int getPreviouslyAssignedAllocations() {
-            return currentAllocationByNodeId.values().stream().mapToInt(Integer::intValue).sum();
+            return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
         }
 
         @Override
@@ -49,7 +49,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 + ") (threads_per_allocation = "
                 + threadsPerAllocation
                 + ") (current_allocations = "
-                + currentAllocationByNodeId
+                + currentAllocationsByNodeId
                 + ")";
         }
     };
@@ -113,7 +113,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     }
 
     private boolean isSatisfyingPreviousAssignmentsForModel(Model m) {
-        if (m.currentAllocationByNodeId().isEmpty()) {
+        if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
@@ -145,7 +145,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (modelAssignments != null) {
                 for (Map.Entry<Node, Integer> nodeAllocations : modelAssignments.entrySet()) {
                     Node n = nodeAllocations.getKey();
-                    weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
+                    weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
                         .get(n);
                     memoryScore -= (nodeAllocations.getValue() > 0 ? m.memoryBytes() : 0);
                 }
@@ -291,7 +291,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         private boolean isAlreadyAssigned(Model model, Node node) {
-            return model.currentAllocationByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
+            return model.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
         }
 
         AssignmentPlan build() {

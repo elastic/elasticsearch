@@ -51,6 +51,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
+    exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;

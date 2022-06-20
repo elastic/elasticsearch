@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -56,10 +58,19 @@ public class BytesRefStreamOutputTests extends ESTestCase {
         byte[] sliceActual = Arrays.copyOfRange(out.get().bytes, 0, out.get().length);
         assertArrayEquals(sliceExpected, sliceActual);
 
+        long expectedSize = RamUsageEstimator.shallowSizeOfInstance(BytesRefStreamOutput.class) + RamUsageEstimator.shallowSizeOfInstance(
+            BytesRefBuilder.class
+        ) + out.bytes().length;
+        assertEquals(expectedSize, out.ramBytesUsed());
+
         // check reset
         out.reset();
         assertEquals(0, out.get().length);
         assertEquals(0, out.position());
+
+        // a reset doesn't free memory
+        assertEquals(expectedSize, out.ramBytesUsed());
+
         out.close();
     }
 

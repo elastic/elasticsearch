@@ -50,6 +50,11 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     @Override
     public void flush() {}
 
+    /**
+     * Closes this stream to further operations.
+     *
+     * This is a no-op, as the underlying BytesRefBuilder has no IO resources.
+     */
     @Override
     public void close() {}
 
@@ -61,5 +66,10 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + builder.bytes().length;
+    }
+
+    // for tests
+    byte[] bytes() {
+        return builder.bytes();
     }
 }

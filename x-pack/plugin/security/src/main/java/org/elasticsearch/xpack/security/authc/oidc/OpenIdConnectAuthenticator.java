@@ -741,13 +741,16 @@ public class OpenIdConnectAuthenticator {
         final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
         return (response, context) -> {
             var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
-            final long actualKeepAlive;
-            if (serverKeepAlive == -1) {
+            long actualKeepAlive;
+            if (serverKeepAlive <= -1) {
                 actualKeepAlive = userConfiguredKeepAlive;
-            } else if (userConfiguredKeepAlive == -1) {
+            } else if (userConfiguredKeepAlive <= -1) {
                 actualKeepAlive = serverKeepAlive;
             } else {
                 actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+            }
+            if (actualKeepAlive < -1) {
+                actualKeepAlive = -1;
             }
             LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
             return actualKeepAlive;

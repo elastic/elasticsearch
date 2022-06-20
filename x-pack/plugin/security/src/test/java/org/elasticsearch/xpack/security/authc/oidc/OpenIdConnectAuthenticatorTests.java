@@ -1026,76 +1026,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         }
     }
 
-    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
-        final HttpResponse httpResponse = mock(HttpResponse.class);
-        final int serverTimeoutInSeconds = randomIntBetween(-1, 300);
-        final Iterator<BasicHeader> iterator = List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTimeoutInSeconds)).iterator();
-        when(httpResponse.headerIterator(HTTP.CONN_KEEP_ALIVE)).thenReturn(new HeaderIterator() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public org.apache.http.Header nextHeader() {
-                return iterator.next();
-            }
-
-            @Override
-            public Object next() {
-                return iterator.next();
-            }
-        });
-
-        // Authenticator with a short TTL
-        final Settings.Builder settingsBuilder = getBasicRealmSettings();
-        final int clientTimeoutInSeconds;
-        if (randomBoolean()) {
-            clientTimeoutInSeconds = randomIntBetween(-1, 300);
-            settingsBuilder.put(
-                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
-                clientTimeoutInSeconds + "s"
-            );
-        } else {
-            clientTimeoutInSeconds = 180; // default 180s
-        }
-        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
-        authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
-        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
-        Loggers.setLevel(logger, Level.DEBUG);
-        try {
-            final int effectiveTtlInSeconds;
-            if (serverTimeoutInSeconds == -1) {
-                effectiveTtlInSeconds = clientTimeoutInSeconds;
-            } else if (clientTimeoutInSeconds == -1) {
-                effectiveTtlInSeconds = serverTimeoutInSeconds;
-            } else {
-                effectiveTtlInSeconds = Math.min(serverTimeoutInSeconds, clientTimeoutInSeconds);
-            }
-            final long effectiveTtlInMs = effectiveTtlInSeconds == -1 ? -1L : effectiveTtlInSeconds * 1000L;
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "log",
-                    logger.getName(),
-                    Level.DEBUG,
-                    "effective HTTP connection keep-alive: [" + effectiveTtlInMs + "]ms"
-                )
-            );
-            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
-            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
-            Loggers.setLevel(logger, (Level) null);
-            authenticator.close();
-        }
-    }
-
-    public void testHttpClientConnectionTTL() throws URISyntaxException, IllegalAccessException, InterruptedException, IOException {
+    public void testHttpClientConnectionTtlBehaviour() throws URISyntaxException, IllegalAccessException, InterruptedException,
+        IOException {
         // Create an internal HTTP server, the expectation is: For 2 consecutive HTTP requests, the client port should be different
         // because the client should not reuse the same connection after 1s
         final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -1171,6 +1103,131 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
             httpServer.stop(1);
+        }
+    }
+
+    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
+        // Neither server nor client has explicit configuration
+        doTestKeepAliveStrategy(null, null, 180_000L);
+
+        // Client explicitly configures for 100s
+        doTestKeepAliveStrategy(null, "100", 100_000L);
+
+        // Server explicitly configures for 400s, but client's default is 180s
+        doTestKeepAliveStrategy("400", null, 180_000L);
+
+        // Server explicitly configures for 120s
+        doTestKeepAliveStrategy("120", null, 120_000L);
+
+        // Both server and client explicitly configures it
+        doTestKeepAliveStrategy("120", "90", 90_000L);
+
+        // Both server and client explicitly configures it
+        doTestKeepAliveStrategy("80", "90", 80_000L);
+
+        // Server configures negative value
+        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), null, 180_000L);
+        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), "400", 400_000L);
+
+        // Client configures negative value, -1 is the only negative number accepted by timeSetting
+        doTestKeepAliveStrategy(null, "-1", -1L);
+        doTestKeepAliveStrategy("30", "-1", 30_000L);
+
+        // Both server and client explicitly configures negative values
+        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), "-1", -1L);
+
+        // Extra randomization
+        final int serverTtlInSeconds;
+        if (randomBoolean()) {
+            serverTtlInSeconds = randomIntBetween(-1, 300);
+        } else {
+            // Server may not set the response header
+            serverTtlInSeconds = -1;
+        }
+
+        final int clientTtlInSeconds;
+        if (randomBoolean()) {
+            clientTtlInSeconds = randomIntBetween(-1, 300);
+        } else {
+            clientTtlInSeconds = 180; // default 180s
+        }
+
+        final int effectiveTtlInSeconds;
+        if (serverTtlInSeconds <= -1) {
+            effectiveTtlInSeconds = clientTtlInSeconds;
+        } else if (clientTtlInSeconds <= -1) {
+            effectiveTtlInSeconds = serverTtlInSeconds;
+        } else {
+            effectiveTtlInSeconds = Math.min(serverTtlInSeconds, clientTtlInSeconds);
+        }
+        final long effectiveTtlInMs = effectiveTtlInSeconds <= -1 ? -1L : effectiveTtlInSeconds * 1000L;
+
+        doTestKeepAliveStrategy(
+            serverTtlInSeconds == -1 ? randomFrom(String.valueOf(serverTtlInSeconds), null) : String.valueOf(serverTtlInSeconds),
+            clientTtlInSeconds == 180 ? randomFrom(String.valueOf(clientTtlInSeconds), null) : String.valueOf(clientTtlInSeconds),
+            effectiveTtlInMs
+        );
+    }
+
+    public void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)
+        throws URISyntaxException, IllegalAccessException {
+        final HttpResponse httpResponse = mock(HttpResponse.class);
+        final Iterator<BasicHeader> iterator;
+        if (serverTtlInSeconds != null) {
+            iterator = List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTtlInSeconds)).iterator();
+        } else {
+            // Server may not set the response header
+            iterator = Collections.emptyIterator();
+        }
+        when(httpResponse.headerIterator(HTTP.CONN_KEEP_ALIVE)).thenReturn(new HeaderIterator() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public org.apache.http.Header nextHeader() {
+                return iterator.next();
+            }
+
+            @Override
+            public Object next() {
+                return iterator.next();
+            }
+        });
+
+        final Settings.Builder settingsBuilder = getBasicRealmSettings();
+        if (clientTtlInSeconds != null) {
+            settingsBuilder.put(
+                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
+                clientTtlInSeconds + "s"
+            );
+        }
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+        authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+
+        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "log",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "effective HTTP connection keep-alive: [" + effectiveTtlInMs + "]ms"
+                )
+            );
+            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
+            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
+            authenticator.close();
         }
     }
 

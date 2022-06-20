@@ -284,7 +284,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeHealthService = nodeHealthService;
     }
 
-    private ClusterFormationState getClusterFormationState() {
+    public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
             getStateForMasterService(),

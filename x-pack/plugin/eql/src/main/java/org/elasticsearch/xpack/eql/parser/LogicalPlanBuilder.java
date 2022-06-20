@@ -453,7 +453,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(missingJoinKeysSource, "A sample must have at least one join key, found none");
         }
 
-        return new Sample(source, queries);
+        return new Sample(source, queries, this.params.size());
     }
 
     private LogicalPlan pipe(PipeContext ctx, LogicalPlan plan) {

@@ -21,6 +21,8 @@ public class EqlSpec {
     private long[] expectedEventIds;
     private String[] joinKeys;
 
+    private Integer size;
+
     public String name() {
         return name;
     }
@@ -77,6 +79,14 @@ public class EqlSpec {
         this.joinKeys = joinKeys;
     }
 
+    public Integer size() {
+        return size;
+    }
+
+    public void size(Integer size) {
+        this.size = size;
+    }
+
     @Override
     public String toString() {
         String str = "";
@@ -96,6 +106,10 @@ public class EqlSpec {
         if (joinKeys != null) {
             str = appendWithComma(str, "join_keys", Arrays.toString(joinKeys));
         }
+        if (size != null) {
+            str = appendWithComma(str, "size", "" + size);
+        }
+
         return str;
     }
 
@@ -111,7 +125,7 @@ public class EqlSpec {
 
         EqlSpec that = (EqlSpec) other;
 
-        return Objects.equals(this.query(), that.query());
+        return Objects.equals(this.query(), that.query()) && Objects.equals(size, that.size);
     }
 
     @Override

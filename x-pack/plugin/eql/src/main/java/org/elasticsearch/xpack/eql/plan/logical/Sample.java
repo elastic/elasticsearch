@@ -15,21 +15,28 @@ import java.util.List;
 
 public class Sample extends AbstractJoin {
 
-    public Sample(Source source, List<KeyedFilter> queries) {
+    private final int limit;
+
+    public Sample(Source source, List<KeyedFilter> queries, int limit) {
         super(source, queries);
+        this.limit = limit;
     }
 
     @Override
     protected NodeInfo<? extends Sample> info() {
-        return NodeInfo.create(this, Sample::new, queries);
+        return NodeInfo.create(this, Sample::new, queries, limit);
     }
 
     @Override
     public Sample replaceChildren(List<LogicalPlan> newChildren) {
-        return new Sample(source(), asKeyed(newChildren));
+        return new Sample(source(), asKeyed(newChildren), limit);
     }
 
     public Sample with(List<KeyedFilter> queries) {
-        return new Sample(source(), queries);
+        return new Sample(source(), queries, limit);
+    }
+
+    public int limit() {
+        return limit;
     }
 }

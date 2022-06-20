@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
@@ -51,15 +52,18 @@ public class SampleIterator implements Executable {
     private final int maxCriteria;
     private final List<Sample> samples;
     private final int fetchSize;
+    private final Limit limit;
+    private int samplesDiscarded = 0;
 
     private long startTime;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize) {
+    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, Limit limit) {
         this.client = client;
         this.criteria = criteria;
         this.maxCriteria = criteria.size();
         this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
+        this.limit = limit;
     }
 
     @Override
@@ -69,6 +73,7 @@ public class SampleIterator implements Executable {
         advance(runAfter(listener, () -> {
             stack.clear();
             samples.clear();
+            samplesDiscarded = 0;
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
     }
@@ -160,7 +165,6 @@ public class SampleIterator implements Executable {
 
         int initialSize = samples.size();
         client.multiQuery(searches, ActionListener.wrap(r -> {
-            List<List<SearchHit>> finalSamples = new ArrayList<>();
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();
             int docGroupsCounter = 1;
@@ -174,8 +178,16 @@ public class SampleIterator implements Executable {
                 if (docGroupsCounter == maxCriteria) {
                     List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
-                        finalSamples.add(match);
-                        samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        if (samplesDiscarded < limit.offset()) {
+                            samplesDiscarded++;
+                        } else if (samples.size() < limit.limit()) {
+                            samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        }
+                        if (samples.size() >= limit.limit()) {
+                            payload(listener);
+                            return;
+                        }
+
                     }
                     docGroupsCounter = 1;
                     sample = new ArrayList<>(maxCriteria);

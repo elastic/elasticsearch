@@ -11,8 +11,8 @@ import org.elasticsearch.test.eql.EqlSampleTestCase;
 
 public class EqlSampleIT extends EqlSampleTestCase {
 
-    public EqlSampleIT(String query, String name, long[] eventIds, String[] joinKeys) {
-        super(query, name, eventIds, joinKeys);
+    public EqlSampleIT(String query, String name, long[] eventIds, String[] joinKeys, Integer size) {
+        super(query, name, eventIds, joinKeys, size);
     }
 
 }

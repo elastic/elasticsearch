@@ -68,6 +68,14 @@ public class EqlSpecLoader {
         return null;
     }
 
+    private static Integer getInteger(TomlTable table, String key) {
+        Long s = table.getLong(key);
+        if (s != null) {
+            return s.intValue();
+        }
+        return null;
+    }
+
     private static List<EqlSpec> readFromStream(InputStream is, Set<String> uniqueTestNames) throws Exception {
         List<EqlSpec> testSpecs = new ArrayList<>();
 
@@ -81,6 +89,7 @@ public class EqlSpecLoader {
             spec.name(getTrimmedString(table, "name"));
             spec.note(getTrimmedString(table, "note"));
             spec.description(getTrimmedString(table, "description"));
+            spec.size(getInteger(table, "size"));
 
             List<?> arr = table.getList("tags");
             if (arr != null) {

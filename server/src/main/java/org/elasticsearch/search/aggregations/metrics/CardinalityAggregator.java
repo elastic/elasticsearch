@@ -50,7 +50,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     @Nullable
     protected final HyperLogLogPlusPlus counts;
 
-    private Collector collector;
+    protected Collector collector;
 
     protected int emptyCollectorsUsed;
     protected int ordinalsCollectorsUsed;

@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -66,37 +65,6 @@ public class BytesRefArrayTests extends ESTestCase {
         assertNotEquals(array, newOwnerOfArray);
         assertEquals(0, array.size());
         assertEquals(size, newOwnerOfArray.size());
-
-        array.close();
-        newOwnerOfArray.close();
-    }
-
-    // test that the array stays usable after transferring ownership, although this isn't recommended
-    public void testUseArrayAfterTakeOwnership() throws IOException {
-        // can't use mocked big array for this test, due to the dummies used after reset
-        BytesRefArray array = randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), BigArrays.NON_RECYCLING_INSTANCE);
-        long size = array.size();
-        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
-
-        // check that writing still works
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            array.writeTo(output);
-        }
-
-        BytesRefBuilder refBuilder = new BytesRefBuilder();
-        String str = randomUnicodeOfLengthBetween(4, 20);
-        refBuilder.copyChars(str);
-        array.append(refBuilder.get());
-        assertEquals(1, array.size());
-
-        BytesRef ref = new BytesRef();
-        array.get(0, ref);
-        assertEquals(str, ref.utf8ToString());
-
-        // check that writing still works
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            array.writeTo(output);
-        }
 
         array.close();
         newOwnerOfArray.close();

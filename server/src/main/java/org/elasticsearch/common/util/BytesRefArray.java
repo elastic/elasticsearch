@@ -27,14 +27,6 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
 
-    // used when ownership is passed, see {@link #takeOwnershipOf()}
-    private static final LongArray LONG_ARRAY_DUMMY = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, false);
-    private static final ByteArray BYTE_ARRAY_DUMMY = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(0, false);
-
-    static {
-        LONG_ARRAY_DUMMY.set(0, 0);
-    }
-
     private final BigArrays bigArrays;
     private LongArray startOffsets;
     private ByteArray bytes;
@@ -93,6 +85,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     }
 
     public void append(BytesRef key) {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(size);
         bytes = bigArrays.grow(bytes, startOffset + key.length);
         bytes.set(startOffset, key.bytes, key.offset, key.length);
@@ -106,6 +99,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(id);
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
@@ -121,13 +115,21 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         Releasables.close(bytes, startOffsets);
     }
 
+    /**
+     * Create new instance and pass ownership of this array to the new one.
+     *
+     * Note, this closes this array. Don't use it after passing ownership.
+     *
+     * @param other BytesRefArray to claim ownership from
+     * @return a new BytesRefArray instance with the payload of other
+     */
     public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
         BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
 
         // don't leave a broken array behind, although it isn't used any longer
         // on append both arrays get re-allocated
-        other.startOffsets = LONG_ARRAY_DUMMY;
-        other.bytes = BYTE_ARRAY_DUMMY;
+        other.startOffsets = null;
+        other.bytes = null;
         other.size = 0;
 
         return b;
@@ -135,6 +137,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         out.writeVLong(size);
         long sizeOfStartOffsets = size + 1;
 

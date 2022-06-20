@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +74,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
@@ -83,7 +84,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
@@ -93,7 +94,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);

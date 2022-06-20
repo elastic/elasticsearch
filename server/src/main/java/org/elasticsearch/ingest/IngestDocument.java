@@ -93,19 +93,18 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        ZonedDateTime ts = null;
-        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime zdt) {
-            ts = zdt;
-        }
-        // TODO(stu): fix for tests
-        // sourceAndMetadata.putIfAbsent("_version", 1); // _version is required so add it so tests don't have to mock it everywhere
+    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = new IngestSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
         this.ingestMetadata = ingestMetadata;
+    }
+
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
+    public static IngestDocument fromWire(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**

@@ -43,7 +43,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         true,
         a -> {
             return new WriteableIngestDocument(
-                new IngestDocument(
+                IngestDocument.fromWire(
                     new IngestSourceAndMetadata.Builder().index(a[0])
                         .id(a[1])
                         .routing(a[2])
@@ -88,8 +88,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        // TODO(stu); needs to split
-        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+        this.ingestDocument = IngestDocument.fromWire(sourceAndMetadata, ingestMetadata);
     }
 
     @Override

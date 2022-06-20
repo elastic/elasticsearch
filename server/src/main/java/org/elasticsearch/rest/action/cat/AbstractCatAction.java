@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                     out.append("\n");
                 }
                 out.close();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
             };
         } else {
             return doCatRequest(request, client);

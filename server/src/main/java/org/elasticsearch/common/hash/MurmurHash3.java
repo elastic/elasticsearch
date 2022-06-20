@@ -71,12 +71,6 @@ public enum MurmurHash3 {
     private static long C1 = 0x87c37b91114253d5L;
     private static long C2 = 0x4cf5ad432745937fL;
 
-    protected static long getblock(byte[] key, int offset, int index) {
-        int i_8 = index << 3;
-        int blockOffset = offset + i_8;
-        return ByteUtils.readLongLE(key, blockOffset);
-    }
-
     protected static long fmix(long k) {
         k ^= k >>> 33;
         k *= 0xff51afd7ed558ccdL;

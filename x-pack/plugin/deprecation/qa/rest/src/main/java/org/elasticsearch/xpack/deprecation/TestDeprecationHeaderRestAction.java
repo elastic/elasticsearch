@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -147,7 +147,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
                 builder.startObject().field(entry.getKey(), entry.getValue()).endObject();
             }
             builder.endArray().endObject();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         };
     }
 }

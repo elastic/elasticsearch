@@ -8,7 +8,6 @@
 package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,6 +41,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
@@ -213,7 +213,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     protected String getRequestDescription(long requestId, String action, DiscoveryNode destination) {
-        return new ParameterizedMessage("[{}][{}] from {} to {}", requestId, action, getLocalNode(), destination).getFormattedMessage();
+        return format("[%s][%s] from %s to %s", requestId, action, getLocalNode(), destination);
     }
 
     protected void onBlackholedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {

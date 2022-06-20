@@ -67,6 +67,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -515,8 +516,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
         StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
         StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
-        ReadinessService.PORT
+        ReadinessService.PORT,
+        HealthNodeTaskExecutor.ENABLED_SETTING
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

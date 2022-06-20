@@ -10,7 +10,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -66,7 +65,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
                     builder.endObject();
                 }
                 builder.endObject();
-                return new BytesRestResponse(status.getRestStatus(), builder);
+                return new RestResponse(status.getRestStatus(), builder);
             }
         });
     }

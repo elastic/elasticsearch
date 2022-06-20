@@ -29,9 +29,10 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         // spare BytesRef
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
-    private BytesRefArray bytesRefs;
-    private IntArray hashes; // we cache hashes for faster re-hashing
+    private final BytesRefArray bytesRefs;
     private final BytesRef spare;
+
+    private IntArray hashes; // we cache hashes for faster re-hashing
 
     // Constructor with configurable capacity and default maximum load factor.
     public BytesRefHash(long capacity, BigArrays bigArrays) {
@@ -45,7 +46,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            hashes = bigArrays.newIntArray(capacity, false);
+            this.hashes = bigArrays.newIntArray(capacity, false);
             this.bytesRefs = new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
@@ -95,7 +96,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
+            this.hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
             this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
             success = true;
         } finally {

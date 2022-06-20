@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -165,12 +164,11 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             return Optional.empty();
         }
 
-        for (int i = 0; i < prioritizedTiers.size(); i++) {
-            final var tier = prioritizedTiers.get(i);
-            final var nextTier = i + 1 == prioritizedTiers.size() ? null : prioritizedTiers.get(i + 1);
+        for (int tierIndex = 0; tierIndex < prioritizedTiers.size(); tierIndex++) {
+            final var tier = prioritizedTiers.get(tierIndex);
             if (tierNodesPresent(tier, desiredNodes.actualized())
                 || isDesiredNodeWithinTierJoining(tier, discoveryNodes, desiredNodes)
-                || nextTierIsGrowingAndCurrentTierCanHoldTheIndex(tier, nextTier, discoveryNodes, desiredNodes)) {
+                || nextTierIsGrowingAndCurrentTierCanHoldTheIndex(prioritizedTiers, tierIndex, discoveryNodes, desiredNodes)) {
                 return Optional.of(tier);
             }
         }
@@ -178,17 +176,23 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     private static boolean nextTierIsGrowingAndCurrentTierCanHoldTheIndex(
-        String tier,
-        @Nullable String nextTier,
+        List<String> prioritizedTiers,
+        int tierIndex,
         DiscoveryNodes discoveryNodes,
         DesiredNodes desiredNodes
     ) {
+        final var tier = prioritizedTiers.get(tierIndex);
         assert tierNodesPresent(tier, desiredNodes.actualized()) == false;
         // If there's a plan to grow the next preferred tier, and it hasn't materialized yet,
         // wait until all the nodes in the next tier have joined. This would avoid overwhelming
         // the next tier if within the same plan one tier is removed and the next preferred tier
         // grows.
-        return nextTier != null && tierNodesPresent(tier, discoveryNodes) && tierNodesPresent(nextTier, desiredNodes.pending());
+        boolean nextPreferredTierIsGrowing = false;
+        for (int i = tierIndex + 1; i < prioritizedTiers.size(); i++) {
+            final var nextTier = prioritizedTiers.get(i);
+            nextPreferredTierIsGrowing |= tierNodesPresent(nextTier, desiredNodes.pending());
+        }
+        return tierNodesPresent(tier, discoveryNodes) && nextPreferredTierIsGrowing;
     }
 
     private static boolean isDesiredNodeWithinTierJoining(String tier, DiscoveryNodes discoveryNodes, DesiredNodes desiredNodes) {

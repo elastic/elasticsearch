@@ -113,56 +113,55 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         // Remove the cold tier
         updateDesiredNodes(masterDesiredNode, warmDesiredNode);
 
-        // Simulate the shutdown API and exclude the cold node that will be decommissioned from the allocation
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
-            .get();
-
         assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
 
         ensureGreen(index);
     }
 
     public void testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState() throws Exception {
+        final var hotDesiredNode = desiredNode("hot-node-0", DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
         final var warmDesiredNode = desiredNode("warn-node-0", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
         final var coldDesiredNode = desiredNode("cold-node-0", DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
         final var masterDesiredNode = desiredNode(internalCluster().getMasterName(), DiscoveryNodeRole.MASTER_ROLE);
-        updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
+        updateDesiredNodes(hotDesiredNode, warmDesiredNode, coldDesiredNode, masterDesiredNode);
 
+        startHotOnlyNode(hotDesiredNode.externalId());
         startWarmOnlyNode(warmDesiredNode.externalId());
-        final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
+        startColdOnlyNode(coldDesiredNode.externalId());
 
-        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM);
+        createIndexWithTierPreference(DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
         ensureGreen(index);
 
         assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
 
-        // Remove the cold tier and grow the warm tier
-        final List<DesiredNode> newWarmNodes = new ArrayList<>();
-        for (int i = 1; i <= randomIntBetween(1, 5); i++) {
-            newWarmNodes.add(desiredNode("warm-node-" + i, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        final List<DesiredNode> newDesiredNodesInLeastPreferredTiers = new ArrayList<>();
+        final var numberOfNewNodes = randomIntBetween(1, 5);
+        for (int i = 1; i <= numberOfNewNodes; i++) {
+            if (randomBoolean()) {
+                newDesiredNodesInLeastPreferredTiers.add(desiredNode("hot-node-" + i, DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+            } else {
+                newDesiredNodesInLeastPreferredTiers.add(desiredNode("warm-node-" + i, DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+            }
         }
-        final List<DesiredNode> newDesiredNodes = new ArrayList<>(newWarmNodes);
+
+        // Remove the cold tier and grow the next preferred tiers
+        final List<DesiredNode> newDesiredNodes = new ArrayList<>(newDesiredNodesInLeastPreferredTiers);
         newDesiredNodes.add(masterDesiredNode);
+        newDesiredNodes.add(hotDesiredNode);
         newDesiredNodes.add(warmDesiredNode);
         updateDesiredNodes(newDesiredNodes);
-
-        // Simulate the shutdown API and exclude the cold node that will be decommissioned from the allocation
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
-            .get();
 
         ensureGreen(index);
 
         assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
 
-        for (DesiredNode newWarmNode : newWarmNodes) {
-            startWarmOnlyNode(newWarmNode.externalId());
+        for (final var newDesiredNode : newDesiredNodesInLeastPreferredTiers) {
+            if (newDesiredNode.getRoles().contains(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)) {
+                startHotOnlyNode(newDesiredNode.externalId());
+            } else {
+                startWarmOnlyNode(newDesiredNode.externalId());
+            }
         }
 
         ensureGreen(index);
@@ -510,10 +509,18 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder()
+        startHotOnlyNode(null);
+    }
+
+    public void startHotOnlyNode(@Nullable String externalId) {
+        Settings.Builder nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_hot", "ingest"))
-            .put("node.attr.box", "hot")
-            .build();
+            .put("node.attr.box", "hot");
+
+        if (externalId != null) {
+            nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+        }
+
         internalCluster().startNode(nodeSettings);
     }
 

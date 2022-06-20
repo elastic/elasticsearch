@@ -135,6 +135,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         {
+            // Remove the cold tier from desired nodes
             final var desiredNodes = createDesiredNodesWithActualizedNodes(WARM_DESIRED_NODE);
             final var state = clusterStateWithIndexAndNodes(
                 "data_cold,data_warm",
@@ -163,7 +164,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             // There's a warm node in the desired nodes, but it hasn't joined the cluster yet,
             // in that case we consider that there aren't any nodes with the preferred tier in the cluster
             final var clusterState = clusterStateWithIndexAndNodes(
-                "data_warm,data_cold",
+                randomFrom("data_warm,data_cold", "data_warm,data_hot"),
                 DiscoveryNodes.builder().add(HOT_NODE).build(),
                 DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
             );
@@ -235,7 +236,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testPreferredTierAvailable() {
         {
             final var nodes = DiscoveryNodes.builder().build();
-            final DesiredNodes desiredNodes = null;
+            final DesiredNodes desiredNodes = randomBoolean()
+                ? null
+                : createDesiredNodesWithPendingNodes(HOT_DESIRED_NODE, WARM_DESIRED_NODE, COLD_DESIRED_NODE);
 
             assertThat(
                 DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data"), nodes, desiredNodes),
@@ -337,7 +340,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             // When there are desired nodes that haven't joined the cluster yet, those are not considered
             final var nodes = DiscoveryNodes.builder().add(WARM_NODE).add(CONTENT_NODE).build();
             // i.e. HOT_DESIRED_NODE might be part of the DesiredNodes, but it is not part of the cluster yet
-            final var desiredNodes = createDesiredNodesWithActualizedNodes(WARM_DESIRED_NODE, CONTENT_DESIRED_NODE);
+            final var desiredNodes = DesiredNodes.create(
+                randomAlphaOfLength(10),
+                1,
+                List.of(
+                    pendingDesiredNode(HOT_DESIRED_NODE),
+                    actualizedDesiredNode(WARM_DESIRED_NODE),
+                    actualizedDesiredNode(CONTENT_DESIRED_NODE)
+                )
+            );
 
             assertThat(
                 DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data"), nodes, desiredNodes),
@@ -408,31 +419,54 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             // Ensure that when we are removing a tier and growing the next preferred tier we wait until all the new
             // nodes have joined the cluster avoiding filling the new nodes with shards from the removed tier
             final var nodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(COLD_NODE).build();
-            final var newWarmNode = newDesiredNode("node-warm-2", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
-            final var desiredNodes = DesiredNodes.create(
-                "history",
-                1,
-                List.of(actualizedDesiredNode(HOT_DESIRED_NODE), actualizedDesiredNode(WARM_DESIRED_NODE), pendingDesiredNode(newWarmNode))
-            );
+            final DesiredNodes desiredNodes;
+            // Grow any of the next preferred tiers
+            if (randomBoolean()) {
+                final var newWarmNode = newDesiredNode("node-warm-2", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+                desiredNodes = DesiredNodes.create(
+                    "history",
+                    1,
+                    List.of(
+                        actualizedDesiredNode(HOT_DESIRED_NODE),
+                        actualizedDesiredNode(WARM_DESIRED_NODE),
+                        pendingDesiredNode(newWarmNode)
+                    )
+                );
+            } else {
+                final var newHotNode = newDesiredNode("node-hot-2", DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
+                desiredNodes = DesiredNodes.create(
+                    "history",
+                    1,
+                    List.of(
+                        actualizedDesiredNode(HOT_DESIRED_NODE),
+                        pendingDesiredNode(newHotNode),
+                        actualizedDesiredNode(WARM_DESIRED_NODE)
+                    )
+                );
+            }
 
             assertThat(
-                DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data_cold,data_warm"), nodes, desiredNodes),
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data_cold,data_warm,data_hot"),
+                    nodes,
+                    desiredNodes
+                ),
                 equalTo(Optional.of("data_cold"))
             );
 
-            // Once all the nodes have joined, we can move the shard to the next tier (warm in this case)
+            // Once all the nodes have joined, we can move the shard to the next tier
             final var updatedDesiredNodes = DesiredNodes.create(
                 "history",
                 2,
-                List.of(
-                    actualizedDesiredNode(HOT_DESIRED_NODE),
-                    actualizedDesiredNode(WARM_DESIRED_NODE),
-                    actualizedDesiredNode(newWarmNode)
-                )
+                desiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).map(this::actualizedDesiredNode).toList()
             );
 
             assertThat(
-                DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data_cold,data_warm"), nodes, updatedDesiredNodes),
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data_cold,data_warm,data_hot"),
+                    nodes,
+                    updatedDesiredNodes
+                ),
                 equalTo(Optional.of("data_warm"))
             );
         }
@@ -568,12 +602,18 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private DesiredNodes createDesiredNodesWithActualizedNodes(DesiredNode... nodes) {
+        return createDesiredNodesWithStatus(DesiredNodeWithStatus.Status.ACTUALIZED, nodes);
+    }
+
+    private DesiredNodes createDesiredNodesWithPendingNodes(DesiredNode... nodes) {
+        return createDesiredNodesWithStatus(DesiredNodeWithStatus.Status.PENDING, nodes);
+    }
+
+    private DesiredNodes createDesiredNodesWithStatus(DesiredNodeWithStatus.Status status, DesiredNode... nodes) {
         return DesiredNodes.create(
             randomAlphaOfLength(10),
             1,
-            Arrays.stream(nodes)
-                .map(desiredNode -> new DesiredNodeWithStatus(desiredNode, DesiredNodeWithStatus.Status.ACTUALIZED))
-                .toList()
+            Arrays.stream(nodes).map(desiredNode -> new DesiredNodeWithStatus(desiredNode, status)).toList()
         );
     }
 

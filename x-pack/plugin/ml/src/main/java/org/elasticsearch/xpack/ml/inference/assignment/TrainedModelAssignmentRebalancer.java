@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.job.NodeLoad;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,6 +32,8 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
 
 class TrainedModelAssignmentRebalancer {
 
@@ -207,14 +208,7 @@ class TrainedModelAssignmentRebalancer {
             return Optional.of(
                 nodeToReason.entrySet()
                     .stream()
-                    .map(
-                        entry -> String.format(
-                            Locale.ROOT,
-                            "Could not assign (more) allocations on node [%s]. Reason: %s",
-                            entry.getKey(),
-                            entry.getValue()
-                        )
-                    )
+                    .map(entry -> format("Could not assign (more) allocations on node [%s]. Reason: %s", entry.getKey(), entry.getValue()))
                     .collect(Collectors.joining("|"))
             );
         }

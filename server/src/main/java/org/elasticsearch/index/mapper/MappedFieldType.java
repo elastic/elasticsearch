@@ -175,7 +175,7 @@ public abstract class MappedFieldType {
         try {
             fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
             return true;
-        } catch (IllegalArgumentException e) {
+        } catch (UnsupportedOperationException | IllegalArgumentException e) {
             return false;
         }
     }

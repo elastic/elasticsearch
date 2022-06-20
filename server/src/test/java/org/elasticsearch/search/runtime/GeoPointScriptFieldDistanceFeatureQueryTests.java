@@ -28,6 +28,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +82,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null, null);
+                SearchLookup searchLookup = new SearchLookup(null, null, f -> "location".equals(f) ? Set.of("location") : null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),

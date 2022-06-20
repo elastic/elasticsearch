@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +69,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null, null);
+                SearchLookup searchLookup = new SearchLookup(null, null, f -> "timestamp".equals(f) ? Set.of("timestamp") : null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),

@@ -364,7 +364,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public Metadata withAddedIndex(IndexMetadata index) {
         final String indexName = index.getIndex().getName();
-        ensureNoNameCollision(indexName);
+        ensureNoNameCollision(indexName, false);
         final Map<String, AliasMetadata> aliases = index.getAliases();
         final ImmutableOpenMap<String, Set<Index>> updatedAliases;
         if (aliases.isEmpty()) {
@@ -372,15 +372,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         } else {
             final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
             for (String alias : aliases.keySet()) {
-                ensureNoNameCollision(alias);
+                ensureNoNameCollision(alias, true);
                 final Set<Index> found = aliasesBuilder.get(alias);
                 final Set<Index> updated;
                 if (found == null) {
                     updated = Set.of(index.getIndex());
                 } else {
-                    Sets
+                    final Set<Index> tmp = new HashSet<>(found);
+                    tmp.add(index.getIndex());
+                    updated = Set.copyOf(tmp);
                 }
+                aliasesBuilder.put(alias, updated);
             }
+            updatedAliases = aliasesBuilder.build();
         }
 
         final String[] updatedAllIndices = ArrayUtils.concat(allIndices, indexName);
@@ -421,14 +425,29 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedVisibleClosedIndices = visibleClosedIndices;
         }
 
-        final MappingMetadata existingMapping = mappingsByHash.get(index.mapping().getSha256());
-        if (existingMapping != null) {
-            index = index.withMappingMetadata(existingMapping);
+        final MappingMetadata mappingMetadata = index.mapping();
+        final Map<String, MappingMetadata> updatedMappingsByHash;
+        if (mappingMetadata == null) {
+            updatedMappingsByHash = mappingsByHash;
+        } else {
+            final MappingMetadata existingMapping = mappingsByHash.get(index.mapping().getSha256());
+            if (existingMapping != null) {
+                index = index.withMappingMetadata(existingMapping);
+                updatedMappingsByHash = mappingsByHash;
+            } else {
+                final Map<String, MappingMetadata> tmp = new HashMap<>(mappingsByHash);
+                tmp.put(mappingMetadata.getSha256(), mappingMetadata);
+                updatedMappingsByHash = Collections.unmodifiableMap(tmp);
+            }
         }
 
         final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
         builder.put(indexName, index);
-
+        final ImmutableOpenMap<String, IndexMetadata> indicesMap = builder.build();
+        for (var entry : updatedAliases.entrySet()) {
+            List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+            Builder.validateAlias(entry.getKey(), aliasIndices);
+        }
         return new Metadata(
             clusterUUID,
             clusterUUIDCommitted,
@@ -439,8 +458,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             settings,
             hashesOfConsistentSettings,
             totalNumberOfShards + index.getTotalNumberOfShards(),
-            totalOpenIndexShards,
-            builder.build(),
+            totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
+            indicesMap,
             updatedAliases,
             templates,
             customs,
@@ -451,12 +470,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedClosedIndices,
             updatedVisibleClosedIndices,
             null,
-            mappingsByHash,
-            oldestIndexVersion
+            updatedMappingsByHash,
+            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion
         );
     }
 
-    private void ensureNoNameCollision(String indexName) {
+    private void ensureNoNameCollision(String indexName, boolean isAlias) {
         if (indices.containsKey(indexName)) {
             throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
         }
@@ -464,10 +483,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             throw new IllegalArgumentException("data stream with name [" + indexName + "] already exists");
         }
         if (dataStreamAliases().containsKey(indexName)) {
-            throw new IllegalArgumentException("data stream alias with name [" + indexName + "] already exists");
+            throw new IllegalStateException("data stream alias and indices alias have the same name (" + indexName + ")");
         }
-        if (aliasedIndices.containsKey(indexName)) {
-            throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+        if (isAlias == false) {
+            if (aliasedIndices.containsKey(indexName)) {
+                throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+            }
         }
     }
 

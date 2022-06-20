@@ -61,8 +61,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
     // shards with state set to UNASSIGNED
     private final IndexShardRoutingTable[] shards;
-    // total shard count of this index
-    private final int totalShardCount;
+    private final boolean allShardsActive;
     private final List<ShardRouting> allActiveShards;
 
     IndexRoutingTable(Index index, IndexShardRoutingTable[] shards) {
@@ -75,8 +74,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             allActiveShards.addAll(shard.activeShards());
             totalShardCount += shard.size();
         }
-        this.totalShardCount = totalShardCount;
         this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
+        this.allShardsActive = totalShardCount == allActiveShards.size();
     }
 
     /**
@@ -222,7 +221,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     }
 
     public boolean allShardsActive() {
-        return totalShardCount == allActiveShards.size();
+        return this.allShardsActive;
     }
 
     /**

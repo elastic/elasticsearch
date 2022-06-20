@@ -496,8 +496,8 @@ public class AllocationService {
     }
 
     private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
-        ClusterHealthStatus previousHealth = getHealthStatus(previousState.routingTable(), previousState.getRoutingNodes(), logger);
-        ClusterHealthStatus currentHealth = getHealthStatus(newState.routingTable(), newState.getRoutingNodes(), logger);
+        ClusterHealthStatus previousHealth = getHealthStatus(previousState, logger);
+        ClusterHealthStatus currentHealth = getHealthStatus(newState, logger);
 
         if (previousHealth.equals(currentHealth) == false) {
             logger.info(

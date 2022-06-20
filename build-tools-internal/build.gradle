@@ -213,6 +213,7 @@ repositories {
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
+
 dependencies {
   constraints {
       integTestImplementation('org.ow2.asm:asm:9.3')
@@ -297,7 +298,6 @@ tasks.named('test').configure {
   useJUnitPlatform()
 }
 tasks.register("integTest", Test) {
-  inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath

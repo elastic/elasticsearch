@@ -27,6 +27,7 @@
             - rocky-linux-8-packaging
             - rhel-7-packaging
             - rhel-8-packaging
+            - rhel-9-packaging
             - almalinux-8-packaging
     builders:
       - inject:

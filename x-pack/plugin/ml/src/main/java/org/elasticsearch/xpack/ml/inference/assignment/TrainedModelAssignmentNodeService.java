@@ -248,7 +248,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         updateStoredState(
             task.getModelId(),
             new RoutingStateAndReason(RoutingState.STOPPING, reason),
-            ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
+            ActionListener.wrap(success -> stopDeploymentAsync(task, reason, notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
                         () -> format("[%s] failed to set routing state to stopping as assignment already removed", task.getModelId()),

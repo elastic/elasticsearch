@@ -294,6 +294,10 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return model.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
         }
 
+        void accountMemory(Model m, Node n) {
+            remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.memoryBytes());
+        }
+
         AssignmentPlan build() {
             Map<Model, Map<Node, Integer>> finalAssignments = new HashMap<>();
             for (Model m : assignments.keySet()) {

@@ -13,7 +13,7 @@ import java.util.List;
 
 public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
 
-    public EqlDateNanosIT(String query, String name, List<long[]> eventIds, String[] joinKeys) {
-        super(query, name, eventIds, joinKeys);
+    public EqlDateNanosIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
+        super(query, name, eventIds, joinKeys, size);
     }
 }

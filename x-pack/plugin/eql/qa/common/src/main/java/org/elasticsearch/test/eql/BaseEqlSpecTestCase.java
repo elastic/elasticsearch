@@ -46,6 +46,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
      * For now, every value will be converted to a String.
      */
     private final String[] joinKeys;
+    private final Integer size;
 
     @Before
     public void setup() throws Exception {
@@ -97,19 +98,20 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys() });
+            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size() });
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys) {
+    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
         this.joinKeys = joinKeys;
+        this.size = size;
     }
 
     public void test() throws Exception {
@@ -139,7 +141,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", requestSize());
+        builder.field("size", this.size == null ? requestSize() : this.size);
         builder.field("fetch_size", requestFetchSize());
         builder.field("result_position", requestResultPosition());
         builder.endObject();

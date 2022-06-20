@@ -158,7 +158,7 @@ public class ExecutionManager {
     /*
      * Sample assembler
      */
-    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans) {
+    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
             throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
@@ -211,7 +211,7 @@ public class ExecutionManager {
             }
         }
 
-        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), session.circuitBreaker());
+        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), limit, session.circuitBreaker());
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

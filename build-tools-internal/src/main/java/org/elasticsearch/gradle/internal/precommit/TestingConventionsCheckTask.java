@@ -222,16 +222,17 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     }
 
     private static final class ClassLoadingFileVisitor extends EmptyFileVisitor {
+        private static final String CLASS_POSTFIX = ".class";
         private List<String> fullQualifiedClassNames = new ArrayList<>();
 
         @Override
         public void visitFile(FileVisitDetails fileVisitDetails) {
             String fileName = fileVisitDetails.getName();
-            if (fileName.endsWith(".class")) {
+            if (fileName.endsWith(CLASS_POSTFIX)) {
                 String packageName = Arrays.stream(fileVisitDetails.getRelativePath().getSegments())
                     .takeWhile(s -> s.equals(fileName) == false)
                     .collect(Collectors.joining("."));
-                String simpleClassName = fileName.replaceAll(".class", "");
+                String simpleClassName = fileName.replaceAll(CLASS_POSTFIX, "");
                 String fullQualifiedClassName = packageName + (packageName.isEmpty() ? "" : ".") + simpleClassName;
                 fullQualifiedClassNames.add(fullQualifiedClassName);
             }

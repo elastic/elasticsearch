@@ -18,7 +18,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -72,7 +71,7 @@ public class RestTable {
             builder.endObject();
         }
         builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
@@ -111,7 +110,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -80,7 +79,7 @@ public class DesiredBalanceService {
 
         // we are not responsible for allocating unassigned primaries of existing shards, and we're only responsible for allocating
         // unassigned replicas if the ReplicaShardAllocator gives up, so we must respect these ignored shards
-        final var shardCopiesByShard = new HashMap<ShardId, Tuple<List<ShardRouting>, List<ShardRouting>>>();
+        final var shardRoutings = new HashMap<ShardId, ShardRoutings>();
         for (final var primary : new boolean[] { true, false }) {
             final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
             for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
@@ -92,27 +91,21 @@ public class DesiredBalanceService {
                             unassignedPrimaries.add(shardRouting.shardId());
                         }
                     } else {
-                        shardCopiesByShard.computeIfAbsent(shardRouting.shardId(), ignored -> Tuple.tuple(new ArrayList<>(), List.of()))
-                            .v1()
-                            .add(shardRouting);
+                        shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
                     }
                 }
             }
         }
 
-        for (final var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            shardCopiesByShard.compute(
-                shardAndAssignments.getKey(),
-                (ignored, tuple) -> Tuple.tuple(tuple == null ? List.of() : tuple.v1(), shardAndAssignments.getValue())
-            );
+        for (final var assigned : routingNodes.getAssignedShards().entrySet()) {
+            shardRoutings.computeIfAbsent(assigned.getKey(), ShardRoutings::new).assigned().addAll(assigned.getValue());
         }
 
         // we can assume that all possible shards will be allocated/relocated to one of their desired locations
         final var unassignedShardsToInitialize = new HashMap<ShardRouting, LinkedList<String>>();
-        for (final var shardAndAssignments : shardCopiesByShard.entrySet()) {
-            final var shardId = shardAndAssignments.getKey();
-            final List<ShardRouting> unassignedShardRoutings = shardAndAssignments.getValue().v1();
-            final List<ShardRouting> assignedShardRoutings = shardAndAssignments.getValue().v2();
+        for (final var entry : shardRoutings.entrySet()) {
+            final var shardId = entry.getKey();
+            final var routings = entry.getValue();
 
             // treesets so that we are consistent about the order of future relocations
             final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
@@ -121,7 +114,7 @@ public class DesiredBalanceService {
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
 
-            for (final var shardRouting : assignedShardRoutings) {
+            for (final var shardRouting : routings.assigned()) {
                 assert shardRouting.started();
                 if (targetNodes.remove(shardRouting.currentNodeId()) == false) {
                     shardsToRelocate.add(shardRouting);
@@ -129,7 +122,7 @@ public class DesiredBalanceService {
             }
 
             final var targetNodesIterator = targetNodes.iterator();
-            for (final var shardRouting : unassignedShardRoutings) {
+            for (final var shardRouting : routings.unassigned()) {
                 assert shardRouting.unassigned();
                 if (targetNodesIterator.hasNext()) {
                     unassignedShardsToInitialize.computeIfAbsent(shardRouting, ignored -> new LinkedList<>())
@@ -299,5 +292,12 @@ public class DesiredBalanceService {
 
     public DesiredBalance getCurrentDesiredBalance() {
         return currentDesiredBalance;
+    }
+
+    private record ShardRoutings(List<ShardRouting> unassigned, List<ShardRouting> assigned) {
+
+        private ShardRoutings(ShardId ignored) {
+            this(new ArrayList<>(), new ArrayList<>());
+        }
     }
 }

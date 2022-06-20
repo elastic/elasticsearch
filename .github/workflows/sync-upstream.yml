@@ -1,7 +1,7 @@
 # Synchronize all pushes to upstream 'master' branch local 'master' branch.
 # Create a PR that automatically merges master with the ESQL branch (esql/lang).
-# TODO: Create a PR that automatically merges master with the stateless branch (feature/stateless).
-name: "Sync upstream master into local development branches"
+# TODO: create a PR that automatically merges master with the stateless branch (feature/stateless).
+name: "Sync development branches"
 on:
   schedule:
       - cron: '40 4 * * *'

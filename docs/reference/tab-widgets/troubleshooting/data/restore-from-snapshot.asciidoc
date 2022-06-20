@@ -186,7 +186,7 @@ POST _snapshot/snap-repo/snapshot-20200617/_restore
 +
 <2> We also want to restore the aliases.
 
-. Finally we can verify that the indices are not `red` any more via the <<cat-indices,cat indices API>>.
+. Finally we can verify that the indices health is now `green` via the <<cat-indices,cat indices API>>.
 +
 [source,console]
 ----

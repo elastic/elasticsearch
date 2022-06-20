@@ -35,7 +35,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -554,11 +553,11 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
+        return new KeywordFieldMapper.BytesSyntheticFieldLoader<String>(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+            protected String convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                b.value(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                return NetworkAddress.format(InetAddressPoint.decode(bytes));
             }
         };
     }

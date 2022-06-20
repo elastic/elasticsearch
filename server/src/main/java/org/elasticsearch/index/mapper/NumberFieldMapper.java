@@ -1630,7 +1630,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;

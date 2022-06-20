@@ -198,13 +198,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example() throws IOException {
+            public SyntheticSourceExample example(int maxVals) throws IOException {
                 switch (randomInt(3)) {
                     case 0:
                         boolean v = randomBoolean();
                         return new SyntheticSourceExample(v, v, BooleanFieldMapperTests.this::minimalMapping);
                     case 1:
-                        List<Boolean> in = randomList(1, 5, ESTestCase::randomBoolean);
+                        List<Boolean> in = randomList(1, maxVals, ESTestCase::randomBoolean);
                         Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
                         return new SyntheticSourceExample(in, out, BooleanFieldMapperTests.this::minimalMapping);
                     case 2:
@@ -215,7 +215,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                         });
                     case 3:
                         boolean nullValue = randomBoolean();
-                        List<Boolean> vals = randomList(1, 5, ESTestCase::randomBoolean);
+                        List<Boolean> vals = randomList(1, maxVals, ESTestCase::randomBoolean);
                         in = vals.stream().map(b -> b == nullValue ? null : b).toList();
                         out = vals.size() == 1 ? vals.get(0) : vals.stream().sorted().toList();
                         return new SyntheticSourceExample(in, out, b -> {

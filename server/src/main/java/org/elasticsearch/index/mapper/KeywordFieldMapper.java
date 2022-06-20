@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -41,6 +42,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -1058,15 +1061,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
-        return new BytesSyntheticFieldLoader(name(), simpleName) {
+        return new BytesSyntheticFieldLoader<String>(name(), simpleName) {
             @Override
-            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
-                b.value(value.utf8ToString());
+            protected String convert(BytesRef value) {
+                return value.utf8ToString();
             }
         };
     }
 
-    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public abstract static class BytesSyntheticFieldLoader<T> implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
 
@@ -1076,8 +1079,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            if (docIdsInLeaf.length > 1) {
+                /*
+                 * The singleton optimization is mostly about looking up ordinals
+                 * in sorted order and doesn't buy anything if there is only a single
+                 * document.
+                 */
+                SortedDocValues singleton = DocValues.unwrapSingleton(leaf);
+                if (singleton != null) {
+                    return singletonLeaf(singleton, docIdsInLeaf);
+                }
+            }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
 
@@ -1096,21 +1110,71 @@ public final class KeywordFieldMapper extends FieldMapper {
                     long first = leaf.nextOrd();
                     long next = leaf.nextOrd();
                     if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                        b.field(simpleName);
-                        loadNextValue(b, leaf.lookupOrd(first));
+                        b.field(simpleName, convert(leaf.lookupOrd(first)));
                         return;
                     }
                     b.startArray(simpleName);
-                    loadNextValue(b, leaf.lookupOrd(first));
-                    loadNextValue(b, leaf.lookupOrd(next));
+                    b.value(convert(leaf.lookupOrd(first)));
+                    b.value(convert(leaf.lookupOrd(next)));
                     while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                        loadNextValue(b, leaf.lookupOrd(next));
+                        b.value(convert(leaf.lookupOrd(next)));
                     }
                     b.endArray();
                 }
             };
         }
 
-        protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
+        private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            int[] ords = new int[docIdsInLeaf.length];
+            int found = 0;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    ords[d] = -1;
+                    continue;
+                }
+                ords[d] = singleton.ordValue();
+                found++;
+            }
+            if (found == 0) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            LongObjectPagedHashMap<T> lookup = new LongObjectPagedHashMap<>(found, BigArrays.NON_RECYCLING_INSTANCE);
+            int prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    lookup.put(ord, convert(singleton.lookupOrd(ord)));
+                }
+            }
+            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, lookup.size());
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private int ord;
+
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    int idx = Arrays.binarySearch(docIdsInLeaf, docId);
+                    if (idx < 0) {
+                        throw new IllegalStateException(
+                            "received unexpected docId [" + docId + "]. Expected " + Arrays.toString(docIdsInLeaf)
+                        );
+                    }
+                    ord = ords[idx];
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return ord >= 0;
+                }
+
+                @Override
+                public void load(XContentBuilder b) throws IOException {
+                    b.field(simpleName, lookup.get(ord));
+                }
+            };
+        }
+
+        protected abstract T convert(BytesRef value);
     }
 }

@@ -563,10 +563,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         });
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public Leaf leaf(LeafReader reader) throws IOException {
+            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
                 List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    leaves.add(field.leaf(reader));
+                    leaves.add(field.leaf(reader, docIdsInLeaf));
                 }
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
                     @Override

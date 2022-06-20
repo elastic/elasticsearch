@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;

@@ -58,6 +58,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
@@ -707,23 +708,11 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
-                final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig)
-                    .setKeepAliveStrategy((response, context) -> {
-                        var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
-                        final long actualKeepAlive;
-                        if (serverKeepAlive == -1) {
-                            actualKeepAlive = userConfiguredKeepAlive;
-                        } else if (userConfiguredKeepAlive == -1) {
-                            actualKeepAlive = serverKeepAlive;
-                        } else {
-                            actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
-                        }
-                        LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
-                        return actualKeepAlive;
-                    });
+                    .setKeepAliveStrategy(getKeepAliveStrategy());
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(
                         new HttpHost(
@@ -745,6 +734,24 @@ public class OpenIdConnectAuthenticator {
     // Package private for testing
     CloseableHttpAsyncClient getHttpClient() {
         return httpClient;
+    }
+
+    // Package private for testing
+    ConnectionKeepAliveStrategy getKeepAliveStrategy() {
+        final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+        return (response, context) -> {
+            var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
+            final long actualKeepAlive;
+            if (serverKeepAlive == -1) {
+                actualKeepAlive = userConfiguredKeepAlive;
+            } else if (userConfiguredKeepAlive == -1) {
+                actualKeepAlive = serverKeepAlive;
+            } else {
+                actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+            }
+            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
+            return actualKeepAlive;
+        };
     }
 
     /*

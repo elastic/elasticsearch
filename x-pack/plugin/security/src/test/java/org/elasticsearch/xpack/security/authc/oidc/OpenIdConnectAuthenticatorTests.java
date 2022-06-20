@@ -46,16 +46,20 @@ import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.http.HeaderIterator;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.protocol.HTTP;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -99,6 +103,8 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -1017,6 +1023,56 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             appender.stop();
             Loggers.setLevel(logger, (Level) null);
             openIdConnectAuthenticator.close();
+        }
+    }
+
+    public void testKeepAliveStrategy() throws URISyntaxException {
+        final HttpResponse httpResponse = mock(HttpResponse.class);
+        final int serverTimeoutInSeconds = randomIntBetween(-1, 300);
+        final Iterator<BasicHeader> iterator = List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTimeoutInSeconds)).iterator();
+        when(httpResponse.headerIterator(HTTP.CONN_KEEP_ALIVE)).thenReturn(new HeaderIterator() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public org.apache.http.Header nextHeader() {
+                return iterator.next();
+            }
+
+            @Override
+            public Object next() {
+                return iterator.next();
+            }
+        });
+
+        // Authenticator with a short TTL
+        final Settings.Builder settingsBuilder = getBasicRealmSettings();
+        final int clientTimeoutInSeconds;
+        if (randomBoolean()) {
+            clientTimeoutInSeconds = randomIntBetween(-1, 300);
+            settingsBuilder.put(
+                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
+                clientTimeoutInSeconds + "s"
+            );
+        } else {
+            clientTimeoutInSeconds = 180; // default 180s
+        }
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+        authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+        try {
+            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
+            final int keepAliveDurationInSeconds = (int) keepAliveStrategy.getKeepAliveDuration(httpResponse, null) / 1000;
+            if (serverTimeoutInSeconds == -1) {
+                assertThat(keepAliveDurationInSeconds, equalTo(clientTimeoutInSeconds));
+            } else if (clientTimeoutInSeconds == -1) {
+                assertThat(keepAliveDurationInSeconds, equalTo(serverTimeoutInSeconds));
+            } else {
+                assertThat(keepAliveDurationInSeconds, equalTo(Math.min(serverTimeoutInSeconds, clientTimeoutInSeconds)));
+            }
+        } finally {
+            authenticator.close();
         }
     }
 

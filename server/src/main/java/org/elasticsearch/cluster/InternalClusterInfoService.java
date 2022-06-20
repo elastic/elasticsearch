@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -89,7 +88,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
+    private final List<ClusterInfoListener> listeners = new CopyOnWriteArrayList<>();
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
@@ -287,11 +286,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 try {
                     final ClusterInfo clusterInfo = getClusterInfo();
                     boolean anyListeners = false;
-                    for (final Consumer<ClusterInfo> listener : listeners) {
+                    for (final ClusterInfoListener listener : listeners) {
                         anyListeners = true;
                         try {
                             logger.trace("notifying [{}] of new cluster info", listener);
-                            listener.accept(clusterInfo);
+                            listener.onNewInfo(clusterInfo);
                         } catch (Exception e) {
                             logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                         }
@@ -345,6 +344,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 mostAvailableSpaceUsages = Map.of();
                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 thisRefreshListeners.forEach(l -> l.onResponse(ClusterInfo.EMPTY));
+                listeners.forEach(ClusterInfoListener::clusterInfoServiceDisabled);
             };
         }
     }
@@ -406,8 +406,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     @Override
-    public void addListener(Consumer<ClusterInfo> clusterInfoConsumer) {
-        listeners.add(clusterInfoConsumer);
+    public void addListener(ClusterInfoListener clusterInfoListener) {
+        listeners.add(clusterInfoListener);
     }
 
     static void buildShardLevelInfo(

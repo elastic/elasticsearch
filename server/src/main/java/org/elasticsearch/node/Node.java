@@ -811,7 +811,7 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis,
                 rerouteService
             );
-            clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
+            clusterInfoService.addListener(diskThresholdMonitor);
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,

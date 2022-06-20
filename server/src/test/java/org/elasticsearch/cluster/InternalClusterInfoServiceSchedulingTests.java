@@ -74,7 +74,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
         clusterService.addListener(clusterInfoService);
-        clusterInfoService.addListener(ignored -> {});
+        // ClusterInfoService expects at least one listener. Pass a noop listener.
+        clusterInfoService.addListener(new ClusterInfoListener() {
+            @Override
+            public void onNewInfo(ClusterInfo info) {}
+
+            @Override
+            public void clusterInfoServiceDisabled() {}
+        });
 
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         clusterApplierService.setInitialState(ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build());

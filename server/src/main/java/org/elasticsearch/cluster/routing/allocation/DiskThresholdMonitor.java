@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -51,7 +52,7 @@ import java.util.stream.Stream;
  * reroute if it does. Also responsible for logging about nodes that have
  * passed the disk watermarks
  */
-public class DiskThresholdMonitor {
+public class DiskThresholdMonitor implements ClusterInfoListener {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
 
@@ -118,6 +119,16 @@ public class DiskThresholdMonitor {
         logger.trace("checkFinished");
     }
 
+    @Override
+    public void clusterInfoServiceDisabled() {
+        if (checkInProgress.compareAndSet(false, true) == false) {
+            logger.info("skipping clusterInfoServiceDisabled call as a check is already in progress");
+            return;
+        }
+        removeExistingIndexBlocks(ActionListener.wrap(this::checkFinished));
+    }
+
+    @Override
     public void onNewInfo(ClusterInfo info) {
         // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
         // all ClusterInfo updates are processed and never ignored
@@ -275,8 +286,7 @@ public class DiskThresholdMonitor {
 
                     if (nodesOverLowThreshold.contains(node)) {
                         // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
-                        // shards
-                        // if we reroute now.
+                        // shards, if we reroute now.
                         if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                             reroute = true;
                             explanation = "one or more nodes has gone under the high or low watermark";
@@ -468,6 +478,31 @@ public class DiskThresholdMonitor {
             .setSettings(readOnlySettings)
             .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
+    }
+
+    private void removeExistingIndexBlocks(ActionListener<Void> listener) {
+        ActionListener<Void> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
+            logger.debug("removing read-only blocks from indices failed", e);
+            listener.onFailure(e);
+        });
+        final ClusterState state = clusterStateSupplier.get();
+        final Set<String> indicesToRelease = state.routingTable()
+            .indicesRouting()
+            .keySet()
+            .stream()
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .collect(Collectors.toUnmodifiableSet());
+        logger.info("removing read-only block from indices [{}]", indicesToRelease);
+        if (indicesToRelease.isEmpty() == false) {
+            client.admin()
+                .indices()
+                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
+                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
+                .origin("disk-threshold-monitor")
+                .execute(wrappedListener.map(r -> null));
+        } else {
+            wrappedListener.onResponse(null);
+        }
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

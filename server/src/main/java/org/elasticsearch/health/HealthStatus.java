@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.cluster.coordination.StableMasterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -51,5 +52,14 @@ public enum HealthStatus implements Writeable {
 
     public String xContentValue() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public static HealthStatus fromStableMasterStatus(StableMasterService.StableMasterStatus stableMasterStatus) {
+        return switch (stableMasterStatus) {
+            case GREEN -> HealthStatus.GREEN;
+            case YELLOW -> HealthStatus.YELLOW;
+            case RED -> HealthStatus.RED;
+            case UNKNOWN -> HealthStatus.UNKNOWN;
+        };
     }
 }

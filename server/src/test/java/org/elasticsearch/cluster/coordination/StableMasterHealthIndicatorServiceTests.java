@@ -96,14 +96,17 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        HealthStatus inputStatus = randomFrom(HealthStatus.RED, HealthStatus.YELLOW);
+        StableMasterService.StableMasterStatus inputStatus = randomFrom(
+            StableMasterService.StableMasterStatus.RED,
+            StableMasterService.StableMasterStatus.YELLOW
+        );
         StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
         );
         HealthIndicatorResult result = service.getHealthIndicatorResult(stableMasterResult, true);
-        assertThat(result.status(), equalTo(inputStatus));
+        assertThat(result.status(), equalTo(HealthStatus.fromStableMasterStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
@@ -134,14 +137,17 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        HealthStatus inputStatus = randomFrom(HealthStatus.RED, HealthStatus.YELLOW);
+        StableMasterService.StableMasterStatus inputStatus = randomFrom(
+            StableMasterService.StableMasterStatus.RED,
+            StableMasterService.StableMasterStatus.YELLOW
+        );
         StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
         );
         HealthIndicatorResult result = service.getHealthIndicatorResult(stableMasterResult, false);
-        assertThat(result.status(), equalTo(inputStatus));
+        assertThat(result.status(), equalTo(HealthStatus.fromStableMasterStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
@@ -158,14 +164,17 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        HealthStatus inputStatus = randomFrom(HealthStatus.GREEN, HealthStatus.UNKNOWN);
+        StableMasterService.StableMasterStatus inputStatus = randomFrom(
+            StableMasterService.StableMasterStatus.GREEN,
+            StableMasterService.StableMasterStatus.UNKNOWN
+        );
         StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
         );
         HealthIndicatorResult result = service.getHealthIndicatorResult(stableMasterResult, true);
-        assertThat(result.status(), equalTo(inputStatus));
+        assertThat(result.status(), equalTo(HealthStatus.fromStableMasterStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
@@ -290,5 +299,14 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
         return parser.map();
+    }
+
+    private HealthStatus getHealthStatusForStableMasterStatus(StableMasterService.StableMasterStatus stableMasterStatus) {
+        return switch (stableMasterStatus) {
+            case GREEN -> HealthStatus.GREEN;
+            case YELLOW -> HealthStatus.YELLOW;
+            case RED -> HealthStatus.RED;
+            case UNKNOWN -> HealthStatus.UNKNOWN;
+        };
     }
 }

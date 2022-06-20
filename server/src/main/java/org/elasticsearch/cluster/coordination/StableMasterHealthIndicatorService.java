@@ -96,7 +96,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     // Non-private for testing
     HealthIndicatorResult getHealthIndicatorResult(StableMasterService.StableMasterResult stableMasterResult, boolean explain) {
-        HealthStatus status = stableMasterResult.status();
+        HealthStatus status = HealthStatus.fromStableMasterStatus(stableMasterResult.status());
         HealthIndicatorDetails details = getDetails(stableMasterResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
         List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();

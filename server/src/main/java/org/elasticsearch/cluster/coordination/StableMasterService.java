@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.health.HealthStatus;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -146,7 +145,7 @@ public class StableMasterService implements ClusterStateListener {
      */
     private StableMasterResult calculateOnMasterHasChangedIdentity(MasterHistory localMasterHistory, int masterChanges, boolean explain) {
         logger.trace("Have seen {} master changes in the last {}", masterChanges, localMasterHistory.getMaxHistoryAge());
-        HealthStatus stableMasterStatus = HealthStatus.YELLOW;
+        StableMasterStatus stableMasterStatus = StableMasterStatus.YELLOW;
         String summary = String.format(
             Locale.ROOT,
             "The elected master node has changed %d times in the last %s",
@@ -230,7 +229,7 @@ public class StableMasterService implements ClusterStateListener {
                 localMasterHistory,
                 remoteHistoryException
             );
-            return new StableMasterResult(HealthStatus.YELLOW, summary, details);
+            return new StableMasterResult(StableMasterStatus.YELLOW, summary, details);
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
             return getMasterIsStableResult(explain, localMasterHistory);
@@ -264,7 +263,7 @@ public class StableMasterService implements ClusterStateListener {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
         StableMasterDetails details = getDetails(explain, localMasterHistory);
-        return new StableMasterResult(HealthStatus.GREEN, summary, details);
+        return new StableMasterResult(StableMasterStatus.GREEN, summary, details);
     }
 
     /**
@@ -277,7 +276,7 @@ public class StableMasterService implements ClusterStateListener {
         // NOTE: The logic in this method will be implemented in a future PR
         String summary = "No master has been observed recently";
         StableMasterDetails details = StableMasterDetails.EMPTY;
-        return new StableMasterResult(HealthStatus.RED, summary, details);
+        return new StableMasterResult(StableMasterStatus.RED, summary, details);
     }
 
     /**
@@ -317,7 +316,14 @@ public class StableMasterService implements ClusterStateListener {
         }
     }
 
-    public record StableMasterResult(HealthStatus status, String summary, StableMasterDetails details) {}
+    public record StableMasterResult(StableMasterStatus status, String summary, StableMasterDetails details) {}
+
+    public enum StableMasterStatus {
+        GREEN,
+        UNKNOWN,
+        YELLOW,
+        RED;
+    }
 
     public record StableMasterDetails(
         DiscoveryNode currentMaster,

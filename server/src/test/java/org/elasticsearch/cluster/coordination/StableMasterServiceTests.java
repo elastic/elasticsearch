@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -87,52 +86,52 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
         // First master:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         StableMasterService.StableMasterResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Change 1:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Change 2:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Change 3:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Still node 3, so no change:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
 
         // Change 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
         assertThat(result.summary(), equalTo("The elected master node has changed 4 times in the last 30m"));
         StableMasterService.StableMasterDetails details = result.details();
         List<DiscoveryNode> recentMasters = details.recentMasters();
@@ -163,39 +162,39 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
         // Only start counting nulls once the master has been node1, so 1:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         StableMasterService.StableMasterResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         // 2:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         // 3:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         // 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         // It has now gone null 4 times, but the master reports that it's ok because the remote history says it has not gone null:
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
 
         List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getNodes();
         when(masterHistoryService.getRemoteMasterHistory()).thenReturn(sameAsLocalHistory);
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
         StableMasterService.StableMasterDetails details = result.details();
         assertThat(details.currentMaster(), equalTo(null));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
 
     }
@@ -222,7 +221,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         StableMasterService.StableMasterResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
         StableMasterService.StableMasterDetails details = result.details();
@@ -263,7 +262,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         StableMasterService.StableMasterResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
     }
 
     public void testMultipleChangesButIdentityNeverChanges() throws Exception {
@@ -286,7 +285,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
         StableMasterService.StableMasterResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
     }
 
@@ -299,7 +298,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
          * In this case we detect 2 identity changes (node1 -> node2, and node2 -> node1). We detect that node1 has gone to null 5 times. So
          * we get a status of YELLOW.
          */
-        testTooManyTransitionsToNull(false, HealthStatus.YELLOW);
+        testTooManyTransitionsToNull(false, StableMasterService.StableMasterStatus.YELLOW);
     }
 
     public void testGreenOnNullRemoteHistory() throws Exception {
@@ -311,10 +310,11 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
          * we contact the remote master, and in this test get null in return as the master history. Since it is not definitive, we return
          *  GREEN.
          */
-        testTooManyTransitionsToNull(true, HealthStatus.GREEN);
+        testTooManyTransitionsToNull(true, StableMasterService.StableMasterStatus.GREEN);
     }
 
-    private void testTooManyTransitionsToNull(boolean remoteHistoryIsNull, HealthStatus expectedStatus) throws Exception {
+    private void testTooManyTransitionsToNull(boolean remoteHistoryIsNull, StableMasterService.StableMasterStatus expectedStatus)
+        throws Exception {
         /*
          * On the local node:
          *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
@@ -349,7 +349,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 StableMasterService.StableMasterResult healthIndicatorResult = node.stableMasterService.calculate(true);
-                assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.GREEN));
+                assertThat(healthIndicatorResult.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
             }
         }
     }
@@ -367,7 +367,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 StableMasterService.StableMasterResult healthIndicatorResult = node.stableMasterService.calculate(true);
                 if (node.getLocalNode().isMasterNode() == false) {
-                    assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
+                    assertThat(healthIndicatorResult.status(), equalTo(StableMasterService.StableMasterStatus.RED));
                 }
             }
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -407,7 +407,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
 
             final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
             StableMasterService.StableMasterResult healthIndicatorResult = currentLeader.stableMasterService.calculate(true);
-            assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.YELLOW));
+            assertThat(healthIndicatorResult.status(), equalTo(StableMasterService.StableMasterStatus.YELLOW));
             assertThat(healthIndicatorResult.summary(), containsString(expectedSummarySubstring));
         }
     }
@@ -437,7 +437,7 @@ public class StableMasterServiceTests extends AbstractCoordinatorTestCase {
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 StableMasterService.StableMasterResult healthIndicatorResult = node.stableMasterService.calculate(true);
                 if (leader.getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds().contains(node.getId())) {
-                    assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.GREEN));
+                    assertThat(healthIndicatorResult.status(), equalTo(StableMasterService.StableMasterStatus.GREEN));
                 }
             }
         }

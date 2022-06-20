@@ -201,7 +201,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
 
         int count = 0;
-        for (ShardRouting shardEntry : this) {
+        for (ShardRouting shardEntry : shards.values()) {
             for (ShardRoutingState state : states) {
                 if (shardEntry.state() == state) {
                     count++;
@@ -222,13 +222,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
         } else if (state == ShardRoutingState.RELOCATING) {
             return new ArrayList<>(relocatingShards);
         }
-        List<ShardRouting> shards = new ArrayList<>();
-        for (ShardRouting shardEntry : this) {
+        List<ShardRouting> stateShards = new ArrayList<>();
+        for (ShardRouting shardEntry : shards.values()) {
             if (shardEntry.state() == state) {
-                shards.add(shardEntry);
+                stateShards.add(shardEntry);
             }
         }
-        return shards;
+        return stateShards;
     }
 
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
@@ -248,7 +248,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @return a list of shards
      */
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
-        List<ShardRouting> shards = new ArrayList<>();
+        List<ShardRouting> shardsWithState = new ArrayList<>();
 
         if (states.length == 1) {
             if (states[0] == ShardRoutingState.INITIALIZING) {
@@ -256,31 +256,31 @@ public class RoutingNode implements Iterable<ShardRouting> {
                     if (shardEntry.getIndexName().equals(index) == false) {
                         continue;
                     }
-                    shards.add(shardEntry);
+                    shardsWithState.add(shardEntry);
                 }
-                return shards;
+                return shardsWithState;
             } else if (states[0] == ShardRoutingState.RELOCATING) {
                 for (ShardRouting shardEntry : relocatingShards) {
                     if (shardEntry.getIndexName().equals(index) == false) {
                         continue;
                     }
-                    shards.add(shardEntry);
+                    shardsWithState.add(shardEntry);
                 }
-                return shards;
+                return shardsWithState;
             }
         }
 
-        for (ShardRouting shardEntry : this) {
+        for (ShardRouting shardEntry : shards.values()) {
             if (shardEntry.getIndexName().equals(index) == false) {
                 continue;
             }
             for (ShardRoutingState state : states) {
                 if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
+                    shardsWithState.add(shardEntry);
                 }
             }
         }
-        return shards;
+        return shardsWithState;
     }
 
     /**

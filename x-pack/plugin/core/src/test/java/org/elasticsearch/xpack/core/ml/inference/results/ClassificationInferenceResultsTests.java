@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -71,7 +72,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             0.7,
             0.7
         );
-        IngestDocument document = IngestDocument.testEmptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.bar", List.class);
@@ -98,7 +99,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             1.0,
             1.0
         );
-        IngestDocument document = IngestDocument.testEmptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 
 import java.util.Arrays;
 import java.util.List;
@@ -48,7 +49,7 @@ public class NlpClassificationInferenceResultsTests extends InferenceResultsTest
             0.7,
             randomBoolean()
         );
-        IngestDocument document = IngestDocument.testEmptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);

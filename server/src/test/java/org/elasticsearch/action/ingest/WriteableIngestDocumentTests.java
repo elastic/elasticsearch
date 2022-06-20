@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,7 +52,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument ingestDocument = new WriteableIngestDocument(
-            IngestDocument.testFromSourceAndIngest(sourceAndMetadata, ingestMetadata)
+            TestIngestDocument.fromSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         boolean changed = false;
@@ -83,7 +84,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(
-            IngestDocument.testFromSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
+            TestIngestDocument.fromSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
         );
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
@@ -93,7 +94,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
             WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
-                IngestDocument.testFromSourceAndIngest(
+                TestIngestDocument.fromSourceAndIngest(
                     Collections.unmodifiableMap(sourceAndMetadata),
                     Collections.unmodifiableMap(ingestMetadata)
                 )
@@ -116,7 +117,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(
-            IngestDocument.testFromSourceAndIngest(sourceAndMetadata, ingestMetadata)
+            TestIngestDocument.fromSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         BytesStreamOutput out = new BytesStreamOutput();

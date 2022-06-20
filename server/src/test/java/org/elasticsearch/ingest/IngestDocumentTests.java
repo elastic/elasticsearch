@@ -1043,7 +1043,7 @@ public class IngestDocumentTests extends ESTestCase {
         sourceAndMetadata.put("beforeClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509237000), timezone));
         sourceAndMetadata.put("afterClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509240600), timezone));
 
-        IngestDocument original = IngestDocument.testFromSourceAndMetadata(sourceAndMetadata);
+        IngestDocument original = TestIngestDocument.fromSourceAndMetadata(sourceAndMetadata);
         IngestDocument copy = new IngestDocument(original);
 
         assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));

@@ -98,31 +98,6 @@ public final class IngestDocument {
     }
 
     /**
-     * These two test static factory methods are needed for testing and allow to the creation of a new {@link IngestDocument} given the
-     * provided elasticsearch metadata, source and ingest metadata.
-     *
-     * This is needed because the ingest metadata will be initialized with the current timestamp at init time, which makes equality
-     * comparisons impossible in tests.
-     */
-    public static IngestDocument testFromSourceAndIngest(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
-    }
-
-    /**
-     * Create an IngestDocument for testing as in {@link #testFromSourceAndIngest(Map, Map)} but pass an empty mutable map for ingestMetaata
-     */
-    public static IngestDocument testFromSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
-        return new IngestDocument(sourceAndMetadata, new HashMap<>());
-    }
-
-    /**
-     * Create an empty ingest document for testing
-     */
-    public static IngestDocument testEmptyIngestDocument() {
-        return new IngestDocument(new HashMap<>(), new HashMap<>());
-    }
-
-    /**
      * Returns the value contained in the document for the provided path
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value

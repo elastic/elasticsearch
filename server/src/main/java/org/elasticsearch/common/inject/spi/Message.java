@@ -25,8 +25,7 @@ import java.util.Objects;
 
 /**
  * An error message and the context in which it occurred. Messages are usually created internally by
- * Guice and its extensions. Messages can be created explicitly in a module using {@link
- * org.elasticsearch.common.inject.Binder#addError(Throwable) addError()} statements:
+ * Guice and its extensions.
  * <pre>
  *     try {
  *       bindPropertiesFromFile();

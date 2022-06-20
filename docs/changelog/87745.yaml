@@ -1,5 +1,0 @@
-pr: 87745 
-summary: ""Remove unused routing allocation from disk threshold decider.
-area: Cluster Allocation
-type: non-issue
-issues: []

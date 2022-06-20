@@ -17,7 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,6 +43,12 @@ public class RestGetIndicesAction extends BaseRestHandler {
         Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
             .collect(Collectors.toSet())
     );
+
+    private final ThreadPool threadPool;
+
+    public RestGetIndicesAction(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public List<Route> routes() {
@@ -70,7 +78,13 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
-        return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
+        final var httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
+            .indices()
+            .getIndex(
+                getIndexRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+            );
     }
 
     /**

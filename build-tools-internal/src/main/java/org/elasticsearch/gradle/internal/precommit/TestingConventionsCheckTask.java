@@ -228,13 +228,12 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         public void visitFile(FileVisitDetails fileVisitDetails) {
             String fileName = fileVisitDetails.getName();
             if (fileName.endsWith(".class")) {
-                String[] segments = fileVisitDetails.getRelativePath().getSegments();
-                String fullqualifiedClassName = Arrays.stream(segments)
+                String packageName = Arrays.stream(fileVisitDetails.getRelativePath().getSegments())
                     .takeWhile(s -> s.equals(fileName) == false)
-                    .collect(Collectors.joining("."))
-                    + "."
-                    + fileName.replace(".class", "");
-                fullQualifiedClassNames.add(fullqualifiedClassName);
+                    .collect(Collectors.joining("."));
+                String simpleClassName = fileName.replaceAll(".class", "");
+                String fullQualifiedClassName = packageName + (packageName.isEmpty() ? "" : ".") + simpleClassName;
+                fullQualifiedClassNames.add(fullQualifiedClassName);
             }
         }
 

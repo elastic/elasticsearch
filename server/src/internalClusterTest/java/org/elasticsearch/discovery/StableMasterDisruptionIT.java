@@ -497,7 +497,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 .put(
                     StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(-1, TimeUnit.SECONDS)
+                    new TimeValue(1, TimeUnit.SECONDS)
                 )
                 .build()
         );
@@ -537,7 +537,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 .put(
                     StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(-1, TimeUnit.SECONDS)
+                    new TimeValue(1, TimeUnit.SECONDS)
                 )
                 .build()
         );

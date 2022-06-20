@@ -104,6 +104,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final Setting<TimeValue> NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING = Setting.timeSetting(
         "health.master_history.has_master_lookup_timeframe",
         new TimeValue(30, TimeUnit.SECONDS),
+        new TimeValue(1, TimeUnit.SECONDS),
         Setting.Property.NodeScope
     );
 

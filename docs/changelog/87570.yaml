@@ -1,5 +1,5 @@
 pr: 87570
-summary: Add run-as info to transform config listings
+summary: Add authorization info to transform config listings
 area: Transform
 type: enhancement
 issues: []

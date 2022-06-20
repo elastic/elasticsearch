@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static java.lang.String.format;
+import static org.elasticsearch.core.Strings.format;
 
 class TrainedModelAssignmentRebalancer {
 

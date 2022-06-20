@@ -1,0 +1,7 @@
+pr: 87810
+summary: Make automatic type conversion consistent for comparisons
+area: SQL
+type: "enhancement, bug"
+issues:
+ - 87500
+ - 77055

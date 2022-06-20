@@ -21,8 +21,7 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
         super(in);
     }
 
-    public EsqlQueryResponse() {
-    }
+    public EsqlQueryResponse() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -35,6 +34,5 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 }

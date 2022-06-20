@@ -20,9 +20,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
     @Inject
-    public TransportEsqlQueryAction(
-        TransportService transportService,
-        ActionFilters actionFilters) {
+    public TransportEsqlQueryAction(TransportService transportService, ActionFilters actionFilters) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
     }
 

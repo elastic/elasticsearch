@@ -25,11 +25,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean columnar = randomBoolean();
         ZoneId zoneId = randomZone();
         String json = String.format(Locale.ROOT, """
-        {
-            "query": "%s",
-            "columnar": %s,
-            "time_zone": "%s"
-        }""", query, columnar, zoneId);
+            {
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s"
+            }""", query, columnar, zoneId);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json);
         assertEquals(query, request.query());

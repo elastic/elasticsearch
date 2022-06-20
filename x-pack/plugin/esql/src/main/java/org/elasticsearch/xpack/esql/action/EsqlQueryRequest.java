@@ -76,6 +76,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     public static EsqlQueryRequest fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
+
     private static ObjectParser<EsqlQueryRequest, Void> objectParser(Supplier<EsqlQueryRequest> supplier) {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);

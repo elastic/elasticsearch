@@ -443,11 +443,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
         public void start() {
             isStarted = true;
         }

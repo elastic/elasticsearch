@@ -734,6 +734,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(((ObjectMapper) barMapper).getMapper("baz"));
     }
 
+    public void testEmptyObjectGetsMapped() throws Exception {
+        MapperService mapperService = createMapperService();
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> {
+            b.startObject("foo");
+            b.endObject();
+        }));
+        Mapping mapping = doc.dynamicMappingsUpdate();
+        assertNotNull(mapping);
+        Mapper foo = mapping.getRoot().getMapper("foo");
+        assertThat(foo, instanceOf(ObjectMapper.class));
+        assertEquals(0, ((ObjectMapper) foo).mappers.size());
+    }
+
     public void testDynamicGeoPointArrayWithTemplate() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");

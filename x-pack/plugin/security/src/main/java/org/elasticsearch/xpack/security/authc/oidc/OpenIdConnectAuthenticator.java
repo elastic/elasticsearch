@@ -58,8 +58,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
@@ -114,6 +116,7 @@ import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
@@ -705,9 +708,11 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
+
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig);
+                    .setDefaultRequestConfig(requestConfig)
+                    .setKeepAliveStrategy(getKeepAliveStrategy());
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(
                         new HttpHost(
@@ -724,6 +729,32 @@ public class OpenIdConnectAuthenticator {
         } catch (PrivilegedActionException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
+    }
+
+    // Package private for testing
+    CloseableHttpAsyncClient getHttpClient() {
+        return httpClient;
+    }
+
+    // Package private for testing
+    ConnectionKeepAliveStrategy getKeepAliveStrategy() {
+        final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+        return (response, context) -> {
+            var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
+            long actualKeepAlive;
+            if (serverKeepAlive <= -1) {
+                actualKeepAlive = userConfiguredKeepAlive;
+            } else if (userConfiguredKeepAlive <= -1) {
+                actualKeepAlive = serverKeepAlive;
+            } else {
+                actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+            }
+            if (actualKeepAlive < -1) {
+                actualKeepAlive = -1;
+            }
+            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
+            return actualKeepAlive;
+        };
     }
 
     /*

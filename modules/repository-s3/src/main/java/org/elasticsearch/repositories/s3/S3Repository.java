@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -275,12 +276,42 @@ class S3Repository extends MeteredBlobStoreRepository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+        final SnapshotDeleteListener wrappedListener;
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
+            wrappedListener = listener;
+        } else {
+            wrappedListener = new SnapshotDeleteListener() {
+                @Override
+                public void onDone() {
+                    listener.onDone();
+                }
+
+                @Override
+                public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                    logCooldownInfo();
+                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                        assert cancellable != null;
+                        listener.onRepositoryDataWritten(repositoryData);
+                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logCooldownInfo();
+                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                        assert cancellable != null;
+                        listener.onFailure(e);
+                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+                }
+            };
         }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
     }
 
     /**

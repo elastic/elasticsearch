@@ -56,6 +56,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
+    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
     public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
 
     private final ClusterService clusterService;
@@ -347,18 +348,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata updatedMetadata = modelAssignments.build();
         if (updatedMetadata.equals(previousMetadata)) {
+            return forceUpdate(currentState, modelAssignments);
+        } else {
             return currentState;
         }
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, updatedMetadata)
-                    .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
-            )
-            .build();
     }
 
-    /** Visible for testing */
+    private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
+        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+            metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
+                .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+        } else {
+            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
+        }
+        return ClusterState.builder(currentState).metadata(metadata).build();
+    }
+
     ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
         return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
     }
@@ -513,20 +519,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (TrainedModelAssignmentMetadata.fromState(currentState).modelAssignments().isEmpty()) {
             return currentState;
         }
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadata.Builder.empty().build())
-                    .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
-                    .build()
-            )
-            .build();
+        return forceUpdate(currentState, TrainedModelAssignmentMetadata.Builder.empty());
     }
 
     static boolean shouldRebalanceModels(final ClusterChangedEvent event) {
         // If there are no assignments created at all, there is nothing to update
-        final TrainedModelAssignmentMetadata newMetadata = event.state().getMetadata().custom(TrainedModelAssignmentMetadata.NAME);
-        if (newMetadata == null) {
+        final TrainedModelAssignmentMetadata newMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
+        if (newMetadata == null || newMetadata.modelAssignments().isEmpty()) {
             return false;
         }
 

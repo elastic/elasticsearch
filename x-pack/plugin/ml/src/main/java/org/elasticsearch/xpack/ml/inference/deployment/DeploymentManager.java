@@ -224,7 +224,7 @@ public class DeploymentManager {
             processContext = processContextByAllocation.get(task.getId());
         }
         if (processContext != null) {
-            logger.info("[{}] Stopping deployment", task.getModelId());
+            logger.info("[{}] Stopping deployment, reason [{}]", task.getModelId(), task.stoppedReason().orElse("unknown"));
             processContext.stopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getModelId());

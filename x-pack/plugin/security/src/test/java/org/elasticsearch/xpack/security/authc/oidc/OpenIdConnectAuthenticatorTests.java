@@ -1034,12 +1034,14 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         httpServer.start();
 
         final AtomicReference<Integer> firstClientPort = new AtomicReference<>(null);
+        final AtomicReference<Boolean> portTested = new AtomicReference<>(false);
         httpServer.createContext("/", exchange -> {
             try {
                 final int currentPort = exchange.getRemoteAddress().getPort();
                 // Either set the first port number, otherwise the current (2nd) port number should be different from the 1st one
                 if (false == firstClientPort.compareAndSet(null, currentPort)) {
                     assertThat(currentPort, not(equalTo(firstClientPort.get())));
+                    portTested.set(true);
                 }
                 final byte[] bytes = randomByteArrayOfLength(2);
                 exchange.sendResponseHeaders(200, bytes.length);
@@ -1097,6 +1099,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                 Thread.sleep(1500);
             }
             appender.assertAllExpectationsMatched();
+            assertThat(portTested.get(), is(true));
         } finally {
             Loggers.removeAppender(logger, appender);
             appender.stop();

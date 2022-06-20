@@ -84,7 +84,7 @@ public class XContentUtils {
      *                will run as. If <code>null</code> or no authentication key entry is present then no
      *                fields are added.
      */
-    public static void addStoredHeaderInfo(final XContentBuilder builder, final Map<String, String> headers) throws IOException {
+    public static void addAuthorizationInfo(final XContentBuilder builder, final Map<String, String> headers) throws IOException {
         if (headers == null) {
             return;
         }

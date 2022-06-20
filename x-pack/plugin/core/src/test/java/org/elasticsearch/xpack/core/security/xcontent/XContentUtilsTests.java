@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class XContentUtilsTests extends ESTestCase {
 
-    public void testAddStoredHeaderInfoWithNoAuthHeader() throws IOException {
+    public void testAddAuthorizationInfoWithNoAuthHeader() throws IOException {
         String json = generateJson(null);
         assertThat(json, equalTo("{}"));
         json = generateJson(Map.of());
@@ -35,7 +35,7 @@ public class XContentUtilsTests extends ESTestCase {
         assertThat(json, equalTo("{}"));
     }
 
-    public void testAddStoredHeaderInfoWithRoles() throws IOException {
+    public void testAddAuthorizationInfoWithRoles() throws IOException {
         String[] roles = generateRandomStringArray(4, randomIntBetween(5, 15), false, false);
         User user = new User(randomAlphaOfLengthBetween(5, 15), roles);
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().realm().user(user);
@@ -47,7 +47,7 @@ public class XContentUtilsTests extends ESTestCase {
         );
     }
 
-    public void testAddStoredHeaderInfoWithApiKey() throws IOException {
+    public void testAddAuthorizationInfoWithApiKey() throws IOException {
         String apiKeyId = randomAlphaOfLength(20);
         String apiKeyName = randomAlphaOfLengthBetween(1, 16);
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder()
@@ -58,7 +58,7 @@ public class XContentUtilsTests extends ESTestCase {
         assertThat(json, equalTo("{\"authorization\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
     }
 
-    public void testAddStoredHeaderInfoWithServiceAccount() throws IOException {
+    public void testAddAuthorizationInfoWithServiceAccount() throws IOException {
         String account = "elastic/" + randomFrom("kibana", "fleet-server", "enterprise-search-server");
         User user = new User(account);
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().serviceAccount(user);
@@ -68,10 +68,11 @@ public class XContentUtilsTests extends ESTestCase {
     }
 
     private String generateJson(Map<String, String> headers) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        XContentUtils.addStoredHeaderInfo(builder, headers);
-        builder.endObject();
-        return Strings.toString(builder);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            XContentUtils.addAuthorizationInfo(builder, headers);
+            builder.endObject();
+            return Strings.toString(builder);
+        }
     }
 }

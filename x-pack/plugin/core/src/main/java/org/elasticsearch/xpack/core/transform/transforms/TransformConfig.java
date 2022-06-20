@@ -473,7 +473,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
                 if (forInternalStorage) {
                     builder.field(HEADERS.getPreferredName(), headers);
                 } else {
-                    XContentUtils.addStoredHeaderInfo(builder, headers);
+                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
             }
             if (transformVersion != null) {

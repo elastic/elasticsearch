@@ -24,8 +24,8 @@ esplugin {
 dependencies {
   implementation('com.maxmind.geoip2:geoip2:3.0.0')
   // geoip2 dependencies:
-  implementation("com.fasterxml.jackson.core:jackson-annotations:2.13.1")
-  implementation("com.fasterxml.jackson.core:jackson-databind:2.13.1")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:2.13.1")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-databind:2.13.1")
   runtimeOnly("com.fasterxml.jackson.core:jackson-core:2.13.1")
   implementation('com.maxmind.db:maxmind-db:2.0.0')
 
@@ -37,6 +37,10 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
   }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 def useFixture = providers.environmentVariable("geoip_use_service")

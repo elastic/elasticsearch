@@ -328,7 +328,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId)
             .primaryShard();
 
-        ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = ImmutableOpenMap.builder();
+        Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = new HashMap<>();
         IntStream.range(0, randomInt(10))
             .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
             .filter(s -> s.shardId().getId() != shardId)
@@ -338,16 +338,16 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         shardSizeBuilder.put(snapshotShardSizeKey(recoverySource, primaryShard), expected);
 
         validateSizeOfSnapshotShard(clusterState, primaryShard, shardSizeBuilder, expected);
-        validateSizeOfSnapshotShard(clusterState, primaryShard, ImmutableOpenMap.builder(), ByteSizeUnit.KB.toBytes(1));
+        validateSizeOfSnapshotShard(clusterState, primaryShard, Map.of(), ByteSizeUnit.KB.toBytes(1));
     }
 
     private void validateSizeOfSnapshotShard(
         ClusterState clusterState,
         ShardRouting primaryShard,
-        ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder,
+        Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder,
         long expected
     ) {
-        SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder.build());
+        SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,

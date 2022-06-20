@@ -21,6 +21,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
 
     requires com.sun.jna;
     requires hppc;
@@ -211,6 +212,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
+    exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;
     exports org.elasticsearch.index.analysis;

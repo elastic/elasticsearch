@@ -12,6 +12,7 @@ import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -310,6 +312,11 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         };
     }
 
+    @Override
+    public void forEach(BiConsumer<? super KType, ? super VType> action) {
+        map.forEach((ObjectObjectProcedure<KType, VType>) action::accept);
+    }
+
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<>() {
@@ -458,15 +465,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             }
         }
 
-        /**
-         * Remove that can be used in the fluent pattern.
-         */
-        public Builder<KType, VType> fRemove(KType key) {
-            maybeCloneMap();
-            mutableMap.remove(key);
-            return this;
-        }
-
         public VType remove(KType key) {
             maybeCloneMap();
             return mutableMap.remove(key);
@@ -492,13 +490,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return mutableMap.removeAll(predicate::test);
         }
 
-        public void removeAllFromCollection(Collection<KType> collection) {
-            maybeCloneMap();
-            for (var k : collection) {
-                mutableMap.remove(k);
-            }
-        }
-
         public void clear() {
             maybeCloneMap();
             mutableMap.clear();
@@ -507,11 +498,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         public Set<KType> keys() {
             maybeCloneMap();
             return new KeySet<>(mutableMap.keys());
-        }
-
-        @SuppressWarnings("unchecked")
-        public <K, V> Builder<K, V> cast() {
-            return (Builder) this;
         }
 
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
@@ -524,34 +510,10 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return mutableMap.indexOf(key);
         }
 
-        public boolean indexExists(int index) {
-            maybeCloneMap();
-            return mutableMap.indexExists(index);
-        }
-
-        public VType indexGet(int index) {
-            maybeCloneMap();
-            return mutableMap.indexGet(index);
-        }
-
-        public VType indexReplace(int index, VType newValue) {
-            maybeCloneMap();
-            return mutableMap.indexReplace(index, newValue);
-        }
-
-        public void indexInsert(int index, KType key, VType value) {
-            maybeCloneMap();
-            mutableMap.indexInsert(index, key, value);
-        }
-
         public void release() {
             maybeCloneMap();
             mutableMap.release();
         }
 
-        public String visualizeKeyDistribution(int characters) {
-            maybeCloneMap();
-            return mutableMap.visualizeKeyDistribution(characters);
-        }
     }
 }

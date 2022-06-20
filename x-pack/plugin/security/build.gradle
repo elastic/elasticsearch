@@ -429,4 +429,4 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.transport.buffer.size', '256k'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

@@ -528,7 +528,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
 
         try {
-            assertTrue("Should call all listeners", listenersCountdown.await(30, TimeUnit.SECONDS));
+            assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
         } finally {
             clusterService.close();
             terminate(threadPool);

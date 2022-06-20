@@ -10,7 +10,6 @@ package org.elasticsearch.http;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -41,11 +39,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +77,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testResponse() {
         final TestHttpResponse response = executeRequest(Settings.EMPTY, "request-host");
-        assertThat(response.content(), equalTo(new TestRestResponse().content()));
+        assertThat(response.content(), equalTo(testRestResponse().content()));
     }
 
     public void testCorsEnabledWithoutAllowOrigins() {
@@ -152,7 +148,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             CorsHandler.fromSettings(settings),
             null
         );
-        TestRestResponse resp = new TestRestResponse();
+        RestResponse resp = testRestResponse();
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";
         resp.addHeader(customHeader, customHeaderValue);
@@ -188,7 +184,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             CorsHandler.fromSettings(settings),
             null
         );
-        channel.sendResponse(new TestRestResponse());
+        channel.sendResponse(testRestResponse());
 
         // inspect what was written
         ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
@@ -216,7 +212,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             CorsHandler.fromSettings(settings),
             null
         );
-        final BytesRestResponse response = new BytesRestResponse(
+        final RestResponse response = new RestResponse(
             RestStatus.INTERNAL_SERVER_ERROR,
             JsonXContent.contentBuilder().startObject().endObject()
         );
@@ -283,7 +279,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             CorsHandler.fromSettings(settings),
             null
         );
-        channel.sendResponse(new TestRestResponse());
+        channel.sendResponse(testRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
@@ -327,7 +323,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0), byteArray);
-        channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
+        channel.sendResponse(new RestResponse(RestStatus.METHOD_NOT_ALLOWED, RestResponse.TEXT_CONTENT_TYPE, content));
 
         @SuppressWarnings("unchecked")
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
@@ -374,7 +370,10 @@ public class DefaultRestChannelTests extends ESTestCase {
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0), byteArray);
 
-        expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(RestStatus.OK, content)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, content))
+        );
 
         if (close) {
             verify(httpChannel, times(1)).close();
@@ -406,7 +405,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             new CorsHandler(CorsHandler.buildConfig(settings)),
             null
         );
-        channel.sendResponse(new TestRestResponse());
+        channel.sendResponse(testRestResponse());
 
         // get the response
         ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
@@ -414,30 +413,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         return responseCaptor.getValue();
     }
 
-    private static class TestRestResponse extends RestResponse {
-
-        private final RestStatus status;
-        private final BytesReference content;
-
-        TestRestResponse(final RestStatus status, final BytesReference content) {
-            this.status = Objects.requireNonNull(status);
-            this.content = Objects.requireNonNull(content);
-        }
-
-        TestRestResponse() {
-            this(RestStatus.OK, new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
-        }
-
-        public String contentType() {
-            return "text";
-        }
-
-        public BytesReference content() {
-            return content;
-        }
-
-        public RestStatus status() {
-            return status;
-        }
+    private static RestResponse testRestResponse() {
+        return new RestResponse(RestStatus.OK, "content");
     }
 }

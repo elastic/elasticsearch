@@ -60,7 +60,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
@@ -1143,7 +1143,7 @@ public class RestHighLevelClient implements Closeable {
             elasticsearchException = new ElasticsearchStatusException(responseException.getMessage(), restStatus, responseException);
         } else {
             try {
-                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+                elasticsearchException = parseEntity(entity, RestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);

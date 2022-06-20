@@ -262,8 +262,5 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             size = 0;
         }
 
-        public long length() {
-            return size;
-        }
     }
 }

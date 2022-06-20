@@ -52,7 +52,7 @@ esplugin.bundleSpec.from({configurations.bin}) {
     into 'bin'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 /**********************************************
  *          SQL Parser regeneration           *

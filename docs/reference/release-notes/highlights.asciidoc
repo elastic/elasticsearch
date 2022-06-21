@@ -141,7 +141,7 @@ This side-steps any disconnect based on projection/datum difference between clie
 
 [discrete]
 [[transforms-range-agg]]
-=== {transforms-cap} adds support for range aggregation
+=== {transforms-cap} support for range aggregation
 
 Now it is possible to use the range aggregations in {transforms}.
 {transforms-cap} didn’t support multi-bucket aggregations, but this limitation 

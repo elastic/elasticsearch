@@ -251,9 +251,7 @@ public class MatchProcessorTests extends ESTestCase {
             1
         );
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(
-            new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld"))
-        );
+        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")));
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {

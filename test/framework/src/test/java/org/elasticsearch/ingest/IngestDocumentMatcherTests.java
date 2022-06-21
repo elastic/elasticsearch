@@ -37,9 +37,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
     public void testDifferentNestedListFieldData() {
         String rootKey = "foo";
         IngestDocument document1 = TestIngestDocument.ofSourceAndMetadata(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")));
-        IngestDocument document2 = TestIngestDocument.ofSourceAndMetadata(
-            Collections.singletonMap(rootKey, Arrays.asList("bar", "blub"))
-        );
+        IngestDocument document2 = TestIngestDocument.ofSourceAndMetadata(Collections.singletonMap(rootKey, Arrays.asList("bar", "blub")));
         assertThrowsOnComparision(document1, document2);
     }
 

@@ -1,6 +1,5 @@
-# Synchronize all pushes to upstream 'master' branch local 'master' branch.
-# Create a PR that automatically merges master with the ESQL branch (esql/lang).
-# TODO: create a PR that automatically merges master with the stateless branch (feature/stateless).
+# Synchronizes all pushes to upstream 'master' branch local 'master' branch.
+# Creates a PR that automatically merges master with the ESQL branch (esql/lang).
 name: "Sync development branches"
 on:
   schedule:
@@ -28,20 +27,20 @@ jobs:
           upstream_sync_branch: master
           upstream_sync_repo: elastic/elasticsearch
 
-      - name: Create PR
+      - name: Create ESQL PR
         id: pr-create-esql
         if: steps.sync.outputs.has_new_commits == 'true'
         uses: thomaseizinger/create-pull-request@1.2.2
         with:
            head: master
            base: esql/lang
-           title: "🤖 ESQL: Merge master to esql/lang"
+           title: "🤖 ESQL: Merge upstream"
            body: ":robot: Generated PR to keep ESQL development branch up to date"
            labels: "upstream-sync,auto-merge"
            github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Merge PR
-        id: pr-merge
+      - name: Merge ESQL PR
+        id: pr-merge-esql
         if: steps.pr-create-esql.outputs.created == 'true'
         uses: juliangruber/merge-pull-request-action@v1.1.0
         with:

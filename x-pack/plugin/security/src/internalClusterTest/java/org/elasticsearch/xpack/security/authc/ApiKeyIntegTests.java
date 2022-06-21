@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -1419,7 +1418,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final var createdApiKey = createApiKey(null);
         final var apiKeyId = createdApiKey.v1().getId();
-        final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -1443,14 +1442,21 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
         assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
 
+        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "role_descriptors");
+        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "limited_by_role_descriptors");
+    }
+
+    private void assertExpectedRoleDescriptorForApiKey(String apiKeyId, RoleDescriptor expectedRoleDescriptor, String roleDescriptorType)
+        throws IOException {
+        assertThat(roleDescriptorType, in(new String[] { "role_descriptors", "limited_by_role_descriptors" }));
         final var updatedDocument = getApiKeyDocument(apiKeyId);
         @SuppressWarnings("unchecked")
-        final var limitedRoleDescriptor = (Map<String, Object>) updatedDocument.get("limited_by_role_descriptors");
-        assertThat(limitedRoleDescriptor.size(), equalTo(1));
-        assertThat(limitedRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
+        final var rawRoleDescriptor = (Map<String, Object>) updatedDocument.get(roleDescriptorType);
+        assertThat(rawRoleDescriptor.size(), equalTo(1));
+        assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
 
         @SuppressWarnings("unchecked")
-        final var descriptor = (Map<String, ?>) limitedRoleDescriptor.get(expectedRoleDescriptor.getName());
+        final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
         final var roleDescriptor = RoleDescriptor.parse(
             expectedRoleDescriptor.getName(),
             XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),

@@ -16,6 +16,9 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -36,8 +39,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
@@ -64,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -104,6 +110,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1409,11 +1416,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         });
     }
 
-    public void testUpdateApiKey() throws ExecutionException, InterruptedException {
+    public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final var createdApiKey = createApiKey(null);
-
-        final var role = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-        final var request = new UpdateApiKeyRequest(createdApiKey.v1().getId(), List.of(role), ApiKeyTests.randomMetadata());
+        final var apiKeyId = createdApiKey.v1().getId();
+        final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final var serviceWithNodeName = getServiceWithNodeName();
@@ -1424,13 +1431,38 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName())
                 ),
                 request,
-                Set.of(role),
+                Set.of(expectedRoleDescriptor),
                 listener
             );
         UpdateApiKeyResponse response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
+
+        // Assert that we can authenticate with the updated API key
+        final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
+        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
+
+        final var updatedDocument = getApiKeyDocument(apiKeyId);
+        @SuppressWarnings("unchecked")
+        final var limitedRoleDescriptor = (Map<String, Object>) updatedDocument.get("limited_by_role_descriptors");
+        assertThat(limitedRoleDescriptor.size(), equalTo(1));
+        assertThat(limitedRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
+
+        @SuppressWarnings("unchecked")
+        final var descriptor = (Map<String, ?>) limitedRoleDescriptor.get(expectedRoleDescriptor.getName());
+        final var roleDescriptor = RoleDescriptor.parse(
+            expectedRoleDescriptor.getName(),
+            XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
+            false,
+            XContentType.JSON
+        );
+        assertEquals(roleDescriptor, expectedRoleDescriptor);
+    }
+
+    private Map<String, Object> getApiKeyDocument(String apiKeyId) {
+        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId)).actionGet();
+        return getResponse.getSource();
     }
 
     private ServiceWithNodeName getServiceWithNodeName() {

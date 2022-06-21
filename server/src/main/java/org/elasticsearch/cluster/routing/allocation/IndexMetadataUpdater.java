@@ -130,9 +130,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         }
 
         if (metadataBuilder != null) {
-            Metadata newMetadata = metadataBuilder.build();
-            assert oldMetadata.sameIndicesLookup(newMetadata);
-            return newMetadata;
+            return metadataBuilder.build();
         } else {
             return oldMetadata;
         }
@@ -141,7 +139,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
     /**
      * Updates in-sync allocations with routing changes that were made to the routing table.
      */
-    private IndexMetadata.Builder updateInSyncAllocations(
+    private static IndexMetadata.Builder updateInSyncAllocations(
         RoutingTable newRoutingTable,
         IndexMetadata oldIndexMetadata,
         IndexMetadata.Builder indexMetadataBuilder,
@@ -216,7 +214,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards()
                     .stream()
                     .filter(s -> s.isRelocationTarget() == false)
-                    .collect(Collectors.toList());
+                    .toList();
                 assert assignedShards.size() <= maxActiveShards
                     : "cannot have more assigned shards " + assignedShards + " than maximum possible active shards " + maxActiveShards;
                 Set<String> assignedAllocations = assignedShards.stream().map(s -> s.allocationId().getId()).collect(Collectors.toSet());
@@ -310,7 +308,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
     /**
      * Increases the primary term if {@link #increasePrimaryTerm} was called for this shard id.
      */
-    private IndexMetadata.Builder updatePrimaryTerm(
+    private static IndexMetadata.Builder updatePrimaryTerm(
         IndexMetadata oldIndexMetadata,
         IndexMetadata.Builder indexMetadataBuilder,
         ShardId shardId,

@@ -208,25 +208,7 @@ serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[elasticsearch-security-certificates]]
-===== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the
-`/usr/share/elasticsearch/config/certs`
-directory in the Docker container, and allow you to connect a {kib} instance
-to your secured {es} cluster and encrypt internode communication. The files are
-listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
+include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose

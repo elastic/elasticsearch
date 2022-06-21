@@ -146,7 +146,10 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testClaimNames() {
         for (final Setting.AffixSetting<String> setting : List.of(
             JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim(),
-            JwtRealmSettings.CLAIMS_GROUPS.getClaim()
+            JwtRealmSettings.CLAIMS_GROUPS.getClaim(),
+            JwtRealmSettings.CLAIMS_DN.getClaim(),
+            JwtRealmSettings.CLAIMS_MAIL.getClaim(),
+            JwtRealmSettings.CLAIMS_NAME.getClaim()
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
@@ -171,7 +174,10 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testClaimPatterns() {
         for (final Setting.AffixSetting<String> setting : List.of(
             JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern(),
-            JwtRealmSettings.CLAIMS_GROUPS.getPattern()
+            JwtRealmSettings.CLAIMS_GROUPS.getPattern(),
+            JwtRealmSettings.CLAIMS_DN.getPattern(),
+            JwtRealmSettings.CLAIMS_MAIL.getPattern(),
+            JwtRealmSettings.CLAIMS_NAME.getPattern()
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);

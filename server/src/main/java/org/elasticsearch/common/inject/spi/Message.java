@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
@@ -26,8 +25,7 @@ import java.util.Objects;
 
 /**
  * An error message and the context in which it occurred. Messages are usually created internally by
- * Guice and its extensions. Messages can be created explicitly in a module using {@link
- * org.elasticsearch.common.inject.Binder#addError(Throwable) addError()} statements:
+ * Guice and its extensions.
  * <pre>
  *     try {
  *       bindPropertiesFromFile();
@@ -119,11 +117,4 @@ public final class Message implements Element {
         return message.equals(e.message) && Objects.equals(cause, e.cause) && sources.equals(e.sources);
     }
 
-    /**
-     * @since 2.0
-     */
-    @Override
-    public void applyTo(Binder binder) {
-        binder.withSource(getSource()).addError(this);
-    }
 }

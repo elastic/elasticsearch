@@ -138,11 +138,6 @@ public class HotThreads {
         return this;
     }
 
-    public HotThreads threadElementsSnapshotDelay(TimeValue threadElementsSnapshotDelay) {
-        this.threadElementsSnapshotDelay = threadElementsSnapshotDelay;
-        return this;
-    }
-
     public HotThreads threadElementsSnapshotCount(int threadElementsSnapshotCount) {
         this.threadElementsSnapshotCount = threadElementsSnapshotCount;
         return this;
@@ -223,7 +218,7 @@ public class HotThreads {
         return result;
     }
 
-    private boolean isThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean) {
+    private static boolean isThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean) {
         if (threadBean.isThreadContentionMonitoringSupported()) {
             return threadBean.isThreadContentionMonitoringEnabled();
         }
@@ -401,7 +396,7 @@ public class HotThreads {
         return sb.toString();
     }
 
-    int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
+    static int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
         StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
         StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
         int i = s1.length - 1;
@@ -433,7 +428,7 @@ public class HotThreads {
             this.interval = interval;
         }
 
-        private long millisecondsToNanos(long millis) {
+        private static long millisecondsToNanos(long millis) {
             return millis * 1_000_000;
         }
 

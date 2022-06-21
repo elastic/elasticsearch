@@ -389,3 +389,8 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor'
     )
 }
+
+tasks.named('resolveAllDependencies') {
+  // This avoids spinning up the test fixture when downloading all dependencies
+  configs = project.configurations - [project.configurations.krb5Config]
+}

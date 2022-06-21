@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -481,11 +482,22 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
+    public void testRoutingNodesRoundtrip() {
+        final RoutingTable originalTable = clusterState.getRoutingTable();
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        final RoutingTable fromNodes = RoutingTable.of(originalTable.version(), routingNodes);
+        // we don't have an equals implementation for the routing table so we assert equality by checking for a noop diff
+        final Diff<RoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        assertSame(originalTable, routingTableDiff.apply(originalTable));
+    }
+
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/
     public static IndexMetadata updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetadata indexMetadata) {
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(indexMetadata);
-        for (IndexShardRoutingTable shardTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : shardTable) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardTable.size(); copy++) {
+                ShardRouting shardRouting = shardTable.shard(copy);
                 Set<String> insyncAids = shardTable.activeShards()
                     .stream()
                     .map(shr -> shr.allocationId().getId())

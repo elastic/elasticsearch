@@ -10,27 +10,44 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 public final class InferenceConfigTestScaffolding {
 
     static Tokenization cloneWithNewTruncation(Tokenization tokenization, Tokenization.Truncate truncate) {
-        return tokenization instanceof MPNetTokenization
-            ? new MPNetTokenization(
-                tokenization.doLowerCase(),
-                tokenization.withSpecialTokens(),
-                tokenization.maxSequenceLength(),
-                truncate,
-                tokenization.getSpan()
-            )
-            : new BertTokenization(
+        if (tokenization instanceof MPNetTokenization) {
+            return new MPNetTokenization(
                 tokenization.doLowerCase(),
                 tokenization.withSpecialTokens(),
                 tokenization.maxSequenceLength(),
                 truncate,
                 tokenization.getSpan()
             );
+        } else if (tokenization instanceof RobertaTokenization robertaTokenization) {
+            return new RobertaTokenization(
+                robertaTokenization.withSpecialTokens,
+                robertaTokenization.isAddPrefixSpace(),
+                robertaTokenization.maxSequenceLength,
+                truncate,
+                robertaTokenization.span
+            );
+        } else if (tokenization instanceof BertTokenization) {
+            return new BertTokenization(
+                tokenization.doLowerCase(),
+                tokenization.withSpecialTokens(),
+                tokenization.maxSequenceLength(),
+                truncate,
+                tokenization.getSpan()
+            );
+        }
+        throw new IllegalArgumentException("unknown tokenization [" + tokenization.getName() + "] for truncate update tests");
+
     }
 
     static TokenizationUpdate createTokenizationUpdate(Tokenization tokenization, Tokenization.Truncate truncate, Integer span) {
-        return tokenization instanceof MPNetTokenization
-            ? new MPNetTokenizationUpdate(truncate, span)
-            : new BertTokenizationUpdate(truncate, span);
+        if (tokenization instanceof MPNetTokenization) {
+            return new MPNetTokenizationUpdate(truncate, span);
+        } else if (tokenization instanceof RobertaTokenization) {
+            return new RobertaTokenizationUpdate(truncate, span);
+        } else if (tokenization instanceof BertTokenization) {
+            return new BertTokenizationUpdate(truncate, span);
+        }
+        throw new IllegalArgumentException("unknown tokenization [" + tokenization.getName() + "] for truncate update tests");
     }
 
 }

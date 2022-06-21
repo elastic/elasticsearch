@@ -14,6 +14,11 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.Before;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.stream.Stream;
+
+import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -56,4 +61,25 @@ public class ConfigurationTests extends PackagingTestCase {
             Platforms.onWindows(() -> sh.chown(confPath));
         });
     }
+
+    public void test30SymlinkedDataPath() throws Exception {
+        Path data = createTempDir("temp-data");
+        // Make the data directory writeable
+        Platforms.onLinux(() -> Files.setPosixFilePermissions(data, fromString("rwxrwxrwx")));
+        Path symlinkedData = createTempDir("symlink-data");
+        Files.delete(symlinkedData); // delete so we can replace it with a symlink
+        Files.createSymbolicLink(symlinkedData, data);
+
+        withCustomConfig(confPath -> {
+            ServerUtils.addSettingToExistingConfiguration(confPath, "path.data", symlinkedData.toString());
+            // security auto-config requires that the archive owner and the node process user be the same
+            Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
+            assertWhileRunning(() -> {
+                try (Stream<Path> entries = Files.list(data)) {
+                    assertTrue(entries.findFirst().isPresent());
+                }
+            });
+        });
+    }
+
 }

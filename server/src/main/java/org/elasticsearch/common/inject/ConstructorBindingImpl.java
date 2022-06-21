@@ -26,10 +26,6 @@ import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConstructorBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-
-import java.util.HashSet;
-import java.util.Set;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 
@@ -49,7 +45,7 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     static <T> ConstructorBindingImpl<T> create(InjectorImpl injector, Key<T> key, Object source, Scoping scoping) {
         Factory<T> factoryFactory = new Factory<>();
-        InternalFactory<? extends T> scopedFactory = Scopes.scope(key, injector, factoryFactory, scoping);
+        InternalFactory<? extends T> scopedFactory = Scopes.scope(injector, factoryFactory, scoping);
         return new ConstructorBindingImpl<>(injector, key, source, scopedFactory, scoping, factoryFactory);
     }
 
@@ -62,36 +58,7 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
         if (factory.constructorInjector == null) {
             throw new IllegalStateException("not initialized");
         }
-        return visitor.visit(this);
-    }
-
-    @Override
-    public InjectionPoint getConstructor() {
-        if (factory.constructorInjector == null) {
-            throw new IllegalStateException("Binding is not ready");
-        }
-        return factory.constructorInjector.getConstructionProxy().getInjectionPoint();
-    }
-
-    @Override
-    public Set<InjectionPoint> getInjectableMembers() {
-        if (factory.constructorInjector == null) {
-            throw new IllegalStateException("Binding is not ready");
-        }
-        return factory.constructorInjector.getInjectableMembers();
-    }
-
-    @Override
-    public Set<Dependency<?>> getDependencies() {
-        Set<InjectionPoint> dependencies = new HashSet<>();
-        dependencies.add(getConstructor());
-        dependencies.addAll(getInjectableMembers());
-        return Dependency.forInjectionPoints(dependencies);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        throw new UnsupportedOperationException("This element represents a synthetic binding.");
+        return visitor.visit();
     }
 
     @Override

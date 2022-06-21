@@ -44,7 +44,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      */
     public abstract static class AdapterBuilder<T> {
         private final String name;
-        private final List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
+        private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
         private final AggregationContext context;
         private final Aggregator parent;
@@ -95,8 +95,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             add(QueryToFilterAdapter.build(context.searcher(), key, query));
         }
 
-        final void add(QueryToFilterAdapter<?> filter) throws IOException {
-            QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
+        final void add(QueryToFilterAdapter filter) throws IOException {
+            if (valid == false) {
+                return;
+            }
+            QueryToFilterAdapter mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
                  * For now any complex union kicks us out of filter by filter
@@ -108,6 +111,18 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  */
                 valid = false;
                 return;
+            }
+            if (filters.size() == 1) {
+                /*
+                 * When we add the second filter we check if there are any _doc_count
+                 * fields and bail out of filter-by filter mode if there are. _doc_count
+                 * fields are expensive to decode and the overhead of iterating per
+                 * filter causes us to decode doc counts over and over again.
+                 */
+                if (context.hasDocCountField()) {
+                    valid = false;
+                    return;
+                }
             }
             filters.add(mergedFilter);
         }
@@ -184,7 +199,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     private FilterByFilterAggregator(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         AggregationContext context,
         Aggregator parent,

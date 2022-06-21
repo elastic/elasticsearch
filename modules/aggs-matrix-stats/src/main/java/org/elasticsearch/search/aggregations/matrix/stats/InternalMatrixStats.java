@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 
@@ -235,6 +237,16 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         RunningStats runningStats = new RunningStats();
         for (InternalAggregation agg : aggs) {
+            final Set<String> missingFields = runningStats.missingFieldNames(((InternalMatrixStats) agg).stats);
+            if (missingFields.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + agg.getName()
+                        + "] all fields must exist in all indices, but some indices are missing these fields ["
+                        + String.join(", ", new TreeSet<>(missingFields))
+                        + "]"
+                );
+            }
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 

@@ -37,7 +37,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] fields = Strings.EMPTY_ARRAY;
     private String[] filters = Strings.EMPTY_ARRAY;
-    private String[] allowedTypes = Strings.EMPTY_ARRAY;
+    private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
@@ -57,7 +57,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         runtimeFields = in.readMap();
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
             filters = in.readStringArray();
-            allowedTypes = in.readStringArray();
+            types = in.readStringArray();
         }
     }
 
@@ -95,7 +95,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeGenericMap(runtimeFields);
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeStringArray(filters);
-            out.writeStringArray(allowedTypes);
+            out.writeStringArray(types);
         }
     }
 
@@ -137,13 +137,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return filters;
     }
 
-    public FieldCapabilitiesRequest allowedTypes(String... types) {
-        this.allowedTypes = types;
+    public FieldCapabilitiesRequest types(String... types) {
+        this.types = types;
         return this;
     }
 
-    public String[] allowedTypes() {
-        return allowedTypes;
+    public String[] types() {
+        return types;
     }
 
     /**
@@ -243,7 +243,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(nowInMillis, that.nowInMillis)
             && Arrays.equals(filters, that.filters)
-            && Arrays.equals(allowedTypes, that.allowedTypes)
+            && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
@@ -253,7 +253,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);
-        result = 31 * result + Arrays.hashCode(allowedTypes);
+        result = 31 * result + Arrays.hashCode(types);
         return result;
     }
 
@@ -266,7 +266,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         stringBuilder.append("], filters[");
         stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));
         stringBuilder.append("], types[");
-        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ","));
+        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(types), ","));
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

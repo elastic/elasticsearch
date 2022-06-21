@@ -18,7 +18,7 @@ Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 
 `http.p12` and `transport.p12` are password-protected PKCS#12 keystores. {es}
-stores the passwords for these keystores as  <<secure-settings,secure
+stores the passwords for these keystores as <<secure-settings,secure
 settings>>. To retrieve the passwords so that you can inspect or change the
 keystore contents, use the
 <<elasticsearch-keystore,`bin/elasticsearch-keystore`>> tool.

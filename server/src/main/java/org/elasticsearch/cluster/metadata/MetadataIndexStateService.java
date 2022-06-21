@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -50,13 +49,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -85,6 +84,9 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service responsible for submitting open/close index requests as well as for adding index blocks
@@ -177,16 +179,16 @@ public class MetadataIndexStateService {
                 try {
                     final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(task.request.indices().length);
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
-                    taskContext.success(task.listener.delegateFailure((delegate1, clusterState) -> {
+                    taskContext.success(() -> {
                         if (blockedIndices.isEmpty()) {
-                            delegate1.onResponse(CloseIndexResponse.EMPTY);
+                            task.listener().onResponse(CloseIndexResponse.EMPTY);
                         } else {
                             threadPool.executor(ThreadPool.Names.MANAGEMENT)
                                 .execute(
                                     new WaitForClosedBlocksApplied(
                                         blockedIndices,
                                         task.request,
-                                        delegate1.delegateFailure((delegate2, verifyResults) -> {
+                                        task.listener().delegateFailure((delegate2, verifyResults) -> {
                                             clusterService.submitStateUpdateTask(
                                                 "close-indices",
                                                 new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
@@ -197,7 +199,7 @@ public class MetadataIndexStateService {
                                     )
                                 );
                         }
-                    }));
+                    });
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -224,6 +226,7 @@ public class MetadataIndexStateService {
     private class CloseIndicesExecutor implements ClusterStateTaskExecutor<CloseIndicesTask> {
 
         @Override
+        @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
         public ClusterState execute(ClusterState currentState, List<TaskContext<CloseIndicesTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
@@ -238,7 +241,7 @@ public class MetadataIndexStateService {
                     final List<IndexResult> indices = closingResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
-                    taskContext.success(task.listener.delegateFailure((delegate, clusterState) -> {
+                    taskContext.success(clusterState -> {
                         final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
                         final String[] waitForIndices = indices.stream()
                             .filter(result -> result.hasFailures() == false)
@@ -263,14 +266,14 @@ public class MetadataIndexStateService {
                                     // so we maintain a kind of coherency by overriding the shardsAcknowledged value
                                     // (see ShardsAcknowledgedResponse constructor)
                                     boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                    delegate.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
+                                    task.listener().onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
                                 },
-                                delegate::onFailure
+                                task.listener()::onFailure
                             );
                         } else {
-                            delegate.onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                            task.listener().onResponse(new CloseIndexResponse(acknowledged, false, indices));
                         }
-                    }));
+                    });
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -364,12 +367,7 @@ public class MetadataIndexStateService {
             blockedIndices.put(index, indexBlock);
         }
 
-        logger.info(
-            () -> new ParameterizedMessage(
-                "closing indices {}",
-                blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))
-            )
-        );
+        logger.info(() -> format("closing indices %s", blockedIndices.keySet().stream().map(Object::toString).collect(joining(","))));
         return ClusterState.builder(currentState).blocks(blocks).build();
     }
 
@@ -435,11 +433,7 @@ public class MetadataIndexStateService {
             }
         }
 
-        logger.info(
-            "adding block {} to indices {}",
-            block.name,
-            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.toList())
-        );
+        logger.info("adding block {} to indices {}", block.name, blockedIndices.keySet().stream().map(Object::toString).toList());
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
@@ -504,16 +498,16 @@ public class MetadataIndexStateService {
                     );
                     state = blockResult.v1();
                     final Map<Index, ClusterBlock> blockedIndices = blockResult.v2();
-                    taskContext.success(task.listener.delegateFailure((delegate1, clusterState) -> {
+                    taskContext.success(() -> {
                         if (blockedIndices.isEmpty()) {
-                            delegate1.onResponse(AddIndexBlockResponse.EMPTY);
+                            task.listener().onResponse(AddIndexBlockResponse.EMPTY);
                         } else {
                             threadPool.executor(ThreadPool.Names.MANAGEMENT)
                                 .execute(
                                     new WaitForBlocksApplied(
                                         blockedIndices,
                                         task.request,
-                                        delegate1.delegateFailure((delegate2, verifyResults) -> {
+                                        task.listener().delegateFailure((delegate2, verifyResults) -> {
                                             clusterService.submitStateUpdateTask(
                                                 "finalize-index-block-["
                                                     + task.request.getBlock().name
@@ -528,7 +522,7 @@ public class MetadataIndexStateService {
                                     )
                                 );
                         }
-                    }));
+                    });
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -572,10 +566,10 @@ public class MetadataIndexStateService {
                     final List<AddBlockResult> indices = finalizeResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
-                    taskContext.success(task.listener.delegateFailure((delegate, clusterState) -> {
+                    taskContext.success(() -> {
                         final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
-                        delegate.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
-                    }));
+                        task.listener().onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
+                    });
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -663,14 +657,13 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
-            final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
-            final CountDown countDown = new CountDown(shards.size());
+            final AtomicArray<ShardResult> results = new AtomicArray<>(indexRoutingTable.size());
+            final CountDown countDown = new CountDown(indexRoutingTable.size());
 
-            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
-                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
@@ -794,14 +787,13 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
-            final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
-            final CountDown countDown = new CountDown(shards.size());
+            final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(indexRoutingTable.size());
+            final CountDown countDown = new CountDown(indexRoutingTable.size());
 
-            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
-                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
+                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         AddBlockShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
@@ -1123,17 +1115,7 @@ public class MetadataIndexStateService {
 
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    taskContext.success(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            // listener is notified at the end of acking
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            task.onFailure(e);
-                        }
-                    }, task);
+                    taskContext.success(task);
                 }
             } catch (Exception e) {
                 for (final var taskContext : taskContexts) {
@@ -1170,7 +1152,7 @@ public class MetadataIndexStateService {
                     512,
                     indexNames
                 );
-                return new ParameterizedMessage("opening indices [{}]", indexNames);
+                return "opening indices [" + indexNames + "]";
             });
 
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());

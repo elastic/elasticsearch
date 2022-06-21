@@ -55,7 +55,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
 
     public void testRandom() {
         MathProcessor proc = new MathProcessor(MathOperation.RANDOM);
-        assertNotNull(proc.process(null));
+        assertNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
 

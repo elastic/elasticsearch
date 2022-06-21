@@ -54,7 +54,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private final Calendar defaultCalendar;
 
     private final JdbcStatement statement;
-    private final Cursor cursor;
+    private Cursor cursor;
     private final Map<String, Integer> nameToIndex = new LinkedHashMap<>();
 
     private boolean closed = false;
@@ -585,12 +585,21 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public SQLWarning getWarnings() throws SQLException {
         checkOpen();
-        return null;
+        SQLWarning sqlWarning = null;
+        for (String warning : cursor.warnings()) {
+            if (sqlWarning == null) {
+                sqlWarning = new SQLWarning(warning);
+            } else {
+                sqlWarning.setNextWarning(new SQLWarning(warning));
+            }
+        }
+        return sqlWarning;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
         checkOpen();
+        cursor.clearWarnings();
     }
 
     @Override

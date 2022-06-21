@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -37,10 +40,12 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
     public static class Request extends AcknowledgedRequest<Request> {
 
         public static final ParseField VOCABULARY = new ParseField("vocabulary");
+        public static final ParseField MERGES = new ParseField("merges");
 
         private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("put_trained_model_vocabulary", Builder::new);
         static {
             PARSER.declareStringArray(Builder::setVocabulary, VOCABULARY);
+            PARSER.declareStringArray(Builder::setMerges, MERGES);
         }
 
         public static Request parseRequest(String modelId, XContentParser parser) {
@@ -49,16 +54,23 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
 
         private final String modelId;
         private final List<String> vocabulary;
+        private final List<String> merges;
 
-        public Request(String modelId, List<String> vocabulary) {
+        public Request(String modelId, List<String> vocabulary, @Nullable List<String> merges) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.vocabulary = ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
+            this.merges = Optional.ofNullable(merges).orElse(List.of());
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
             this.vocabulary = in.readStringList();
+            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+                this.merges = in.readStringList();
+            } else {
+                this.merges = List.of();
+            }
         }
 
         @Override
@@ -75,12 +87,14 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(modelId, request.modelId) && Objects.equals(vocabulary, request.vocabulary);
+            return Objects.equals(modelId, request.modelId)
+                && Objects.equals(vocabulary, request.vocabulary)
+                && Objects.equals(merges, request.merges);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, vocabulary);
+            return Objects.hash(modelId, vocabulary, merges);
         }
 
         @Override
@@ -88,6 +102,9 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             super.writeTo(out);
             out.writeString(modelId);
             out.writeStringCollection(vocabulary);
+            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+                out.writeStringCollection(merges);
+            }
         }
 
         public String getModelId() {
@@ -98,16 +115,26 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             return vocabulary;
         }
 
+        public List<String> getMerges() {
+            return merges;
+        }
+
         public static class Builder {
             private List<String> vocabulary;
+            private List<String> merges;
 
             public Builder setVocabulary(List<String> vocabulary) {
                 this.vocabulary = vocabulary;
                 return this;
             }
 
+            public Builder setMerges(List<String> merges) {
+                this.merges = merges;
+                return this;
+            }
+
             public Request build(String modelId) {
-                return new Request(modelId, vocabulary);
+                return new Request(modelId, vocabulary, merges);
             }
         }
     }

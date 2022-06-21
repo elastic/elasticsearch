@@ -112,7 +112,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultAnalyzer() throws IOException {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(
+        IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default", analyzerProvider("default")),
             emptyMap(),
@@ -149,7 +149,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Analyzer analyzer = new CustomAnalyzer(tokenizer, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(
             MapperException.class,
-            () -> emptyRegistry.build(
+            () -> AnalysisRegistry.build(
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)),
                 emptyMap(),
@@ -187,7 +187,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         AnalyzerProvider<?> defaultIndex = new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> emptyRegistry.build(
+            () -> AnalysisRegistry.build(
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default_index", defaultIndex),
                 emptyMap(),
@@ -202,7 +202,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultSearchAnalyzer() {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(
+        IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default_search", analyzerProvider("default_search")),
             emptyMap(),

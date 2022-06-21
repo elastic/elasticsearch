@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
@@ -49,22 +50,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
             Settings.builder().put("index.auto_expand_replicas", "0-5").build()
         );
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(5, autoExpandReplicas.maxReplicas());
         assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
-
     }
 
     public void testInvalidValues() {
@@ -187,7 +184,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             n.getVersion()
                         )
                     )
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
 
                 if (randomBoolean()) {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
@@ -197,15 +194,14 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
             }
 
-            Set<String> unchangedAllocationIds = preTable.getShards()
-                .stream()
+            Set<String> unchangedAllocationIds = RoutingNodesHelper.asStream(preTable)
                 .filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
                 .map(shr -> shr.allocationId().getId())
                 .collect(Collectors.toSet());
 
             assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
 
-            postTable.getShards().forEach(shardRouting -> {
+            RoutingNodesHelper.asStream(postTable).forEach(shardRouting -> {
                 if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {
                     assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
                 }
@@ -281,5 +277,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testCalculateDesiredNumberOfReplicas() {
+        int lowerBound = between(0, 9);
+        int upperBound = between(lowerBound + 1, 10);
+        String settingValue = lowerBound + "-" + randomFrom(upperBound, "all");
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
+            Settings.builder().put(SETTING_AUTO_EXPAND_REPLICAS, settingValue).build()
+        );
+        int max = autoExpandReplicas.maxReplicas();
+        int matchingNodes = between(0, max);
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(matchingNodes), equalTo(Math.max(lowerBound, matchingNodes - 1)));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max + 1), equalTo(max));
     }
 }

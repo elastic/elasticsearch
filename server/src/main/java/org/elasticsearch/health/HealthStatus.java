@@ -18,8 +18,9 @@ import java.util.stream.Stream;
 
 public enum HealthStatus implements Writeable {
     GREEN((byte) 0),
-    YELLOW((byte) 1),
-    RED((byte) 2);
+    UNKNOWN((byte) 1),
+    YELLOW((byte) 2),
+    RED((byte) 3);
 
     private final byte value;
 
@@ -36,8 +37,16 @@ public enum HealthStatus implements Writeable {
         return value;
     }
 
+    /**
+     * @return true if the HealthStatus is YELLOW or RED.
+     */
+    public boolean indicatesHealthProblem() {
+        return value > UNKNOWN.value();
+    }
+
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
-        return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
+        return statuses.max(Comparator.comparing(HealthStatus::value))
+            .orElseThrow(() -> new IllegalArgumentException("Cannot merge empty health status stream."));
     }
 
     public String xContentValue() {

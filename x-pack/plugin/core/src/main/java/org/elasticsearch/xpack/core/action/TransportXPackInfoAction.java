@@ -65,8 +65,8 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                     license.uid(),
                     license.type(),
                     license.operationMode().description(),
-                    license.status(),
-                    license.expiryDate()
+                    LicenseService.status(license),
+                    LicenseService.getExpiryDate(license)
                 );
             }
         }

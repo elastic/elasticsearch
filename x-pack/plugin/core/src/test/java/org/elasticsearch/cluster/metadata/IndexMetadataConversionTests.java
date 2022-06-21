@@ -27,7 +27,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
     public void testConvertSearchableSnapshotSettings() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
-        IndexMetadata indexMetadata = service.convertSharedCacheTierPreference(src);
+        IndexMetadata indexMetadata = IndexMetadataVerifier.convertSharedCacheTierPreference(src);
         assertSame(indexMetadata, src);
 
         // A full_copy searchable snapshot (settings should be untouched)
@@ -42,7 +42,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
                 .put("index.routing.allocation.include._tier_preference", "data_cold")
                 .build()
         );
-        indexMetadata = service.convertSharedCacheTierPreference(src);
+        indexMetadata = IndexMetadataVerifier.convertSharedCacheTierPreference(src);
         assertSame(indexMetadata, src);
 
         // A shared_cache searchable snapshot with valid settings (metadata should be untouched)
@@ -54,7 +54,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
                 .put("index.routing.allocation.include._tier_preference", "data_frozen")
                 .build()
         );
-        indexMetadata = service.convertSharedCacheTierPreference(src);
+        indexMetadata = IndexMetadataVerifier.convertSharedCacheTierPreference(src);
         assertSame(indexMetadata, src);
 
         // A shared_cache searchable snapshot (should have its settings converted)
@@ -69,7 +69,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
                 .put("index.routing.allocation.include._tier_preference", "data_frozen,data_cold")
                 .build()
         );
-        indexMetadata = service.convertSharedCacheTierPreference(src);
+        indexMetadata = IndexMetadataVerifier.convertSharedCacheTierPreference(src);
         assertNotSame(indexMetadata, src);
         Settings newSettings = indexMetadata.getSettings();
         assertNull(newSettings.get("index.routing.allocation.include._tier"));
@@ -89,7 +89,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
                 .put("index.routing.allocation.include._tier_preference", "data_cold")
                 .build()
         );
-        IndexMetadata indexMetadata = service.removeTierFiltering(src);
+        IndexMetadata indexMetadata = IndexMetadataVerifier.removeTierFiltering(src);
         assertNotSame(indexMetadata, src);
 
         Settings newSettings = indexMetadata.getSettings();
@@ -105,7 +105,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
                 .put("index.number_of_shards", randomIntBetween(1, 10))
                 .build()
         );
-        indexMetadata = service.removeTierFiltering(src);
+        indexMetadata = IndexMetadataVerifier.removeTierFiltering(src);
         assertSame(indexMetadata, src);
     }
 

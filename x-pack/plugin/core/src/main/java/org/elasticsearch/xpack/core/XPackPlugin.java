@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -394,16 +392,6 @@ public class XPackPlugin extends XPackClientPlugin
         return handlers;
     }
 
-    public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
-        Multibinder<XPackFeatureSet> featureSetBinder = createFeatureSetMultiBinder(binder, featureSet);
-        featureSetBinder.addBinding().to(featureSet);
-    }
-
-    public static Multibinder<XPackFeatureSet> createFeatureSetMultiBinder(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
-        binder.bind(featureSet).asEagerSingleton();
-        return Multibinder.newSetBinder(binder, XPackFeatureSet.class);
-    }
-
     public static Path resolveConfigFile(Environment env, String name) {
         Path config = env.configFile().resolve(name);
         if (Files.exists(config) == false) {
@@ -459,7 +447,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 

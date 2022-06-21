@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.Strings;
@@ -20,7 +23,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class OperatorOnlyRegistry {
@@ -40,7 +42,11 @@ public class OperatorOnlyRegistry {
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
-        "cluster:admin/shutdown/delete"
+        "cluster:admin/shutdown/delete",
+        // Desired Nodes API
+        DeleteDesiredNodesAction.NAME,
+        GetDesiredNodesAction.NAME,
+        UpdateDesiredNodesAction.NAME
     );
 
     private final ClusterSettings clusterSettings;
@@ -72,7 +78,7 @@ public class OperatorOnlyRegistry {
         ).filter(k -> {
             final Setting<?> setting = clusterSettings.get(k);
             return setting != null && setting.isOperatorOnly();
-        }).collect(Collectors.toList());
+        }).toList();
         if (false == operatorOnlySettingKeys.isEmpty()) {
             return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")
                 + " ["

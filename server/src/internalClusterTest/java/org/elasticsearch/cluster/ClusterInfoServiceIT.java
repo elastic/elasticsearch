@@ -17,12 +17,12 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -40,13 +40,14 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
@@ -160,10 +161,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", info);
-        ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
-        ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
+        Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        Map<String, Long> shardSizes = info.shardSizes;
+        Map<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertNotNull(shardDataSetSizes);
@@ -211,7 +212,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final List<ShardRouting> shardRoutings = client().admin()
+        final IndexShardRoutingTable indexShardRoutingTable = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -220,8 +221,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .getState()
             .getRoutingTable()
             .index("test")
-            .shard(0)
-            .shards();
+            .shard(0);
+        final List<ShardRouting> shardRoutings = new ArrayList<>(indexShardRoutingTable.size());
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            shardRoutings.add(indexShardRoutingTable.shard(copy));
+        }
 
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
@@ -283,16 +287,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // indices stats from remote nodes will time out, but the local node's shard will be included
         assertThat(infoAfterTimeout.shardSizes.size(), greaterThan(0));
         assertThat(infoAfterTimeout.shardDataSetSizes.size(), greaterThan(0));
-        assertThat(
-            shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).collect(Collectors.toList()),
-            hasSize(1)
-        );
+        assertThat(shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null).toList(), hasSize(1));
         assertThat(
             shardRoutings.stream()
                 .map(ShardRouting::shardId)
                 .distinct()
                 .filter(shard -> infoAfterTimeout.getShardDataSetSize(shard).isPresent())
-                .collect(Collectors.toList()),
+                .toList(),
             hasSize(1)
         );
 

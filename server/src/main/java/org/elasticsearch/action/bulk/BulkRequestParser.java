@@ -419,7 +419,7 @@ public final class BulkRequestParser {
         }
     }
 
-    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();

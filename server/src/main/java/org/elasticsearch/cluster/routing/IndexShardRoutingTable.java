@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,10 +24,10 @@ import org.elasticsearch.node.ResponseCollectorService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,17 +41,16 @@ import java.util.Set;
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
  */
-public class IndexShardRoutingTable implements Iterable<ShardRouting> {
+public class IndexShardRoutingTable {
 
     final ShardShuffler shuffler;
     final ShardId shardId;
 
     final ShardRouting primary;
     final List<ShardRouting> replicas;
-    final List<ShardRouting> shards;
+    final ShardRouting[] shards;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
-    final Set<String> allAllocationIds;
     final boolean allShardsStarted;
 
     /**
@@ -62,16 +62,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = List.copyOf(shards);
+        this.shards = shards.toArray(ShardRouting[]::new);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
         List<ShardRouting> activeShards = new ArrayList<>();
         List<ShardRouting> assignedShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
-        Set<String> allAllocationIds = new HashSet<>();
         boolean allShardsStarted = true;
-        for (ShardRouting shard : shards) {
+        for (ShardRouting shard : this.shards) {
             if (shard.primary()) {
                 assert primary == null : "duplicate primary: " + primary + " vs " + shard;
                 primary = shard;
@@ -87,15 +86,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
                 allInitializingShards.add(shard.getTargetRelocatingShard());
-                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
-
                 assert shard.assignedToNode() : "relocating from unassigned " + shard;
                 assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
                 assignedShards.add(shard.getTargetRelocatingShard());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
-                allAllocationIds.add(shard.allocationId().getId());
             }
             if (shard.state() != ShardRoutingState.STARTED) {
                 allShardsStarted = false;
@@ -107,7 +103,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
-        this.allAllocationIds = Collections.unmodifiableSet(allAllocationIds);
     }
 
     /**
@@ -120,49 +115,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns the shards id
-     *
-     * @return id of the shard
-     */
-    public ShardId getShardId() {
-        return shardId();
-    }
-
-    @Override
-    public Iterator<ShardRouting> iterator() {
-        return shards.iterator();
-    }
-
-    /**
      * Returns the number of this shards instances.
      */
     public int size() {
-        return shards.size();
+        return shards.length;
     }
 
-    /**
-     * Returns the number of this shards instances.
-     */
-    public int getSize() {
-        return size();
-    }
-
-    /**
-     * Returns a {@link List} of shards
-     *
-     * @return a {@link List} of shards
-     */
-    public List<ShardRouting> shards() {
-        return this.shards;
-    }
-
-    /**
-     * Returns a {@link List} of shards
-     *
-     * @return a {@link List} of shards
-     */
-    public List<ShardRouting> getShards() {
-        return shards();
+    public ShardRouting shard(int idx) {
+        return shards[idx];
     }
 
     /**
@@ -184,15 +144,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns a {@link List} of active shards
-     *
-     * @return a {@link List} of shards
-     */
-    public List<ShardRouting> getActiveShards() {
-        return activeShards();
-    }
-
-    /**
      * Returns a {@link List} of assigned shards, including relocation targets
      *
      * @return a {@link List} of shards
@@ -202,15 +153,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator shardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(shards));
-    }
-
-    public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, shards);
+        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards)));
     }
 
     public ShardIterator shardsIt(int seed) {
-        return new PlainShardIterator(shardId, shuffler.shuffle(shards, seed));
+        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards), seed));
     }
 
     /**
@@ -497,15 +444,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (shardId.equals(that.shardId) == false) return false;
-        if (shards.equals(that.shards) == false) return false;
-
-        return true;
+        return Arrays.equals(shards, that.shards) != false;
     }
 
     @Override
     public int hashCode() {
         int result = shardId.hashCode();
-        result = 31 * result + shards.hashCode();
+        result = 31 * result + Arrays.hashCode(shards);
         return result;
     }
 
@@ -527,6 +472,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public Set<String> getAllAllocationIds() {
+        assert MasterService.assertNotMasterUpdateThread("not using this on the master thread so we don't have to pre-compute this");
+        Set<String> allAllocationIds = new HashSet<>();
+        for (ShardRouting shard : shards) {
+            if (shard.relocating()) {
+                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+            }
+            if (shard.assignedToNode()) {
+                allAllocationIds.add(shard.allocationId().getId());
+            }
+        }
         return allAllocationIds;
     }
 
@@ -557,12 +512,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return allInitializingShards;
         }
         List<ShardRouting> shards = new ArrayList<>();
-        for (ShardRouting shardEntry : this) {
+        for (ShardRouting shardEntry : this.shards) {
             if (shardEntry.state() == state) {
                 shards.add(shardEntry);
             }
         }
         return shards;
+    }
+
+    public static Builder builder(ShardId shardId) {
+        return new Builder(shardId);
     }
 
     public static class Builder {
@@ -572,7 +531,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public Builder(IndexShardRoutingTable indexShard) {
             this.shardId = indexShard.shardId;
-            this.shards = new ArrayList<>(indexShard.shards);
+            this.shards = new ArrayList<>(indexShard.size());
+            Collections.addAll(this.shards, indexShard.shards);
+        }
+
+        public ShardId shardId() {
+            return shardId;
         }
 
         public Builder(ShardId shardId) {
@@ -630,12 +594,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return true;
         }
 
-        public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {
             Index index = new Index(in);
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
+        public static IndexShardRoutingTable.Builder readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
             ShardId shardId = new ShardId(index, iShardId);
             Builder builder = new Builder(shardId);
@@ -646,7 +610,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 builder.addShard(shard);
             }
 
-            return builder.build();
+            return builder;
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
@@ -656,11 +620,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public static void writeToThin(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
             out.writeVInt(indexShard.shardId.id());
-
-            out.writeVInt(indexShard.shards.size());
-            for (ShardRouting entry : indexShard) {
-                entry.writeToThin(out);
-            }
+            out.writeArray((o, v) -> v.writeToThin(o), indexShard.shards);
         }
 
     }
@@ -669,9 +629,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("IndexShardRoutingTable(").append(shardId()).append("){");
-        final int numShards = shards.size();
+        final int numShards = shards.length;
         for (int i = 0; i < numShards; i++) {
-            sb.append(shards.get(i).shortSummary());
+            sb.append(shards[i].shortSummary());
             if (i < numShards - 1) {
                 sb.append(", ");
             }

@@ -93,7 +93,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return new ByteSizeValue(available);
         }
 
-        private long addLong(long current, long other) {
+        private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
             }
@@ -461,10 +461,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(ioStats);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
+        out.writeArray(paths);
     }
 
     public Path getTotal() {

@@ -25,16 +25,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
-    private final ScriptService scriptService;
-
     @Inject
     public TransportDeleteStoredScriptAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ScriptService scriptService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             DeleteStoredScriptAction.NAME,
@@ -46,7 +43,6 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.scriptService = scriptService;
     }
 
     @Override
@@ -56,7 +52,7 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        scriptService.deleteStoredScript(clusterService, request, listener);
+        ScriptService.deleteStoredScript(clusterService, request, listener);
     }
 
     @Override

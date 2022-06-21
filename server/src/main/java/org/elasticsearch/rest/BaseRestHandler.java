@@ -108,7 +108,7 @@ public abstract class BaseRestHandler implements RestHandler {
         return request.getXContentType() != null;
     }
 
-    protected final String unrecognized(
+    protected static String unrecognized(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -137,7 +137,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 message.append(", ");
             }
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
             if (keys.isEmpty() == false) {
                 message.append(" -> did you mean ");
                 if (keys.size() == 1) {
@@ -199,57 +199,4 @@ public abstract class BaseRestHandler implements RestHandler {
         return responseParams();
     }
 
-    public static class Wrapper extends BaseRestHandler {
-
-        protected final BaseRestHandler delegate;
-
-        public Wrapper(BaseRestHandler delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String getName() {
-            return delegate.getName();
-        }
-
-        @Override
-        public List<Route> routes() {
-            return delegate.routes();
-        }
-
-        @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            return delegate.prepareRequest(request, client);
-        }
-
-        @Override
-        protected Set<String> responseParams() {
-            return delegate.responseParams();
-        }
-
-        @Override
-        protected Set<String> responseParams(RestApiVersion restApiVersion) {
-            return delegate.responseParams(restApiVersion);
-        }
-
-        @Override
-        public boolean canTripCircuitBreaker() {
-            return delegate.canTripCircuitBreaker();
-        }
-
-        @Override
-        public boolean supportsContentStream() {
-            return delegate.supportsContentStream();
-        }
-
-        @Override
-        public boolean allowsUnsafeBuffers() {
-            return delegate.allowsUnsafeBuffers();
-        }
-
-        @Override
-        public boolean mediaTypesValid(RestRequest request) {
-            return delegate.mediaTypesValid(request);
-        }
-    }
 }

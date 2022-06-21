@@ -20,16 +20,13 @@ public final class SecuritySettings {
         final Settings.Builder builder = Settings.builder();
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
             final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
-            if (SecurityField.NAME4.equals(transportType) == false && SecurityField.NIO.equals(transportType) == false) {
+            if (SecurityField.NAME4.equals(transportType) == false) {
                 throw new IllegalArgumentException(
                     "transport type setting ["
                         + NetworkModule.TRANSPORT_TYPE_KEY
                         + "] must be ["
                         + SecurityField.NAME4
-                        + "] or ["
-                        + SecurityField.NIO
-                        + "]"
-                        + " but is ["
+                        + "] but is ["
                         + transportType
                         + "]"
                 );

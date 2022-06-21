@@ -15,7 +15,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -33,7 +32,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealmsService;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -49,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -84,9 +82,7 @@ public final class InternalRealms {
         realms.put(SAML_TYPE, Security.SAML_REALM_FEATURE);
         realms.put(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE);
         realms.put(OIDC_TYPE, Security.OIDC_REALM_FEATURE);
-        if (XPackSettings.JWT_REALM_FEATURE_FLAG_ENABLED) {
-            realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
-        }
+        realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
         LICENSED_REALMS = Map.copyOf(realms);
     }
 
@@ -134,13 +130,14 @@ public final class InternalRealms {
      */
     public static Map<String, Realm.Factory> getFactories(
         ThreadPool threadPool,
+        Settings settings,
         ResourceWatcherService resourceWatcherService,
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-
+        final JwtRealmsService jwtRealmsService = new JwtRealmsService(settings); // parse shared settings needed by all JwtRealm instances
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,
@@ -172,7 +169,7 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> jwtRealmsService.createJwtRealm(config, sslService, nativeRoleMappingStore)
         );
     }
 
@@ -180,15 +177,14 @@ public final class InternalRealms {
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
-        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+        return RealmSettings.getRealmSettings(globalSettings)
             .keySet()
             .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        return checks;
+            .toList();
     }
 
 }

@@ -311,11 +311,13 @@ public class HeaderWarning {
     }
 
     private static String getSingleValue(String headerName) {
-        return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(headerName) != null)
-            .findFirst()
-            .map(t -> t.getHeader(headerName))
-            .orElse("");
+        for (ThreadContext threadContext : THREAD_CONTEXT) {
+            final String header = threadContext.getHeader(headerName);
+            if (header != null) {
+                return header;
+            }
+        }
+        return "";
     }
 
     public static void addWarning(String message, Object... params) {

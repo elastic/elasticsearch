@@ -353,72 +353,139 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("default", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            return Map.of(
+                "default",
+                getDefault(parameters, randomBoolean()),
+                "final",
+                getFinal(parameters, randomBoolean()),
+                "request",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue("request", true);
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "request";
+                    }
+                },
+                "changing_dest",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "changing_dest";
+                    }
+
+                }
+            );
+        }
+
+        private static Processor.Factory getDefault(Processor.Parameters parameters, boolean async) {
+            return (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
 
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                    // randomize over sync and async execution
-                    randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
-                        ingestDocument.setFieldValue("default", true);
-                        handler.accept(ingestDocument, null);
-                    });
+                    if (async) {
+                        // randomize over sync and async execution
+                        randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                            ingestDocument.setFieldValue("default", true);
+                            handler.accept(ingestDocument, null);
+                        });
+                    } else {
+                        throw new AssertionError("should not be called");
+                    }
                 }
 
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
-                    throw new AssertionError("should not be called");
+                    if (async) {
+                        throw new AssertionError("should not be called");
+                    } else {
+                        ingestDocument.setFieldValue("default", true);
+                        return ingestDocument;
+                    }
                 }
 
                 @Override
                 public String getType() {
                     return "default";
                 }
-            }, "final", (processorFactories, tag, description, config) -> {
+
+                @Override
+                public boolean isAsync() {
+                    return async;
+                }
+            };
+        }
+
+        private static Processor.Factory getFinal(Processor.Parameters parameters, boolean async) {
+            return (processorFactories, tag, description, config) -> {
                 final String exists = (String) config.remove("exists");
                 return new AbstractProcessor(tag, description) {
+
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        if (async) {
+                            // randomize over sync and async execution
+                            randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                                if (exists != null) {
+                                    if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                        handler.accept(
+                                            null,
+                                            new IllegalStateException(
+                                                "expected document to contain ["
+                                                    + exists
+                                                    + "] but was ["
+                                                    + ingestDocument.getSourceAndMetadata()
+                                            )
+                                        );
+                                    }
+                                }
+                                ingestDocument.setFieldValue("final", true);
+                                handler.accept(ingestDocument, null);
+                            });
+                        } else {
+                            throw new AssertionError("should not be called");
+                        }
+                    }
+
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                        // this asserts that this pipeline is the final pipeline executed
-                        if (exists != null) {
-                            if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
-                                throw new AssertionError(
-                                    "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
-                                );
+                        if (async) {
+                            throw new AssertionError("should not be called");
+                        } else {
+                            // this asserts that this pipeline is the final pipeline executed
+                            if (exists != null) {
+                                if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                    throw new AssertionError(
+                                        "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
+                                    );
+                                }
                             }
+                            ingestDocument.setFieldValue("final", true);
+                            return ingestDocument;
                         }
-                        ingestDocument.setFieldValue("final", true);
-                        return ingestDocument;
                     }
 
                     @Override
                     public String getType() {
                         return "final";
                     }
+
+                    @Override
+                    public boolean isAsync() {
+                        return async;
+                    }
                 };
-            }, "request", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue("request", true);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "request";
-                }
-            }, "changing_dest", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "changing_dest";
-                }
-
-            });
+            };
         }
     }
 

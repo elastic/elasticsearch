@@ -52,7 +52,18 @@ public class SourceToParse {
         return this.source;
     }
 
-    public String id() { // TODO migrate callers that use this to describe the document to a new method
+    /**
+     * The {@code _id} provided on the request or calculated on the
+     * coordinating node. If the index is in {@code time_series} mode then
+     * the coordinating node will not calculate the {@code _id}. In that
+     * case this will be {@code null} if one isn't sent on the request.
+     * <p>
+     * Use {@link DocumentParserContext#documentDescription()} to generate
+     * a description of the document for errors instead of calling this
+     * method.
+     */
+    @Nullable
+    public String id() {
         return this.id;
     }
 

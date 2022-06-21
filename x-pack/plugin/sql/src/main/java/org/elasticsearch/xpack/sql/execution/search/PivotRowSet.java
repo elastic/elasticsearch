@@ -31,10 +31,12 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         List<BucketExtractor> exts,
         BitSet mask,
         SearchResponse response,
+        int sizeRequested,
         int limit,
-        Map<String, Object> previousLastKey
+        Map<String, Object> previousLastKey,
+        boolean mightProducePartialPages
     ) {
-        super(schema, exts, mask, response, limit);
+        super(schema, exts, mask, response, sizeRequested, limit, mightProducePartialPages);
 
         data = buckets.isEmpty() ? emptyList() : new ArrayList<>();
 

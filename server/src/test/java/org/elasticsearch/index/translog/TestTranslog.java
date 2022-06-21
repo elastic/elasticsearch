@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -213,8 +213,8 @@ public class TestTranslog {
         return ops;
     }
 
-    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Operation> operations) {
-        final Iterator<Translog.Operation> iterator = operations.iterator();
+    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Index> operations) {
+        final Iterator<Translog.Index> iterator = operations.iterator();
         return new Translog.Snapshot() {
             @Override
             public int totalOperations() {

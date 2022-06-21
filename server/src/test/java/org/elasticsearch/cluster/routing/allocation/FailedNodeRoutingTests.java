@@ -38,10 +38,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -156,7 +154,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         while (keepGoing) {
             List<ShardRouting> primaries = shardsWithState(state.getRoutingNodes(), STARTED).stream()
                 .filter(ShardRouting::primary)
-                .collect(Collectors.toList());
+                .toList();
 
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();
@@ -196,7 +194,10 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     }
 
     private static Version getNodeVersion(ShardRouting shardRouting, ClusterState state) {
-        return Optional.ofNullable(state.getNodes().get(shardRouting.currentNodeId())).map(DiscoveryNode::getVersion).orElse(null);
+        if (shardRouting.assignedToNode() == false) {
+            return null;
+        }
+        return state.getNodes().get(shardRouting.currentNodeId()).getVersion();
     }
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();

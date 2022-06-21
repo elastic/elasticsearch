@@ -67,6 +67,11 @@ public class IncludeExcludeTests extends ESTestCase {
             }
 
             @Override
+            public long docValueCount() {
+                return 1;
+            }
+
+            @Override
             public BytesRef lookupOrd(long ord) {
                 assertEquals(0, ord);
                 return value;

@@ -157,7 +157,7 @@ public class MapsTests extends ESTestCase {
         List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10)).stream()
             .distinct()
             .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(tuples);
 
         SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
@@ -249,10 +249,7 @@ public class MapsTests extends ESTestCase {
 
     private Map<String, Object> randomNestedMap(int level) {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
-        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5))
-            .boxed()
-            .map(s -> (Object) s)
-            .collect(Collectors.toList());
+        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5)).boxed().map(s -> (Object) s).toList();
 
         final Supplier<Object> mapSupplier;
         if (level > 0) {

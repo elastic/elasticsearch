@@ -18,7 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -59,14 +59,14 @@ public class RestPluginsActionTests extends ESTestCase {
         );
 
         // verify the table headers are correct
-        final List<Object> headers = table.getHeaders().stream().map(h -> h.value).collect(Collectors.toList());
+        final List<Object> headers = table.getHeaders().stream().map(h -> h.value).toList();
         assertThat(headers, contains("id", "name", "component", "version", "description", "type"));
 
         // verify the table rows are correct
         final List<List<String>> rows = table.getRows()
             .stream()
-            .map(row -> row.stream().map(c -> String.valueOf(c.value)).collect(Collectors.toList()))
-            .collect(Collectors.toList());
+            .map(row -> row.stream().map(c -> String.valueOf(c.value)).toList())
+            .toList();
         assertThat(rows, hasSize(3));
 
         final List<Matcher<? super List<String>>> matchers = new ArrayList<>();
@@ -90,8 +90,8 @@ public class RestPluginsActionTests extends ESTestCase {
         // verify the table rows are correct
         final List<List<String>> rows = table.getRows()
             .stream()
-            .map(row -> row.stream().map(c -> String.valueOf(c.value)).collect(Collectors.toList()))
-            .collect(Collectors.toList());
+            .map(row -> row.stream().map(c -> String.valueOf(c.value)).toList())
+            .toList();
         assertThat(rows, hasSize(6));
 
         final List<Matcher<? super List<String>>> matchers = new ArrayList<>();
@@ -114,7 +114,7 @@ public class RestPluginsActionTests extends ESTestCase {
         assertThat(rows, containsInAnyOrder(matchers));
     }
 
-    private Table buildTable(List<PluginInfo> pluginInfo, boolean includeBootstrap) {
+    private Table buildTable(List<PluginDescriptor> pluginDescriptor, boolean includeBootstrap) {
         final RestRequest request = new FakeRestRequest();
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -141,7 +141,7 @@ public class RestPluginsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new PluginsAndModules(pluginInfo, List.of()),
+                    new PluginsAndModules(pluginDescriptor.stream().map(PluginRuntimeInfo::new).toList(), List.of()),
                     null,
                     null,
                     null
@@ -158,7 +158,7 @@ public class RestPluginsActionTests extends ESTestCase {
         return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
     }
 
-    private PluginInfo plugin(String name, PluginType type) {
-        return new PluginInfo(name, name + " description", "1.0", null, null, null, List.of(), false, type, null, false);
+    private PluginDescriptor plugin(String name, PluginType type) {
+        return new PluginDescriptor(name, name + " description", "1.0", null, null, null, null, List.of(), false, type, null, false);
     }
 }

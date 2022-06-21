@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +48,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
@@ -138,7 +136,8 @@ public class PolicyStepsRegistry {
         }
 
         if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
+            for (var entry : mapDiff.getUpserts()) {
+                LifecyclePolicyMetadata policyMetadata = entry.getValue();
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
                     client,
                     ClientHelper.INDEX_LIFECYCLE_ORIGIN,
@@ -289,9 +288,9 @@ public class PolicyStepsRegistry {
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
         if (steps == null) {
-            phaseSteps = new ArrayList<>();
+            phaseSteps = List.of();
         } else {
-            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).collect(Collectors.toList());
+            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).toList();
         }
         logger.trace(
             "parsed steps for policy [{}] in phase [{}], definition: [{}], steps: [{}]",
@@ -370,9 +369,6 @@ public class PolicyStepsRegistry {
         final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
         if (s != null) {
             cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
-            // assert that the cache works as expected -- that is, if we put something into the cache,
-            // we should get back the same thing if we were to invoke getStep again with the same arguments
-            assert s == getCachedStep(indexMetadata, stepKey) : "policy step registry cache failed sanity check";
         }
         return s;
     }

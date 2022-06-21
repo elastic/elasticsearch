@@ -44,6 +44,11 @@ final class MatchAllRoleBitSet extends BitSet {
     }
 
     @Override
+    public int approximateCardinality() {
+        return length();
+    }
+
+    @Override
     public int prevSetBit(int index) {
         return index;
     }

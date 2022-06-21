@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
@@ -283,7 +282,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
 
     public void testIterator() {
         InternalStats aggregation = createTestInstance("test", emptyMap());
-        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).toList();
 
         assertEquals(5, names.size());
         assertTrue(names.contains("min"));

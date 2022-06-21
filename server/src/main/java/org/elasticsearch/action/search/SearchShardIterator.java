@@ -22,7 +22,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
@@ -51,14 +50,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(
-            clusterAlias,
-            shardId,
-            shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
-            originalIndices,
-            null,
-            null
-        );
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null);
     }
 
     public SearchShardIterator(

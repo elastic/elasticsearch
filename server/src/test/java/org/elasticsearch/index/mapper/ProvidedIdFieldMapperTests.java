@@ -12,6 +12,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -85,4 +88,26 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testSourceDescription() throws IOException {
+        String id = randomAlphaOfLength(4);
+        assertThat(
+            ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(
+                new TestDocumentParserContext(
+                    MappingLookup.EMPTY,
+                    MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
+                    null,
+                    null,
+                    source(id, b -> {}, randomAlphaOfLength(2))
+                )
+            ),
+            equalTo("document with id '" + id + "'")
+        );
+    }
+
+    public void testParsedDescription() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        String id = randomAlphaOfLength(4);
+        ParsedDocument document = mapper.parse(source(id, b -> {}, null));
+        assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
+    }
 }

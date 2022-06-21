@@ -36,13 +36,15 @@ final class ElasticServiceAccounts {
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
                         "logs-enterprise_search.api-default",
+                        "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
                         "logs-workplace_search.analytics-default",
                         "logs-workplace_search.content_events-default"
                     )
                     .privileges("manage", "read", "write")
-                    .build() },
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("search-*").privileges("read", "view_index_metadata").build() },
             null,
             null,
             null,

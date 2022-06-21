@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
@@ -176,7 +175,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         List<Integer> indexNumbersToDelete = randomSubsetOf(
             numBackingIndicesToDelete,
-            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList())
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().toList()
         );
 
         Set<Index> indicesToDelete = new HashSet<>();

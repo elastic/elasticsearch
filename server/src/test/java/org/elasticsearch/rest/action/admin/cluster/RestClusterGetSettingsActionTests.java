@@ -8,7 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,16 +28,16 @@ import java.util.stream.Stream;
 public class RestClusterGetSettingsActionTests extends ESTestCase {
 
     public void testFilterPersistentSettings() {
-        runTestFilterSettingsTest(Metadata.Builder::persistentSettings, ClusterGetSettingsResponse::getPersistentSettings);
+        runTestFilterSettingsTest(Metadata.Builder::persistentSettings, RestClusterGetSettingsResponse::getPersistentSettings);
     }
 
     public void testFilterTransientSettings() {
-        runTestFilterSettingsTest(Metadata.Builder::transientSettings, ClusterGetSettingsResponse::getTransientSettings);
+        runTestFilterSettingsTest(Metadata.Builder::transientSettings, RestClusterGetSettingsResponse::getTransientSettings);
     }
 
     private void runTestFilterSettingsTest(
         final BiConsumer<Metadata.Builder, Settings> md,
-        final Function<ClusterGetSettingsResponse, Settings> s
+        final Function<RestClusterGetSettingsResponse, Settings> s
     ) {
         final Metadata.Builder mdBuilder = new Metadata.Builder();
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
@@ -52,8 +53,13 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
             )
         ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
-        final ClusterGetSettingsResponse response = RestClusterGetSettingsAction.response(
-            builder.build(),
+        final ClusterState clusterState = builder.build();
+        final RestClusterGetSettingsResponse response = RestClusterGetSettingsAction.response(
+            new ClusterGetSettingsAction.Response(
+                clusterState.metadata().persistentSettings(),
+                clusterState.metadata().transientSettings(),
+                clusterState.metadata().settings()
+            ),
             randomBoolean(),
             filter,
             clusterSettings,

@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -256,13 +255,13 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     private static final ConstructingObjectParser<List<Double>, Void> STD_BOUNDS_PARSER = new ConstructingObjectParser<>(
         ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS",
         true,
-        args -> Arrays.stream(args).map(d -> (Double) d).collect(Collectors.toList())
+        args -> Arrays.stream(args).map(d -> (Double) d).toList()
     );
 
     private static final ConstructingObjectParser<List<String>, Void> STD_BOUNDS_AS_STRING_PARSER = new ConstructingObjectParser<>(
         ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS_AS_STRING",
         true,
-        args -> Arrays.stream(args).map(d -> (String) d).collect(Collectors.toList())
+        args -> Arrays.stream(args).map(d -> (String) d).toList()
     );
 
     static {

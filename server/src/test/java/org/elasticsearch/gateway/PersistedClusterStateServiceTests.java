@@ -50,8 +50,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -1314,7 +1314,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport.stream(directoryStream.spliterator(), false).filter(p -> {
                     final String filename = p.getFileName().toString();
                     return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
-                }).collect(Collectors.toList())));
+                }).toList()));
             }
 
             assertThat(
@@ -1513,6 +1513,62 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.gateway.PersistedClusterStateService:DEBUG", reason = "testing contents of DEBUG log")
+    public void testDebugLogging() throws IOException, IllegalAccessException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
+            }
+
+            MockLogAppender mockAppender = new MockLogAppender();
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see checkindex message",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "checking cluster state integrity"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see commit message including timestamps",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "loading cluster state from commit [*] in [*creationTime*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see user data",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see segment message including timestamp",
+                    PersistedClusterStateService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "loading cluster state from segment: *timestamp=*"
+                )
+            );
+
+            Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
+            Loggers.addAppender(classLogger, mockAppender);
+
+            try {
+                persistedClusterStateService.loadBestOnDiskState();
+            } finally {
+                Loggers.removeAppender(classLogger, mockAppender);
+                mockAppender.stop();
+            }
+            mockAppender.assertAllExpectationsMatched();
+        }
+    }
+
     private boolean findSegmentInDirectory(Path dataPath) throws IOException {
         Directory d = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
 
@@ -1568,7 +1624,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
         return newNodeEnvironment(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
     }

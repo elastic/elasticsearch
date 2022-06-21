@@ -22,7 +22,6 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class BaseEnrollmentTokenGenerator {
     public static final long ENROLL_API_KEY_EXPIRATION_MINUTES = 30L;
@@ -37,10 +36,10 @@ public class BaseEnrollmentTokenGenerator {
                     + "not configured with a keystore"
             );
         }
-        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates = ((StoreKeyConfig) keyConfig).getKeys()
+        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates = keyConfig.getKeys()
             .stream()
             .filter(t -> t.v2().getBasicConstraints() != -1)
-            .collect(Collectors.toList());
+            .toList();
         if (httpCaKeysAndCertificates.isEmpty()) {
             throw new IllegalStateException(
                 "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration "

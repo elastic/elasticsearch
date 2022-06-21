@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
@@ -64,7 +65,17 @@ public class PivotCursor extends CompositeAggCursor {
 
     @Override
     protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
-        return () -> new PivotRowSet(Schema.EMPTY, extractors(), mask(), response, limit(), previousKey);
+        CompositeAggregationBuilder aggregation = getCompositeBuilder(next());
+        return () -> new PivotRowSet(
+            Schema.EMPTY,
+            extractors(),
+            mask(),
+            response,
+            aggregation.size(),
+            limit(),
+            previousKey,
+            couldProducePartialPages(aggregation)
+        );
     }
 
     @Override

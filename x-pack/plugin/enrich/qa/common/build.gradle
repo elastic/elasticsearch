@@ -1,12 +1,5 @@
-apply plugin: 'elasticsearch.build'
-tasks.named("test").configure { enabled = false }
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(':test:framework')
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'false'
 }

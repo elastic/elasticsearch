@@ -25,7 +25,6 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -184,12 +183,17 @@ public class DesiredBalanceReconciler {
         int secondaryLength = 0;
         int primaryLength = primary.length;
         ArrayUtil.timSort(primary, comparator);
+
+        // TODO this should be removed before merging the feature branch
+        if (logger.isTraceEnabled()) {
+            allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+        }
+
         do {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
                 var isThrottled = false;
-                var noDecisions = new HashMap<String, Decision>();
                 if (assignment != null) {
                     for (final var desiredNodeId : assignment.nodeIds()) {
                         final var routingNode = routingNodes.node(desiredNodeId);
@@ -222,18 +226,22 @@ public class DesiredBalanceReconciler {
                                 continue nextShard;
                             }
                             case THROTTLE -> isThrottled = true;
-                            case NO -> noDecisions.put(desiredNodeId, decision);
+                            case NO -> {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace(
+                                        "Unexpected NO decision [{}] for shard [{}] on assigned node [{}]",
+                                        decision,
+                                        shard.shardId(),
+                                        desiredNodeId
+                                    );
+                                }
+                            }
                         }
                     }
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "No eligible node found to assign shard [{}] using assignment [{}] with negative allocation decisions [{}]",
-                        shard,
-                        assignment,
-                        noDecisions
-                    );
+                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;

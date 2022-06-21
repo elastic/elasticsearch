@@ -147,21 +147,22 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     public void testAutoFollowPatterns() throws Exception {
         assumeTrue("Test should only run with target_cluster=follow", "follow".equals(targetCluster));
 
-        final String pattern = getTestName().toLowerCase(Locale.ROOT);
-        String allowedIndex = "logs-eu_20190101";
-        String disallowedIndex = "logs-us_20190101";
+        final String prefix = getTestName().toLowerCase(Locale.ROOT);
+        String allowedIndex = prefix + "-eu_20190101";
+        String disallowedIndex = prefix + "-us_20190101";
 
+        final String pattern = "pattern_" + prefix;
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
             request.setJsonEntity("""
-                {"leader_index_patterns": ["logs-*"], "remote_cluster": "leader_cluster"}""");
+                {"leader_index_patterns": ["testautofollowpatterns-*"], "remote_cluster": "leader_cluster"}""");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [testautofollowpatterns-*]"));
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
         request.setJsonEntity("""
-            {"leader_index_patterns": ["logs-eu*"], "remote_cluster": "leader_cluster"}""");
+            {"leader_index_patterns": ["testautofollowpatterns-eu*"], "remote_cluster": "leader_cluster"}""");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

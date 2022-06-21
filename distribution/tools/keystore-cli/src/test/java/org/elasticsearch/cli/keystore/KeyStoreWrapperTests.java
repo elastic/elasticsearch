@@ -408,65 +408,6 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(testValue.toString(), equalTo("stringSecretValue"));
     }
 
-    public void testBackcompatV2() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
-        byte[] fileBytes = new byte[20];
-        random().nextBytes(fileBytes);
-        try (
-            Directory directory = newFSDirectory(configDir);
-            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
-        ) {
-            CodecUtil.writeHeader(output, "elasticsearch.keystore", KeyStoreWrapper.V2_VERSION);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE"); // string algo
-            output.writeString("PBE"); // file algo
-
-            output.writeVInt(2); // num settings
-            output.writeString("string_setting");
-            output.writeString("STRING");
-            output.writeString("file_setting");
-            output.writeString("FILE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
-            char[] chars = new char[base64Bytes.length];
-            for (int i = 0; i < chars.length; ++i) {
-                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
-            }
-            secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
-            keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        keystore.decrypt(new char[0]);
-        SecureString testValue = keystore.getString("string_setting");
-        assertThat(testValue.toString(), equalTo("stringSecretValue"));
-
-        try (InputStream fileInput = keystore.getFile("file_setting")) {
-            byte[] readBytes = new byte[20];
-            assertEquals(20, fileInput.read(readBytes));
-            for (int i = 0; i < fileBytes.length; ++i) {
-                assertThat("byte " + i, readBytes[i], equalTo(fileBytes[i]));
-            }
-            assertEquals(-1, fileInput.read());
-        }
-    }
-
     public void testBackcompatV4() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();

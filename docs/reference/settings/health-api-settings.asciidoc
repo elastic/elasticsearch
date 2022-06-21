@@ -1,0 +1,31 @@
+[[health-api-settings]]
+=== Health API settings in {es}
+[subs="attributes"]
+++++
+<titleabbrev>Health API settings</titleabbrev>
+++++
+
+The following are the _expert-level_ settings available for configuring the
+<<health-api, Health API>>. It is not recommended to change any of these
+from their default values.
+
+==== Cluster level settings
+
+`health.master_history.has_master_lookup_timeframe`::
+(<<static-cluster-setting,Static>>) The amount of time the API looks back to see if the cluster has had
+a master at all, before moving on with other checks. Defaults to `30s` (30 seconds).
+
+`master_history.max_age`::
+(<<static-cluster-setting,Static>>) The maximum amount of time that the master history is kept in memory
+for use in the Health API. Master node changes older than this time will not be considered in the Health
+API calculation. Defaults to `30m` (30 minutes).
+
+`health.master_history.identity_changes_threshold`::
+(<<static-cluster-setting,Static>>) The number of times that it is not OK to have a master change identity
+to another node. This many changes or more will be reported as a problem in the Health API. Defaults to `4`.
+
+`health.master_history.no_master_transitions_threshold`::
+(<<static-cluster-setting,Static>>) The number of times that it is not OK to have a master switch to no
+master. This many transitions or more will be reported as a problem in the Health API. Defaults to `4`.
+
+

@@ -27,17 +27,17 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
      * a list of metrics that will be computed for the field
      */
     private final List<Metric> metrics;
-    private boolean isEmpty = true;
 
     MetricFieldProducer(String field, List<Metric> metrics) {
         super(field);
         this.metrics = metrics;
+        this.isEmpty = true;
     }
 
     /**
      * Reset all values collected for the field
      */
-    void reset() {
+    public void reset() {
         for (Metric metric : metrics) {
             metric.reset();
         }
@@ -62,12 +62,9 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
         isEmpty = false;
     }
 
-    public boolean isEmpty() {
-        return isEmpty;
-    }
-
     /**
      * Return the downsampled value as computed after collecting all raw values.
+     * @return
      */
     public abstract Object value();
 
@@ -92,10 +89,10 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that computes the maximum of all values of a field
      */
-    static class Max extends Metric {
+    static class MaxMetric extends Metric {
         private Double max;
 
-        Max() {
+        MaxMetric() {
             super("max");
         }
 
@@ -118,10 +115,10 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that computes the minimum of all values of a field
      */
-    static class Min extends Metric {
+    static class MinMetric extends Metric {
         private Double min;
 
-        Min() {
+        MinMetric() {
             super("min");
         }
 
@@ -147,7 +144,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class Sum extends Metric {
         private final CompensatedSum kahanSummation = new CompensatedSum();
 
-        Sum() {
+        SumMetric() {
             super("sum");
         }
 
@@ -170,10 +167,10 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that counts all values collected for a metric field
      */
-    static class ValueCount extends Metric {
+    static class ValueCountMetric extends Metric {
         private long count;
 
-        ValueCount() {
+        ValueCountMetric() {
             super("value_count");
         }
 
@@ -200,10 +197,10 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
      * the implementation of this class end up storing the first value it is empty and then
      * ignoring everything else.
      */
-    static class LastValue extends Metric {
+    static class LastValueMetric extends Metric {
         private Number lastValue;
 
-        LastValue() {
+        LastValueMetric() {
             super("last_value");
         }
 
@@ -231,7 +228,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
         CounterMetricFieldProducer(String field) {
-            super(field, List.of(new LastValue()));
+            super(field, List.of(new LastValueMetric()));
         }
 
         @Override
@@ -247,7 +244,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
         GaugeMetricFieldProducer(String field) {
-            super(field, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+            super(field, List.of(new MinMetric(), new MaxMetric(), new SumMetric(), new ValueCountMetric()));
         }
 
         @Override

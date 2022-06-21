@@ -359,19 +359,19 @@ class RollupShardIndexer {
         private long timestamp;
         private int docCount;
         private final Map<String, MetricFieldProducer> metricFieldProducers;
-        private final Map<String, Object> labelFieldValues;
+        private final Map<String, LabelFieldProducer> labelFieldProducers;
 
         RollupBucketBuilder() {
             this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
-            this.labelFieldValues = new HashMap<>();
+            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields);
         }
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.metricFieldProducers.values().stream().forEach(p -> p.reset());
-            this.labelFieldValues.clear();
+            this.metricFieldProducers.values().forEach(MetricFieldProducer::reset);
+            this.labelFieldProducers.values().forEach(LabelFieldProducer::reset);
             logger.trace(
                 "New bucket for _tsid: [{}], @timestamp: [{}]",
                 DocValueFormat.TIME_SERIES_ID.format(tsid),
@@ -384,8 +384,8 @@ class RollupShardIndexer {
             metricFieldProducers.get(field).collect(value);
         }
 
-        public void collectLabel(String fieldName, Object value) {
-            labelFieldValues.putIfAbsent(fieldName, value);
+        public void collectLabel(String field, Object value) {
+            labelFieldProducers.get(field).collect(value);
         }
 
         public void collectDocCount(int docCount) {
@@ -401,7 +401,7 @@ class RollupShardIndexer {
             @SuppressWarnings("unchecked")
             Map<String, Object> dimensions = (Map<String, Object>) DocValueFormat.TIME_SERIES_ID.format(tsid);
             Map<String, Object> doc = Maps.newLinkedHashMapWithExpectedSize(
-                2 + dimensions.size() + metricFieldProducers.size() + labelFieldValues.size()
+                2 + dimensions.size() + metricFieldProducers.size() + labelFieldProducers.size()
             );
             doc.put(timestampField.name(), timestampFormat.format(timestamp));
             doc.put(DocCountFieldMapper.NAME, docCount);
@@ -411,15 +411,16 @@ class RollupShardIndexer {
                 doc.put(e.getKey(), e.getValue());
             }
 
-            for (Map.Entry<String, Object> e : labelFieldValues.entrySet()) {
-                if (e.getValue() != null) {
-                    doc.put(e.getKey(), e.getValue());
-                }
-            }
-
-            for (MetricFieldProducer fieldProducer : metricFieldProducers.values()) {
+            for (AbstractFieldProducer<?> fieldProducer : Stream.concat(
+                metricFieldProducers.values().stream(),
+                labelFieldProducers.values().stream()
+            ).toList()) {
                 if (fieldProducer.isEmpty() == false) {
-                    doc.put(fieldProducer.field(), fieldProducer.value());
+                    String field = fieldProducer.field();
+                    Object value = fieldProducer.value();
+                    if (value != null) {
+                        doc.put(field, value);
+                    }
                 }
             }
 

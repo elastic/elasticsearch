@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.rollup.v2;
 public abstract class AbstractFieldProducer<T> implements Collectable<T> {
 
     protected final String field;
+    protected boolean isEmpty;
 
     public AbstractFieldProducer(String field) {
         this.field = field;
+        this.isEmpty = true;
     }
 
     @Override
@@ -20,5 +22,13 @@ public abstract class AbstractFieldProducer<T> implements Collectable<T> {
 
     public String field() {
         return field;
+    }
+
+    public abstract Object value();
+
+    public abstract void reset();
+
+    public boolean isEmpty() {
+        return isEmpty;
     }
 }

@@ -289,8 +289,8 @@ setup:
 ---
 "profiler string segment ords hint":
   - skip:
-      version: " - 7.9.99"
-      reason: introduced in 7.10.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
   - do:
       search:
         body:

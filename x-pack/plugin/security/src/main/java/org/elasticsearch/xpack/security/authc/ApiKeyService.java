@@ -375,6 +375,8 @@ public class ApiKeyService {
             // TODO assert on creator
 
             final var version = clusterService.state().nodes().getMinNodeVersion();
+            // TODO assert on version for now
+
             // TODO what happens if `toBulkUpdateRequest` throws?
             final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
             doBulkUpdate(bulkRequest, listener);
@@ -437,7 +439,7 @@ public class ApiKeyService {
             .setId(request.getId())
             .setSource(
                 newDocument(
-                    // TODO fill array?
+                    // TODO fill array in finally block?
                     apiKeyDoc.hash.toCharArray(),
                     apiKeyDoc.name,
                     authentication,

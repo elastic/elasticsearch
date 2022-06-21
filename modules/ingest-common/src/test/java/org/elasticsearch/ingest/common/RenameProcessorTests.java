@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -137,7 +138,7 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationSetFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
+        IngestSourceAndMetadata sourceAndMetadata = new IngestSourceAndMetadata(new HashMap<String, Object>() {
             @Override
             public Object put(String key, Object value) {
                 if (key.equals("new_field")) {
@@ -145,10 +146,10 @@ public class RenameProcessorTests extends ESTestCase {
                 }
                 return super.put(key, value);
             }
-        };
-        source.put("list", Collections.singletonList("item"));
+        }, new HashMap<>(), null);
+        sourceAndMetadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.ofIngestSourceAndMetadata(sourceAndMetadata);
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -161,7 +162,7 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
+        IngestSourceAndMetadata sourceAndMetadata = new IngestSourceAndMetadata(new HashMap<String, Object>() {
             @Override
             public Object remove(Object key) {
                 if (key.equals("list")) {
@@ -169,10 +170,10 @@ public class RenameProcessorTests extends ESTestCase {
                 }
                 return super.remove(key);
             }
-        };
-        source.put("list", Collections.singletonList("item"));
+        }, new HashMap<>(), null);
+        sourceAndMetadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.ofIngestSourceAndMetadata(sourceAndMetadata);
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);

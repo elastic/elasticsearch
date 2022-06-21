@@ -81,7 +81,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor to create an IngestDocument from its constituent maps
+     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));

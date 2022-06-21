@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -36,6 +37,13 @@ public class TestIngestDocument {
      */
     public static IngestDocument ofSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
         return new IngestDocument(sourceAndMetadata, new HashMap<>());
+    }
+
+    /**
+     * Create an IngestDocument for testing but takes a pre-constructed {@link IngestSourceAndMetadata}
+     */
+    public static IngestDocument ofIngestSourceAndMetadata(IngestSourceAndMetadata ingestSourceAndMetadata) {
+        return new IngestDocument(ingestSourceAndMetadata, new HashMap<>());
     }
 
     /**

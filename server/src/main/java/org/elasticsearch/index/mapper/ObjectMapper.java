@@ -136,11 +136,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // has the object mapper been added as a dynamic update already?
-            objectMapper = context.getDynamicObjectMapper(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            Builder dynamicObjectMapperBuilder = context.getDynamicObjectMapperBuilder(fullName);
+            if (dynamicObjectMapperBuilder == null) {
+                throw new IllegalStateException("Missing intermediate object " + fullName);
             }
-            throw new IllegalStateException("Missing intermediate object " + fullName);
+            return dynamicObjectMapperBuilder;
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {

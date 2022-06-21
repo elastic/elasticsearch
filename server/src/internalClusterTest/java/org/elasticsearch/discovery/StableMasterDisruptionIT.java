@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -327,8 +327,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 100)
+                .put(CoordinationDiagnosticsService.IDENTITY_CHANGES_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 100)
                 .build()
         );
         ensureStableCluster(3);
@@ -423,7 +423,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
@@ -431,11 +431,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
-                .put(
-                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(60, TimeUnit.SECONDS)
-                )
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(60, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);
@@ -485,7 +482,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
@@ -493,12 +490,9 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-                .put(
-                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(1, TimeUnit.SECONDS)
-                )
+                .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);
@@ -525,7 +519,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
@@ -533,12 +527,9 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-                .put(
-                    StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(),
-                    new TimeValue(1, TimeUnit.SECONDS)
-                )
+                .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);

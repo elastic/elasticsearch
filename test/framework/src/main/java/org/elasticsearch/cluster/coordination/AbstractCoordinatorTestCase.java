@@ -1085,6 +1085,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private MasterHistoryService masterHistoryService;
+            CoordinationDiagnosticsService coordinationDiagnosticsService;
             StableMasterHealthIndicatorService stableMasterHealthIndicatorService;
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
@@ -1261,11 +1262,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(
-                    clusterService,
-                    coordinator,
-                    masterHistoryService
-                );
+                coordinationDiagnosticsService = new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,

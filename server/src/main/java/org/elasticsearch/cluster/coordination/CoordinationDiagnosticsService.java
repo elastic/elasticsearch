@@ -295,10 +295,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         final CoordinationDiagnosticsResult result;
         boolean leaderHasBeenElected = coordinator.getPeerFinder().getLeader().isPresent();
         if (masterEligibleNodes.isEmpty() && leaderHasBeenElected == false) {
-            result = getIndicatorResultOnNoMasterEligibleNodes(localMasterHistory, explain);
+            result = getResultOnNoMasterEligibleNodes(localMasterHistory, explain);
         } else if (leaderHasBeenElected) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
-            result = getIndicatorResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
+            result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else {
             // NOTE: The logic in this block will be implemented in a future PR
             result = new CoordinationDiagnosticsResult(
@@ -318,7 +318,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param explain If true, details are returned
      * @return A CoordinationDiagnosticsResult with a RED status
      */
-    private CoordinationDiagnosticsResult getIndicatorResultOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
+    private CoordinationDiagnosticsResult getResultOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
         String summary = "No master eligible nodes found in the cluster";
         CoordinationDiagnosticsDetails details = getDetails(
             explain,
@@ -338,7 +338,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param explain If true, details are returned
      * @return A CoordinationDiagnosticsResult with a RED status
      */
-    private CoordinationDiagnosticsResult getIndicatorResultOnCannotJoinLeader(
+    private CoordinationDiagnosticsResult getResultOnCannotJoinLeader(
         MasterHistory localMasterHistory,
         DiscoveryNode currentMaster,
         boolean explain

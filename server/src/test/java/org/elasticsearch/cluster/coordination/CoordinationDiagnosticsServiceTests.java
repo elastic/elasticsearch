@@ -352,9 +352,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             cluster.runRandomly();
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
-                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = node.coordinationDiagnosticsService
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
-                assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
             }
         }
     }
@@ -370,10 +370,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             }
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
-                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = node.coordinationDiagnosticsService
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
                 if (node.getLocalNode().isMasterNode() == false) {
-                    assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                    assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
                 }
             }
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -412,10 +412,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             }
 
             final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
-            CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = currentLeader.coordinationDiagnosticsService
+            CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = currentLeader.coordinationDiagnosticsService
                 .diagnoseMasterStability(true);
-            assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW));
-            assertThat(result.summary(), containsString(expectedSummarySubstring));
+            assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW));
+            assertThat(healthIndicatorResult.summary(), containsString(expectedSummarySubstring));
         }
     }
 

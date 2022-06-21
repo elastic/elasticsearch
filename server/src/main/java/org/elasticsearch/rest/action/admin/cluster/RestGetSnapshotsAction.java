@@ -135,7 +135,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                                         () -> IOUtils.closeWhileHandlingException(chunkStream)
                                     )
                                 );
-                                return snapshotInfoIterator.hasNext();
+                                return snapshotInfoIterator.hasNext() == false;
                             }
                         })
                     );

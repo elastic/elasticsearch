@@ -49,7 +49,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final int maxEventsHeld;
     private final PriorityQueue<Tuple<? extends Netty4RestResponse, ChannelPromise>> outboundHoldingQueue;
 
-    private Tuple<PromiseCombiner, Netty4ChunkedHttpResponse> currentWrite;
+    private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, Netty4ChunkedHttpResponse response) {}
+    private ChunkedWrite currentWrite;
 
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
@@ -193,10 +194,17 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
-        currentWrite = Tuple.tuple(combiner, readyResponse);
+        currentWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();
-        enqueueWrite(ctx, readyResponse, first);
         combiner.add((Future<Void>) first);
+        enqueueWrite(ctx, readyResponse, first);
+        while (ctx.channel().isWritable()) {
+            // TODO build http chunks from bytes etc.
+            if (readyResponse.body().encode()) {
+
+                currentWrite.combiner.finish(currentWrite.onDone);
+            }
+        }
     }
 
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {

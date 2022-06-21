@@ -70,7 +70,7 @@ the inference speed. The inference process is a compute-bound process; any numbe
 greater than the number of available hardware threads on the machine does not increase the
 inference speed. If this setting is greater than the number of hardware threads
 it will automatically be changed to a value less than the number of hardware threads.
-Defaults to 1.
+Defaults to 1. Must be a power of 2. Max allowed value is 32.
 
 `timeout`::
 (Optional, time)

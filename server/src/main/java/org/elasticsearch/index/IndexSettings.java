@@ -538,15 +538,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
-        "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
-        Property.IndexScope,
-        Property.Final
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;

@@ -546,9 +546,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + ", realm.aud="
                 + jwtRealm.allowedAudiences
                 + ", HMAC alg="
-                + jwtRealm.stringAndJwksAlgsHmac.algs().algs()
+                + jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().algs()
                 + ", PKC alg="
-                + jwtRealm.stringAndJwksAlgsPkc.algs().algs()
+                + jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().algs()
                 + ", client=["
                 + jwtRealm.clientAuthenticationType
                 + "], meta=["
@@ -708,7 +708,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 final Exception authcFailed = new Exception("Authentication test failed.");
                 realmFailureExceptions.forEach(authcFailed::addSuppressed); // realm exceptions
                 authcFailed.addSuppressed(t); // final throwable (ex: assertThat)
-                LOGGER.error(t.getMessage());
                 LOGGER.error("Unexpected exception.", authcFailed);
                 throw authcFailed;
             } finally {

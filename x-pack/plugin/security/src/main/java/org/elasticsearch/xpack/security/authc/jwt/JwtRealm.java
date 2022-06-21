@@ -62,7 +62,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     record ExpiringUser(User user, Date exp) {}
 
-    record StringAndJwksAlgs(String jwkStringContent, JwtRealm.JwksAlgs algs) {}
+    record ContentAndJwksAlgs(String jwksContent, JwtRealm.JwksAlgs jwksAlgs) {}
 
     record JwksAlgs(List<JWK> jwks, List<String> algs) {
         boolean isEmpty() {
@@ -93,8 +93,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final Cache<BytesKey, ExpiringUser> jwtCache;
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    JwtRealm.StringAndJwksAlgs stringAndJwksAlgsPkc;
-    JwtRealm.StringAndJwksAlgs stringAndJwksAlgsHmac;
+    JwtRealm.ContentAndJwksAlgs contentAndJwksAlgsPkc;
+    JwtRealm.ContentAndJwksAlgs contentAndJwksAlgsHmac;
+    List<String> allowedJwksAlgsPkc;
+    List<String> allowedJwksAlgsHmac;
 
     JwtRealm(
         final RealmConfig realmConfig,
@@ -159,8 +161,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
         try {
-            this.stringAndJwksAlgsHmac = this.parseJwksAlgsHmac();
-            this.stringAndJwksAlgsPkc = this.parseJwksAlgsPkc();
+            this.contentAndJwksAlgsHmac = this.parseJwksAlgsHmac();
+            this.contentAndJwksAlgsPkc = this.parseJwksAlgsPkc();
             this.verifyAnyAvailableJwkAndAlgPair();
         } catch (Throwable t) {
             this.close();
@@ -177,54 +179,64 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private boolean rotateJwksAlgs(final boolean isJwtAlgHmac) {
+    /**
+     * Tries to rotate the JWKSet either from HTTPS or a local file. If the retrieval fails we will do nothing and return false.
+     * If the retrieval succeeds and the contents are different we will update the JWKSet, invalidate all caches and return true.
+     * If however the JWKSet is invalid we will raise a SettingsException and return false.
+     * @param isJwtAlgHmac true if HMAC JWKSet is being used
+     * @return true if the JWKSet was successfully rotated, false otherwise
+     * @throws SettingsException if the JWKSet is invalid
+     */
+    private boolean rotateJwksAlgs(final boolean isJwtAlgHmac) throws SettingsException {
         if (isJwtAlgHmac) {
-            final JwtRealm.StringAndJwksAlgs newStringAndJwksAlgsHmac;
+            LOGGER.trace("Trying for a HMAC JWKSet rotation...");
+            final JwtRealm.ContentAndJwksAlgs newContentAndJwksAlgsHmac;
             try {
-                newStringAndJwksAlgsHmac = this.parseJwksAlgsHmac();
+                newContentAndJwksAlgsHmac = this.parseJwksAlgsHmac();
             } catch (Throwable t) {
                 LOGGER.error("Unexpected error occurred when retrieving JWKSet. Skipping... " + t.getMessage());
                 return false;
             }
-            String oldJwkStringContent = this.stringAndJwksAlgsHmac.jwkStringContent;
-            String newJwkStringContent = newStringAndJwksAlgsHmac.jwkStringContent;
-            if (Strings.isNullOrBlank(oldJwkStringContent) == false && Strings.isNullOrBlank(newJwkStringContent) == false) {
-                if (newJwkStringContent.equals(oldJwkStringContent) == true) {
+            String oldJwkStringContent = this.contentAndJwksAlgsHmac.jwksContent;
+            String newJwkStringContent = newContentAndJwksAlgsHmac.jwksContent;
+            if (Strings.hasText(oldJwkStringContent) == false && Strings.hasText(newJwkStringContent) == false) {
+                if (newJwkStringContent.equals(oldJwkStringContent)) {
+                    LOGGER.trace("No change in JWKSet HMAC");
                     return false;
                 }
             }
-            LOGGER.warn("Rotated JWKSet HMAC detected: JWKs [{}]. Algorithms [{}].",
-                newStringAndJwksAlgsHmac.algs().jwks.size(), String.join(",", newStringAndJwksAlgsHmac.algs().algs()));
-            this.stringAndJwksAlgsHmac = newStringAndJwksAlgsHmac;
-            this.invalidateJwtCache();
-            this.verifyAnyAvailableJwkAndAlgPair();
-            return true;
+            LOGGER.debug("Rotated JWKSet HMAC detected: JWKs [{}]. Algorithms [{}].",
+                newContentAndJwksAlgsHmac.jwksAlgs.jwks.size(), String.join(",", newContentAndJwksAlgsHmac.jwksAlgs().algs()));
+            this.contentAndJwksAlgsHmac = newContentAndJwksAlgsHmac;
+
         } else {
-            final JwtRealm.StringAndJwksAlgs newStringAndJwksAlgsPkc;
+            LOGGER.trace("Trying for a PKC JWKSet rotation...");
+            final JwtRealm.ContentAndJwksAlgs newContentAndJwksAlgsPkc;
             try {
-                newStringAndJwksAlgsPkc = this.parseJwksAlgsPkc();
+                newContentAndJwksAlgsPkc = this.parseJwksAlgsPkc();
             } catch (Throwable t) {
                 LOGGER.error("Unexpected error occurred when retrieving JWKSet. Skipping... " + t.getMessage());
                 return false;
             }
-            String oldJwkStringContent = this.stringAndJwksAlgsPkc.jwkStringContent;
-            String newJwkStringContent = newStringAndJwksAlgsPkc.jwkStringContent;
-            if (Strings.isNullOrBlank(oldJwkStringContent) == false && Strings.isNullOrBlank(newJwkStringContent) == false) {
-                if (newJwkStringContent.equals(oldJwkStringContent) == true) {
+            String oldJwkStringContent = this.contentAndJwksAlgsPkc.jwksContent;
+            String newJwkStringContent = newContentAndJwksAlgsPkc.jwksContent;
+            if (Strings.hasText(oldJwkStringContent) == false && Strings.hasText(newJwkStringContent) == false) {
+                if (newJwkStringContent.equals(oldJwkStringContent)) {
+                    LOGGER.trace("No change in JWKSet PKC");
                     return false;
                 }
             }
-            LOGGER.warn("Rotated JWKSet PKC detected: JWKs [{}]. Algorithms [{}].",
-                newStringAndJwksAlgsPkc.algs().jwks().size(), String.join(",", newStringAndJwksAlgsPkc.algs().algs()));
-            this.stringAndJwksAlgsPkc = newStringAndJwksAlgsPkc;
-            this.invalidateJwtCache();
-            this.verifyAnyAvailableJwkAndAlgPair();
-            return true;
+            LOGGER.debug("Rotated JWKSet PKC detected: JWKs [{}]. Algorithms [{}].",
+                newContentAndJwksAlgsPkc.jwksAlgs().jwks().size(), String.join(",", newContentAndJwksAlgsPkc.jwksAlgs().algs()));
+            this.contentAndJwksAlgsPkc = newContentAndJwksAlgsPkc;
         }
+        this.invalidateJwtCache();
+        this.verifyAnyAvailableJwkAndAlgPair(); // throws SettingsException
+        return true;
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private StringAndJwksAlgs parseJwksAlgsHmac() {
+    private ContentAndJwksAlgs parseJwksAlgsHmac() {
         final JwtRealm.JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
@@ -260,14 +272,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
             // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
             final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-            jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
+            this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+            jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, this.allowedJwksAlgsHmac);
         }
-        LOGGER.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
-        return new StringAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
+        LOGGER.warn("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
+        return new ContentAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
     }
 
-    private StringAndJwksAlgs parseJwksAlgsPkc() {
+    private ContentAndJwksAlgs parseJwksAlgsPkc() {
         final JwtRealm.JwksAlgs jwksAlgsPkc;
         String jwkSetContentsPkc = null;
         if (Strings.hasText(this.jwkSetPath) == false) {
@@ -299,19 +311,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // PKC JWKSet filter contents
             final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
-            jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
+            this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
+            jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, this.allowedJwksAlgsPkc);
         }
-        LOGGER.info("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
-        return new StringAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
+        LOGGER.warn("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
+        return new ContentAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
     }
 
     private void verifyAnyAvailableJwkAndAlgPair() {
-        assert this.stringAndJwksAlgsHmac != null : "HMAC not initialized";
-        assert this.stringAndJwksAlgsPkc != null : "PKC not initialized";
-        assert this.stringAndJwksAlgsHmac.algs != null : "HMAC not initialized";
-        assert this.stringAndJwksAlgsPkc.algs != null : "PKC not initialized";
-        if (this.stringAndJwksAlgsHmac.algs.isEmpty() && this.stringAndJwksAlgsPkc.algs.isEmpty()) {
+        assert this.contentAndJwksAlgsHmac != null : "HMAC not initialized";
+        assert this.contentAndJwksAlgsPkc != null : "PKC not initialized";
+        assert this.contentAndJwksAlgsHmac.jwksAlgs != null : "HMAC not initialized";
+        assert this.contentAndJwksAlgsPkc.jwksAlgs != null : "PKC not initialized";
+        if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty() && this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }
@@ -370,8 +382,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
      */
     @Override
     public void close() {
-        invalidateJwtCache();
-        closeHttpClient();
+        this.invalidateJwtCache();
+        this.closeHttpClient();
     }
 
     @Override
@@ -498,37 +510,44 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     this.verifyAnyAvailableJwkAndAlgPair();
                 } catch (SettingsException e) {
                     // Try to automatically fix the realm from a degraded state
-                    if (this.rotateJwksAlgs(isJwtAlgHmac) == false) {
-                        throw new Exception(e);
+                    if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty() && this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
+                        if (this.rotateJwksAlgs(isJwtAlgHmac)) {
+                            LOGGER.warn("No available JWKs and algorithms for HMAC or PKC, but refresh succeeded.");
+                        } else {
+                            throw new Exception("No available JWKs and algorithms for HMAC or PKC, and refresh failed.");
+                        }
                     }
                 }
 
                 try {
-                    JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.stringAndJwksAlgsHmac.algs : this.stringAndJwksAlgsPkc.algs;
+                    JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.contentAndJwksAlgsHmac.jwksAlgs : this.contentAndJwksAlgsPkc.jwksAlgs;
+                    List<String> allowedAlgs = isJwtAlgHmac ? this.allowedJwksAlgsHmac : this.allowedJwksAlgsPkc;
+
                     JwtValidateUtil.validate(
                         jwt,
                         this.allowedIssuer,
                         this.allowedAudiences,
                         this.allowedClockSkew.seconds(),
-                        jwksAndAlgs.algs,
+                        allowedAlgs,
                         jwksAndAlgs.jwks
                     );
                 } catch (JwtValidateUtil.JWKSetValidationError e) {
                     /*
                      * Elasticsearch automatically caches the retrieved JWK set to avoid unnecessary HTTP requests,
                      * but will attempt to refresh the JWK upon JWKSet verification failure
-                     * as this might indicate that the JWT Provider has rotated the JWKSet.
+                     * as this might indicate that the JWT was signed with a newer, rotated JWK.
                      */
-                    LOGGER.trace("Trying for a JWKSet rotation...");
                     if (this.rotateJwksAlgs(isJwtAlgHmac)) {
                         LOGGER.trace("Validating again using rotated JWKSet");
-                        JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.stringAndJwksAlgsHmac.algs : this.stringAndJwksAlgsPkc.algs;
+                        JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.contentAndJwksAlgsHmac.jwksAlgs : this.contentAndJwksAlgsPkc.jwksAlgs;
+                        List<String> allowedAlgs = isJwtAlgHmac ? this.allowedJwksAlgsHmac : this.allowedJwksAlgsPkc;
+
                         JwtValidateUtil.validate(
                             jwt,
                             this.allowedIssuer,
                             this.allowedAudiences,
                             this.allowedClockSkew.seconds(),
-                            jwksAndAlgs.algs,
+                            allowedAlgs,
                             jwksAndAlgs.jwks
                         );
                     } else {

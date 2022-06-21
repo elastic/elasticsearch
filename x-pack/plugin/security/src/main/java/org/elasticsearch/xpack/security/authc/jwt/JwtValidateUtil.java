@@ -124,10 +124,7 @@ public class JwtValidateUtil {
     public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedAlgorithms) throws Exception {
         final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
         if ((algorithm == null) || (allowedAlgorithms.contains(algorithm.getName()) == false)) {
-            // JWT algorithm does not match one of the algorithms in the JWKSet. Could be explained by a rotated JKWSet,
-            // we should check if we have the latest JWKSet.
-            // That is, only, when the given algorithm is also in the allowed Algorithms in the settings of the JWTRealm.
-            throw new JWKSetValidationError("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
+            throw new Exception("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
         }
     }
 

@@ -65,26 +65,8 @@ public class JwtIssuer implements Closeable {
         this.audiencesClaimValue = audiencesClaimValue;
         this.principalClaimName = principalClaimName;
         this.principals = principals;
-        this.algAndJwksPkc = algAndJwksPkc;
-        this.algAndJwksHmac = algAndJwksHmac;
-        this.algAndJwkHmacOidc = algAndJwkHmacOidc;
 
-        this.algAndJwksAll = new ArrayList<>(this.algAndJwksPkc.size() + this.algAndJwksHmac.size() + 1);
-        this.algAndJwksAll.addAll(this.algAndJwksPkc);
-        this.algAndJwksAll.addAll(this.algAndJwksHmac);
-        if (this.algAndJwkHmacOidc != null) {
-            this.algAndJwksAll.add(this.algAndJwkHmacOidc);
-        }
-
-        this.algorithmsAll = this.algAndJwksAll.stream().map(p -> p.alg).collect(Collectors.toSet());
-
-        final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
-        final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
-
-        this.encodedJwkSetPkcPrivate = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, false);
-        this.encodedJwkSetPkcPublic = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
-        this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
-        this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
+        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
 
         if ((Strings.hasText(this.encodedJwkSetPkcPublic) == false) || (createHttpsServer == false)) {
             this.httpsServer = null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
@@ -94,7 +76,7 @@ public class JwtIssuer implements Closeable {
         }
     }
 
-    public void rotate(
+    private void setJwksAndAlgs(
         final List<AlgJwkPair> algAndJwksPkc,
         final List<AlgJwkPair> algAndJwksHmac,
         final AlgJwkPair algAndJwkHmacOidc
@@ -109,6 +91,7 @@ public class JwtIssuer implements Closeable {
         if (this.algAndJwkHmacOidc != null) {
             this.algAndJwksAll.add(this.algAndJwkHmacOidc);
         }
+        this.algorithmsAll = this.algAndJwksAll.stream().map(p -> p.alg).collect(Collectors.toSet());
 
         final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
         final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
@@ -117,7 +100,14 @@ public class JwtIssuer implements Closeable {
         this.encodedJwkSetPkcPublic = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
         this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
         this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
+    }
 
+    public void rotate(
+        final List<AlgJwkPair> algAndJwksPkc,
+        final List<AlgJwkPair> algAndJwksHmac,
+        final AlgJwkPair algAndJwkHmacOidc
+    ) {
+        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
         if (this.httpsServer != null) {
             final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
             this.httpsServer.rotate(encodedJwkSetPkcPublicBytes);

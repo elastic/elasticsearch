@@ -286,3 +286,25 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string segment ords hint":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: segment_ordinal
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "CardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }

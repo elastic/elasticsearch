@@ -43,6 +43,7 @@ import java.util.function.BiConsumer;
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
+    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
@@ -61,7 +62,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
-        AggregationContext context,
+        CardinalityAggregatorFactory.ExecutionMode executionMode, AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
@@ -70,6 +71,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.executionMode = executionMode;
     }
 
     @Override
@@ -99,14 +101,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return new EmptyCollector();
             }
 
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+            // this is ugly, but hopefully gets cleaned up when I refactor all of this soon
+            if (executionMode == null) {
+                final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                // only use ordinals if they don't increase memory usage by more than 25%
+                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                    ordinalsCollectorsUsed++;
+                    return new OrdinalsCollector(counts, ordinalValues, bigArrays());
+                }
+                ordinalsCollectorsOverheadTooHigh++;
+            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.SEGMENT_ORDINAL) {
                 ordinalsCollectorsUsed++;
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }
-            ordinalsCollectorsOverheadTooHigh++;
         }
 
         stringHashingCollectorsUsed++;

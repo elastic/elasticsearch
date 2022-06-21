@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
         GLOBAL_ORDINAL,
@@ -75,11 +75,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.ALL_CORE,
-            (name, valuesSourceConfig, precision, context, parent, metadata) -> {
+            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
                     if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
-                        if (useGlobalOrds(context, source, precision)) {
+                        if (useGlobalOrds(context, source, precision, executionMode)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
@@ -94,14 +94,23 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                 }
                 // fallback in the default aggregator
-                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, executionMode, context, parent, metadata);
             },
             true
         );
     }
 
-    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
-        throws IOException {
+    private static boolean useGlobalOrds(
+        AggregationContext context,
+        ValuesSource.Bytes.WithOrdinals source,
+        int precision,
+        ExecutionMode executionMode
+    ) throws IOException {
+        // Respect the execution hint, if we got one
+        if (executionMode != null) {
+            return executionMode.equals(ExecutionMode.GLOBAL_ORDINAL);
+        }
+
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;
@@ -117,13 +126,13 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), null, context, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
+        return aggregatorSupplier.build(name, config, precision(), executionMode, context, parent, metadata);
     }
 
     private int precision() {

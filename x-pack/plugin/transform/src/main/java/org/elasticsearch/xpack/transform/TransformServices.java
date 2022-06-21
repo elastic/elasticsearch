@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.TransformScheduler;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
 

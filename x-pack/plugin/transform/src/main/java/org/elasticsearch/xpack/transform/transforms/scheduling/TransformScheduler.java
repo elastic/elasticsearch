@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.transform.transforms;
+package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,143 +61,12 @@ public final class TransformScheduler {
         void triggered(Event event);
     }
 
-    /**
-     * {@link ScheduledTransformTask} is a structure describing the scheduled task in the queue.
-     *
-     * This class is immutable.
-     */
-    static class ScheduledTransformTask {
-
-        /** Minimum delay that can be applied after a failure. */
-        private static final long MIN_DELAY_MILLIS = Duration.ofSeconds(1).toMillis();
-        /** Maximum delay that can be applied after a failure. */
-        private static final long MAX_DELAY_MILLIS = Duration.ofHours(1).toMillis();
-
-        private final String transformId;
-        private final TimeValue frequency;
-        private final Long lastTriggeredTimeMillis;
-        private final int failureCount;
-        private final long nextScheduledTimeMillis;
-        private final Listener listener;
-
-        ScheduledTransformTask(
-            String transformId,
-            TimeValue frequency,
-            Long lastTriggeredTimeMillis,
-            int failureCount,
-            long nextScheduledTimeMillis,
-            Listener listener
-        ) {
-            this.transformId = Objects.requireNonNull(transformId);
-            this.frequency = frequency != null ? frequency : Transform.DEFAULT_TRANSFORM_FREQUENCY;
-            this.lastTriggeredTimeMillis = lastTriggeredTimeMillis;
-            this.failureCount = failureCount;
-            this.nextScheduledTimeMillis = nextScheduledTimeMillis;
-            this.listener = Objects.requireNonNull(listener);
-        }
-
-        ScheduledTransformTask(String transformId, TimeValue frequency, Long lastTriggeredTimeMillis, int failureCount, Listener listener) {
-            this(
-                transformId,
-                frequency,
-                lastTriggeredTimeMillis,
-                failureCount,
-                failureCount == 0
-                    ? lastTriggeredTimeMillis + frequency.millis()
-                    : calculateNextScheduledTimeAfterFailure(lastTriggeredTimeMillis, failureCount),
-                listener
-            );
-        }
-
-        // Visible for testing
-        /**
-         * Calculates the appropriate next scheduled time after a number of failures.
-         * This method implements exponential backoff approach.
-         *
-         * @param lastTriggeredTimeMillis the last time (in millis) the task was triggered
-         * @param failureCount the number of failures that happened since the task was triggered
-         * @return next scheduled time for a task
-         */
-        static long calculateNextScheduledTimeAfterFailure(long lastTriggeredTimeMillis, int failureCount) {
-            long delayMillis = Math.min(Math.max((long) Math.pow(2, failureCount) * 1000, MIN_DELAY_MILLIS), MAX_DELAY_MILLIS);
-            return lastTriggeredTimeMillis + delayMillis;
-        }
-
-        String getTransformId() {
-            return transformId;
-        }
-
-        TimeValue getFrequency() {
-            return frequency;
-        }
-
-        Long getLastTriggeredTimeMillis() {
-            return lastTriggeredTimeMillis;
-        }
-
-        int getFailureCount() {
-            return failureCount;
-        }
-
-        long getNextScheduledTimeMillis() {
-            return nextScheduledTimeMillis;
-        }
-
-        Listener getListener() {
-            return listener;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other == null || getClass() != other.getClass()) return false;
-            ScheduledTransformTask that = (ScheduledTransformTask) other;
-            return Objects.equals(this.transformId, that.transformId)
-                && Objects.equals(this.frequency, that.frequency)
-                && Objects.equals(this.lastTriggeredTimeMillis, that.lastTriggeredTimeMillis)
-                && this.failureCount == that.failureCount
-                && this.nextScheduledTimeMillis == that.nextScheduledTimeMillis
-                && this.listener == that.listener;  // Yes, we purposedly compare the references here
-        }
-
-        @Override
-        public int hashCode() {
-            // To ensure the "equals" and "hashCode" methods have the same view on equality, we use listener's system identity here.
-            return Objects.hash(
-                transformId,
-                frequency,
-                lastTriggeredTimeMillis,
-                failureCount,
-                nextScheduledTimeMillis,
-                System.identityHashCode(listener)
-            );
-        }
-
-        @Override
-        public String toString() {
-            return new StringBuilder("ScheduledTransformTask[").append("transformId=")
-                .append(transformId)
-                .append(",frequency=")
-                .append(frequency)
-                .append(",lastTriggeredTimeMillis=")
-                .append(lastTriggeredTimeMillis)
-                .append(",failureCount=")
-                .append(failureCount)
-                .append(",nextScheduledTimeMillis=")
-                .append(nextScheduledTimeMillis)
-                .append(",listener=")
-                .append(listener)
-                .append("]")
-                .toString();
-        }
-    }
-
     private static final Logger logger = LogManager.getLogger(TransformScheduler.class);
 
     private final Clock clock;
     private final ThreadPool threadPool;
     private final TimeValue schedulerFrequency;
-    private final ConcurrentPriorityQueue<ScheduledTransformTask> scheduledTasks;
+    private final TransformScheduledTaskQueue scheduledTasks;
     /**
      * Prevents two concurrent invocations of the "processScheduledTasks" method.
      *
@@ -210,10 +79,7 @@ public final class TransformScheduler {
         this.clock = Objects.requireNonNull(clock);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.schedulerFrequency = Transform.SCHEDULER_FREQUENCY.get(settings);
-        this.scheduledTasks = new ConcurrentPriorityQueue<>(
-            ScheduledTransformTask::getTransformId,
-            ScheduledTransformTask::getNextScheduledTimeMillis
-        );
+        this.scheduledTasks = new TransformScheduledTaskQueue();
         this.isProcessingActive = new AtomicBoolean();
     }
 
@@ -255,7 +121,7 @@ public final class TransformScheduler {
             return;
         }
         long currentTimeMillis = clock.millis();
-        ScheduledTransformTask scheduledTask = scheduledTasks.first();
+        TransformScheduledTask scheduledTask = scheduledTasks.first();
         // Check if the task is eligible for processing
         if (currentTimeMillis < scheduledTask.getNextScheduledTimeMillis()) {
             // It is too early to process this task.
@@ -279,7 +145,7 @@ public final class TransformScheduler {
                     )
                 );
             }
-            return new ScheduledTransformTask(
+            return new TransformScheduledTask(
                 task.getTransformId(),
                 task.getFrequency(),
                 currentTimeMillis,
@@ -308,7 +174,7 @@ public final class TransformScheduler {
         String transformId = transformTaskParams.getId();
         logger.trace(() -> new ParameterizedMessage("[{}] register the transform", transformId));
         long currentTimeMillis = clock.millis();
-        ScheduledTransformTask scheduledTransformTask = new ScheduledTransformTask(
+        TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
             transformTaskParams.getFrequency(),
             null,  // this task has not been triggered yet
@@ -316,7 +182,7 @@ public final class TransformScheduler {
             currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
             listener
         );
-        scheduledTasks.add(scheduledTransformTask);
+        scheduledTasks.add(transformScheduledTask);
         processScheduledTasks();
     }
 
@@ -333,7 +199,7 @@ public final class TransformScheduler {
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
-            task -> new ScheduledTransformTask(
+            task -> new TransformScheduledTask(
                 task.getTransformId(),
                 task.getFrequency(),
                 task.getLastTriggeredTimeMillis(),
@@ -358,7 +224,7 @@ public final class TransformScheduler {
     /**
      * @return queue current contents
      */
-    List<ScheduledTransformTask> getScheduledTransformTasks() {
+    List<TransformScheduledTask> getTransformScheduledTasks() {
         return StreamSupport.stream(scheduledTasks.spliterator(), false).collect(toUnmodifiableList());
     }
 }

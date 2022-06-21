@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.time.Clock;
 import java.util.ArrayList;

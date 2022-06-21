@@ -104,7 +104,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
-import org.elasticsearch.xpack.transform.transforms.TransformScheduler;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

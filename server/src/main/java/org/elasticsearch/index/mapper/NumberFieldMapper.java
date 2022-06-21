@@ -1631,18 +1631,6 @@ public class NumberFieldMapper extends FieldMapper {
             this.simpleName = simpleName;
         }
 
-        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
-            if (dv != null) {
-                return dv;
-            }
-            NumericDocValues single = reader.getNumericDocValues(name);
-            if (single != null) {
-                return DocValues.singleton(single);
-            }
-            return null;
-        }
-
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SortedNumericDocValues leaf = dv(reader);
@@ -1683,5 +1671,23 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         protected abstract void loadNextValue(XContentBuilder b, long value) throws IOException;
+
+        /**
+         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+         * an "empty" implementation if there aren't any doc values. We need to be able to
+         * tell if there aren't any and return our empty leaf source loader.
+         */
+        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
     }
 }

@@ -412,8 +412,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             }
 
             final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
-            CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = currentLeader.coordinationDiagnosticsService
-                .diagnoseMasterStability(true);
+            CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult =
+                currentLeader.coordinationDiagnosticsService.diagnoseMasterStability(true);
             assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW));
             assertThat(healthIndicatorResult.summary(), containsString(expectedSummarySubstring));
         }

@@ -29,8 +29,8 @@ public final class UpdateApiKeyRequest extends ActionRequest {
 
     public UpdateApiKeyRequest(String id, List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata) {
         this.id = Objects.requireNonNull(id, "api key id must not be null");
-        this.metadata = metadata;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : roleDescriptors;
+        this.metadata = metadata;
     }
 
     public UpdateApiKeyRequest(StreamInput in) throws IOException {

@@ -417,7 +417,6 @@ public class ApiKeyService {
         for (VersionedApiKeyDoc versionedApiKeyDoc : versionedApiKeyDocs) {
             bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, versionedApiKeyDoc));
         }
-        // TODO should this be immediate?
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder;
     }
@@ -430,6 +429,19 @@ public class ApiKeyService {
         VersionedApiKeyDoc versionedApiKeyDoc
     ) throws IOException {
         final var apiKeyDoc = versionedApiKeyDoc.apiKey();
+
+        // TODO gnarly
+        // Only write new metadata if it's present, i.e., not null. Otherwise, use existing old metadata
+        final Map<String, Object> metadata;
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                apiKeyDoc.metadataFlattened,
+                XContentType.JSON
+            )
+        ) {
+            metadata = request.getMetadata() != null ? request.getMetadata() : parser.map();
+        }
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
             .setSource(
@@ -441,9 +453,10 @@ public class ApiKeyService {
                     userRoles,
                     Instant.ofEpochMilli(apiKeyDoc.creationTime),
                     apiKeyDoc.expirationTime == -1 ? null : Instant.ofEpochMilli(apiKeyDoc.expirationTime),
+                    // TODO also fix this
                     request.getRoleDescriptors(),
                     version,
-                    request.getMetadata()
+                    metadata
                 )
             )
             .setIfSeqNo(versionedApiKeyDoc.seqNo())

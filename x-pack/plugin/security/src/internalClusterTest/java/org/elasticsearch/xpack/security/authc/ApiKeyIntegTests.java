@@ -1421,19 +1421,28 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createdApiKey = createApiKey(null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var expectedMetadata = ApiKeyTests.randomMetadata();
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), expectedMetadata);
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final var serviceWithNodeName = getServiceWithNodeName();
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         serviceWithNodeName.service()
-            .updateApiKey(rootUserFileRealmAuth(serviceWithNodeName), request, Set.of(expectedRoleDescriptor), listener);
+            .updateApiKey(
+                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
+                request,
+                Set.of(expectedRoleDescriptor),
+                listener
+            );
         UpdateApiKeyResponse response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
-        expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
+        if (request.getMetadata() != null) {
+            expectMetadataForApiKey(request.getMetadata(), updatedApiKeyDoc);
+        } else {
+            // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
+            expectMetadataForApiKey(createdApiKey.v2(), updatedApiKeyDoc);
+        }
         expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
 
@@ -1446,7 +1455,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
-                rootUserFileRealmAuth(serviceWithNodeName),
+                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
                 new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
                 Set.of(expectedRoleDescriptor),
                 listener2
@@ -1456,10 +1465,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
     }
 
-    private Authentication rootUserFileRealmAuth(ServiceWithNodeName serviceWithNodeName) {
+    private Authentication fileRealmAuthForEsTestRootUser(String nodeName) {
         return Authentication.newRealmAuthentication(
             new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-            new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName())
+            new Authentication.RealmRef("file", FileRealmSettings.TYPE, nodeName)
         );
     }
 

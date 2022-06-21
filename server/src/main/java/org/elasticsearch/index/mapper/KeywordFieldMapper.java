@@ -1081,6 +1081,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            if (leaf.getValueCount() == 0) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
             if (docIdsInLeaf.length > 1) {
                 /*
                  * The singleton optimization is mostly about looking up ordinals
@@ -1096,17 +1099,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                 private boolean hasValue;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean empty() {
+                    return false;
                 }
 
                 @Override
-                public boolean hasValue() {
-                    return hasValue;
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
+                    if (false == hasValue) {
+                        return;
+                    }
                     long first = leaf.nextOrd();
                     long next = leaf.nextOrd();
                     if (next == SortedSetDocValues.NO_MORE_ORDS) {
@@ -1153,7 +1159,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 private int ord;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
+                public boolean empty() {
+                    return false;
+                }
+
+                @Override
+                public boolean advanceToDoc(int docId) throws IOException {
                     int idx = Arrays.binarySearch(docIdsInLeaf, docId);
                     if (idx < 0) {
                         throw new IllegalStateException(
@@ -1161,15 +1172,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                         );
                     }
                     ord = ords[idx];
-                }
-
-                @Override
-                public boolean hasValue() {
                     return ord >= 0;
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
                     b.field(simpleName, lookup.get(ord));
                 }
             };

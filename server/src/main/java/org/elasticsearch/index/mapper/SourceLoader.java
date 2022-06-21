@@ -82,14 +82,24 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
+            if (leaf.empty()) {
+                return new Leaf() {
+                    @Override
+                    public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                        // TODO accept a requested xcontent type
+                        try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                            return BytesReference.bytes(b.startObject().endObject());
+                        }
+                    }
+                };
+            }
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        leaf.advanceToDoc(docId);
-                        if (leaf.hasValue()) {
-                            leaf.load(b);
+                        if (leaf.advanceToDoc(docId)) {
+                            leaf.write(b);
                         } else {
                             b.startObject().endObject();
                         }
@@ -109,21 +119,23 @@ public interface SourceLoader {
          */
         SyntheticFieldLoader.Leaf NOTHING_LEAF = new Leaf() {
             @Override
-            public void advanceToDoc(int docId) throws IOException {}
+            public boolean empty() {
+                return true;
+            }
 
             @Override
-            public boolean hasValue() {
+            public boolean advanceToDoc(int docId) throws IOException {
                 return false;
             }
 
             @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) throws IOException {}
         };
 
         /**
          * Load no values.
          */
-        SyntheticFieldLoader NOTHING = (reader, docIdsInLeaf) -> NOTHING_LEAF;
+        SyntheticFieldLoader NOTHING = (r, docIds) -> NOTHING_LEAF;
 
         /**
          * Build a loader for this field in the provided segment.
@@ -135,19 +147,19 @@ public interface SourceLoader {
          */
         interface Leaf {
             /**
+             * Is this entirely empty?
+             */
+            boolean empty();
+
+            /**
              * Position the loader at a document.
              */
-            void advanceToDoc(int docId) throws IOException;
+            boolean advanceToDoc(int docId) throws IOException;
 
             /**
-             * Is there a value for this field in this document?
+             * Write values for this document.
              */
-            boolean hasValue();
-
-            /**
-             * Load values for this document.
-             */
-            void load(XContentBuilder b) throws IOException;
+            void write(XContentBuilder b) throws IOException;
         }
     }
 

@@ -226,23 +226,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     /**
      * This returns HealthIndicatorDetails.EMPTY if explain is false, otherwise a HealthIndicatorDetails object containing only a
-     * a "current_master" object and a "recent_masters" array, and optionally a "cluster_coordination" field. The "current_master" object
+     * a "current_master" object and a "recent_masters" array, and optionally a "cluster_formation" field. The "current_master" object
      * will be will have "node_id" and "name" fields for the master node. Both will be null if the last-seen master was null. The
      * "recent_masters" array will contain "recent_master" objects. Each "recent_master" object will have "node_id" and "name" fields for
-     * the master node. These fields will never be null because null masters are not written to this array. The "cluster_coordination"
-     * string will be the clusterCoordinationMessage passed in, and will not be present if clusterCoordinationMessage is null.
+     * the master node. These fields will never be null because null masters are not written to this array. The "cluster_formation"
+     * string will be the clusterFormationMessage passed in, and will not be present if clusterFormationMessage is null.
      * @param explain If true, the HealthIndicatorDetails will contain "current_master" and "recent_masters". Otherwise it will be empty.
      * @param localMasterHistory The MasterHistory object to pull current and recent master info from
-     * @param clusterCoordinationMessage The cluster coordination message to put in the returned details if there was a cluster
+     * @param clusterFormationMessage The cluster coordination message to put in the returned details if there was a cluster
      *                                   coordination problem
      * @return An empty HealthIndicatorDetails if explain is false, otherwise a HealthIndicatorDetails containing only "current_master"
      * and "recent_masters"
      */
-    private HealthIndicatorDetails getDetails(
-        boolean explain,
-        MasterHistory localMasterHistory,
-        @Nullable String clusterCoordinationMessage
-    ) {
+    private HealthIndicatorDetails getDetails(boolean explain, MasterHistory localMasterHistory, @Nullable String clusterFormationMessage) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -269,8 +265,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     }
                 }
             });
-            if (clusterCoordinationMessage != null) {
-                builder.field("cluster_coordination", clusterCoordinationMessage);
+            if (clusterFormationMessage != null) {
+                builder.field("cluster_formation", clusterFormationMessage);
             }
             return builder.endObject();
         };

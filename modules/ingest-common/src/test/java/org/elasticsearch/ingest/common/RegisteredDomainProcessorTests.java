@@ -75,7 +75,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
 
-        IngestDocument input = TestIngestDocument.fromSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
@@ -126,7 +126,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
 
-        IngestDocument input = TestIngestDocument.fromSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);

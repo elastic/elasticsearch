@@ -23,14 +23,14 @@ public class TestIngestDocument {
      * This is needed because the ingest metadata will be initialized with the current timestamp at init time, which makes equality
      * comparisons impossible in tests.
      */
-    public static IngestDocument fromSourceAndIngest(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    public static IngestDocument ofSourceAndIngest(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**
-     * Create an IngestDocument for testing as in {@link #fromSourceAndIngest(Map, Map)} but pass an empty mutable map for ingestMetaata
+     * Create an IngestDocument for testing as in {@link #ofSourceAndIngest(Map, Map)} but pass an empty mutable map for ingestMetaata
      */
-    public static IngestDocument fromSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
+    public static IngestDocument ofSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
         return new IngestDocument(sourceAndMetadata, new HashMap<>());
     }
 

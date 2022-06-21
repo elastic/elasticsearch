@@ -62,7 +62,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument ingestDocument = new WriteableIngestDocument(
-            TestIngestDocument.fromSourceAndIngest(sourceAndMetadata, ingestMetadata)
+            TestIngestDocument.ofSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         boolean changed = false;
@@ -95,7 +95,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(
-            TestIngestDocument.fromSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
+            TestIngestDocument.ofSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
         );
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
@@ -105,7 +105,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
             WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
-                TestIngestDocument.fromSourceAndIngest(
+                TestIngestDocument.ofSourceAndIngest(
                     Collections.unmodifiableMap(sourceAndMetadata),
                     Collections.unmodifiableMap(ingestMetadata)
                 )
@@ -129,7 +129,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(
-            TestIngestDocument.fromSourceAndIngest(sourceAndMetadata, ingestMetadata)
+            TestIngestDocument.ofSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -166,7 +166,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         // this is testing xcontent parsing so use the wire constructor
-        IngestDocument serializedIngestDocument = IngestDocument.fromWire(toXContentSource, toXContentIngestMetadata);
+        IngestDocument serializedIngestDocument = IngestDocument.of(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 

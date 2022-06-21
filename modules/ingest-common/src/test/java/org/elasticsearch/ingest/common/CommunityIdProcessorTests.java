@@ -351,7 +351,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = TestIngestDocument.fromSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

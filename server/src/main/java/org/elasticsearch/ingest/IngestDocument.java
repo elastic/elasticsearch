@@ -99,7 +99,7 @@ public final class IngestDocument {
     /**
      * Build an IngestDocument from values read via deserialization
      */
-    public static IngestDocument fromWire(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 

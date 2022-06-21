@@ -58,7 +58,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             Map<String, Object> source = (Map<String, Object>) a[5];
             Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
             return new WriteableIngestDocument(
-                IngestDocument.fromWire(
+                IngestDocument.of(
                     new IngestSourceAndMetadata(metadata, source, IngestDocument.getTimestamp(ingestMetadata)),
                     ingestMetadata
                 )
@@ -96,7 +96,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        this.ingestDocument = IngestDocument.fromWire(sourceAndMetadata, ingestMetadata);
+        this.ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
     }
 
     @Override

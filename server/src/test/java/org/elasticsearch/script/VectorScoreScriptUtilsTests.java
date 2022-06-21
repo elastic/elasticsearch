@@ -6,17 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field.vectors;
+package org.elasticsearch.script;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.script.VectorScoreScriptUtils;
 import org.elasticsearch.script.VectorScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.script.VectorScoreScriptUtils.DotProduct;
 import org.elasticsearch.script.VectorScoreScriptUtils.L1Norm;
 import org.elasticsearch.script.VectorScoreScriptUtils.L2Norm;
+import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DenseVectorFunctionTests extends ESTestCase {
+public class VectorScoreScriptUtilsTests extends ESTestCase {
 
     public void testVectorClassBindings() throws IOException {
         String fieldName = "vector";

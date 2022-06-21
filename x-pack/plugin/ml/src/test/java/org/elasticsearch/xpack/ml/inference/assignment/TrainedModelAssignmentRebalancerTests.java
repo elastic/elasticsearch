@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
-    public void testRebalance_GivenNoAssignments() {
+    public void testRebalance_GivenNoAssignments() throws Exception {
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
             TrainedModelAssignmentMetadata.Builder.empty().build(),
             Map.of(),
@@ -57,7 +57,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
-    public void testRebalance_GivenFirstModelToAdd_NoMLNodes() {
+    public void testRebalance_GivenFirstModelToAdd_NoMLNodes() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -74,7 +74,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(assignment.getReason().get(), equalTo("No ML nodes exist in the cluster"));
     }
 
-    public void testRebalance_GivenFirstModelToAdd_NotEnoughProcessors() {
+    public void testRebalance_GivenFirstModelToAdd_NotEnoughProcessors() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 4);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -100,7 +100,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
-    public void testRebalance_GivenFirstModelToAdd_NotEnoughMemory() {
+    public void testRebalance_GivenFirstModelToAdd_NotEnoughMemory() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -123,7 +123,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
-    public void testRebalance_GivenFirstModelToAdd_ErrorDetectingNodeLoad() {
+    public void testRebalance_GivenFirstModelToAdd_ErrorDetectingNodeLoad() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -149,7 +149,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
-    public void testRebalance_GivenProblemsOnMultipleNodes() {
+    public void testRebalance_GivenProblemsOnMultipleNodes() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 4);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -182,7 +182,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
-    public void testRebalance_GivenFirstModelToAdd_FitsFully() {
+    public void testRebalance_GivenFirstModelToAdd_FitsFully() throws Exception {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
@@ -205,7 +205,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(assignment.getReason().isPresent(), is(false));
     }
 
-    public void testRebalance_GivenModelToAdd_AndPreviousAssignments_AndTwoNodes_AllFit() {
+    public void testRebalance_GivenModelToAdd_AndPreviousAssignments_AndTwoNodes_AllFit() throws Exception {
         String modelToAddId = "model-to-add";
         String previousModelId = "previous-model";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelToAddId, 1024L, 1, 2);
@@ -256,7 +256,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    public void testRebalance_GivenPreviousAssignments_AndNewNode() {
+    public void testRebalance_GivenPreviousAssignments_AndNewNode() throws Exception {
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -316,7 +316,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeNotLargeEnough() {
+    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeNotLargeEnough() throws Exception {
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -376,7 +376,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeLargeEnough() {
+    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeLargeEnough() throws Exception {
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -426,7 +426,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    public void testRebalance_GivenFailedAssignment_RestartsAssignment() {
+    public void testRebalance_GivenFailedAssignment_RestartsAssignment() throws Exception {
         String modelId = "model-1";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(

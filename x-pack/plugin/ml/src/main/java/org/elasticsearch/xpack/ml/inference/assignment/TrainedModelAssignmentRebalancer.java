@@ -53,7 +53,7 @@ class TrainedModelAssignmentRebalancer {
         this.modelToAdd = Objects.requireNonNull(modelToAdd);
     }
 
-    TrainedModelAssignmentMetadata.Builder rebalance() {
+    TrainedModelAssignmentMetadata.Builder rebalance() throws Exception {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.fromMetadata(currentMetadata);
         if (modelToAdd.isPresent() && builder.hasModel(modelToAdd.get().getModelId())) {
             throw new ResourceAlreadyExistsException("assignment for model with id [{}] already exists", modelToAdd.get().getModelId());

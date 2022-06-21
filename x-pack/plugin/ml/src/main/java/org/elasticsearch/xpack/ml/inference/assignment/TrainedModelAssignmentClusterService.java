@@ -368,7 +368,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
-    ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
+    ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) throws Exception {
         return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
     }
 
@@ -425,7 +425,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private TrainedModelAssignmentMetadata.Builder rebalanceAssignments(
         ClusterState currentState,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
-    ) {
+    ) throws Exception {
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);

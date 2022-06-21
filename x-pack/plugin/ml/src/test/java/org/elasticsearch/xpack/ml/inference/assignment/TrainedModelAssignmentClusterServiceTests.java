@@ -254,7 +254,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         assertThat(TrainedModelAssignmentMetadata.fromState(modified).modelAssignments(), is(anEmptyMap()));
     }
 
-    public void testCreateAssignment() {
+    public void testCreateAssignment() throws Exception {
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(
                 DiscoveryNodes.builder()

@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
@@ -306,7 +307,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             TimeValue.ZERO,
             false
         );
-        return createDataStreamService.createDataStream(request, state);
+        return createDataStreamService.createDataStream(request, state, ActionListener.noop());
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {

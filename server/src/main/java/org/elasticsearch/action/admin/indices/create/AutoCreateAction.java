@@ -242,7 +242,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.timeout(),
                         false
                     );
-                    ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                    ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
+                        createRequest,
+                        currentState,
+                        DesiredBalanceShardsAllocator.REMOVE_ME
+                    );
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
                     taskContext.success(getAckListener(indexName));

@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -334,32 +333,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
-    }
-
-    public void testUpdateApiKey() throws ExecutionException, InterruptedException {
-        CreateApiKeyResponse createResponse = createApiKeys(1, null).v1().get(0);
-        String[] nodeNames = internalCluster().getNodeNames();
-        final List<ApiKeyService> services = Arrays.stream(nodeNames)
-            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
-            .toList();
-        ApiKeyService service = services.get(0);
-
-        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-
-        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        service.updateApiKey(
-            Authentication.newRealmAuthentication(
-                new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                new Authentication.RealmRef("file", FileRealmSettings.TYPE, nodeNames[0])
-            ),
-            new UpdateApiKeyRequest(createResponse.getId(), List.of(descriptor), ApiKeyTests.randomMetadata()),
-            Set.of(descriptor),
-            listener
-        );
-
-        UpdateApiKeyResponse response = listener.get();
-        assertNotNull(response);
-        assertTrue(response.isUpdated());
     }
 
     public void testInvalidateApiKeyWillClearApiKeyCache() throws IOException, ExecutionException, InterruptedException {
@@ -1436,6 +1409,38 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         });
     }
 
+    public void testUpdateApiKey() throws ExecutionException, InterruptedException {
+        final var createdApiKey = createApiKey(null);
+
+        final var role = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        final var request = new UpdateApiKeyRequest(createdApiKey.v1().getId(), List.of(role), ApiKeyTests.randomMetadata());
+
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        final var serviceWithNodeName = getServiceWithNodeName();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                Authentication.newRealmAuthentication(
+                    new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                    new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName())
+                ),
+                request,
+                Set.of(role),
+                listener
+            );
+        UpdateApiKeyResponse response = listener.get();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+    }
+
+    private ServiceWithNodeName getServiceWithNodeName() {
+        final var nodeName = internalCluster().getNodeNames()[0];
+        final var service = internalCluster().getInstance(ApiKeyService.class, nodeName);
+        return new ServiceWithNodeName(service, nodeName);
+    }
+
+    private record ServiceWithNodeName(ApiKeyService service, String nodeName) {}
+
     private Tuple<String, String> createApiKeyAndAuthenticateWithIt() throws IOException {
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
@@ -1564,6 +1569,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertThat(apiKey.getMetadata(), equalTo(metadata == null ? Map.of() : metadata));
             }
         }
+    }
+
+    private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(TimeValue expiration) {
+        final var res = createApiKeys(ES_TEST_ROOT_USER, 1, expiration, "monitor");
+        return new Tuple<>(res.v1().get(0), res.v2().get(0));
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(int noOfApiKeys, TimeValue expiration) {

@@ -20,7 +20,6 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
     public ShardAssignment {
         assert total > 0 : "Shard assignment should not be empty";
         assert nodeIds.size() + unassigned == total : "Shard assignment should account for all shards";
-        assert ignored == 0 || ignored == total - 1 || ignored == total : "Got unexpected ignored count";
     }
 
     public boolean isIgnored(boolean primary) {

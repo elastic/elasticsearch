@@ -58,17 +58,15 @@ public final class IngestDocument {
 
     private boolean doNoSelfReferencesCheck = false;
 
-    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
+    public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         // source + at max 5 extra fields
         this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         if (routing != null) {
             this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));

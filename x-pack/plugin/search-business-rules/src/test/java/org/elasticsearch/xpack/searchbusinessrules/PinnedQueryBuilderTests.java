@@ -158,8 +158,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                     }
                   }
                 },
-                "ids": [ "1", "2" ],
-                "boost": 1.0
+                "ids": [ "1", "2" ]
               }
             }""";
 
@@ -181,8 +180,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                     }
                   }
                 },
-                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
-                "boost": 1.0
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ]
               }
             }""";
 

@@ -35,6 +35,49 @@ keyword:
         kwd: foo
 
 ---
+fetch without refresh also produces synthetic source:
+  - skip:
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+          mappings:
+            _source:
+              synthetic: true
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: false # no refreshing!
+        body:
+          obj.kwd: foo
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source: # synthetic source will convert the dotted field names into an object, even when loading from the translog
+        obj:
+          kwd: foo
+
+---
 force_synthetic_source_ok:
   - skip:
       version: " - 8.3.99"

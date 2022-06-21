@@ -477,7 +477,7 @@ public class DiskThresholdMonitor {
         if (enabled) {
             return;
         }
-        final var state = clusterStateSupplier.get();
+        final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToRelease = state.routingTable()
             .indicesRouting()
             .keySet()

@@ -20,6 +20,7 @@ import java.util.AbstractSet;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -236,12 +237,26 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     protected void validateMetadata() {
-        validators.forEach((k, v) -> {
-            v.apply(k, metadata.get(k));
-            if (source.containsKey(k)) {
-                throw new IllegalArgumentException("Unexpected metadata key [" + k + "] in source with value [" + source.get(k) + "]");
+        int numMetadata = 0;
+        for (Map.Entry<String, BiFunction<String, Object, Object>> entry : validators.entrySet()) {
+            String key = entry.getKey();
+            if (metadata.containsKey(key)) {
+                numMetadata++;
             }
-        });
+            entry.getValue().apply(key, metadata.get(key));
+            if (source.containsKey(key)) {
+                throw new IllegalArgumentException("Unexpected metadata key [" + key + "] in source with value [" + source.get(key) + "]");
+            }
+        }
+        if (numMetadata < metadata.size()) {
+            Set<String> keys = new HashSet<>(metadata.keySet());
+            keys.removeAll(validators.keySet());
+            throw new IllegalArgumentException(
+                "Unexpected metadata keys ["
+                    + keys.stream().sorted().map(k -> k + ":" + metadata.get(k)).collect(Collectors.joining(", "))
+                    + "]"
+            );
+        }
     }
 
     /**
@@ -381,12 +396,14 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
 
         @Override
         public boolean remove(Object o) {
-            if (o instanceof Map.Entry<?, ?> entry) {
-                if (entry.getKey()instanceof String key) {
-                    BiFunction<String, Object, Object> validator = validators.get(key);
-                    if (validator != null) {
-                        validator.apply(key, entry.getValue());
-                        return metadataSet.remove(o);
+            if (metadataSet.contains(o)) {
+                if (o instanceof Map.Entry<?, ?> entry) {
+                    if (entry.getKey()instanceof String key) {
+                        BiFunction<String, Object, Object> validator = validators.get(key);
+                        if (validator != null) {
+                            validator.apply(key, null);
+                            return metadataSet.remove(o);
+                        }
                     }
                 }
             }
@@ -407,9 +424,9 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         boolean sourceCur = true;
         Entry cur;
 
-        EntrySetIterator(Iterator<Map.Entry<String, Object>> metadataIter, Iterator<Map.Entry<String, Object>> sourceIter) {
-            this.metadataIter = metadataIter;
+        EntrySetIterator(Iterator<Map.Entry<String, Object>> sourceIter, Iterator<Map.Entry<String, Object>> metadataIter) {
             this.sourceIter = sourceIter;
+            this.metadataIter = metadataIter;
         }
 
         @Override

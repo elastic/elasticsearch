@@ -77,9 +77,9 @@ its past behavior.
 The `time_of_week` function detects when events occur that are outside normal
 usage patterns. For example, it detects login events on the weekend.
 
-IMPORTANT: The `time_of_week` function is modeled in UTC and the duration of the 
-  week is in seconds. It means that the `typical` and `actual` values are 
-  seconds after a whole number of weeks after 1/1/1970 in UTC which is a 
+IMPORTANT: The `time_of_week` function models time in epoch seconds modulo the duration
+  of a week in seconds. It means that the `typical` and `actual` values are 
+  seconds after a whole number of weeks since 1/1/1970 in UTC which is a 
   Thursday. For example, a value of `475` is 475 seconds after midnight on 
   Thursday in UTC. 
 

@@ -374,39 +374,6 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
-    public void testBackcompatV1() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
-        try (
-            Directory directory = newFSDirectory(configDir);
-            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
-        ) {
-            CodecUtil.writeHeader(output, "elasticsearch.keystore", 1);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        keystore.decrypt(new char[0]);
-        SecureString testValue = keystore.getString("string_setting");
-        assertThat(testValue.toString(), equalTo("stringSecretValue"));
-    }
-
     public void testBackcompatV4() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();

@@ -1418,7 +1418,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
-        final var createdApiKey = createApiKey(null);
+        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
@@ -1427,7 +1427,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
-                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
                 request,
                 Set.of(expectedRoleDescriptor),
                 listener
@@ -1451,19 +1451,34 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
-                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
                 new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
                 Set.of(expectedRoleDescriptor),
                 listener2
             );
-        final var ex = expectThrows(ExecutionException.class, listener2::get);
+        var ex = expectThrows(ExecutionException.class, listener2::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
+
+        // Test not found exception on other user's API key
+        final var otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
+        final var otherUsersApiKeyId = otherUsersApiKey.v1().getId();
+        final PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                new UpdateApiKeyRequest(otherUsersApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
+                Set.of(expectedRoleDescriptor),
+                listener3
+            );
+        ex = expectThrows(ExecutionException.class, listener3::get);
+        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(ex.getMessage(), containsString("api key [" + otherUsersApiKeyId + "] not found"));
     }
 
     public void testUpdateApiKeyRequestWithNullRoleDescriptorsDoesNotOverwriteExistingRoleDescriptors() throws ExecutionException,
         InterruptedException, IOException {
-        final var createdApiKey = createApiKey(null);
+        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
@@ -1474,7 +1489,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
-                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
                 request,
                 Set.of(expectedLimitedByRoleDescriptor),
                 listener
@@ -1488,9 +1503,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
     }
 
-    private Authentication fileRealmAuthForEsTestRootUser(String nodeName) {
+    private Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
         return Authentication.newRealmAuthentication(
-            new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+            new User(userName, roleName),
             new Authentication.RealmRef("file", FileRealmSettings.TYPE, nodeName)
         );
     }
@@ -1668,8 +1683,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(TimeValue expiration) {
-        final var res = createApiKeys(ES_TEST_ROOT_USER, 1, expiration, "monitor");
+    private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(String user, TimeValue expiration) {
+        final var res = createApiKeys(user, 1, expiration, "monitor");
         return new Tuple<>(res.v1().get(0), res.v2().get(0));
     }
 

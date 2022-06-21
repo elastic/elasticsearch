@@ -1503,6 +1503,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    // TODO handle multiple role descriptors
     private void expectRoleDescriptorForApiKey(
         String roleDescriptorType,
         RoleDescriptor expectedRoleDescriptor,

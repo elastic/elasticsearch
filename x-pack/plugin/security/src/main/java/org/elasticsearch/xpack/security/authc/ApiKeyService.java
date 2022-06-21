@@ -430,46 +430,9 @@ public class ApiKeyService {
         VersionedApiKeyDoc versionedApiKeyDoc
     ) throws IOException {
         final var apiKeyDoc = versionedApiKeyDoc.apiKey();
+        final var keyRoles = getRoleDescriptors(request.getRoleDescriptors(), apiKeyDoc);
+        final var metadata = getMetadata(request.getMetadata(), apiKeyDoc);
 
-        // TODO gnarly
-
-        final List<RoleDescriptor> keyRoles;
-        // TODO need to account for legacy versions here, potentially
-        if (request.getRoleDescriptors() != null) {
-            keyRoles = request.getRoleDescriptors();
-        } else {
-            try (
-                XContentParser parser = XContentHelper.createParser(
-                    XContentParserConfiguration.EMPTY,
-                    apiKeyDoc.roleDescriptorsBytes,
-                    XContentType.JSON
-                )
-            ) {
-                // TODO gnarly
-                keyRoles = new ArrayList<>();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                    final String roleName = parser.currentName();
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                    final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
-                    keyRoles.add(role);
-                }
-            }
-        }
-
-        // Only write new metadata if it's present, i.e., not null. Otherwise, use existing old metadata
-        final Map<String, Object> metadata;
-        // TODO need to account for legacy versions here, potentially
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY,
-                apiKeyDoc.metadataFlattened,
-                XContentType.JSON
-            )
-        ) {
-            metadata = request.getMetadata() != null ? request.getMetadata() : parser.map();
-        }
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
             .setSource(
@@ -489,6 +452,51 @@ public class ApiKeyService {
             .setIfSeqNo(versionedApiKeyDoc.seqNo())
             .setIfPrimaryTerm(versionedApiKeyDoc.primaryTerm())
             .request();
+    }
+
+    private Map<String, Object> getMetadata(Map<String, Object> newMetadata, ApiKeyDoc apiKeyDoc) throws IOException {
+        if (newMetadata != null) {
+            return newMetadata;
+        }
+
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                apiKeyDoc.metadataFlattened,
+                XContentType.JSON
+            )
+        ) {
+            // TODO order?
+            return parser.map();
+        }
+    }
+
+    private List<RoleDescriptor> getRoleDescriptors(List<RoleDescriptor> newRoleDescriptors, ApiKeyDoc apiKeyDoc) throws IOException {
+        // TODO gnarly
+        // TODO need to account for legacy versions here, potentially
+        if (newRoleDescriptors != null) {
+            return newRoleDescriptors;
+        }
+
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                apiKeyDoc.roleDescriptorsBytes,
+                XContentType.JSON
+            )
+        ) {
+            // TODO order?
+            final List<RoleDescriptor> keyRoles = new ArrayList<>();
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                final String roleName = parser.currentName();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
+                keyRoles.add(role);
+            }
+            return keyRoles;
+        }
     }
 
     /**

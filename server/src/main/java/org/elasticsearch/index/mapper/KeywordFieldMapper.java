@@ -1061,7 +1061,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
-        return new BytesSyntheticFieldLoader<String>(name(), simpleName) {
+        return new BytesSyntheticFieldLoader(name(), simpleName) {
             @Override
             protected String convert(BytesRef value) {
                 return value.utf8ToString();
@@ -1069,7 +1069,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         };
     }
 
-    public abstract static class BytesSyntheticFieldLoader<T> implements SourceLoader.SyntheticFieldLoader {
+    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
 
@@ -1146,7 +1146,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             int[] sortedOrds = ords.clone();
             Arrays.sort(sortedOrds);
-            LongObjectPagedHashMap<T> lookup = new LongObjectPagedHashMap<>(found, BigArrays.NON_RECYCLING_INSTANCE);
+            LongObjectPagedHashMap<String> lookup = new LongObjectPagedHashMap<>(found, BigArrays.NON_RECYCLING_INSTANCE);
             int prev = -1;
             for (int ord : sortedOrds) {
                 if (ord != prev) {
@@ -1182,6 +1182,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             };
         }
 
-        protected abstract T convert(BytesRef value);
+        protected abstract String convert(BytesRef value);
     }
 }

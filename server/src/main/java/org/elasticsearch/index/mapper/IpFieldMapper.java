@@ -553,7 +553,7 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new KeywordFieldMapper.BytesSyntheticFieldLoader<String>(name(), simpleName()) {
+        return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected String convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);

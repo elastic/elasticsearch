@@ -382,6 +382,7 @@ public class ApiKeyService {
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {
         return apiKeyDoc.invalidated == false
+            // TODO shared
             && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
     }
 

@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -59,6 +61,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -89,6 +93,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
+import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -329,6 +334,32 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
+    }
+
+    public void testUpdateApiKey() throws ExecutionException, InterruptedException {
+        CreateApiKeyResponse createResponse = createApiKeys(1, null).v1().get(0);
+        String[] nodeNames = internalCluster().getNodeNames();
+        final List<ApiKeyService> services = Arrays.stream(nodeNames)
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .toList();
+        ApiKeyService service = services.get(0);
+
+        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+
+        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKey(
+            Authentication.newRealmAuthentication(
+                new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                new Authentication.RealmRef("file", FileRealmSettings.TYPE, nodeNames[0])
+            ),
+            new UpdateApiKeyRequest(createResponse.getId(), List.of(descriptor), ApiKeyTests.randomMetadata()),
+            Set.of(descriptor),
+            listener
+        );
+
+        UpdateApiKeyResponse response = listener.get();
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
     }
 
     public void testInvalidateApiKeyWillClearApiKeyCache() throws IOException, ExecutionException, InterruptedException {

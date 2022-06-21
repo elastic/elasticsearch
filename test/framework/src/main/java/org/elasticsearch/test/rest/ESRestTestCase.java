@@ -52,6 +52,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -453,7 +454,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
-     * to filter out outstanding tasks that are expected to be there.
+     * to filter out outstanding tasks that are expected to be there. In addition to the expected tasks that are defined by the filter we
+     * expect the list task to be there since it is created by the call and the health node task which is always running on the background.
      *
      * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
@@ -480,7 +482,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                            if (taskName.startsWith(ListTasksAction.NAME)
+                                || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskFilter.test(taskName)) {
                                 continue;
                             }
                             activeTasks++;

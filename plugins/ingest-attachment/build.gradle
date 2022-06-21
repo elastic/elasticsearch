@@ -115,5 +115,4 @@ if (BuildParams.inFipsJvm) {
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
   tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
-  tasks.named("testingConventions").configure { enabled = false };
 }

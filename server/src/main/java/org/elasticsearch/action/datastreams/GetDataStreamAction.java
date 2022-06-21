@@ -256,7 +256,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             }
         }
 
-        public static record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
+        public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
             TimeSeries(StreamInput in) throws IOException {
                 this(in.readList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));

@@ -84,7 +84,7 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps
      */
     IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = IngestSourceAndMetadata.fromMixedSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
+        this.sourceAndMetadata = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
         this.ingestMetadata = ingestMetadata;
     }
 

@@ -8,6 +8,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,5 +43,15 @@ public class TestIngestDocument {
      */
     public static IngestDocument emptyIngestDocument() {
         return new IngestDocument(new HashMap<>(), new HashMap<>());
+    }
+
+    public static Tuple<String, Object> randomMetadata() {
+        IngestDocument.Metadata metadata = ESTestCase.randomFrom(IngestDocument.Metadata.values());
+        return new Tuple<>(metadata.getFieldName(), switch (metadata) {
+            case VERSION, IF_SEQ_NO, IF_PRIMARY_TERM -> ESTestCase.randomIntBetween(0, 124);
+            case VERSION_TYPE -> VersionType.toString(ESTestCase.randomFrom(VersionType.values()));
+            case DYNAMIC_TEMPLATES -> Map.of(ESTestCase.randomAlphaOfLengthBetween(5, 10), ESTestCase.randomAlphaOfLengthBetween(5, 10));
+            default -> ESTestCase.randomAlphaOfLengthBetween(5, 10);
+        });
     }
 }

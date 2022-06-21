@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -46,7 +45,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            Tuple<String, Object> metadata = randomMetadata();
+            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
             sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -69,7 +68,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata = randomMetadata();
+                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
                 otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
@@ -113,7 +112,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            Tuple<String, Object> metadata = randomMetadata();
+            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
             sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -209,15 +208,5 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             || field.startsWith(
                 new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.INGEST_FIELD).toString()
             );
-    }
-
-    protected Tuple<String, Object> randomMetadata() {
-        IngestDocument.Metadata metadata = randomFrom(IngestDocument.Metadata.values());
-        return new Tuple<>(metadata.getFieldName(), switch (metadata) {
-            case VERSION, IF_SEQ_NO, IF_PRIMARY_TERM -> randomIntBetween(0, 124);
-            case VERSION_TYPE -> VersionType.toString(randomFrom(VersionType.values()));
-            case DYNAMIC_TEMPLATES -> Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-            default -> randomAlphaOfLengthBetween(5, 10);
-        });
     }
 }

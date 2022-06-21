@@ -116,7 +116,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * @param timestamp the timestamp of ingestion
      * @throws IllegalArgumentException if a validator fails for a given key
      */
-    public static IngestSourceAndMetadata fromMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
+    public static IngestSourceAndMetadata ofMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
         Tuple<Map<String, Object>, Map<String, Object>> split = splitSourceAndMetadata(sourceAndMetadata);
         return new IngestSourceAndMetadata(split.v1(), split.v2(), timestamp, VALIDATORS);
     }
@@ -152,15 +152,16 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     public static Tuple<Map<String, Object>, Map<String, Object>> splitSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
         if (sourceAndMetadata instanceof IngestSourceAndMetadata ingestSourceAndMetadata) {
-            return new Tuple<>(ingestSourceAndMetadata.source, new HashMap<>(ingestSourceAndMetadata.metadata));
+            return new Tuple<>(new HashMap<>(ingestSourceAndMetadata.source), new HashMap<>(ingestSourceAndMetadata.metadata));
         }
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
+        Map<String, Object> source = new HashMap<>(sourceAndMetadata);
         for (String metadataName : VALIDATORS.keySet()) {
             if (sourceAndMetadata.containsKey(metadataName)) {
-                metadata.put(metadataName, sourceAndMetadata.remove(metadataName));
+                metadata.put(metadataName, source.remove(metadataName));
             }
         }
-        return new Tuple<>(sourceAndMetadata, metadata);
+        return new Tuple<>(source, metadata);
     }
 
     public Map<String, Object> getSource() {

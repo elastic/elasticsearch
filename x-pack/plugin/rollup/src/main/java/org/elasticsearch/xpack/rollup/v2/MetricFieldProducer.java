@@ -22,9 +22,7 @@ import java.util.Map;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer {
-    private final String field;
-
+abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * a list of metrics that will be computed for the field
      */
@@ -32,7 +30,7 @@ abstract class MetricFieldProducer {
     private boolean isEmpty = true;
 
     MetricFieldProducer(String field, List<Metric> metrics) {
-        this.field = field;
+        super(field);
         this.metrics = metrics;
     }
 
@@ -56,7 +54,8 @@ abstract class MetricFieldProducer {
     }
 
     /** Collect the value of a raw field and compute all downsampled metrics */
-    public void collectMetric(Double value) {
+    @Override
+    public void collect(Double value) {
         for (MetricFieldProducer.Metric metric : metrics) {
             metric.collect(value);
         }

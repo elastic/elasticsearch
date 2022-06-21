@@ -381,7 +381,7 @@ class RollupShardIndexer {
         }
 
         public void collectMetric(String field, double value) {
-            metricFieldProducers.get(field).collectMetric(value);
+            metricFieldProducers.get(field).collect(value);
         }
 
         public void collectLabel(String fieldName, Object value) {

@@ -11,8 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.stringContains;
-import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
+import static org.elasticsearch.xpack.eql.util.StringUtils.stringContains;
+import static org.elasticsearch.xpack.eql.util.StringUtils.substringSlice;
 import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -86,7 +86,7 @@ public class StringUtilsTests extends ESTestCase {
         boolean caseSensitive = randomBoolean();
 
         String string = randomBoolean() ? null : EMPTY;
-        assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
     }
 
     public void testBetweenEmptyNullLeftRight() throws Exception {
@@ -95,54 +95,54 @@ public class StringUtilsTests extends ESTestCase {
         String right = randomBoolean() ? null : "";
         boolean greedy = randomBoolean();
         boolean caseSensitive = randomBoolean();
-        assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
     }
 
     // Test from EQL doc https://eql.readthedocs.io/en/latest/query-guide/functions.html
     public void testBetweenBasicEQLExamples() {
-        assertThat(StringUtils.between("welcome to event query language", " ", " ", false, true), equalTo("to"));
-        assertThat(StringUtils.between("welcome to event query language", " ", " ", true, true), equalTo("to event query"));
-        assertThat(StringUtils.between("System Idle Process", "s", "e", true, true), equalTo("ystem Idle Proc"));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("welcome to event query language", " ", " ", false, true), equalTo("to"));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("welcome to event query language", " ", " ", true, true), equalTo("to event query"));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("System Idle Process", "s", "e", true, true), equalTo("ystem Idle Proc"));
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, true),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, true),
             equalTo("\\TestLogs\\something")
         );
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, true),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, true),
             equalTo("\\TestLogs\\something")
         );
 
-        assertThat(StringUtils.between("System Idle Process", "s", "e", false, true), equalTo("yst"));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("System Idle Process", "s", "e", false, true), equalTo("yst"));
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, false),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, false),
             equalTo("\\TestLogs\\something")
         );
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", false, false),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", false, false),
             equalTo("Logs\\something")
         );
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, false), equalTo(""));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, false), equalTo(""));
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, false),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, false),
             equalTo("\\TestLogs\\something")
         );
 
         assertThat(
-            StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", true, false),
+            org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", true, false),
             equalTo("Logs\\something")
         );
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, false), equalTo(""));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, false), equalTo(""));
 
-        assertThat(StringUtils.between("System Idle Process", "S", "e", false, false), equalTo("yst"));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("System Idle Process", "S", "e", false, false), equalTo("yst"));
 
-        assertThat(StringUtils.between("System Idle Process", "Y", "e", false, false), equalTo(""));
+        assertThat(org.elasticsearch.xpack.eql.util.StringUtils.between("System Idle Process", "Y", "e", false, false), equalTo(""));
     }
 
     public void testStringContainsWithNullOrEmpty() {

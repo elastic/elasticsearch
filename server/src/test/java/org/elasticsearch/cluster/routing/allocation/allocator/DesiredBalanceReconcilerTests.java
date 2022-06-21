@@ -510,7 +510,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var settings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> randomBoolean());
+        final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(settings, clusterSettings),

@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -344,7 +345,7 @@ public class ApiKeyService {
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
-        ActionListener<AcknowledgedResponse> listener
+        ActionListener<UpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
         if (authentication == null) {
@@ -352,13 +353,13 @@ public class ApiKeyService {
             return;
         }
         logger.info("Updating api key [{}]", request.getId());
-        // TODO check same user
         // TODO check status; possibly no if we filter
         // TODO check version
         final var version = clusterService.state().nodes().getMinNodeVersion();
         findActiveApiKeyDocs(new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
             if (apiKeys.isEmpty()) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+                // TODO 404
+                listener.onResponse(new UpdateApiKeyResponse(false));
                 return;
             }
             // TODO what happens if `toBulkUpdateRequest` throws?
@@ -367,17 +368,17 @@ public class ApiKeyService {
         }, listener::onFailure));
     }
 
-    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<AcknowledgedResponse> listener) {
+    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<UpdateApiKeyResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 bulkUpdateRequest.request(),
-                ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                    logger.info("Updated API key");
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }, listener::onFailure),
+                ActionListener.<BulkResponse>wrap(
+                    bulkResponse -> { listener.onResponse(new UpdateApiKeyResponse(true)); },
+                    listener::onFailure
+                ),
                 client::bulk
             )
         );

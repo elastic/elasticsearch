@@ -1451,7 +1451,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 Set.of(expectedRoleDescriptor),
                 listener2
             );
-        ExecutionException ex = expectThrows(ExecutionException.class, listener2::get);
+        final var ex = expectThrows(ExecutionException.class, listener2::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
     }

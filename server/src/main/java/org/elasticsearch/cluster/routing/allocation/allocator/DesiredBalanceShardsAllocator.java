@@ -142,7 +142,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // Otherwise we will have to do a second cluster state update straight away.
 
         appliedDesiredBalance = currentDesiredBalance;
-        logger.info("Allocating using balance [{}]", appliedDesiredBalance);
+        logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
         new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
 
         queue.complete(appliedDesiredBalance.lastConvergedIndex());

@@ -39,10 +39,10 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
-import org.elasticsearch.cluster.coordination.StableMasterService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -901,8 +901,11 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            StableMasterService stableMasterService = new StableMasterService(clusterService, masterHistoryService);
-            HealthService healthService = createHealthService(clusterService, clusterModule, stableMasterService);
+            CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+                clusterService,
+                masterHistoryService
+            );
+            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -986,7 +989,7 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-                b.bind(StableMasterService.class).toInstance(stableMasterService);
+                b.bind(CoordinationDiagnosticsService.class).toInstance(coordinationDiagnosticsService);
                 if (HealthNode.isEnabled()) {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                 }
@@ -1048,10 +1051,10 @@ public class Node implements Closeable {
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
-        StableMasterService stableMasterService
+        CoordinationDiagnosticsService coordinationDiagnosticsService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(stableMasterService)
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

@@ -39,7 +39,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String NAME = "master_is_stable";
     private static final String HELP_URL = "https://ela.st/fix-master";
 
-    private final StableMasterService stableMasterService;
+    private final CoordinationDiagnosticsService coordinationDiagnosticsService;
 
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
@@ -63,8 +63,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
     );
 
-    public StableMasterHealthIndicatorService(StableMasterService stableMasterService) {
-        this.stableMasterService = stableMasterService;
+    public StableMasterHealthIndicatorService(CoordinationDiagnosticsService coordinationDiagnosticsService) {
+        this.coordinationDiagnosticsService = coordinationDiagnosticsService;
     }
 
     @Override
@@ -84,18 +84,20 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     @Override
     public HealthIndicatorResult calculate(boolean explain) {
-        StableMasterService.StableMasterResult stableMasterResult = stableMasterService.calculate(explain);
+        CoordinationDiagnosticsService.StableMasterResult stableMasterResult = coordinationDiagnosticsService.diagnoseMasterStability(
+            explain
+        );
         return getHealthIndicatorResult(stableMasterResult, explain);
     }
 
     /**
-     * Transforms a StableMasterService.StableMasterResult into a HealthIndicatorResult.
-     * @param stableMasterResult The StableMasterResult from the StableMasterService to be transformed
+     * Transforms a CoordinationDiagnosticsService.StableMasterResult into a HealthIndicatorResult.
+     * @param stableMasterResult The StableMasterResult from the CoordinationDiagnosticsService to be transformed
      * @param explain If false, the details and user actions returned will be empty
      * @return The HealthIndicatorResult
      */
     // Non-private for testing
-    HealthIndicatorResult getHealthIndicatorResult(StableMasterService.StableMasterResult stableMasterResult, boolean explain) {
+    HealthIndicatorResult getHealthIndicatorResult(CoordinationDiagnosticsService.StableMasterResult stableMasterResult, boolean explain) {
         HealthStatus status = HealthStatus.fromStableMasterStatus(stableMasterResult.status());
         HealthIndicatorDetails details = getDetails(stableMasterResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
@@ -113,7 +115,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If false, HealthIndicatorDetails.EMPTY will be returned
      * @return A HealthIndicatorDetails
      */
-    private HealthIndicatorDetails getDetails(StableMasterService.StableMasterDetails stableMasterDetails, boolean explain) {
+    private HealthIndicatorDetails getDetails(CoordinationDiagnosticsService.StableMasterDetails stableMasterDetails, boolean explain) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }

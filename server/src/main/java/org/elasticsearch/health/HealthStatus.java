@@ -8,7 +8,7 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.cluster.coordination.StableMasterService;
+import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -54,8 +54,10 @@ public enum HealthStatus implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static HealthStatus fromStableMasterStatus(StableMasterService.StableMasterStatus stableMasterStatus) {
-        return switch (stableMasterStatus) {
+    public static HealthStatus fromStableMasterStatus(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus coordinationDiagnosticsStatus
+    ) {
+        return switch (coordinationDiagnosticsStatus) {
             case GREEN -> HealthStatus.GREEN;
             case YELLOW -> HealthStatus.YELLOW;
             case RED -> HealthStatus.RED;

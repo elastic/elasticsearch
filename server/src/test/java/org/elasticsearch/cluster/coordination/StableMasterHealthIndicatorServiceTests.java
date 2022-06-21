@@ -95,12 +95,15 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
-        StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        StableMasterService.StableMasterStatus inputStatus = randomFrom(
-            StableMasterService.StableMasterStatus.RED,
-            StableMasterService.StableMasterStatus.YELLOW
+        CoordinationDiagnosticsService.StableMasterDetails stableMasterDetails = new CoordinationDiagnosticsService.StableMasterDetails(
+            node1,
+            recentMasters
         );
-        StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
+        );
+        CoordinationDiagnosticsService.StableMasterResult stableMasterResult = new CoordinationDiagnosticsService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
@@ -136,12 +139,15 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
-        StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        StableMasterService.StableMasterStatus inputStatus = randomFrom(
-            StableMasterService.StableMasterStatus.RED,
-            StableMasterService.StableMasterStatus.YELLOW
+        CoordinationDiagnosticsService.StableMasterDetails stableMasterDetails = new CoordinationDiagnosticsService.StableMasterDetails(
+            node1,
+            recentMasters
         );
-        StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
+        );
+        CoordinationDiagnosticsService.StableMasterResult stableMasterResult = new CoordinationDiagnosticsService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
@@ -163,12 +169,15 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
-        StableMasterService.StableMasterDetails stableMasterDetails = new StableMasterService.StableMasterDetails(node1, recentMasters);
-        StableMasterService.StableMasterStatus inputStatus = randomFrom(
-            StableMasterService.StableMasterStatus.GREEN,
-            StableMasterService.StableMasterStatus.UNKNOWN
+        CoordinationDiagnosticsService.StableMasterDetails stableMasterDetails = new CoordinationDiagnosticsService.StableMasterDetails(
+            node1,
+            recentMasters
         );
-        StableMasterService.StableMasterResult stableMasterResult = new StableMasterService.StableMasterResult(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN,
+            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
+        );
+        CoordinationDiagnosticsService.StableMasterResult stableMasterResult = new CoordinationDiagnosticsService.StableMasterResult(
             inputStatus,
             "summary",
             stableMasterDetails
@@ -290,7 +299,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(new StableMasterService(clusterService, masterHistoryService));
+        return new StableMasterHealthIndicatorService(new CoordinationDiagnosticsService(clusterService, masterHistoryService));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
@@ -301,8 +310,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         return parser.map();
     }
 
-    private HealthStatus getHealthStatusForStableMasterStatus(StableMasterService.StableMasterStatus stableMasterStatus) {
-        return switch (stableMasterStatus) {
+    private HealthStatus getHealthStatusForStableMasterStatus(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus coordinationDiagnosticsStatus
+    ) {
+        return switch (coordinationDiagnosticsStatus) {
             case GREEN -> HealthStatus.GREEN;
             case YELLOW -> HealthStatus.YELLOW;
             case RED -> HealthStatus.RED;

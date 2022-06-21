@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * Since this service needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
  * requires the existence of a master).
  */
-public class StableMasterService implements ClusterStateListener {
+public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
     /**
@@ -55,7 +55,7 @@ public class StableMasterService implements ClusterStateListener {
      */
     private final int unacceptableIdentityChanges;
 
-    private static final Logger logger = LogManager.getLogger(StableMasterService.class);
+    private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
     /**
      * This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
@@ -88,7 +88,7 @@ public class StableMasterService implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
-    public StableMasterService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
+    public CoordinationDiagnosticsService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
         this.clusterService = clusterService;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
@@ -102,12 +102,12 @@ public class StableMasterService implements ClusterStateListener {
      * @param explain If true, the result will contain a non-empty StableMasterDetails if the resulting status is non-GREEN
      * @return Information about the current stability of the master node, as seen from this node
      */
-    public StableMasterResult calculate(boolean explain) {
+    public StableMasterResult diagnoseMasterStability(boolean explain) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInHasMasterLookupTimeframe()) {
-            return calculateOnHaveSeenMasterRecently(localMasterHistory, explain);
+            return diagnoseOnHaveSeenMasterRecently(localMasterHistory, explain);
         } else {
-            return calculateOnHaveNotSeenMasterRecently(localMasterHistory, explain);
+            return diagnoseOnHaveNotSeenMasterRecently(localMasterHistory, explain);
         }
     }
 
@@ -117,7 +117,7 @@ public class StableMasterService implements ClusterStateListener {
      * @param explain Whether to calculate and include the details and user actions in the result
      * @return The StableMasterResult for the given localMasterHistory
      */
-    private StableMasterResult calculateOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private StableMasterResult diagnoseOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace(
             "Have seen a master in the last {}): {}",
@@ -126,9 +126,9 @@ public class StableMasterService implements ClusterStateListener {
         );
         final StableMasterResult result;
         if (masterChanges >= unacceptableIdentityChanges) {
-            result = calculateOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
+            result = diagnoseOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
         } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
-            result = calculateOnMasterHasFlappedNull(localMasterHistory, explain);
+            result = diagnoseOnMasterHasFlappedNull(localMasterHistory, explain);
         } else {
             result = getMasterIsStableResult(explain, localMasterHistory);
         }
@@ -143,9 +143,9 @@ public class StableMasterService implements ClusterStateListener {
      * @param explain Whether to calculate and include the details in the result
      * @return The StableMasterResult for the given localMasterHistory
      */
-    private StableMasterResult calculateOnMasterHasChangedIdentity(MasterHistory localMasterHistory, int masterChanges, boolean explain) {
+    private StableMasterResult diagnoseOnMasterHasChangedIdentity(MasterHistory localMasterHistory, int masterChanges, boolean explain) {
         logger.trace("Have seen {} master changes in the last {}", masterChanges, localMasterHistory.getMaxHistoryAge());
-        StableMasterStatus stableMasterStatus = StableMasterStatus.YELLOW;
+        CoordinationDiagnosticsStatus coordinationDiagnosticsStatus = CoordinationDiagnosticsStatus.YELLOW;
         String summary = String.format(
             Locale.ROOT,
             "The elected master node has changed %d times in the last %s",
@@ -153,7 +153,7 @@ public class StableMasterService implements ClusterStateListener {
             localMasterHistory.getMaxHistoryAge()
         );
         StableMasterDetails details = getDetails(explain, localMasterHistory);
-        return new StableMasterResult(stableMasterStatus, summary, details);
+        return new StableMasterResult(coordinationDiagnosticsStatus, summary, details);
     }
 
     /**
@@ -187,7 +187,7 @@ public class StableMasterService implements ClusterStateListener {
      * @param explain Whether to calculate and include the details in the result
      * @return The StableMasterResult for the given localMasterHistory
      */
-    private StableMasterResult calculateOnMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
+    private StableMasterResult diagnoseOnMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
         List<DiscoveryNode> remoteHistory;
@@ -229,7 +229,7 @@ public class StableMasterService implements ClusterStateListener {
                 localMasterHistory,
                 remoteHistoryException
             );
-            return new StableMasterResult(StableMasterStatus.YELLOW, summary, details);
+            return new StableMasterResult(CoordinationDiagnosticsStatus.YELLOW, summary, details);
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
             return getMasterIsStableResult(explain, localMasterHistory);
@@ -263,7 +263,7 @@ public class StableMasterService implements ClusterStateListener {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
         StableMasterDetails details = getDetails(explain, localMasterHistory);
-        return new StableMasterResult(StableMasterStatus.GREEN, summary, details);
+        return new StableMasterResult(CoordinationDiagnosticsStatus.GREEN, summary, details);
     }
 
     /**
@@ -272,11 +272,11 @@ public class StableMasterService implements ClusterStateListener {
      * @param explain Whether to calculate and include the details in the result
      * @return The StableMasterResult for the given localMasterHistory
      */
-    private StableMasterResult calculateOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private StableMasterResult diagnoseOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         // NOTE: The logic in this method will be implemented in a future PR
         String summary = "No master has been observed recently";
         StableMasterDetails details = StableMasterDetails.EMPTY;
-        return new StableMasterResult(StableMasterStatus.RED, summary, details);
+        return new StableMasterResult(CoordinationDiagnosticsStatus.RED, summary, details);
     }
 
     /**
@@ -316,9 +316,9 @@ public class StableMasterService implements ClusterStateListener {
         }
     }
 
-    public record StableMasterResult(StableMasterStatus status, String summary, StableMasterDetails details) {}
+    public record StableMasterResult(CoordinationDiagnosticsStatus status, String summary, StableMasterDetails details) {}
 
-    public enum StableMasterStatus {
+    public enum CoordinationDiagnosticsStatus {
         GREEN,
         UNKNOWN,
         YELLOW,

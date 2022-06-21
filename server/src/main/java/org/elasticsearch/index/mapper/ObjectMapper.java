@@ -102,14 +102,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         /**
-         * Adds a dynamically created Mapper to this builder.
+         * Adds a dynamically created {@link Mapper} to this builder.
          *
          * @param name      the name of the Mapper, including object prefixes
          * @param prefix    the object prefix of this mapper
          * @param mapper    the mapper to add
          * @param context   the DocumentParserContext in which the mapper has been built
          */
-        public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == false) {
@@ -118,29 +118,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
             // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-            // call addDynamic on it with the name 'bar.baz'.
+            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
-                String childName = name.substring(0, firstDotIndex);
-                String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
-                childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
-                add(childBuilder);
+                String immediateChild = name.substring(0, firstDotIndex);
+                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
-            // does the child mapper already exist? if so, use that
-            ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+            // does the object mapper already exist? if so, use that
+            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            // has the child mapper been added as a dynamic update already?
-            child = context.getDynamicObjectMapper(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+            // has the object mapper been added as a dynamic update already?
+            objectMapper = context.getDynamicObjectMapper(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
+            throw new IllegalStateException("Missing intermediate object " + fullName);
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -148,19 +148,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                if (subobjects.value() == false && mapper instanceof ObjectMapper) {
-                    // we already check this at parse time (parseProperties) but we need to check again
-                    // here as dynamic mapping updates don't go through parsing.
-                    // Nested can only be dynamically mapped through dynamic templates, which are parsed and validated earlier.
-                    assert mapper instanceof NestedObjectMapper == false;
-                    throw new IllegalArgumentException(
-                        "Object ["
-                            + context.buildFullName(name)
-                            + "] has subobjects set to false hence it does not support inner object ["
-                            + mapper.simpleName()
-                            + "]"
-                    );
-                }
+                assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper, mapperBuilderContext);
@@ -285,20 +273,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support inner object ["
+                            "Tried to add subobject ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support nested object ["
+                            "Tried to add nested object ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);

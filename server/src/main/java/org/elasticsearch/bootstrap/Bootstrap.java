@@ -120,10 +120,8 @@ final class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        try {
-                            Bootstrap.stop();
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to stop node", e);
+                        if (Bootstrap.INSTANCE != null) {
+                            Bootstrap.INSTANCE.shutdown();
                         }
                         return true;
                     }
@@ -158,7 +156,7 @@ final class Bootstrap {
         HotThreads.initializeRuntimeMonitoring();
     }
 
-    private void setup(boolean addShutdownHook, Environment environment, Path pidFile) throws BootstrapException {
+    private void setup(Environment environment, Path pidFile) throws BootstrapException {
         Settings settings = environment.settings();
 
         try {
@@ -182,28 +180,7 @@ final class Bootstrap {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        if (addShutdownHook) {
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        IOUtils.close(node, spawner);
-                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                        Configurator.shutdown(context);
-                        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                            throw new IllegalStateException(
-                                "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
-                            );
-                        }
-                    } catch (IOException ex) {
-                        throw new ElasticsearchException("failed to stop node", ex);
-                    } catch (InterruptedException e) {
-                        LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            });
-        }
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
         try {
             // look for jar hell
@@ -261,17 +238,23 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    static void stop() throws IOException {
+    private void shutdown() {
         try {
-            IOUtils.close(INSTANCE.node, INSTANCE.spawner);
-            if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
+            IOUtils.close(node, spawner);
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+            if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException(
+                    "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
+                );
             }
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to stop node", ex);
         } catch (InterruptedException e) {
             LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();
         } finally {
-            INSTANCE.keepAliveLatch.countDown();
+            keepAliveLatch.countDown();
         }
     }
 
@@ -295,7 +278,7 @@ final class Bootstrap {
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
-            INSTANCE.setup(true, environment, pidFile);
+            INSTANCE.setup(environment, pidFile);
 
             try {
                 // any secure settings must be read during node construction

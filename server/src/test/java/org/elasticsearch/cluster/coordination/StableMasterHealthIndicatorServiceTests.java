@@ -410,7 +410,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                     assertThat(recentMasterMap.get("name"), notNullValue());
                     assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
                 }
-                assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered yet"));
+                Map<String, String> clusterFormationObject = (Map<String, String>) detailsMap.get("cluster_formation");
+                assertThat(clusterFormationObject.get("description"), startsWith("master not discovered yet"));
             }
             cluster.clusterNodes.addAll(removedClusterNodes);
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -453,7 +454,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                         assertThat(recentMasterMap.get("name"), notNullValue());
                         assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
                     }
-                    assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered"));
+                    Map<String, String> clusterFormationObject = (Map<String, String>) detailsMap.get("cluster_formation");
+                    assertThat(clusterFormationObject.get("description"), startsWith("master not discovered"));
                     // This restores the PeerFinder so that the test cleanup doesn't fail:
                     node.coordinator.getPeerFinder().activate(lastAcceptedNodes);
                 }
@@ -490,7 +492,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                         assertThat(recentMasterMap.get("name"), notNullValue());
                         assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
                     }
-                    assertThat((String) detailsMap.get("cluster_coordination"), startsWith("master not discovered"));
+                    Map<String, String> clusterFormationObject = (Map<String, String>) detailsMap.get("cluster_formation");
+                    assertThat(clusterFormationObject.get("description"), startsWith("master not discovered"));
                 }
             }
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {

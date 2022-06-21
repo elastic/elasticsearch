@@ -63,6 +63,9 @@ Highlighting::
 ILM+SLM::
 * Make the ILM Move to Error Step Batched {es-pull}85565[#85565] (issue: {es-issue}81880[#81880])
 
+Indices APIs::
+* Make `GetIndexAction` cancellable {es-pull}87681[#87681]
+
 Infra/Core::
 * Adjust osprobe assertion for burst cpu {es-pull}86990[#86990]
 * Clean up `DeflateCompressor` after exception {es-pull}87163[#87163] (issue: {es-issue}87160[#87160])
@@ -149,6 +152,7 @@ TSDB::
 
 Transform::
 * Fix transform `_start` permissions to use stored headers in the config {es-pull}86802[#86802]
+* [Transforms] fix bug when unsetting retention policy {es-pull}87711[#87711]
 
 [[deprecation-8.3.0]]
 [float]

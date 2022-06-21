@@ -200,6 +200,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
 
         ClusterState clusterStateWithAssignment = ClusterState.builder(new ClusterName("testRemoveAssignment"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes())).build())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -227,6 +228,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
 
         ClusterState clusterStateWithAssignments = ClusterState.builder(new ClusterName("testRemoveAllAssignments"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes())).build())
             .metadata(
                 Metadata.builder()
                     .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
@@ -304,7 +306,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down"))
                     .putCustom(
-                        TrainedModelAssignmentMetadata.NAME,
+                        // We have to use deprecated name here as we have a node versioned before the rename
+                        TrainedModelAssignmentMetadata.DEPRECATED_NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "model-1",
@@ -373,7 +376,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down"))
                     .putCustom(
-                        TrainedModelAssignmentMetadata.NAME,
+                        // We have to use deprecated name here as we have a node versioned before the rename
+                        TrainedModelAssignmentMetadata.DEPRECATED_NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "model-1",
@@ -1035,6 +1039,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
 
         ClusterState clusterStateWithAllocation = ClusterState.builder(new ClusterName("testSetAllocationToStopping"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes())).build())
             .metadata(
                 Metadata.builder()
                     .putCustom(

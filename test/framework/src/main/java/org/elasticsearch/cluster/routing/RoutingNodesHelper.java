@@ -19,16 +19,13 @@ public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState... state) {
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             shards.addAll(routingNode.shardsWithState(state));
         }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                routingNodes.unassigned().forEach(shards::add);
-                break;
-            }
+        if (state == ShardRoutingState.UNASSIGNED) {
+            routingNodes.unassigned().forEach(shards::add);
         }
         return shards;
     }

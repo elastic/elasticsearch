@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -289,10 +290,10 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    final Set<Map.Entry<String, FormattedDocValues>> fields = Stream.of(
-                        metricsFieldLeaves.entrySet(),
-                        labelFieldLeaves.entrySet()
-                    ).flatMap(Set::stream).collect(Collectors.toSet());
+                    final Set<Map.Entry<String, FormattedDocValues>> fields = Stream.concat(
+                        metricsFieldLeaves.entrySet().stream(),
+                        labelFieldLeaves.entrySet().stream()
+                    ).collect(Collectors.toSet());
                     for (Map.Entry<String, FormattedDocValues> e : fields) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
@@ -301,22 +302,8 @@ class RollupShardIndexer {
                             int docValueCount = leafField.docValueCount();
                             final Object value = leafField.nextValue();
 
-                            if (metricsFieldLeaves.containsKey(fieldName)) {
-                                for (int i = 0; i < docValueCount; i++) {
-                                    // TODO: We should lazily load the doc_values for the metric.
-                                    // In cases such as counter metrics we only need the first (latest_value)
-                                    // TODO: Implement aggregate_metric_double for rollup of rollups
-                                    if (value instanceof Number number) {
-                                        // Collect docs to rollup doc
-                                        rollupBucketBuilder.collectMetric(fieldName, number.doubleValue());
-                                    } else {
-                                        throw new IllegalArgumentException("Expected [Number], got [" + value.getClass() + "]");
-                                    }
-                                }
-                            } else if (labelFieldLeaves.containsKey(fieldName)) {
-                                for (int i = 0; i < docValueCount; i++) {
-                                    rollupBucketBuilder.collectLabel(fieldName, value);
-                                }
+                            for (int i = 0; i < docValueCount; i++) {
+                                rollupBucketBuilder.collect(fieldName, () -> value);
                             }
                         }
                     }
@@ -380,12 +367,35 @@ class RollupShardIndexer {
             return this;
         }
 
-        public void collectMetric(String field, double value) {
-            metricFieldProducers.get(field).collect(value);
+        public void collect(final String field, final Supplier<?> fieldValueSupplier) {
+            final Object value = fieldValueSupplier.get();
+            if (metricFieldProducers.containsKey(field)) {
+                collectMetric(field, value);
+            } else if (labelFieldProducers.containsKey(field)) {
+                collectLabel(field, value);
+            } else {
+                throw new IllegalArgumentException(
+                    "Field '"
+                        + field
+                        + "' is not a label nor a metric, existing labels: [ "
+                        + String.join(",", labelFieldProducers.keySet())
+                        + "], existing metrics: ["
+                        + String.join(", ", metricFieldProducers.keySet())
+                        + "]"
+                );
+            }
         }
 
-        public void collectLabel(String field, Object value) {
+        private void collectLabel(final String field, final Object value) {
             labelFieldProducers.get(field).collect(value);
+        }
+
+        private void collectMetric(final String field, final Object value) {
+            if (value instanceof Number number) {
+                metricFieldProducers.get(field).collect((number.doubleValue()));
+            } else {
+                throw new IllegalArgumentException("Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'");
+            }
         }
 
         public void collectDocCount(int docCount) {

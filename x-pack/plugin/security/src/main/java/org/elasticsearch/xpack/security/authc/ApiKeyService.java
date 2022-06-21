@@ -58,7 +58,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -433,11 +432,12 @@ public class ApiKeyService {
         VersionedApiKeyDoc versionedApiKeyDoc
     ) throws IOException {
         final var apiKeyDoc = versionedApiKeyDoc.apiKey();
-        final var keyRoles = getRoleDescriptors(request.getRoleDescriptors(), apiKeyDoc);
-        final var metadata = getMetadata(request.getMetadata(), apiKeyDoc);
+        final var keyRoles = getRoleDescriptors(request.getId(), request.getRoleDescriptors(), apiKeyDoc);
+        final var metadata = request.getMetadata() != null ? request.getMetadata() : apiKeyDoc.metadataAsMap();
 
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
+            .setSource()
             .setSource(
                 newDocument(
                     // TODO fill array in finally block?
@@ -457,49 +457,16 @@ public class ApiKeyService {
             .request();
     }
 
-    private Map<String, Object> getMetadata(Map<String, Object> newMetadata, ApiKeyDoc apiKeyDoc) throws IOException {
-        if (newMetadata != null) {
-            return newMetadata;
-        }
-
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY,
-                apiKeyDoc.metadataFlattened,
-                XContentType.JSON
-            )
-        ) {
-            // TODO order?
-            return parser.map();
-        }
-    }
-
-    private List<RoleDescriptor> getRoleDescriptors(List<RoleDescriptor> newRoleDescriptors, ApiKeyDoc apiKeyDoc) throws IOException {
-        // TODO gnarly
+    private List<RoleDescriptor> getRoleDescriptors(String apiKeyId, List<RoleDescriptor> newRoleDescriptors, ApiKeyDoc apiKeyDoc) {
         // TODO need to account for legacy versions here, potentially
-        if (newRoleDescriptors != null) {
-            return newRoleDescriptors;
-        }
-
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY,
-                apiKeyDoc.roleDescriptorsBytes,
-                XContentType.JSON
-            )
-        ) {
-            // TODO order?
-            final List<RoleDescriptor> keyRoles = new ArrayList<>();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                final String roleName = parser.currentName();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
-                keyRoles.add(role);
-            }
-            return keyRoles;
-        }
+        // TODO feels backwards that we deserialize just to serialize again
+        return newRoleDescriptors != null
+            ? newRoleDescriptors
+            : parseRoleDescriptors(
+                apiKeyId,
+                XContentHelper.convertToMap(apiKeyDoc.roleDescriptorsBytes, true, XContentType.JSON).v2(),
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
     }
 
     /**
@@ -1661,7 +1628,6 @@ public class ApiKeyService {
             Map<String, Object> creator,
             @Nullable BytesReference metadataFlattened
         ) {
-
             this.docType = docType;
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
@@ -1697,7 +1663,13 @@ public class ApiKeyService {
         }
 
         static ApiKeyDoc fromXContent(XContentParser parser) {
+            assert parser.contentType() == XContentType.JSON;
             return PARSER.apply(parser, null);
+        }
+
+        Map<String, Object> metadataAsMap() {
+            // TODO is json safe here?
+            return XContentHelper.convertToMap(metadataFlattened, true, XContentType.JSON).v2();
         }
     }
 

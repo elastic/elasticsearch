@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -163,21 +164,37 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             // There's a warm node in the desired nodes, but it hasn't joined the cluster yet,
             // in that case we consider that there aren't any nodes with the preferred tier in the cluster
-            final var clusterState = clusterStateWithIndexAndNodes(
-                randomFrom("data_warm,data_cold", "data_warm,data_hot"),
-                DiscoveryNodes.builder().add(HOT_NODE).build(),
-                DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
-            );
+            final ClusterState clusterState;
+            final String tierPreference;
+            if (randomBoolean()) {
+                tierPreference = "data_warm,data_cold";
+                clusterState = clusterStateWithIndexAndNodes(
+                    tierPreference,
+                    DiscoveryNodes.builder().add(HOT_NODE).build(),
+                    DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
+                );
+            } else {
+                tierPreference = "data_warm,data_hot";
+                clusterState = clusterStateWithIndexAndNodes(
+                    tierPreference,
+                    DiscoveryNodes.builder().add(COLD_NODE).build(),
+                    DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
+                );
+            }
 
             for (DiscoveryNode node : List.of(HOT_NODE, WARM_NODE, COLD_NODE)) {
                 assertAllocationDecision(
                     clusterState,
                     node,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm,data_cold], "
-                        + "but no nodes for any of those tiers are available in the cluster"
+                    String.format(
+                        Locale.ROOT,
+                        "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
+                        tierPreference
+                    )
                 );
             }
+
         }
     }
 

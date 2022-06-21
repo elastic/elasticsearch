@@ -53,8 +53,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -83,7 +85,9 @@ class RollupShardIndexer {
 
     private final String[] dimensionFields;
     private final String[] metricFields;
+    private final String[] labelFields;
     private final List<FieldValueFetcher> metricFieldFetchers;
+    private final List<FieldValueFetcher> labelFieldFetchers;
 
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
@@ -96,7 +100,8 @@ class RollupShardIndexer {
         String rollupIndex,
         RollupActionConfig config,
         String[] dimensionFields,
-        String[] metricFields
+        String[] metricFields,
+        String[] labelFields
     ) {
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
@@ -104,6 +109,7 @@ class RollupShardIndexer {
         this.rollupIndex = rollupIndex;
         this.dimensionFields = dimensionFields;
         this.metricFields = metricFields;
+        this.labelFields = labelFields;
 
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
@@ -120,6 +126,7 @@ class RollupShardIndexer {
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
             this.metricFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);
+            this.labelFieldFetchers = FieldValueFetcher.build(searchExecutionContext, labelFields);
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -226,6 +233,12 @@ class RollupShardIndexer {
                 metricsFieldLeaves.put(fetcher.name(), leafField);
             }
 
+            final Map<String, FormattedDocValues> labelFieldLeaves = new HashMap<>();
+            for (FieldValueFetcher fetcher : labelFieldFetchers) {
+                FormattedDocValues leafField = fetcher.getLeaf(ctx);
+                labelFieldLeaves.put(fetcher.name(), leafField);
+            }
+
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
@@ -276,21 +289,33 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (Map.Entry<String, FormattedDocValues> e : metricsFieldLeaves.entrySet()) {
-                        String fieldName = e.getKey();
-                        FormattedDocValues leafField = e.getValue();
+                    final Set<Map.Entry<String, FormattedDocValues>> fields = Stream.of(
+                        metricsFieldLeaves.entrySet(),
+                        labelFieldLeaves.entrySet()
+                    ).flatMap(Set::stream).collect(Collectors.toSet());
+                    for (Map.Entry<String, FormattedDocValues> e : fields) {
+                        final String fieldName = e.getKey();
+                        final FormattedDocValues leafField = e.getValue();
 
                         if (leafField.advanceExact(docId)) {
-                            for (int i = 0; i < leafField.docValueCount(); i++) {
-                                // TODO: We should lazily load the doc_values for the metric.
-                                // In cases such as counter metrics we only need the first (latest_value)
-                                Object obj = leafField.nextValue();
-                                // TODO: Implement aggregate_metric_double for rollup of rollups
-                                if (obj instanceof Number number) {
-                                    // Collect docs to rollup doc
-                                    rollupBucketBuilder.collectMetric(fieldName, number.doubleValue());
-                                } else {
-                                    throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
+                            int docValueCount = leafField.docValueCount();
+                            final Object value = leafField.nextValue();
+
+                            if (metricsFieldLeaves.containsKey(fieldName)) {
+                                for (int i = 0; i < docValueCount; i++) {
+                                    // TODO: We should lazily load the doc_values for the metric.
+                                    // In cases such as counter metrics we only need the first (latest_value)
+                                    // TODO: Implement aggregate_metric_double for rollup of rollups
+                                    if (value instanceof Number number) {
+                                        // Collect docs to rollup doc
+                                        rollupBucketBuilder.collectMetric(fieldName, number.doubleValue());
+                                    } else {
+                                        throw new IllegalArgumentException("Expected [Number], got [" + value.getClass() + "]");
+                                    }
+                                }
+                            } else if (labelFieldLeaves.containsKey(fieldName)) {
+                                for (int i = 0; i < docValueCount; i++) {
+                                    rollupBucketBuilder.collectLabel(fieldName, value);
                                 }
                             }
                         }
@@ -334,9 +359,11 @@ class RollupShardIndexer {
         private long timestamp;
         private int docCount;
         private final Map<String, MetricFieldProducer> metricFieldProducers;
+        private final Map<String, Object> labelFieldValues;
 
         RollupBucketBuilder() {
             this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
+            this.labelFieldValues = new HashMap<>();
         }
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
@@ -344,6 +371,7 @@ class RollupShardIndexer {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFieldProducers.values().stream().forEach(p -> p.reset());
+            this.labelFieldValues.clear();
             logger.trace(
                 "New bucket for _tsid: [{}], @timestamp: [{}]",
                 DocValueFormat.TIME_SERIES_ID.format(tsid),
@@ -354,6 +382,10 @@ class RollupShardIndexer {
 
         public void collectMetric(String field, double value) {
             metricFieldProducers.get(field).collectMetric(value);
+        }
+
+        public void collectLabel(String fieldName, Object value) {
+            labelFieldValues.putIfAbsent(fieldName, value);
         }
 
         public void collectDocCount(int docCount) {
@@ -368,13 +400,21 @@ class RollupShardIndexer {
             // Extract dimension values from _tsid field, so we avoid loading them from doc_values
             @SuppressWarnings("unchecked")
             Map<String, Object> dimensions = (Map<String, Object>) DocValueFormat.TIME_SERIES_ID.format(tsid);
-            Map<String, Object> doc = Maps.newLinkedHashMapWithExpectedSize(2 + dimensions.size() + metricFieldProducers.size());
+            Map<String, Object> doc = Maps.newLinkedHashMapWithExpectedSize(
+                2 + dimensions.size() + metricFieldProducers.size() + labelFieldValues.size()
+            );
             doc.put(timestampField.name(), timestampFormat.format(timestamp));
             doc.put(DocCountFieldMapper.NAME, docCount);
 
             for (Map.Entry<String, Object> e : dimensions.entrySet()) {
                 assert e.getValue() != null;
                 doc.put(e.getKey(), e.getValue());
+            }
+
+            for (Map.Entry<String, Object> e : labelFieldValues.entrySet()) {
+                if (e.getValue() != null) {
+                    doc.put(e.getKey(), e.getValue());
+                }
             }
 
             for (MetricFieldProducer fieldProducer : metricFieldProducers.values()) {

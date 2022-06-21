@@ -215,8 +215,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
                     if (metricType != null) {
                         metricFieldCaps.put(field, fieldCaps);
-                    } else if (isLabelField(field, fieldCaps, request.getRollupConfig().getTimestampField())) {
-                        labelFieldCaps.put(field, fieldCaps);
+                    } else {
+                        final String timestampField = request.getRollupConfig().getTimestampField();
+                        if (fieldCaps.isLabel() && timestampField.equals(field) == false) {
+                            labelFieldCaps.put(field, fieldCaps);
+                        }
                     }
                 }
             }
@@ -367,13 +370,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             }, listener::onFailure));
         }, listener::onFailure));
-    }
-
-    private boolean isLabelField(final String field, final FieldCapabilities fieldCaps, final String timestampField) {
-        return fieldCaps.isAggregatable()
-            && fieldCaps.isDimension() == false
-            && fieldCaps.isMetadataField() == false
-            && timestampField.equals(field) == false;
     }
 
     @Override

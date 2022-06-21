@@ -23,15 +23,16 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -44,16 +45,24 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,12 +84,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -90,20 +99,18 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
-    public static final String FIELD_LABEL_BOOLEAN = "label_boolean";
+    public static final String FIELD_METRIC_LABEL_NUMERIC = "metric_label_numeric";
     public static final String FIELD_LABEL_NUMERIC = "label_numeric";
     public static final String FIELD_LABEL_KEYWORD = "label_keyword";
     public static final String FIELD_LABEL_TEXT = "label_text";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
-    private static final int MAX_LABEL_VALUES = 5;
 
     private String sourceIndex, rollupIndex;
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
-    private List<String> labelValues;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -131,11 +138,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             dimensionValues.add(randomAlphaOfLength(6));
         }
 
-        labelValues = new ArrayList<>(MAX_LABEL_VALUES);
-        for (int j = 0; j < randomIntBetween(1, MAX_LABEL_VALUES); j++) {
-            labelValues.add(randomAlphaOfLength(10));
-        }
-
+        /**
+         * NOTE: here we map each numeric label field also as a (counter) metric.
+         * This is done for testing purposes. There is no easy way to test
+         * that labels are collected using the last value. The idea is to
+         * check that the value of the label (last value) matches the value
+         * of the corresponding metric which uses a last_value metric type.
+         */
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
@@ -160,14 +169,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=long,time_series_metric=gauge",
                 FIELD_NUMERIC_2,
                 "type=double,time_series_metric=counter",
-                FIELD_LABEL_BOOLEAN,
-                "type=boolean",
                 FIELD_LABEL_NUMERIC,
-                "type=long",
+                "type=double",
                 FIELD_LABEL_KEYWORD,
                 "type=keyword",
                 FIELD_LABEL_TEXT,
-                "type=text"
+                "type=text",
+                FIELD_METRIC_LABEL_NUMERIC, /* numeric label indexed as a metric */
+                "type=double,time_series_metric=counter"
             )
             .get();
     }
@@ -176,6 +185,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
+            double labelNumericValue = DATE_FORMATTER.parseMillis(ts);
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -183,10 +193,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
-                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
-                .field(FIELD_LABEL_NUMERIC, randomLong())
-                .field(FIELD_LABEL_KEYWORD, randomAlphaOfLength(5))
-                .field(FIELD_LABEL_TEXT, randomAlphaOfLength(20))
+                .field(FIELD_LABEL_NUMERIC, labelNumericValue)
+                .field(FIELD_METRIC_LABEL_NUMERIC, labelNumericValue)
+                .field(FIELD_LABEL_KEYWORD, ts)
+                .field(FIELD_LABEL_TEXT, ts)
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -456,35 +466,97 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         return response;
     }
 
+    private Aggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
+        return client().prepareSearch(index).addAggregation(aggregationBuilder).get().getAggregations();
+    }
+
     @SuppressWarnings("unchecked")
     private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String sourceIndexClone, String rollupIndex) {
         // Retrieve field information for the metric fields
         FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndexClone).setFields("*").get();
-        Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue().values().iterator().next().getMetricType() != null)
-            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().values().iterator().next().getMetricType()));
+        Map<String, TimeSeriesParams.MetricType> metricFields = getMetricFields(fieldCapsResponse);
+        Map<String, String> labelFields = getLabelFields(fieldCapsResponse);
 
-        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config, metricFields);
-        long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(sourceIndexClone)
-            .addAggregation(aggregation)
-            .get()
-            .getAggregations()
-            .get("resp");
-        InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-        while (origResp.afterKey() != null) {
-            numBuckets += origResp.getBuckets().size();
-            assertEquals(origResp, rollupResp);
-            aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(sourceIndexClone).addAggregation(aggregation).get().getAggregations().get("resp");
-            rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-        }
-        assertEquals(origResp, rollupResp);
+        final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
+        Aggregations origResp = aggregate(sourceIndexClone, aggregations);
+        Aggregations rollupResp = aggregate(rollupIndex, aggregations);
+        assertEquals(origResp.asMap().keySet(), rollupResp.asMap().keySet());
 
-        SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
-        assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
+        StringTerms originalTsIdTermsAggregation = (StringTerms) origResp.getAsMap().values().stream().toList().get(0);
+        StringTerms rollupTsIdTermsAggregation = (StringTerms) rollupResp.getAsMap().values().stream().toList().get(0);
+        originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
+
+            StringTerms.Bucket rollupBucket = rollupTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
+            assertEquals(originalBucket.getAggregations().asList().size(), rollupBucket.getAggregations().asList().size());
+
+            InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
+            InternalDateHistogram rollupDateHistogram = (InternalDateHistogram) rollupBucket.getAggregations().asList().get(0);
+            List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
+            List<InternalDateHistogram.Bucket> rollupDateHistogramBuckets = rollupDateHistogram.getBuckets();
+            assertEquals(originalDateHistogramBuckets.size(), rollupDateHistogramBuckets.size());
+
+            for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
+                InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
+                InternalDateHistogram.Bucket rollupDateHistogramBucket = rollupDateHistogramBuckets.get(i);
+                assertEquals(originalDateHistogramBucket.getKeyAsString(), rollupDateHistogramBucket.getKeyAsString());
+
+                Aggregations originalAggregations = originalDateHistogramBucket.getAggregations();
+                Aggregations rollupAggregations = rollupDateHistogramBucket.getAggregations();
+                assertEquals(originalAggregations.asList().size(), rollupAggregations.asList().size());
+
+                List<Aggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
+                    .stream()
+                    .filter(agg -> agg.getType().equals("top_hits") == false)
+                    .toList();
+                List<Aggregation> nonTopHitsRollupAggregations = rollupAggregations.asList()
+                    .stream()
+                    .filter(agg -> agg.getType().equals("top_hits") == false)
+                    .toList();
+                assertEquals(nonTopHitsOriginalAggregations, nonTopHitsRollupAggregations);
+
+                List<Aggregation> topHitsOriginalAggregations = originalAggregations.asList()
+                    .stream()
+                    .filter(agg -> agg.getType().equals("top_hits"))
+                    .toList();
+                List<Aggregation> topHitsRollupAggregations = rollupAggregations.asList()
+                    .stream()
+                    .filter(agg -> agg.getType().equals("top_hits"))
+                    .toList();
+                assertEquals(topHitsRollupAggregations.size(), topHitsRollupAggregations.size());
+
+                for (int j = 0; j < topHitsRollupAggregations.size(); ++j) {
+                    InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
+                    InternalTopHits rollupTopHits = (InternalTopHits) topHitsRollupAggregations.get(j);
+                    SearchHit[] originalHits = originalTopHits.getHits().getHits();
+                    SearchHit[] rollupHits = rollupTopHits.getHits().getHits();
+                    assertEquals(originalHits.length, rollupHits.length);
+
+                    for (int k = 0; k < originalHits.length; ++k) {
+                        SearchHit originalHit = originalHits[k];
+                        SearchHit rollupHit = rollupHits[k];
+
+                        Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
+                        Map<String, DocumentField> rollupHitDocumentFields = rollupHit.getDocumentFields();
+                        assertEquals(originalHitDocumentFields, rollupHitDocumentFields);
+
+                        // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
+                        // `counter`. This way we can actually check that the label value stored in the rollup index
+                        // is the last value (which is what we store for a metric of type counter).
+                        Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
+                        Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
+                        Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
+                            .filter(agg -> agg.getName().equals("metric_" + rollupTopHits.getName()))
+                            .findFirst();
+                        // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
+                        if (labelAsMetric.isPresent()) {
+                            double metricValue = ((Max) labelAsMetric.get()).value();
+                            assertEquals(metricValue, rollupLabelValue);
+                        }
+                        assertEquals(originalLabelValue, rollupLabelValue);
+                    }
+                }
+            }
+        });
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndexClone, rollupIndex).get();
         // Assert rollup metadata are set in index settings
@@ -544,38 +616,69 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
     }
 
-    private CompositeAggregationBuilder buildCompositeAggs(
-        String name,
-        RollupActionConfig config,
-        Map<String, TimeSeriesParams.MetricType> metricFields
+    private Map<String, String> getLabelFields(FieldCapabilitiesResponse fieldCapsResponse) {
+        return fieldCapsResponse.get().entrySet().stream().filter(e -> {
+            FieldCapabilities fieldCapabilities = e.getValue().values().iterator().next();
+            return fieldCapabilities.getMetricType() == null
+                && fieldCapabilities.isLabel()
+                && fieldCapabilities.getName().equals("@timestamp") == false;
+        }).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().values().iterator().next().getType()));
+    }
+
+    private Map<String, TimeSeriesParams.MetricType> getMetricFields(FieldCapabilitiesResponse fieldCapsResponse) {
+        return fieldCapsResponse.get()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().values().iterator().next().getMetricType() != null)
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().values().iterator().next().getMetricType()));
+    }
+
+    private AggregationBuilder buildAggregations(
+        final RollupActionConfig config,
+        final Map<String, TimeSeriesParams.MetricType> metrics,
+        final Map<String, String> labels,
+        final String timestampField
     ) {
-        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
-        // For time series indices, we use the _tsid field for the terms aggregation
-        sources.add(new TermsValuesSourceBuilder("tsid").field(TimeSeriesIdFieldMapper.NAME));
 
-        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(config.getTimestampField());
-        dateHisto.field(config.getTimestampField());
+        final TermsAggregationBuilder tsidAggregation = new TermsAggregationBuilder("tsid").field(TimeSeriesIdFieldMapper.NAME)
+            .size(10_000);
+        final DateHistogramAggregationBuilder dateHistogramAggregation = new DateHistogramAggregationBuilder("timestamp").field(
+            config.getTimestampField()
+        ).fixedInterval(config.getInterval());
         if (config.getTimeZone() != null) {
-            dateHisto.timeZone(ZoneId.of(config.getTimeZone()));
+            dateHistogramAggregation.timeZone(ZoneId.of(config.getTimeZone()));
         }
-        dateHisto.fixedInterval(config.getInterval());
-        sources.add(dateHisto);
+        tsidAggregation.subAggregation(dateHistogramAggregation);
 
-        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(10);
-        metricFields.forEach((fieldname, metricType) -> {
-            for (String agg : metricType.supportedAggs()) {
-                switch (agg) {
-                    case "min" -> composite.subAggregation(new MinAggregationBuilder(fieldname + "_" + agg).field(fieldname));
-                    case "max", "last_value" -> composite.subAggregation(new MaxAggregationBuilder(fieldname + "_" + agg).field(fieldname));
-                    case "sum" -> composite.subAggregation(new SumAggregationBuilder(fieldname + "_" + agg).field(fieldname));
-                    case "value_count" -> composite.subAggregation(
-                        new ValueCountAggregationBuilder(fieldname + "_" + agg).field(fieldname)
+        metrics.forEach((fieldName, metricType) -> {
+            for (final String supportedAggregation : metricType.supportedAggs()) {
+                switch (supportedAggregation) {
+                    case "min" -> dateHistogramAggregation.subAggregation(
+                        new MinAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
                     );
-                    default -> throw new IllegalArgumentException("Unsupported metric type [" + agg + "]");
+                    case "max", "last_value" -> dateHistogramAggregation.subAggregation(
+                        new MaxAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
+                    );
+                    case "sum" -> dateHistogramAggregation.subAggregation(
+                        new SumAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
+                    );
+                    case "value_count" -> dateHistogramAggregation.subAggregation(
+                        new ValueCountAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
+                    );
+                    default -> throw new IllegalArgumentException("Unsupported metric type [" + supportedAggregation + "]");
                 }
             }
         });
-        return composite;
+
+        labels.forEach((fieldName, type) -> {
+            dateHistogramAggregation.subAggregation(
+                new TopHitsAggregationBuilder(fieldName + "_last_value").sort(SortBuilders.fieldSort(timestampField).order(SortOrder.DESC))
+                    .size(1)
+                    .fetchField(fieldName)
+            );
+        });
+
+        return tsidAggregation;
     }
 
     @FunctionalInterface

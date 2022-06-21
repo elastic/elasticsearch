@@ -378,6 +378,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
+     * Whether this field is a label in any indices.
+     */
+    public boolean isLabel() {
+        return isAggregatable() && isDimension() == false && isMetadataField() == false;
+    }
+
+    /**
      * The metric type
      */
     public TimeSeriesParams.MetricType getMetricType() {

@@ -41,15 +41,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
-    /*
-    @Override
-    protected void assertEqualInstances(WriteableIngestDocument expectedInstance, WriteableIngestDocument newInstance) {
-        assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
-        // TODO(stu): fix hashcode and remove this override of AbstractXContentTestCase's implementation
-        // assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-    }
-     */
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());

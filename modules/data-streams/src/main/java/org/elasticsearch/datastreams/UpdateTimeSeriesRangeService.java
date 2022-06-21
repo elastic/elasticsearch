@@ -191,7 +191,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
         unschedule();
     }
 
-    private static record UpdateTimeSeriesTask(Consumer<Exception> listener) implements ClusterStateTaskListener {
+    private record UpdateTimeSeriesTask(Consumer<Exception> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             listener.accept(e);

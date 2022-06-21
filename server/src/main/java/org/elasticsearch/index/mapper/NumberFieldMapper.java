@@ -17,6 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
@@ -1629,11 +1631,31 @@ public class NumberFieldMapper extends FieldMapper {
             this.simpleName = simpleName;
         }
 
+        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
+
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
-            SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
+            SortedNumericDocValues leaf = dv(reader);
+            if (leaf == null) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING.leaf(reader);
+            }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
+
+                @Override
+                public boolean empty() {
+                    return false;
+                }
 
                 @Override
                 public void advanceToDoc(int docId) throws IOException {
@@ -1641,12 +1663,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public boolean hasValue() {
-                    return hasValue;
-                }
-
-                @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {
+                    if (false == hasValue) {
+                        return;
+                    }
+                    before.run();
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
                         loadNextValue(b, leaf.nextValue());

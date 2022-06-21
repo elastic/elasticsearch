@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -554,21 +555,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
-        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
-            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
-            if (subLoader != null) {
-                fields.add(subLoader);
-            }
-        });
+        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
+            .stream()
+            .sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != null)
+            .toList();
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Leaf leaf(LeafReader reader) throws IOException {
-                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+                List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    leaves.add(field.leaf(reader));
+                    Leaf leaf = field.leaf(reader);
+                    if (false == leaf.empty()) {
+                        l.add(leaf);
+                    }
                 }
+                SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    @Override
+                    public boolean empty() {
+                        return leaves.length == 0;
+                    }
+
                     @Override
                     public void advanceToDoc(int docId) throws IOException {
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
@@ -577,28 +586,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     @Override
-                    public boolean hasValue() {
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    }
+                    public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {
+                        class HasValue implements CheckedRunnable<IOException> {
+                            boolean hasValue;
 
-                    @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        boolean started = false;
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                if (false == started) {
-                                    started = true;
-                                    startSyntheticField(b);
+                            @Override
+                            public void run() throws IOException {
+                                if (hasValue) {
+                                    return;
                                 }
-                                leaf.load(b);
+                                hasValue = true;
+                                before.run();
+                                startSyntheticField(b);
                             }
                         }
-                        if (started) {
+                        HasValue hasValue = new HasValue();
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            leaf.load(b, hasValue);
+                        }
+                        if (hasValue.hasValue) {
                             b.endObject();
                         }
                     }

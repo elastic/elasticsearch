@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -82,15 +83,34 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
+            if (leaf.empty()) {
+                return new Leaf() {
+                    @Override
+                    public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                        // TODO accept a requested xcontent type
+                        try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                            return BytesReference.bytes(b.startObject().endObject());
+                        }
+                    }
+                };
+            }
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                    class HasValue implements CheckedRunnable<IOException> {
+                        boolean hasValue;
+
+                        @Override
+                        public void run() throws IOException {
+                            hasValue = true;
+                        }
+                    }
+                    HasValue hasValue = new HasValue();
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                         leaf.advanceToDoc(docId);
-                        if (leaf.hasValue()) {
-                            leaf.load(b);
-                        } else {
+                        leaf.load(b, hasValue);
+                        if (hasValue.hasValue == false) {
                             b.startObject().endObject();
                         }
                         return BytesReference.bytes(b);
@@ -104,20 +124,17 @@ public interface SourceLoader {
      * Load a field for {@link Synthetic}.
      */
     interface SyntheticFieldLoader {
-        /**
-         * Load no values.
-         */
         SyntheticFieldLoader NOTHING = r -> new Leaf() {
+            @Override
+            public boolean empty() {
+                return true;
+            }
+
             @Override
             public void advanceToDoc(int docId) throws IOException {}
 
             @Override
-            public boolean hasValue() {
-                return false;
-            }
-
-            @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {}
         };
 
         /**
@@ -130,19 +147,19 @@ public interface SourceLoader {
          */
         interface Leaf {
             /**
+             * Is this entirely empty?
+             */
+            boolean empty();
+
+            /**
              * Position the loader at a document.
              */
             void advanceToDoc(int docId) throws IOException;
 
             /**
-             * Is there a value for this field in this document?
-             */
-            boolean hasValue();
-
-            /**
              * Load values for this document.
              */
-            void load(XContentBuilder b) throws IOException;
+            void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException;
         }
     }
 

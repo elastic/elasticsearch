@@ -15,13 +15,18 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-public record ShardAssignment(Set<String> nodeIds, int unassigned, int ignored) {
+public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, int ignored) {
+
+    public ShardAssignment {
+        assert total > 0 : "Shard assignment should not be empty";
+        assert nodeIds.size() + unassigned == total : "Shard assignment should account for all shards";
+    }
 
     public boolean isIgnored(boolean primary) {
-        return nodeIds.isEmpty() && (primary ? unassigned == ignored : ignored > 0);
+        return primary ? total == ignored : ignored > 0;
     }
 
     public static ShardAssignment of(List<ShardRouting> routings) {
-        return new ShardAssignment(routings.stream().map(ShardRouting::currentNodeId).collect(toUnmodifiableSet()), 0, 0);
+        return new ShardAssignment(routings.stream().map(ShardRouting::currentNodeId).collect(toUnmodifiableSet()), routings.size(), 0, 0);
     }
 }

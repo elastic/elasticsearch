@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -232,8 +231,13 @@ public class DesiredBalanceComputer {
             assignments.compute(
                 ignored.shardId(),
                 (key, oldValue) -> oldValue == null
-                    ? new ShardAssignment(Set.of(), 1, unassigned ? 0 : 1)
-                    : new ShardAssignment(oldValue.nodeIds(), oldValue.unassigned() + 1, oldValue.ignored() + (unassigned ? 0 : 1))
+                    ? new ShardAssignment(Set.of(), 1, 1, unassigned ? 0 : 1)
+                    : new ShardAssignment(
+                        oldValue.nodeIds(),
+                        oldValue.total() + 1,
+                        oldValue.unassigned() + 1,
+                        oldValue.ignored() + (unassigned ? 0 : 1)
+                    )
             );
 
         }

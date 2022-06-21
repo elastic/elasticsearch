@@ -1462,18 +1462,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Test not found exception on other user's API key
         final var otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
-        final var otherUsersApiKeyId = otherUsersApiKey.v1().getId();
         final PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
                 fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                new UpdateApiKeyRequest(otherUsersApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
+                new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata()),
                 Set.of(expectedRoleDescriptor),
                 listener3
             );
         ex = expectThrows(ExecutionException.class, listener3::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("api key [" + otherUsersApiKeyId + "] not found"));
+        assertThat(ex.getMessage(), containsString("api key [" + otherUsersApiKey.v1().getId() + "] not found"));
     }
 
     public void testUpdateApiKeyRequestWithNullRoleDescriptorsDoesNotOverwriteExistingRoleDescriptors() throws ExecutionException,

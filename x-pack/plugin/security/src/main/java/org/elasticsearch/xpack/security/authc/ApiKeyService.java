@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -353,24 +355,35 @@ public class ApiKeyService {
             return;
         }
         logger.info("Updating api key [{}]", request.getId());
-        // TODO check status; possibly no if we filter
-        // TODO check version
-        final var version = clusterService.state().nodes().getMinNodeVersion();
-        findApiKeyDocs(
-            new String[] { authentication.getEffectiveSubject().getRealm().getName() },
-            authentication.getEffectiveSubject().getUser().principal(),
-            new String[] { request.getId() },
-            ActionListener.wrap((apiKeys) -> {
-                if (apiKeys.isEmpty()) {
-                    // TODO 404
-                    listener.onResponse(new UpdateApiKeyResponse(false));
-                    return;
-                }
-                // TODO what happens if `toBulkUpdateRequest` throws?
-                final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
-                doBulkUpdate(bulkRequest, listener);
-            }, listener::onFailure)
-        );
+        findApiKeyDocsForSubject(authentication.getEffectiveSubject(), new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
+            if (apiKeys.isEmpty()) {
+                listener.onFailure(apiKeyNotFound(request.getId()));
+                return;
+            } else if (apiKeys.size() != 1) {
+                listener.onFailure(new IllegalStateException("more than one api key found for single api key update"));
+                return;
+            }
+            final var apiKey = apiKeys.stream().iterator().next().apiKey();
+            if (isActive(apiKey) == false) {
+                // TODO should be 400
+                listener.onFailure(new IllegalStateException("api key must be active"));
+                return;
+            }
+
+            final var version = clusterService.state().nodes().getMinNodeVersion();
+            // TODO what happens if `toBulkUpdateRequest` throws?
+            final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
+            doBulkUpdate(bulkRequest, listener);
+        }, listener::onFailure));
+    }
+
+    private boolean isActive(ApiKeyDoc apiKeyDoc) {
+        // TODO check if expired
+        return apiKeyDoc.invalidated == false;
+    }
+
+    private ResourceNotFoundException apiKeyNotFound(String apiKeyId) {
+        return new ResourceNotFoundException("api key " + apiKeyId + " not found");
     }
 
     private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<UpdateApiKeyResponse> listener) {
@@ -400,6 +413,7 @@ public class ApiKeyService {
         for (VersionedApiKeyDoc versionedApiKeyDoc : versionedApiKeyDocs) {
             bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, versionedApiKeyDoc));
         }
+        // TODO should this be immediate?
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder;
     }
@@ -1088,15 +1102,10 @@ public class ApiKeyService {
         }
     }
 
-    private void findApiKeyDocs(
-        String[] realmNames,
-        String userName,
-        String[] apiKeyIds,
-        ActionListener<Collection<VersionedApiKeyDoc>> listener
-    ) {
+    private void findApiKeyDocsForSubject(Subject subject, String[] apiKeyIds, ActionListener<Collection<VersionedApiKeyDoc>> listener) {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            realmNames,
-            userName,
+            new String[] { subject.getRealm().getName() },
+            subject.getUser().principal(),
             null,
             apiKeyIds,
             false,

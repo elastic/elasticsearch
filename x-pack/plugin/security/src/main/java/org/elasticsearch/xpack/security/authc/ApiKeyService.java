@@ -354,7 +354,6 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         }
-        logger.info("Updating api key [{}]", request.getId());
         findApiKeyDocsForSubject(authentication.getEffectiveSubject(), new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
             if (apiKeys.isEmpty()) {
                 listener.onFailure(apiKeyNotFound(request.getId()));
@@ -363,12 +362,13 @@ public class ApiKeyService {
                 listener.onFailure(new IllegalStateException("more than one api key found for single api key update"));
                 return;
             }
-            final var apiKey = apiKeys.stream().iterator().next().apiKey();
-            if (isActive(apiKey) == false) {
+            final var apiKeyDoc = apiKeys.stream().iterator().next().apiKey();
+            if (isActive(apiKeyDoc) == false) {
                 // TODO should be 400
                 listener.onFailure(new IllegalStateException("api key must be active"));
                 return;
             }
+            // TODO assert on creator
 
             final var version = clusterService.state().nodes().getMinNodeVersion();
             // TODO what happens if `toBulkUpdateRequest` throws?
@@ -1045,16 +1045,7 @@ public class ApiKeyService {
         indexInvalidation(apiKeyIds, invalidateListener, null);
     }
 
-    private void findApiKeys(
-        final BoolQueryBuilder boolQuery,
-        boolean filterOutInvalidatedKeys,
-        boolean filterOutExpiredKeys,
-        ActionListener<Collection<ApiKey>> listener
-    ) {
-        find(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, ApiKeyService::convertSearchHitToApiKeyInfo);
-    }
-
-    private <T> void find(
+    private <T> void findApiKeys(
         final BoolQueryBuilder boolQuery,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
@@ -1171,7 +1162,7 @@ public class ApiKeyService {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
-            find(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, hitParser);
+            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, hitParser);
         }
     }
 

@@ -309,6 +309,7 @@ public class IndexLifecycleService
                 final Exception e = new NotMasterException("no longer master");
                 if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                     onMasterFailOver(e);
+                }
                 cancelJob();
                 policyRegistry.clear();
             }

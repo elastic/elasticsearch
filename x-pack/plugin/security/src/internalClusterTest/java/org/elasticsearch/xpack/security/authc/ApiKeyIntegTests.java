@@ -106,7 +106,6 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1422,7 +1421,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createdApiKey = createApiKey(null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
+        final var expectedMetadata = ApiKeyTests.randomMetadata();
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), expectedMetadata);
 
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final var serviceWithNodeName = getServiceWithNodeName();
@@ -1432,9 +1432,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
-        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "role_descriptors");
-        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "limited_by_role_descriptors");
+        final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
+        expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
 
+        // Test authenticate works with updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
         assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
 
@@ -1460,16 +1463,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private void assertExpectedRoleDescriptorForApiKey(String apiKeyId, RoleDescriptor expectedRoleDescriptor, String roleDescriptorType)
-        throws IOException {
-        assertThat(roleDescriptorType, in(new String[] { "role_descriptors", "limited_by_role_descriptors" }));
-        final var updatedDocument = getApiKeyDocument(apiKeyId);
+    private void expectMetadataForApiKey(Map<String, Object> expectedMetadata, Map<String, Object> actualRawApiKeyDoc) {
+        assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
-        final var rawRoleDescriptor = (Map<String, Object>) updatedDocument.get(roleDescriptorType);
+        final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("flattened_metadata");
+        assertThat(actualMetadata, equalTo(expectedMetadata));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void expectRoleDescriptorForApiKey(
+        String roleDescriptorType,
+        RoleDescriptor expectedRoleDescriptor,
+        Map<String, Object> actualRawApiKeyDoc
+    ) throws IOException {
+        assertNotNull(actualRawApiKeyDoc);
+        assertThat(roleDescriptorType, in(new String[] { "role_descriptors", "limited_by_role_descriptors" }));
+        final var rawRoleDescriptor = (Map<String, Object>) actualRawApiKeyDoc.get(roleDescriptorType);
         assertThat(rawRoleDescriptor.size(), equalTo(1));
         assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
 
-        @SuppressWarnings("unchecked")
         final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
         final var roleDescriptor = RoleDescriptor.parse(
             expectedRoleDescriptor.getName(),

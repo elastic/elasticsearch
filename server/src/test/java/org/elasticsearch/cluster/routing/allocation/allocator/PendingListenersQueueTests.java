@@ -71,6 +71,45 @@ public class PendingListenersQueueTests extends ESTestCase {
         }
     }
 
+    /**
+     * This test simulates following scenario:
+     *
+     * Master: starts allocation (index 2)
+     * Master: pauses queue
+     * Master: submits new balance calculation (index 2)
+     * Master: allocates using already computed balance (index 1)
+     *
+     * Calculator: starts computing new balance (index 2)
+     * Calculator: new balance is computed (isFresh=true, hasChanges=false), completes the queue for the new balance (index 2)
+     *
+     * Master: completes the queue for applied balance (index 1)
+     * Master: resumes the queue
+     *
+     * Expects: Listener (index 2) should be completed
+     */
+    public void testShouldAdvanceOnly() throws InterruptedException {
+        var threadPool = new TestThreadPool(getTestName());
+        var queue = new PendingListenersQueue(threadPool);
+        var executed = new CountDownLatch(1);
+
+        // master
+        queue.pause();
+        queue.add(2, ActionListener.wrap(executed::countDown));
+
+        // balance computation
+        queue.complete(2);
+
+        // master
+        queue.complete(1);
+        queue.resume();
+
+        try {
+            assertThat(executed.await(1, TimeUnit.SECONDS), equalTo(true));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testShouldExecuteAllAsNonMaster() throws InterruptedException {
         var threadPool = new TestThreadPool(getTestName());
         var queue = new PendingListenersQueue(threadPool);

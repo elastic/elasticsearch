@@ -337,6 +337,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.suggest.completion.context;
     exports org.elasticsearch.search.suggest.phrase;
     exports org.elasticsearch.search.suggest.term;
+    exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
@@ -348,8 +349,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
-
-    exports org.elasticsearch.search.vectors;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

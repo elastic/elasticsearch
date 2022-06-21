@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
+
 /**
  * Deletes indices.
  */
@@ -161,7 +163,8 @@ public class MetadataDeleteIndexService {
                 .blocks(blocks)
                 .customs(customs)
                 .build(),
-            "deleted indices [" + indices + "]"
+            "deleted indices [" + indices + "]",
+            rerouteCompletionIsNotRequired() // it is not required to balance shard to report index deletion success
         );
     }
 }

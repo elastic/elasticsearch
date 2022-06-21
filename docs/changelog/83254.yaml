@@ -1,0 +1,6 @@
+pr: 83254
+summary: Deprecation dataset value changed to `elasticsearch.deprecation`
+area: Infra/Logging
+type: bug
+issues:
+ - 83251

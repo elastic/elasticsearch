@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,6 +47,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
 
@@ -150,11 +151,11 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     void warningValidator(String name, String value) {
         if (WARNINGS.keySet().contains(name) == false) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
-                    "Warning [{}] is not supported. Only the following warnings are supported [{}]",
+                format(
+                    "Warning [%s] is not supported. Only the following warnings are supported [%s]",
                     name,
                     String.join(", ", WARNINGS.keySet())
-                ).getFormattedMessage()
+                )
             );
         }
     }

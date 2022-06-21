@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -57,6 +57,8 @@ import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssign
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
+
+    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
 
     private final ClusterService clusterService;
     private final NodeLoadDetector nodeLoadDetector;
@@ -246,16 +248,21 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static ClusterState update(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         if (modelAssignments.isChanged()) {
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                        .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
-                )
-                .build();
+            return forceUpdate(currentState, modelAssignments);
         } else {
             return currentState;
         }
+    }
+
+    private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
+        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+            metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
+                .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+        } else {
+            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
+        }
+        return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
     ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
@@ -362,14 +369,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (TrainedModelAssignmentMetadata.fromState(currentState).modelAssignments().isEmpty()) {
             return currentState;
         }
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadata.Builder.empty().build())
-                    .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
-                    .build()
-            )
-            .build();
+        return forceUpdate(currentState, TrainedModelAssignmentMetadata.Builder.empty());
     }
 
     ClusterState addRemoveAssignmentNodes(ClusterState currentState) {
@@ -438,8 +438,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     static boolean shouldAllocateModels(final ClusterChangedEvent event) {
         // If there are no assignments created at all, there is nothing to update
-        final TrainedModelAssignmentMetadata newMetadata = event.state().getMetadata().custom(TrainedModelAssignmentMetadata.NAME);
-        if (newMetadata == null) {
+        final TrainedModelAssignmentMetadata newMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
+        if (newMetadata == null || newMetadata.modelAssignments().isEmpty()) {
             return false;
         }
 
@@ -532,9 +532,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
-                    new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
+                org.elasticsearch.core.Strings.format(
+                    "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
+                    load.getNumAssignedJobs(),
+                    MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
+                    maxOpenJobs
                 )
             );
         }
@@ -545,17 +547,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             : 0);
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
-                ParameterizedMessage.format(
-                    "This node has insufficient available memory. Available memory for ML [{} ({})], "
-                        + "memory required by existing jobs and models [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
-                    new Object[] {
-                        load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
-                        load.getAssignedJobMemory(),
-                        ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
-                        requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
+                org.elasticsearch.core.Strings.format(
+                    "This node has insufficient available memory. Available memory for ML [%s (%s)], "
+                        + "memory required by existing jobs and models [%s (%s)], "
+                        + "estimated memory required for this model [%s (%s)].",
+
+                    load.getMaxMlMemory(),
+                    ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
+                    load.getAssignedJobMemory(),
+                    ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
+                    requiredMemory,
+                    ByteSizeValue.ofBytes(requiredMemory).toString()
                 )
             );
         }

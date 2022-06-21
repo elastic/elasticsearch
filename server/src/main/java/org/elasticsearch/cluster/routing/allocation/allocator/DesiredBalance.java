@@ -24,7 +24,9 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return assignments.get(shardId);
     }
 
-    public static boolean areSame(DesiredBalance a, DesiredBalance b) {
-        return Objects.equals(a.assignments, b.assignments);
+    public static boolean hasChanges(DesiredBalance a, DesiredBalance b) {
+        return Objects.equals(a.assignments, b.assignments) == false;
     }
+
+    public static DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 }

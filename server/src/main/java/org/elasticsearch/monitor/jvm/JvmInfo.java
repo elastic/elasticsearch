@@ -34,7 +34,7 @@ import java.util.Map;
 
 public class JvmInfo implements ReportingService.Info {
 
-    private static JvmInfo INSTANCE;
+    private static final JvmInfo INSTANCE;
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -342,68 +342,6 @@ public class JvmInfo implements ReportingService.Info {
         return this.version;
     }
 
-    public int versionAsInteger() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            return Integer.parseInt(sVersion.toString());
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
-    public int versionUpdatePack() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            Integer.parseInt(sVersion.toString());
-            int from;
-            if (version.charAt(i) == '_') {
-                // 1.7.0_4
-                from = ++i;
-            } else if (version.charAt(i) == '-' && version.charAt(i + 1) == 'u') {
-                // 1.7.0-u2-b21
-                i = i + 2;
-                from = i;
-            } else {
-                return -1;
-            }
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-            }
-            if (from == i) {
-                return -1;
-            }
-            return Integer.parseInt(version.substring(from, i));
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
     public String getVmName() {
         return this.vmName;
     }
@@ -430,18 +368,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public String[] getInputArguments() {
         return this.inputArguments;
-    }
-
-    public String getBootClassPath() {
-        return this.bootClassPath;
-    }
-
-    public String getClassPath() {
-        return this.classPath;
-    }
-
-    public Map<String, String> getSystemProperties() {
-        return this.systemProperties;
     }
 
     public long getConfiguredInitialHeapSize() {
@@ -482,14 +408,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public long getG1RegionSize() {
         return g1RegionSize;
-    }
-
-    public String[] getGcCollectors() {
-        return gcCollectors;
-    }
-
-    public String[] getMemoryPools() {
-        return memoryPools;
     }
 
     @Override
@@ -591,16 +509,5 @@ public class JvmInfo implements ReportingService.Info {
             return new ByteSizeValue(heapMax);
         }
 
-        public ByteSizeValue getNonHeapInit() {
-            return new ByteSizeValue(nonHeapInit);
-        }
-
-        public ByteSizeValue getNonHeapMax() {
-            return new ByteSizeValue(nonHeapMax);
-        }
-
-        public ByteSizeValue getDirectMemoryMax() {
-            return new ByteSizeValue(directMemoryMax);
-        }
     }
 }

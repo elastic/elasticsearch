@@ -21,4 +21,4 @@ dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

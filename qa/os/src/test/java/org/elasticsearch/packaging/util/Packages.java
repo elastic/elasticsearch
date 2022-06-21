@@ -246,10 +246,7 @@ public class Packages {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
-            "elasticsearch-service-tokens",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
+            "elasticsearch-service-tokens"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
@@ -340,7 +337,11 @@ public class Packages {
          * @return Recent journald logs for the Elasticsearch service.
          */
         public Result getLogs() {
-            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+            String cmd = "journalctl -u elasticsearch.service";
+            if (cursor.isEmpty() == false) {
+                cmd += " --after-cursor='" + this.cursor + "'";
+            }
+            return sh.run(cmd);
         }
     }
 

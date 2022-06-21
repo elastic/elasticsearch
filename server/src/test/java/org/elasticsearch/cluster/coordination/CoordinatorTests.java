@@ -1005,7 +1005,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testDiffBasedPublishing() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1041,7 +1041,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 assertEquals(
                     cn.toString(),
-                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + (cn == leader ? 0 : 1),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount()
                 );
                 assertEquals(
@@ -1481,6 +1481,51 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     @TestLogging(
+        reason = "test includes assertions about ClusterBootstrapService logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
+    )
+    public void testClusterUUIDLogging() throws IllegalAccessException {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
+        Loggers.addAppender(serviceLogger, mockAppender);
+
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "fresh node message",
+                ClusterBootstrapService.class.getCanonicalName(),
+                Level.INFO,
+                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+            )
+        );
+
+        try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+
+            final var restartingNode = cluster.getAnyNode();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "restarted node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID ["
+                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                        + "] and will not attempt further cluster bootstrapping"
+                )
+            );
+            restartingNode.close();
+            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    @TestLogging(
         reason = "test includes assertions about Coordinator and JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
@@ -1713,7 +1758,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             Loggers.addAppender(joinHelperLogger, mockAppender);
             try {
                 cluster.runFor(
-                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY,
+                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
+                    //
+                    // * connectToRemoteMasterNode[0.0.0.0:11]
+                    // * [internal:transport/handshake] from {node1} to {node2}
+                    // * response to [internal:transport/handshake] from {node1} to {node2}
+                    // * [internal:discovery/request_peers] from {node1} to
+                    // * response to [internal:discovery/request_peers] from {node1} to {node2}
+                    // * [internal:cluster/coordination/join] from {node1} to {node2}
+                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
+                    // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
+                    //
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
                     "allowing time for join attempt"
                 );
                 mockAppender.assertAllExpectationsMatched();
@@ -1921,7 +1977,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 

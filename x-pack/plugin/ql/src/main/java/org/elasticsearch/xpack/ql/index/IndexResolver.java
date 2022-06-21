@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -216,20 +216,13 @@ public class IndexResolver {
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
         if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
-            GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
-                .aliases(indexWildcards)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
-
-            client.admin().indices().getAliases(aliasRequest, wrap(aliases -> {
-                if (aliases != null) {
-                    for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
-                        for (AliasMetadata amd : aliasList) {
-                            String alias = amd.alias();
-                            if (alias != null) {
-                                indexInfos.add(new IndexInfo(clusterName, alias, IndexType.ALIAS));
-                            }
-                        }
-                    }
+            ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(indexWildcards, IndicesOptions.lenientExpandOpen());
+            client.admin().indices().resolveIndex(resolveRequest, wrap(response -> {
+                for (ResolveIndexAction.ResolvedAlias alias : response.getAliases()) {
+                    indexInfos.add(new IndexInfo(clusterName, alias.getName(), IndexType.ALIAS));
+                }
+                for (ResolveIndexAction.ResolvedDataStream dataStream : response.getDataStreams()) {
+                    indexInfos.add(new IndexInfo(clusterName, dataStream.getName(), IndexType.ALIAS));
                 }
                 resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
             }, ex -> {
@@ -624,7 +617,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCaps,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
     }
@@ -642,7 +635,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCapsResponse,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        Map<String, List<AliasMetadata>> aliases,
         Function<String, String> indexNameProcessor,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier
     ) {
@@ -826,7 +819,7 @@ public class IndexResolver {
     private static Map<String, InvalidMappedField> getInvalidFieldsForAliases(
         String fieldName,
         Map<String, FieldCapabilities> types,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         if (aliases == null || aliases.isEmpty()) {
             return emptyMap();

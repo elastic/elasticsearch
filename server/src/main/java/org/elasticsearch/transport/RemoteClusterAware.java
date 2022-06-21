@@ -73,7 +73,7 @@ public abstract class RemoteClusterAware {
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
                 String remoteClusterName = index.substring(0, i);
-                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 String indexName = index.substring(i + 1);
                 for (String clusterName : clusters) {
                     perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);

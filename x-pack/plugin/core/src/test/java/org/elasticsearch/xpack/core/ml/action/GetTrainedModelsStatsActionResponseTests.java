@@ -12,8 +12,8 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
@@ -38,7 +38,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     randomBoolean() ? randomIngestStats() : null,
                     randomIntBetween(0, 10),
                     randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null,
-                    randomBoolean() ? AllocationStatsTests.randomDeploymentStats() : null
+                    randomBoolean() ? AssignmentStatsTests.randomDeploymentStats() : null
                 )
             )
             .collect(Collectors.toList());
@@ -110,17 +110,17 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
                                     ? null
-                                    : new AllocationStats(
+                                    : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getInferenceThreads(),
-                                        stats.getDeploymentStats().getModelThreads(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getStartTime(),
                                         stats.getDeploymentStats()
                                             .getNodeStats()
                                             .stream()
                                             .map(
-                                                nodeStats -> new AllocationStats.NodeStats(
+                                                nodeStats -> new AssignmentStats.NodeStats(
                                                     nodeStats.getNode(),
                                                     nodeStats.getInferenceCount().orElse(null),
                                                     nodeStats.getAvgInferenceTime().orElse(null),
@@ -162,17 +162,17 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
                                     ? null
-                                    : new AllocationStats(
+                                    : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getInferenceThreads(),
-                                        stats.getDeploymentStats().getModelThreads(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getStartTime(),
                                         stats.getDeploymentStats()
                                             .getNodeStats()
                                             .stream()
                                             .map(
-                                                nodeStats -> new AllocationStats.NodeStats(
+                                                nodeStats -> new AssignmentStats.NodeStats(
                                                     nodeStats.getNode(),
                                                     nodeStats.getInferenceCount().orElse(null),
                                                     nodeStats.getAvgInferenceTime().orElse(null),
@@ -183,8 +183,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getTimeoutCount(),
                                                     nodeStats.getRoutingState(),
                                                     nodeStats.getStartTime(),
-                                                    nodeStats.getInferenceThreads(),
-                                                    nodeStats.getModelThreads(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
                                                     0L,
                                                     0L,
                                                     null

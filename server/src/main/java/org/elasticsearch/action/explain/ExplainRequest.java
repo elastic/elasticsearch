@@ -64,7 +64,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         query = in.readNamedWriteable(QueryBuilder.class);
         filteringAlias = new AliasFilter(in);
         storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
     }
 

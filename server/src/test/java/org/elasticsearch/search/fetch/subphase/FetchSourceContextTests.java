@@ -27,12 +27,12 @@ public class FetchSourceContextTests extends AbstractSerializingTestCase<FetchSo
 
     @Override
     protected Writeable.Reader<FetchSourceContext> instanceReader() {
-        return FetchSourceContext::new;
+        return FetchSourceContext::readFrom;
     }
 
     @Override
     protected FetchSourceContext createTestInstance() {
-        return new FetchSourceContext(
+        return FetchSourceContext.of(
             true,
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5))
@@ -50,5 +50,14 @@ public class FetchSourceContextTests extends AbstractSerializingTestCase<FetchSo
             containsString("Expected one of [VALUE_BOOLEAN, VALUE_STRING, START_ARRAY, START_OBJECT] but found [VALUE_NUMBER]")
         );
 
+    }
+
+    @Override
+    protected void assertEqualInstances(FetchSourceContext expectedInstance, FetchSourceContext newInstance) {
+        if (expectedInstance == FetchSourceContext.FETCH_SOURCE || expectedInstance == FetchSourceContext.DO_NOT_FETCH_SOURCE) {
+            assertSame(expectedInstance, newInstance);
+        } else {
+            super.assertEqualInstances(expectedInstance, newInstance);
+        }
     }
 }

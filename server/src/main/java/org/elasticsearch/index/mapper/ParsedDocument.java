@@ -167,4 +167,7 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public String documentDescription() {
+        return "id";
+    }
 }

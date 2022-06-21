@@ -411,10 +411,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 out.writeInt(contexts.size());
                 for (Map.Entry<String, Set<String>> entry : contexts.entrySet()) {
                     out.writeString(entry.getKey());
-                    out.writeVInt(entry.getValue().size());
-                    for (CharSequence ctx : entry.getValue()) {
-                        out.writeString(ctx.toString());
-                    }
+                    out.writeStringCollection(entry.getValue());
                 }
             }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -92,10 +93,12 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
+            } else if (request instanceof GrantApiKeyRequest) {
+                return false;
             }
-            throw new IllegalArgumentException(
-                "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")"
-            );
+            String message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
 
         @Override
@@ -103,7 +106,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 
-        private boolean checkIfUserIsOwnerOfApiKeys(
+        private static boolean checkIfUserIsOwnerOfApiKeys(
             Authentication authentication,
             String apiKeyId,
             String username,
@@ -137,7 +140,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return false;
         }
 
-        private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
+        private static boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
             if (authentication.isApiKey()) {
                 // API key id from authentication must match the id from request
                 final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);

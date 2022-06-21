@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,7 +37,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -79,9 +77,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
-
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
 
         ensureGreen();
 
@@ -133,7 +128,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the ordering of these calls is correct.
             assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
@@ -150,7 +145,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
             assertThat(metadata, hasEntry("stringKey", "stringValue"));
@@ -239,12 +234,9 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     public void testMigrateIndexWithWriteBlock() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
-        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
-            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        String indexName = INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old");
 
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
         ensureGreen();
 
@@ -263,15 +255,12 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     public void testMigrationWillRunAfterError() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
-
         ensureGreen();
 
         SetOnce<Exception> failure = new SetOnce<>();
         CountDownLatch clusterStateUpdated = new CountDownLatch(1);
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
+            .submitUnbatchedStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     FeatureMigrationResults newResults = new FeatureMigrationResults(
@@ -296,7 +285,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
                     failure.set(e);
                     clusterStateUpdated.countDown();
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         clusterStateUpdated.await(10, TimeUnit.SECONDS); // Should be basically instantaneous
         if (failure.get() != null) {

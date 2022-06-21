@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.LoggingTaskListener;
@@ -67,13 +67,13 @@ public class RestForceMergeAction extends BaseRestHandler {
         }
     }
 
-    private RestChannelConsumer sendTask(String localNodeId, Task task) {
+    private static RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
                 builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }
         };
     }

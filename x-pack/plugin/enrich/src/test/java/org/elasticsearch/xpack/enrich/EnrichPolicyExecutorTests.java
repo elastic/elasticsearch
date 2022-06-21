@@ -43,13 +43,6 @@ import static org.mockito.Mockito.when;
 public class EnrichPolicyExecutorTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
-    private static final ActionListener<ExecuteEnrichPolicyAction.Response> noOpListener = new ActionListener<>() {
-        @Override
-        public void onResponse(ExecuteEnrichPolicyAction.Response ignored) {}
-
-        @Override
-        public void onFailure(Exception e) {}
-    };
 
     @BeforeClass
     public static void beforeCLass() {
@@ -79,7 +72,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyName),
-            new LatchedActionListener<>(noOpListener, firstTaskComplete)
+            new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
         // Launch a second fake run that should fail immediately because the lock is obtained.
@@ -87,7 +80,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             EsRejectedExecutionException.class,
             "Expected exception but nothing was thrown",
             () -> {
-                testExecutor.coordinatePolicyExecution(new ExecuteEnrichPolicyAction.Request(testPolicyName), noOpListener);
+                testExecutor.coordinatePolicyExecution(new ExecuteEnrichPolicyAction.Request(testPolicyName), ActionListener.noop());
                 // Should throw exception on the previous statement, but if it doesn't, be a
                 // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
                 latch.countDown();
@@ -109,7 +102,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyName),
-            new LatchedActionListener<>(noOpListener, secondTaskComplete)
+            new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
         secondTaskComplete.await();
     }
@@ -133,13 +126,13 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
-            new LatchedActionListener<>(noOpListener, firstTaskComplete)
+            new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
         final CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "2"),
-            new LatchedActionListener<>(noOpListener, secondTaskComplete)
+            new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
 
         // Launch a third fake run that should fail immediately because the lock is obtained.
@@ -147,7 +140,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             EsRejectedExecutionException.class,
             "Expected exception but nothing was thrown",
             () -> {
-                testExecutor.coordinatePolicyExecution(new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "3"), noOpListener);
+                testExecutor.coordinatePolicyExecution(
+                    new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "3"),
+                    ActionListener.noop()
+                );
                 // Should throw exception on the previous statement, but if it doesn't, be a
                 // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
                 latch.countDown();
@@ -173,7 +169,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         CountDownLatch finalTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
-            new LatchedActionListener<>(noOpListener, finalTaskComplete)
+            new LatchedActionListener<>(ActionListener.noop(), finalTaskComplete)
         );
         finalTaskComplete.await();
     }

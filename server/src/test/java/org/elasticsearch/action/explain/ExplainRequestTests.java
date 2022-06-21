@@ -44,7 +44,7 @@ public class ExplainRequestTests extends ESTestCase {
     public void testSerialize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             ExplainRequest request = new ExplainRequest("index", "id");
-            request.fetchSourceContext(new FetchSourceContext(true, new String[] { "field1.*" }, new String[] { "field2.*" }));
+            request.fetchSourceContext(FetchSourceContext.of(true, new String[] { "field1.*" }, new String[] { "field2.*" }));
             request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"));
             request.preference("the_preference");
             request.query(QueryBuilders.termQuery("field", "value"));

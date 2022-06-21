@@ -106,7 +106,8 @@ The following mapping parameters are accepted:
 
 `dims`::
 (Required, integer)
-Number of vector dimensions. Can't exceed `2048`.
+Number of vector dimensions. Can't exceed `1024` for indexed vectors
+(`"index": true`), or `2048` for non-indexed vectors.
 
 `index`::
 (Optional, Boolean)

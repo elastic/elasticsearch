@@ -93,7 +93,7 @@ public class MultiGetRequest extends ActionRequest
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         }
 
         public Item(String index, String id) {
@@ -256,6 +256,15 @@ public class MultiGetRequest extends ActionRequest
         items = in.readList(Item::new);
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(preference);
+        out.writeBoolean(refresh);
+        out.writeBoolean(realtime);
+        out.writeList(items);
+    }
+
     public List<Item> getItems() {
         return this.items;
     }
@@ -389,7 +398,7 @@ public class MultiGetRequest extends ActionRequest
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
 
-            FetchSourceContext fetchSourceContext = FetchSourceContext.FETCH_SOURCE;
+            FetchSourceContext fetchSourceContext = null;
 
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
@@ -421,16 +430,18 @@ public class MultiGetRequest extends ActionRequest
                             versionType = VersionType.fromString(parser.text());
                         } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                             if (parser.isBooleanValue()) {
-                                fetchSourceContext = new FetchSourceContext(
-                                    parser.booleanValue(),
-                                    fetchSourceContext.includes(),
-                                    fetchSourceContext.excludes()
-                                );
+                                fetchSourceContext = fetchSourceContext == null
+                                    ? FetchSourceContext.of(parser.booleanValue())
+                                    : FetchSourceContext.of(
+                                        parser.booleanValue(),
+                                        fetchSourceContext.includes(),
+                                        fetchSourceContext.excludes()
+                                    );
                             } else if (token == Token.VALUE_STRING) {
-                                fetchSourceContext = new FetchSourceContext(
-                                    fetchSourceContext.fetchSource(),
+                                fetchSourceContext = FetchSourceContext.of(
+                                    fetchSourceContext == null || fetchSourceContext.fetchSource(),
                                     new String[] { parser.text() },
-                                    fetchSourceContext.excludes()
+                                    fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
                                 );
                             } else {
                                 throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
@@ -457,10 +468,10 @@ public class MultiGetRequest extends ActionRequest
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             includes.add(parser.text());
                         }
-                        fetchSourceContext = new FetchSourceContext(
-                            fetchSourceContext.fetchSource(),
+                        fetchSourceContext = FetchSourceContext.of(
+                            fetchSourceContext == null || fetchSourceContext.fetchSource(),
                             includes.toArray(Strings.EMPTY_ARRAY),
-                            fetchSourceContext.excludes()
+                            fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
                         );
                     }
 
@@ -489,17 +500,17 @@ public class MultiGetRequest extends ActionRequest
                             }
                         }
 
-                        fetchSourceContext = new FetchSourceContext(
-                            fetchSourceContext.fetchSource(),
-                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
-                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()])
+                        fetchSourceContext = FetchSourceContext.of(
+                            fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(Strings.EMPTY_ARRAY),
+                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(Strings.EMPTY_ARRAY)
                         );
                     }
                 }
             }
             String[] aFields;
             if (storedFields != null) {
-                aFields = storedFields.toArray(new String[storedFields.size()]);
+                aFields = storedFields.toArray(Strings.EMPTY_ARRAY);
             } else {
                 aFields = defaultFields;
             }
@@ -508,7 +519,7 @@ public class MultiGetRequest extends ActionRequest
                     .storedFields(aFields)
                     .version(version)
                     .versionType(versionType)
-                    .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext)
+                    .fetchSourceContext(fetchSourceContext == null ? defaultFetchSource : fetchSourceContext)
             );
         }
     }
@@ -537,15 +548,6 @@ public class MultiGetRequest extends ActionRequest
     @Override
     public Iterator<Item> iterator() {
         return Collections.unmodifiableCollection(items).iterator();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(preference);
-        out.writeBoolean(refresh);
-        out.writeBoolean(realtime);
-        out.writeList(items);
     }
 
     @Override

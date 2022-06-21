@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -73,7 +72,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(InvalidateApiKeyResponse invalidateResp, XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );
@@ -85,7 +84,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
         return "xpack_security_invalidate_api_key";
     }
 
-    private ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
+    private static ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             final ConstructingObjectParser<InvalidateApiKeyRequest, Void> objectParser = new ConstructingObjectParser<>(
                 "invalidate_api_key_v7",

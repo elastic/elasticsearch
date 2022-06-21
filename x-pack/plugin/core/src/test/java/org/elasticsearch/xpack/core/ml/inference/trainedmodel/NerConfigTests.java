@@ -13,7 +13,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
@@ -48,6 +52,12 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
     }
 
     public static NerConfig createRandom() {
+        Set<String> randomClassificationLabels = new HashSet<>(
+            Stream.generate(() -> randomFrom("O", "B_PER", "I_PER", "B_ORG", "I_ORG", "B_LOC", "I_LOC", "B_CUSTOM", "I_CUSTOM"))
+                .limit(10)
+                .toList()
+        );
+        randomClassificationLabels.add("O");
         return new NerConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean()
@@ -57,7 +67,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
                     MPNetTokenizationTests.createRandom(),
                     RobertaTokenizationTests.createRandom()
                 ),
-            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : new ArrayList<>(randomClassificationLabels),
             randomBoolean() ? null : randomAlphaOfLength(5)
         );
     }

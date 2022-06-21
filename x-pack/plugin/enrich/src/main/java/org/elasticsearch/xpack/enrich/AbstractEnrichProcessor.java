@@ -118,6 +118,11 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         throw new UnsupportedOperationException("this method should not get executed");
     }
 
+    @Override
+    public boolean isAsync() {
+        return true;
+    }
+
     public String getPolicyName() {
         return policyName;
     }

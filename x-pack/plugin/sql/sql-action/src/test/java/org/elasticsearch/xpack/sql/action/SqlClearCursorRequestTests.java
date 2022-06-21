@@ -36,7 +36,9 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<Test
 
     @Override
     protected TestSqlClearCursorRequest createTestInstance() {
-        return new TestSqlClearCursorRequest(requestInfo, randomAlphaOfLength(100));
+        TestSqlClearCursorRequest result = new TestSqlClearCursorRequest(requestInfo, randomAlphaOfLength(100));
+        result.binaryCommunication(randomBoolean());
+        return result;
     }
 
     @Override
@@ -58,9 +60,11 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<Test
         @SuppressWarnings("unchecked")
         Consumer<TestSqlClearCursorRequest> mutator = randomFrom(
             request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
-            request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor))
+            request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor)),
+            request -> request.binaryCommunication(randomValueOtherThan(request.binaryCommunication(), () -> randomBoolean()))
         );
         TestSqlClearCursorRequest newRequest = new TestSqlClearCursorRequest(instance.requestInfo(), instance.getCursor());
+        newRequest.binaryCommunication(instance.binaryCommunication());
         mutator.accept(newRequest);
         return newRequest;
     }

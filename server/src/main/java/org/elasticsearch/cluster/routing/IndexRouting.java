@@ -262,7 +262,7 @@ public abstract class IndexRouting {
             return createId(hashSource(flat), suffix);
         }
 
-        private String createId(int routingHash, byte[] suffix) {
+        private static String createId(int routingHash, byte[] suffix) {
             byte[] idBytes = new byte[4 + suffix.length];
             ByteUtils.writeIntLE(routingHash, idBytes, 0);
             System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
@@ -405,7 +405,7 @@ public abstract class IndexRouting {
         }
     }
 
-    private static record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
         @Override
         public int compareTo(NameAndHash o) {
             return name.compareTo(o.name);

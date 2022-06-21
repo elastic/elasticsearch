@@ -533,11 +533,6 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public float increment(long index, float inc) {
-            return in.increment(index, inc);
-        }
-
-        @Override
         public void fill(long fromIndex, long toIndex, float value) {
             in.fill(fromIndex, toIndex, value);
         }

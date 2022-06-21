@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -49,6 +50,13 @@ public class TestProcessor implements Processor {
         this.type = type;
         this.tag = tag;
         this.description = description;
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        invokedCounter.incrementAndGet();
+        ingestDocumentMapper.apply(ingestDocument);
+        handler.accept(ingestDocument, null);
     }
 
     @Override

@@ -557,13 +557,13 @@ public class UpdateRequestTests extends ESTestCase {
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))
         );
 
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        UpdateHelper.Result result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, false);
+        result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, false);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -572,7 +572,7 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))
         );
-        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));

@@ -14,5 +14,5 @@ import java.util.function.Consumer;
 
 public interface PyTorchProcessFactory {
 
-    NativePyTorchProcess createProcess(TrainedModelDeploymentTask task, ExecutorService executorService, Consumer<String> onProcessCrash);
+    PyTorchProcess createProcess(TrainedModelDeploymentTask task, ExecutorService executorService, Consumer<String> onProcessCrash);
 }

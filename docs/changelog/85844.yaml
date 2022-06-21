@@ -1,0 +1,5 @@
+pr: 85844
+summary: Add delete privilege to `kibana_system` for Synthetics
+area: Authorization
+type: enhancement
+issues: []

@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -38,9 +35,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -233,7 +232,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Queries.newMatchAllQuery();
         }
         return DateFieldType.handleNow(context, now -> {
-            LongSet terms = new LongHashSet(values.size());
+            Set<Long> terms = new HashSet<>(values.size());
             for (Object value : values) {
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }

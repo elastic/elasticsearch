@@ -16,7 +16,6 @@ archivesBaseName = 'x-pack-security'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
-  api project(path: ':plugins:transport-nio')
 
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))
@@ -428,7 +427,6 @@ tasks.named("internalClusterTest").configure {
    * to keep direct memory usage under control.
    */
   systemProperty 'es.transport.buffer.size', '256k'
-  systemProperty 'es.user_profile_feature_flag_enabled', 'true'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

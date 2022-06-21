@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
@@ -27,7 +28,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -109,7 +109,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -212,6 +212,7 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -319,7 +320,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
                 ExplainDataFrameAnalyticsAction.INSTANCE,
-                InternalInferModelAction.INSTANCE,
+                InferModelAction.INSTANCE,
+                InferModelAction.EXTERNAL_INSTANCE,
                 GetTrainedModelsAction.INSTANCE,
                 DeleteTrainedModelAction.INSTANCE,
                 GetTrainedModelsStatsAction.INSTANCE,
@@ -411,8 +413,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             )
         );
 
-        // rollupV2
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             actions.add(RollupIndexerAction.INSTANCE);
             actions.add(RollupAction.INSTANCE);
         }
@@ -533,6 +535,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                     TransformField.TIME.getPreferredName(),
                     TimeRetentionPolicyConfig::new
                 ),
+                new NamedWriteableRegistry.Entry(
+                    RetentionPolicyConfig.class,
+                    NullRetentionPolicyConfig.NAME.getPreferredName(),
+                    i -> NullRetentionPolicyConfig.INSTANCE
+                ),
                 // Voting Only Node
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
                 // Frozen indices
@@ -565,7 +572,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             )
         );
 
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             namedWriteables.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new));
         }
 

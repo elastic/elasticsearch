@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.Pipeline;
@@ -37,9 +36,7 @@ public final class TextStructureUtils {
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
     public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT = Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
     public static final String NANOSECOND_DATE_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXX";
-    public static final Set<String> CONVERTIBLE_TYPES = Collections.unmodifiableSet(
-        Sets.newHashSet("integer", "long", "float", "double", "boolean")
-    );
+    public static final Set<String> CONVERTIBLE_TYPES = Set.of("integer", "long", "float", "double", "boolean");
 
     private static final Map<String, String> EXTENDED_PATTERNS;
     static {

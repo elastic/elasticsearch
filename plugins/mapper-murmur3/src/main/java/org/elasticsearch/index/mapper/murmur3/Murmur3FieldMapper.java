@@ -30,7 +30,6 @@ import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -60,8 +59,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(stored, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { stored, meta };
         }
 
         @Override

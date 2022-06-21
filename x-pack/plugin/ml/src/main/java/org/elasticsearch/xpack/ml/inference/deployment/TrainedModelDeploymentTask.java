@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -27,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
 import java.util.Optional;
@@ -37,7 +36,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
     private final TaskParams params;
-    private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
+    private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
     private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
@@ -51,23 +50,24 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskId parentTask,
         Map<String, String> headers,
         TaskParams taskParams,
-        TrainedModelAllocationNodeService trainedModelAllocationNodeService,
+        TrainedModelAssignmentNodeService trainedModelAssignmentNodeService,
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAllocationTaskDescription(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
-        this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
-            trainedModelAllocationNodeService,
-            "trainedModelAllocationNodeService"
+        this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
+            trainedModelAssignmentNodeService,
+            "trainedModelAssignmentNodeService"
         );
         this.licenseState = licenseState;
         this.licensedFeature = licensedFeature;
     }
 
     void init(InferenceConfig inferenceConfig) {
-        this.inferenceConfigHolder.set(inferenceConfig);
-        licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        }
     }
 
     public String getModelId() {
@@ -83,7 +83,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason, listener);
+        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
     public void markAsStopped(String reason) {
@@ -109,12 +109,18 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(new ParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
+                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
             )
         );
     }
 
-    public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Map<String, Object> doc,
+        InferenceConfigUpdate update,
+        boolean skipQueue,
+        TimeValue timeout,
+        ActionListener<InferenceResults> listener
+    ) {
         if (inferenceConfigHolder.get() == null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
@@ -131,14 +137,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAllocationNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
+        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats() {
-        return trainedModelAllocationNodeService.modelStats(this);
+        return trainedModelAssignmentNodeService.modelStats(this);
     }
 
     public void setFailed(String reason) {
-        trainedModelAllocationNodeService.failAllocation(this, reason);
+        trainedModelAssignmentNodeService.failAssignment(this, reason);
     }
 }

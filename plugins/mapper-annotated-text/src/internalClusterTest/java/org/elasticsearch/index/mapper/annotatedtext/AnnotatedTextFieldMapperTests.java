@@ -43,6 +43,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,12 +80,12 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
             b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -586,5 +587,15 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("annotated_text doesn't have fielddata so we can't check against anything here.", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

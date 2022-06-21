@@ -128,6 +128,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             request.order(),
             SnapshotPredicates.fromRequest(request),
+            request.includeIndexNames(),
             listener
         );
     }
@@ -166,6 +167,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         SortOrder order,
         SnapshotPredicates predicates,
+        boolean indices,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -193,7 +195,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .mapToInt(s -> s.remaining)
                     .sum();
                 return new GetSnapshotsResponse(
-                    snapshotInfos,
+                    indices ? snapshotInfos : snapshotInfos.stream().map(SnapshotInfo::withoutIndices).toList(),
                     failures,
                     remaining > 0
                         ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
@@ -477,7 +479,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
     }
 
-    private boolean isCurrentSnapshotsOnly(String[] snapshots) {
+    private static boolean isCurrentSnapshotsOnly(String[] snapshots) {
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 

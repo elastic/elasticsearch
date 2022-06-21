@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
@@ -45,6 +44,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MetricInspectionHelper;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
@@ -187,8 +187,8 @@ public class AggregationInspectionHelper {
         return MetricInspectionHelper.hasValue(agg);
     }
 
-    public static boolean hasValue(InternalMin agg) {
-        return agg.getValue() != Double.POSITIVE_INFINITY;
+    public static boolean hasValue(Min agg) {
+        return agg.value() != Double.POSITIVE_INFINITY;
     }
 
     public static boolean hasValue(InternalScriptedMetric agg) {

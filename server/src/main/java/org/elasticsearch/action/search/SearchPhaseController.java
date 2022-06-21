@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -69,7 +67,7 @@ public final class SearchPhaseController {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
-    public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
+    public static AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
         Map<Term, TermStatistics> termStatistics = new HashMap<>();
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         long aggMaxDoc = 0;
@@ -216,7 +214,7 @@ public final class SearchPhaseController {
         }
     }
 
-    public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
+    public static ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
         final ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];
         if (reducedQueryPhase.isEmptyResult == false) {
             final ScoreDoc[] sortedScoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
@@ -235,12 +233,13 @@ public final class SearchPhaseController {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
-        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
+    public static List<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        @SuppressWarnings("unchecked")
+        List<Integer>[] docIdsToLoad = (List<Integer>[]) new ArrayList<?>[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
+            List<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new ArrayList<>();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }
@@ -254,7 +253,7 @@ public final class SearchPhaseController {
      * Expects sortedDocs to have top search docs across all shards, optionally followed by top suggest docs for each named
      * completion suggestion ordered by suggestion name
      */
-    public InternalSearchResponse merge(
+    public static InternalSearchResponse merge(
         boolean ignoreFrom,
         ReducedQueryPhase reducedQueryPhase,
         Collection<? extends SearchPhaseResult> fetchResults,
@@ -298,7 +297,7 @@ public final class SearchPhaseController {
         return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
-    private SearchHits getHits(
+    private static SearchHits getHits(
         ReducedQueryPhase reducedQueryPhase,
         boolean ignoreFrom,
         Collection<? extends SearchPhaseResult> fetchResults,
@@ -368,7 +367,7 @@ public final class SearchPhaseController {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+    static ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
         AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
@@ -405,7 +404,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    ReducedQueryPhase reducedQueryPhase(
+    static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
         List<InternalAggregations> bufferedAggs,
         List<TopDocs> bufferedTopDocs,

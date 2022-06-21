@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -642,16 +641,13 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                     List<String> castIndices = (ArrayList<String>) log.get("indices");
                                     indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
-                                        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(
-                                            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON
-                                        );
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
                                         indices = indices.stream()
-                                            .filter(idx -> false == restrictedAutomaton.run(idx))
+                                            .filter(idx -> false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(idx))
                                             .collect(Collectors.toList());
                                     }
                                 }

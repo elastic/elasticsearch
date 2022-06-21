@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -177,7 +178,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.source = new DataFrameAnalyticsSource(in);
         this.dest = new DataFrameAnalyticsDest(in);
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
-        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::new);
+        this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::readFrom);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         this.createTime = in.readOptionalInstant();
@@ -236,6 +237,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
@@ -245,11 +247,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);
             }
-            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                assertNoAuthorizationHeader(headers);
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    assertNoAuthorizationHeader(headers);
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
         }
@@ -384,7 +390,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.modelMemoryLimit = config.modelMemoryLimit;
             this.maxModelMemoryLimit = maxModelMemoryLimit;
             if (config.analyzedFields != null) {
-                this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
+                this.analyzedFields = FetchSourceContext.of(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
             this.createTime = config.createTime;
             this.version = config.version;

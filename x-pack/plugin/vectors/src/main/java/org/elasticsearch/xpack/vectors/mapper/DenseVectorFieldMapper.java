@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.KnnVectorFieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -39,13 +40,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -116,16 +115,16 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
-            this.indexed.requiresParameters(similarity);
+            this.indexed.requiresParameter(similarity);
             this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameters(indexed);
-            this.indexOptions.requiresParameters(indexed);
+            this.similarity.requiresParameter(indexed);
+            this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(dims, indexed, similarity, indexOptions, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { dims, indexed, similarity, indexOptions, meta };
         }
 
         @Override
@@ -528,7 +527,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene91HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene92HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

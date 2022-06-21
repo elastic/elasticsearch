@@ -28,13 +28,16 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -79,29 +82,22 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
-    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
-        return newInstance(name, timeStampField, indices, indices.size(), null);
+    public static DataStream newInstance(String name, List<Index> indices) {
+        return newInstance(name, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
+        return newInstance(name, indices, generation, metadata, false);
     }
 
     public static DataStream newInstance(
         String name,
-        DataStream.TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata
-    ) {
-        return newInstance(name, timeStampField, indices, generation, metadata, false);
-    }
-
-    public static DataStream newInstance(
-        String name,
-        DataStream.TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -153,10 +149,6 @@ public final class DataStreamTestHelper {
             .numberOfReplicas(NUMBER_OF_REPLICAS);
     }
 
-    public static DataStream.TimestampField createTimestampField(String fieldName) {
-        return new DataStream.TimestampField(fieldName);
-    }
-
     public static String generateMapping(String timestampFieldName) {
         return """
             {
@@ -168,6 +160,23 @@ public final class DataStreamTestHelper {
                 }
               }
             }""".formatted(timestampFieldName);
+    }
+
+    public static String generateTsdbMapping() {
+        return """
+            {
+              "_doc":{
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "uid": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            }""";
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
@@ -222,7 +231,6 @@ public final class DataStreamTestHelper {
 
         return new DataStream(
             dataStreamName,
-            createTimestampField("@timestamp"),
             indices,
             generation,
             metadata,
@@ -306,7 +314,6 @@ public final class DataStreamTestHelper {
 
             DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
-                createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
                 null,
@@ -355,7 +362,6 @@ public final class DataStreamTestHelper {
         }
         DataStream ds = new DataStream(
             dataStream,
-            createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
             backingIndices.size(),
             null,
@@ -446,7 +452,7 @@ public final class DataStreamTestHelper {
         when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
                     dataStream.getTimeStampField().getName(),
@@ -486,7 +492,7 @@ public final class DataStreamTestHelper {
         return new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService, EmptySystemIndices.INSTANCE);
     }
 
-    private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
+    public static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
         Map<String, Object> fieldsMapping = new HashMap<>();
         fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
         fieldsMapping.put("enabled", true);
@@ -508,6 +514,19 @@ public final class DataStreamTestHelper {
             IndexMetadata indexMetadata = (IndexMetadata) invocationOnMock.getArguments()[0];
             when(indexService.index()).thenReturn(indexMetadata.getIndex());
             MapperService mapperService = mock(MapperService.class);
+
+            RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+                MapperBuilderContext.ROOT
+            );
+            Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
+            DocumentMapper documentMapper = mock(DocumentMapper.class);
+            when(documentMapper.mapping()).thenReturn(mapping);
+            when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
+            RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
+            when(routingFieldMapper.required()).thenReturn(false);
+            when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);
+
+            when(mapperService.documentMapper()).thenReturn(documentMapper);
             when(indexService.mapperService()).thenReturn(mapperService);
             when(mapperService.mappingLookup()).thenReturn(mappingLookup);
             when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {

@@ -104,19 +104,19 @@ public final class AnalysisModule {
         return analysisRegistry;
     }
 
-    private NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
 
-    public NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> setupHunspellDictionaries(List<AnalysisPlugin> plugins) {
+    public static NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> setupHunspellDictionaries(List<AnalysisPlugin> plugins) {
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = new NamedRegistry<>("dictionary");
         hunspellDictionaries.extractAndRegister(plugins, AnalysisPlugin::getHunspellDictionaries);
         return hunspellDictionaries;
     }
 
-    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(
+    private static NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(
         List<AnalysisPlugin> plugins,
         HunspellService hunspellService
     ) {
@@ -241,14 +241,14 @@ public final class AnalysisModule {
         return unmodifiableMap(preConfiguredTokenizers.getRegistry());
     }
 
-    private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }
 
-    private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupAnalyzers(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupAnalyzers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
@@ -260,7 +260,7 @@ public final class AnalysisModule {
         return analyzers;
     }
 
-    private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
+    private static NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
         normalizers.register("lowercase", LowercaseNormalizerProvider::new);
         // TODO: pluggability?

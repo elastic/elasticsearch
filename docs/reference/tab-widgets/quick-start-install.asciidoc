@@ -25,7 +25,7 @@ Desktop].
 ----
 docker network create elastic
 docker pull {docker-repo}:{version}
-docker run --name es-node01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
 ----
 +
 When you start {es} for the first time, the following security configuration 
@@ -73,7 +73,7 @@ ifeval::["{release-state}"!="unreleased"]
 ["source","txt",subs="attributes"]
 ----
 docker pull docker.elastic.co/kibana/kibana:{version}
-docker run --name kib-01 --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
 +
 When you start {kib}, a unique link is output to your terminal.

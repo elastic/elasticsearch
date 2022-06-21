@@ -73,7 +73,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     numericFieldType
                 );
                 Min min = sampler.getAggregations().get("min");
-                assertEquals(5.0, min.getValue(), 0);
+                assertEquals(5.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
@@ -112,7 +112,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     numericFieldType
                 );
                 Min min = sampler.getAggregations().get("min");
-                assertEquals(3.0, min.getValue(), 0);
+                assertEquals(3.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }

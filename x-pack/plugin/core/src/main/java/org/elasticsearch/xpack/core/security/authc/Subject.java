@@ -198,7 +198,7 @@ public class Subject {
         );
     }
 
-    private boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
+    private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
         return roleDescriptorsBytes == null || (roleDescriptorsBytes.length() == 2 && "{}".equals(roleDescriptorsBytes.utf8ToString()));
     }
 

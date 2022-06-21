@@ -107,7 +107,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
         ).getMetadata();
         metadata = Metadata.builder(metadata)
-            .updateSettings(Settings.builder().put(IndexSettings.LOOK_AHEAD_TIME.getKey(), lookAHeadTimeMinutes + "m").build())
+            .updateSettings(Settings.builder().put(DataStreamsPlugin.LOOK_AHEAD_TIME.getKey(), lookAHeadTimeMinutes + "m").build())
             .build();
 
         var in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();

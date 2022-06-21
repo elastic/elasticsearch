@@ -15,8 +15,7 @@ import java.io.IOException;
  * Highlights a search result.
  */
 public interface Highlighter {
+    boolean canHighlight(MappedFieldType fieldType);
 
     HighlightField highlight(FieldHighlightContext fieldContext) throws IOException;
-
-    boolean canHighlight(MappedFieldType fieldType);
 }

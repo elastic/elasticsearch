@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -56,9 +55,9 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
 
                 // return HTTP status 404 if no API key found for API key id
                 if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
 
         });

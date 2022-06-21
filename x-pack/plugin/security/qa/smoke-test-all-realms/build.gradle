@@ -76,6 +76,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.oidc.openid7.op.authorization_endpoint', 'https://op.example.com/auth'
   setting 'xpack.security.authc.realms.oidc.openid7.op.jwkset_path', 'oidc-jwkset.json'
   setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.oidc.openid7.http.connection_pool_ttl', '1m'
   keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
   //  - JWT (works)
   setting 'xpack.security.authc.realms.jwt.jwt8.order', '8'

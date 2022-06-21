@@ -46,9 +46,11 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(4);
             metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), a[0]);
             metadata.put(IngestDocument.Metadata.ID.getFieldName(), a[1]);
-            metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), a[2]);
+            if (a[2] != null) {
+                metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), a[2]);
+            }
             if (a[3] != null) {
-                metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), a[3]);
+                metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), a[3]);
             }
             if (a[4] != null) {
                 metadata.put(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), a[4]);

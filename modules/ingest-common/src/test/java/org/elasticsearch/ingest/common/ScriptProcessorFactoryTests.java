@@ -159,7 +159,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertNotNull(processor.getPrecompiledIngestScript());
         Map<String, Object> ctx = new HashMap<>();
         ctx.put("_version", 1);
-        processor.getPrecompiledIngestScript().execute(new IngestSourceAndMetadata(ctx, null));
+        processor.getPrecompiledIngestScript().execute(IngestSourceAndMetadata.fromMixedSourceAndMetadata(ctx, null));
         assertThat(ctx.get("foo"), equalTo("bar"));
     }
 

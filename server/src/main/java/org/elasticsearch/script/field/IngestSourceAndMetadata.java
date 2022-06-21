@@ -87,11 +87,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     /**
      * Creates an {@code IngestSourceAndMetadata} from the given source, metadata and timestamp
      */
-    public IngestSourceAndMetadata(
-        Map<String, Object> source,
-        Map<String, Object> metadata,
-        ZonedDateTime timestamp
-    ) {
+    public IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
         this(source, metadata, timestamp, VALIDATORS);
     }
 
@@ -117,7 +113,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * @throws IllegalArgumentException if a validator fails for a given key
      */
     public static IngestSourceAndMetadata fromMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
-        return new IngestSourceAndMetadata(extractMetadata(sourceAndMetadata), sourceAndMetadata, timestamp, VALIDATORS);
+        return new IngestSourceAndMetadata(sourceAndMetadata, extractMetadata(sourceAndMetadata), timestamp, VALIDATORS);
     }
 
     /**
@@ -125,8 +121,8 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     public static IngestSourceAndMetadata copy(IngestSourceAndMetadata ingestSourceAndMetadata) {
         return new IngestSourceAndMetadata(
-            IngestDocument.deepCopyMap(ingestSourceAndMetadata.metadata),
             IngestDocument.deepCopyMap(ingestSourceAndMetadata.source),
+            IngestDocument.deepCopyMap(ingestSourceAndMetadata.metadata),
             ingestSourceAndMetadata.timestamp,
             ingestSourceAndMetadata.validators
         );
@@ -269,8 +265,8 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
             BiFunction<String, Object, Object> validator = validators.get(key);
             if (validator != null) {
                 validator.apply(strKey, null);
+                return metadata.remove(key);
             }
-            return metadata.remove(key);
         }
         return source.remove(key);
     }
@@ -492,7 +488,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     protected static Long longValidator(String key, Object value) {
         if (value == null) {
-            throw new IllegalArgumentException(key + " must be non-null");
+            return null; // Allow null version for now
         }
         if (value instanceof Number number) {
             long version = number.longValue();

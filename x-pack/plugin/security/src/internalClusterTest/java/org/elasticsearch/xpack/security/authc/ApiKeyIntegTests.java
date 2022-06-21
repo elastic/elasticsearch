@@ -1461,6 +1461,33 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
     }
 
+    public void testUpdateApiKeyRequestWithNullRoleDescriptorsDoesNotOverwriteExistingRoleDescriptors() throws ExecutionException,
+        InterruptedException, IOException {
+        final var createdApiKey = createApiKey(null);
+        final var apiKeyId = createdApiKey.v1().getId();
+
+        final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        final var expectedLimitedByRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var request = new UpdateApiKeyRequest(apiKeyId, null, ApiKeyTests.randomMetadata());
+
+        final var serviceWithNodeName = getServiceWithNodeName();
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                fileRealmAuthForEsTestRootUser(serviceWithNodeName.nodeName()),
+                request,
+                Set.of(expectedLimitedByRoleDescriptor),
+                listener
+            );
+        UpdateApiKeyResponse response = listener.get();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+        final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
+        expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
+    }
+
     private Authentication fileRealmAuthForEsTestRootUser(String nodeName) {
         return Authentication.newRealmAuthentication(
             new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),

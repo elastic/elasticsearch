@@ -29,18 +29,20 @@ public final class UpdateApiKeyRequest extends ActionRequest {
 
     public UpdateApiKeyRequest(String id, List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata) {
         this.id = Objects.requireNonNull(id, "api key id must not be null");
-        this.roleDescriptors = (roleDescriptors == null) ? List.of() : roleDescriptors;
+        this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
     }
 
     public UpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
+        // TODO handle null
         this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
         this.metadata = in.readMap();
     }
 
     @Override
+    // TODO test me
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {

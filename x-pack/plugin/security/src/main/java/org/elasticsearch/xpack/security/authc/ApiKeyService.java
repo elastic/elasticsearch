@@ -58,6 +58,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -431,8 +432,35 @@ public class ApiKeyService {
         final var apiKeyDoc = versionedApiKeyDoc.apiKey();
 
         // TODO gnarly
+
+        final List<RoleDescriptor> keyRoles;
+        // TODO need to account for legacy versions here, potentially
+        if (request.getRoleDescriptors() != null) {
+            keyRoles = request.getRoleDescriptors();
+        } else {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    XContentParserConfiguration.EMPTY,
+                    apiKeyDoc.roleDescriptorsBytes,
+                    XContentType.JSON
+                )
+            ) {
+                // TODO gnarly
+                keyRoles = new ArrayList<>();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                    final String roleName = parser.currentName();
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
+                    keyRoles.add(role);
+                }
+            }
+        }
+
         // Only write new metadata if it's present, i.e., not null. Otherwise, use existing old metadata
         final Map<String, Object> metadata;
+        // TODO need to account for legacy versions here, potentially
         try (
             XContentParser parser = XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
@@ -453,8 +481,7 @@ public class ApiKeyService {
                     userRoles,
                     Instant.ofEpochMilli(apiKeyDoc.creationTime),
                     apiKeyDoc.expirationTime == -1 ? null : Instant.ofEpochMilli(apiKeyDoc.expirationTime),
-                    // TODO also fix this
-                    request.getRoleDescriptors(),
+                    keyRoles,
                     version,
                     metadata
                 )
@@ -1119,6 +1146,7 @@ public class ApiKeyService {
             false,
             false,
             listener,
+            // TODO what if this throws?
             ApiKeyService::convertSearchHitToVersionedApiKeyDoc
         );
     }
@@ -1444,6 +1472,7 @@ public class ApiKeyService {
         }
     }
 
+    // TODO rename
     private record VersionedApiKeyDoc(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {

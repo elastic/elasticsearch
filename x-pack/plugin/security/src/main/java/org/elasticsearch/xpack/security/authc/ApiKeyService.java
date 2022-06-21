@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -73,6 +74,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -85,6 +87,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -124,6 +127,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -254,6 +258,10 @@ public class ApiKeyService {
         }
     }
 
+    private static AcknowledgedResponse toUpdateApiKeyResponse(UpdateResponse updateResponse) {
+        return AcknowledgedResponse.TRUE;
+    }
+
     /**
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of
@@ -330,6 +338,93 @@ public class ApiKeyService {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
         }));
+    }
+
+    public void updateApiKey(
+        Authentication authentication,
+        UpdateApiKeyRequest request,
+        Set<RoleDescriptor> userRoles,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        ensureEnabled();
+        if (authentication == null) {
+            listener.onFailure(new IllegalArgumentException("authentication must be provided"));
+            return;
+        }
+        logger.info("Updating api key [{}]", request.getId());
+        // TODO check same user
+        // TODO check status; possibly no if we filter
+        // TODO check version
+        final var version = clusterService.state().nodes().getMinNodeVersion();
+        findActiveApiKeyDocs(new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
+            if (apiKeys.isEmpty()) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            // TODO what happens if `toBulkUpdateRequest` throws?
+            final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
+            doBulkUpdate(bulkRequest, listener);
+        }, listener::onFailure));
+    }
+
+    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<AcknowledgedResponse> listener) {
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                bulkUpdateRequest.request(),
+                ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                    logger.info("Updated API key");
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }, listener::onFailure),
+                client::bulk
+            )
+        );
+    }
+
+    private BulkRequestBuilder toBulkUpdateRequest(
+        Authentication authentication,
+        UpdateApiKeyRequest request,
+        Set<RoleDescriptor> userRoles,
+        Version version,
+        Collection<VersionedApiKeyDoc> versionedApiKeyDocs
+    ) throws IOException {
+        final var bulkRequestBuilder = client.prepareBulk();
+        for (VersionedApiKeyDoc versionedApiKeyDoc : versionedApiKeyDocs) {
+            bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, versionedApiKeyDoc));
+        }
+        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        return bulkRequestBuilder;
+    }
+
+    private IndexRequest singleIndexRequest(
+        Authentication authentication,
+        UpdateApiKeyRequest request,
+        Set<RoleDescriptor> userRoles,
+        Version version,
+        VersionedApiKeyDoc versionedApiKeyDoc
+    ) throws IOException {
+        final var apiKeyDoc = versionedApiKeyDoc.apiKey();
+        return client.prepareIndex(SECURITY_MAIN_ALIAS)
+            .setId(request.getId())
+            .setSource(
+                newDocument(
+                    // TODO fill array?
+                    apiKeyDoc.hash.toCharArray(),
+                    apiKeyDoc.name,
+                    authentication,
+                    userRoles,
+                    Instant.ofEpochMilli(apiKeyDoc.creationTime),
+                    apiKeyDoc.expirationTime == -1 ? null : Instant.ofEpochMilli(apiKeyDoc.expirationTime),
+                    request.getRoleDescriptors(),
+                    version,
+                    request.getMetadata()
+                )
+            )
+            .setIfSeqNo(versionedApiKeyDoc.seqNo())
+            .setIfPrimaryTerm(versionedApiKeyDoc.primaryTerm())
+            .request();
     }
 
     /**
@@ -919,10 +1014,7 @@ public class ApiKeyService {
                         );
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
-                        invalidateAllApiKeys(
-                            apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
-                            invalidateListener
-                        );
+                        invalidateAllApiKeys(apiKeys.stream().map(ApiKey::getId).collect(Collectors.toSet()), invalidateListener);
                     }
                 }, invalidateListener::onFailure)
             );
@@ -938,6 +1030,16 @@ public class ApiKeyService {
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
         ActionListener<Collection<ApiKey>> listener
+    ) {
+        find(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, ApiKeyService::convertSearchHitToApiKeyInfo);
+    }
+
+    private <T> void find(
+        final BoolQueryBuilder boolQuery,
+        boolean filterOutInvalidatedKeys,
+        boolean filterOutExpiredKeys,
+        ActionListener<Collection<T>> listener,
+        Function<SearchHit, T> hitParser
     ) {
         if (filterOutInvalidatedKeys) {
             boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
@@ -959,12 +1061,7 @@ public class ApiKeyService {
                 .request();
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(
-                    client,
-                    request,
-                    new ContextPreservingActionListener<>(supplier, listener),
-                    ApiKeyService::convertSearchHitToApiKeyInfo
-                )
+                () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), hitParser)
             );
         }
     }
@@ -985,6 +1082,19 @@ public class ApiKeyService {
         }
     }
 
+    private void findActiveApiKeyDocs(String[] apiKeyIds, ActionListener<Collection<VersionedApiKeyDoc>> listener) {
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(
+            null,
+            null,
+            null,
+            apiKeyIds,
+            true,
+            true,
+            listener,
+            ApiKeyService::convertSearchHitToVersionedApiKeyDoc
+        );
+    }
+
     private void findApiKeysForUserRealmApiKeyIdAndNameCombination(
         String[] realmNames,
         String userName,
@@ -993,6 +1103,28 @@ public class ApiKeyService {
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
         ActionListener<Collection<ApiKey>> listener
+    ) {
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(
+            realmNames,
+            userName,
+            apiKeyName,
+            apiKeyIds,
+            filterOutInvalidatedKeys,
+            filterOutExpiredKeys,
+            listener,
+            ApiKeyService::convertSearchHitToApiKeyInfo
+        );
+    }
+
+    private <T> void findApiKeysForUserRealmApiKeyIdAndNameCombination(
+        String[] realmNames,
+        String userName,
+        String apiKeyName,
+        String[] apiKeyIds,
+        boolean filterOutInvalidatedKeys,
+        boolean filterOutExpiredKeys,
+        ActionListener<Collection<T>> listener,
+        Function<SearchHit, T> hitParser
     ) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
@@ -1019,7 +1151,7 @@ public class ApiKeyService {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
-            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener);
+            find(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, hitParser);
         }
     }
 
@@ -1273,6 +1405,18 @@ public class ApiKeyService {
             metadata
         );
     }
+
+    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
+        try (
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
+        ) {
+            return new VersionedApiKeyDoc(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private record VersionedApiKeyDoc(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {

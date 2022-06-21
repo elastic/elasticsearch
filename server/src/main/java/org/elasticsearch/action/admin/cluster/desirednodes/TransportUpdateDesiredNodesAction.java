@@ -201,8 +201,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             if (desiredNodes == initialDesiredNodes) {
                 return currentState;
             } else {
-                final var clusterStateWithUpdatedDesiredNodes = replaceDesiredNodes(currentState, desiredNodes);
-                return allocationService.adaptAutoExpandReplicas(clusterStateWithUpdatedDesiredNodes);
+                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(currentState, desiredNodes);
+                return allocationService.adaptAutoExpandReplicas(withUpdatedDesiredNodes);
             }
         }
 

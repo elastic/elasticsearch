@@ -358,7 +358,10 @@ public class ApiKeyService {
             if (apiKeys.isEmpty()) {
                 listener.onFailure(apiKeyNotFound(request.getId()));
                 return;
-            } else if (apiKeys.size() != 1) {
+            }
+
+            // Validation
+            if (apiKeys.size() != 1) {
                 listener.onFailure(new IllegalStateException("more than one api key found for single api key update"));
                 return;
             }
@@ -378,8 +381,8 @@ public class ApiKeyService {
     }
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {
-        // TODO check if expired
-        return apiKeyDoc.invalidated == false;
+        return apiKeyDoc.invalidated == false
+            && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
     }
 
     private ResourceNotFoundException apiKeyNotFound(String apiKeyId) {

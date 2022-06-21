@@ -1466,8 +1466,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void expectMetadataForApiKey(Map<String, Object> expectedMetadata, Map<String, Object> actualRawApiKeyDoc) {
         assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
-        final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("flattened_metadata");
-        assertThat(actualMetadata, equalTo(expectedMetadata));
+        final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("metadata_flattened");
+        assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedMetadata));
     }
 
     @SuppressWarnings("unchecked")

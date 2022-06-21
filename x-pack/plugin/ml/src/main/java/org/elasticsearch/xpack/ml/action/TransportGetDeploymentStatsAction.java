@@ -308,11 +308,14 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             nodeStats.add(AssignmentStats.NodeStats.forNotStartedState(clusterService.localNode(), RoutingState.STOPPED, ""));
         }
 
+        TrainedModelAssignment assignment = TrainedModelAssignmentMetadata.fromState(clusterService.state())
+            .getModelAssignment(task.getModelId());
+
         listener.onResponse(
             new AssignmentStats(
                 task.getModelId(),
                 task.getParams().getThreadsPerAllocation(),
-                task.getParams().getNumberOfAllocations(),
+                assignment == null ? task.getParams().getNumberOfAllocations() : assignment.getTaskParams().getNumberOfAllocations(),
                 task.getParams().getQueueCapacity(),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state()).getModelAssignment(task.getModelId()).getStartTime(),
                 nodeStats

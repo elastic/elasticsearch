@@ -72,7 +72,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1079,8 +1078,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
-            if (leaf.getValueCount() == 0) {
+            SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
+            if (dv.getValueCount() == 0) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
             if (docIdsInLeaf.length > 1) {
@@ -1089,44 +1088,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                  * in sorted order and doesn't buy anything if there is only a single
                  * document.
                  */
-                SortedDocValues singleton = DocValues.unwrapSingleton(leaf);
+                SortedDocValues singleton = DocValues.unwrapSingleton(dv);
                 if (singleton != null) {
                     return singletonLeaf(singleton, docIdsInLeaf);
                 }
             }
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private boolean hasValue;
-
-                @Override
-                public boolean empty() {
-                    return false;
-                }
-
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    return hasValue = leaf.advanceExact(docId);
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (false == hasValue) {
-                        return;
-                    }
-                    long first = leaf.nextOrd();
-                    long next = leaf.nextOrd();
-                    if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                        b.field(simpleName, convert(leaf.lookupOrd(first)));
-                        return;
-                    }
-                    b.startArray(simpleName);
-                    b.value(convert(leaf.lookupOrd(first)));
-                    b.value(convert(leaf.lookupOrd(next)));
-                    while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                        b.value(convert(leaf.lookupOrd(next)));
-                    }
-                    b.endArray();
-                }
-            };
+            return new SortedSetLeaf(dv);
         }
 
         private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
@@ -1145,15 +1112,27 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             int[] sortedOrds = ords.clone();
             Arrays.sort(sortedOrds);
-            Map<Integer, String> lookup = new HashMap<>();
+            int unique = 0;
             int prev = -1;
             for (int ord : sortedOrds) {
                 if (ord != prev) {
                     prev = ord;
-                    lookup.put(ord, convert(singleton.lookupOrd(ord)));
+                    unique++;
                 }
             }
-            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, lookup.size());
+            int[] uniqueOrds = new int[unique];
+            String[] converted = new String[unique];
+            unique = 0;
+            prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    uniqueOrds[unique] = ord;
+                    converted[unique] = convert(singleton.lookupOrd(ord));
+                    unique++;
+                }
+            }
+            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private int ord;
 
@@ -1176,9 +1155,57 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 @Override
                 public void write(XContentBuilder b) throws IOException {
-                    b.field(simpleName, lookup.get(ord));
+                    if (ord < 0) {
+                        return; // NOCOMMIT make sure tests hit this
+                    }
+                    int idx = Arrays.binarySearch(uniqueOrds, ord);
+                    if (idx < 0) {
+                        throw new IllegalStateException(
+                            "received unexpected ord [" + ord + "]. Expected " + Arrays.toString(uniqueOrds)
+                        );
+                    }
+                    b.field(simpleName, converted[idx]);
                 }
             };
+        }
+
+        private class SortedSetLeaf implements Leaf {
+            private final SortedSetDocValues dv;
+            private boolean hasValue;
+
+            SortedSetLeaf(SortedSetDocValues dv) {
+                this.dv = dv;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                return hasValue = dv.advanceExact(docId);
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (false == hasValue) {
+                    return;
+                }
+                long first = dv.nextOrd();
+                long next = dv.nextOrd();
+                if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                    b.field(simpleName, convert(dv.lookupOrd(first)));
+                    return;
+                }
+                b.startArray(simpleName);
+                b.value(convert(dv.lookupOrd(first)));
+                b.value(convert(dv.lookupOrd(next)));
+                while ((next = dv.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                    b.value(convert(dv.lookupOrd(next)));
+                }
+                b.endArray();
+            }
         }
 
         protected abstract String convert(BytesRef value);

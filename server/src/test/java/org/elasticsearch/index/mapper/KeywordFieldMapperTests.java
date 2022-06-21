@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -57,6 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@Seed("15C15CAB82D77A6E:504FF8CCDCA26B0E")
 public class KeywordFieldMapperTests extends MapperTestCase {
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.

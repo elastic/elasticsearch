@@ -823,11 +823,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 if (rarely()) {
                     expected[i] = "{}";
                     iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
-                } else {
-                    SyntheticSourceExample example = support.example(maxValues);
-                    expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
-                    iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
+                    continue;
                 }
+                SyntheticSourceExample example = support.example(maxValues);
+                expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
+                iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
             }
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -837,7 +837,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                     SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                     for (int docId : docIds) {
-                        assertThat(sourceLoaderLeaf.source(null, docId).utf8ToString(), equalTo(expected[i++]));
+                        assertThat("doc " + docId, sourceLoaderLeaf.source(null, docId).utf8ToString(), equalTo(expected[i++]));
                     }
                 }
             }

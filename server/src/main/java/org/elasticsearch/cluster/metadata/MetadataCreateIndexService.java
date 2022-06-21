@@ -266,7 +266,7 @@ public class MetadataCreateIndexService {
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for " + "enough shards to be started.",
+                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
                                 request.index()
                             );
                         } else {

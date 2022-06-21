@@ -183,6 +183,12 @@ public class DesiredBalanceReconciler {
         int secondaryLength = 0;
         int primaryLength = primary.length;
         ArrayUtil.timSort(primary, comparator);
+
+        // TODO this should be removed before merging the feature branch
+        if (logger.isTraceEnabled()) {
+            allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+        }
+
         do {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
@@ -195,9 +201,8 @@ public class DesiredBalanceReconciler {
                             // desired node no longer exists
                             continue;
                         }
-
-                        final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                        switch (canAllocateDecision.type()) {
+                        final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                        switch (decision.type()) {
                             case YES -> {
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
@@ -221,6 +226,16 @@ public class DesiredBalanceReconciler {
                                 continue nextShard;
                             }
                             case THROTTLE -> isThrottled = true;
+                            case NO -> {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace(
+                                        "Unexpected NO decision [{}] for shard [{}] on assigned node [{}]",
+                                        decision,
+                                        shard.shardId(),
+                                        desiredNodeId
+                                    );
+                                }
+                            }
                         }
                     }
                 }

@@ -63,12 +63,21 @@ public class SampleIterator implements Executable {
      * It will be calculated every CB_SAMPLE_SIZE_PRECISION samples created.
      */
     protected static final int CB_SAMPLE_SIZE_PRECISION = 100;
+    /**
+     * Memory consumption will be calculated every CB_STACK_SIZE_PRECISION hits added to the stack
+     * ie. the sum of sizes of pages added to the stack
+     * (not considering stack.pop(), so the number of hits added to the stack is different
+     * from the number of hits currently present in the stack)
+     */
+    protected static final int CB_STACK_SIZE_PRECISION = 1000;
     private static final String CB_COMPLETED_LABEL = "sample_completed";
     private static final String CB_INFLIGHT_LABEL = "sample_inflight";
     private final CircuitBreaker circuitBreaker;
     private long samplesRamBytesUsed = 0;
     private long stackRamBytesUsed = 0;
     private long totalRamBytesUsed = 0;
+    private long totalItemsAddedToStack = 0;
+    private long lastStackSizeWhenCalculatedMemory = 0;
 
     public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, CircuitBreaker circuitBreaker) {
         this.client = client;
@@ -133,7 +142,7 @@ public class SampleIterator implements Executable {
             log.trace("Found [{}] composite buckets", composite.getBuckets().size());
             Page nextPage = new Page(composite, request);
             if (nextPage.size > 0) {
-                stack.push(nextPage);
+                pushToStack(nextPage);
                 advance(listener);
             } else {
                 if (stack.size() > 0) {
@@ -143,6 +152,15 @@ public class SampleIterator implements Executable {
                 }
             }
         }, listener::onFailure));
+    }
+
+    protected void pushToStack(Page nextPage) {
+        stack.push(nextPage);
+        totalItemsAddedToStack += nextPage.size;
+        if ((totalItemsAddedToStack - lastStackSizeWhenCalculatedMemory) / CB_STACK_SIZE_PRECISION > 0) {
+            updateMemoryUsage();
+            lastStackSizeWhenCalculatedMemory = totalItemsAddedToStack;
+        }
     }
 
     /*
@@ -331,13 +349,15 @@ public class SampleIterator implements Executable {
         stackRamBytesUsed = 0;
         samplesRamBytesUsed = 0;
         totalRamBytesUsed = 0;
+        totalItemsAddedToStack = 0;
+        lastStackSizeWhenCalculatedMemory = 0;
     }
 
     private TimeValue timeTook() {
         return new TimeValue(System.currentTimeMillis() - startTime);
     }
 
-    protected class Page implements Accountable {
+    protected static class Page implements Accountable {
         final List<InternalComposite.InternalBucket> hits;
         final int size;
         final Map<String, Object> afterKey;
@@ -347,6 +367,15 @@ public class SampleIterator implements Executable {
         long ramBytesUsed = 0;
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Page.class);
+
+        // for test purposes only
+        protected Page(int size) {
+            hits = null;
+            this.size = size;
+            afterKey = null;
+            keys = null;
+            request = null;
+        }
 
         protected Page(InternalComposite compositeAgg, SampleQueryRequest request) {
             hits = compositeAgg.getBuckets();

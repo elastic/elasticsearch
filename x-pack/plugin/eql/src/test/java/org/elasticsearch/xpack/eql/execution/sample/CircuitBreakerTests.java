@@ -76,6 +76,8 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
+import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.CB_SAMPLE_SIZE_PRECISION;
+import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.CB_STACK_SIZE_PRECISION;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERHEAD;
@@ -94,10 +96,25 @@ public class CircuitBreakerTests extends ESTestCase {
         }, mockCriteria(), randomIntBetween(10, 500), CIRCUIT_BREAKER);
 
         CIRCUIT_BREAKER.startBreaking();
-        for (int i = 0; i < SampleIterator.CB_SAMPLE_SIZE_PRECISION - 1; i++) {
+        for (int i = 0; i < CB_SAMPLE_SIZE_PRECISION - 1; i++) {
             iterator.addSample(mockSample());
         }
         expectThrows(CircuitBreakingException.class, () -> iterator.addSample(mockSample()));
+    }
+
+    public void testCircuitBreakerOnStackPush() {
+        SampleIterator iterator = new SampleIterator(new QueryClient() {
+            @Override
+            public void query(QueryRequest r, ActionListener<SearchResponse> l) {}
+
+            @Override
+            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {}
+        }, mockCriteria(), randomIntBetween(10, 500), CIRCUIT_BREAKER);
+
+        CIRCUIT_BREAKER.startBreaking();
+        iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION / 2));
+        iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - (CB_STACK_SIZE_PRECISION / 2) - 1));
+        expectThrows(CircuitBreakingException.class, () -> iterator.pushToStack(new SampleIterator.Page(1)));
     }
 
     public void testMemoryCleared() {
@@ -163,7 +180,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 eqlCircuitBreaker
             );
 
-            int injectedSamples = SampleIterator.CB_SAMPLE_SIZE_PRECISION * 2;
+            int injectedSamples = CB_SAMPLE_SIZE_PRECISION * 2;
 
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession) {
                 @Override

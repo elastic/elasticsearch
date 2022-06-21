@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
@@ -1646,16 +1645,15 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {
+                public void load(XContentBuilder b) throws IOException {
                     if (false == hasValue) {
                         return;
                     }
-                    before.run();
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
                         loadNextValue(b, leaf.nextValue());

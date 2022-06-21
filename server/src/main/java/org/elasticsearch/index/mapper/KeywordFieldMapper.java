@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -1091,16 +1090,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {
+                public void load(XContentBuilder b) throws IOException {
                     if (false == hasValue) {
                         return;
                     }
-                    before.run();
                     long first = leaf.nextOrd();
                     long next = leaf.nextOrd();
                     if (next == SortedSetDocValues.NO_MORE_ORDS) {

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -97,20 +96,11 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    class HasValue implements CheckedRunnable<IOException> {
-                        boolean hasValue;
-
-                        @Override
-                        public void run() throws IOException {
-                            hasValue = true;
-                        }
-                    }
-                    HasValue hasValue = new HasValue();
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        leaf.advanceToDoc(docId);
-                        leaf.load(b, hasValue);
-                        if (hasValue.hasValue == false) {
+                        if (leaf.advanceToDoc(docId)) {
+                            leaf.load(b);
+                        } else {
                             b.startObject().endObject();
                         }
                         return BytesReference.bytes(b);
@@ -131,10 +121,12 @@ public interface SourceLoader {
             }
 
             @Override
-            public void advanceToDoc(int docId) throws IOException {}
+            public boolean advanceToDoc(int docId) throws IOException {
+                return false;
+            }
 
             @Override
-            public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {}
+            public void load(XContentBuilder b) throws IOException {}
         };
 
         /**
@@ -154,12 +146,12 @@ public interface SourceLoader {
             /**
              * Position the loader at a document.
              */
-            void advanceToDoc(int docId) throws IOException;
+            boolean advanceToDoc(int docId) throws IOException;
 
             /**
              * Load values for this document.
              */
-            void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException;
+            void load(XContentBuilder b) throws IOException;
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -573,40 +572,33 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
                     @Override
                     public boolean empty() {
                         return leaves.length == 0;
                     }
 
                     @Override
-                    public void advanceToDoc(int docId) throws IOException {
+                    public boolean advanceToDoc(int docId) throws IOException {
+                        hasValue = false;
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.advanceToDoc(docId);
+                            boolean leafHasValue = leaf.advanceToDoc(docId);
+                            hasValue |= leafHasValue;
                         }
+                        return hasValue;
                     }
 
                     @Override
-                    public void load(XContentBuilder b, CheckedRunnable<IOException> before) throws IOException {
-                        class HasValue implements CheckedRunnable<IOException> {
-                            boolean hasValue;
-
-                            @Override
-                            public void run() throws IOException {
-                                if (hasValue) {
-                                    return;
-                                }
-                                hasValue = true;
-                                before.run();
-                                startSyntheticField(b);
-                            }
+                    public void load(XContentBuilder b) throws IOException {
+                        if (hasValue == false) {
+                            return;
                         }
-                        HasValue hasValue = new HasValue();
+                        startSyntheticField(b);
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.load(b, hasValue);
+                            leaf.load(b);
                         }
-                        if (hasValue.hasValue) {
-                            b.endObject();
-                        }
+                        b.endObject();
                     }
                 };
             }

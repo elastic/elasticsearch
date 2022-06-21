@@ -63,8 +63,11 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         IngestDocument.Metadata.VERSION_TYPE.getFieldName(),
         IngestSourceAndMetadata::versionTypeValidator,
         IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
-        IngestSourceAndMetadata::mapValidator
-        // IngestDocument.Metadata.IF_SEQ_NO and IngestDocument.Metadata.IF_PRIMARY_TERM are not valid in this map
+        IngestSourceAndMetadata::mapValidator,
+        IngestDocument.Metadata.IF_SEQ_NO.getFieldName(),
+        IngestSourceAndMetadata::longValidator,
+        IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName(),
+        IngestSourceAndMetadata::longValidator
     );
 
     protected final Map<String, Object> source;

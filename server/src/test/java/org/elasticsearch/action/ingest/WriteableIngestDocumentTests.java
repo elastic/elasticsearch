@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
+    /*
     @Override
     protected void assertEqualInstances(WriteableIngestDocument expectedInstance, WriteableIngestDocument newInstance) {
         assertNotSame(newInstance, expectedInstance);
@@ -48,6 +49,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         // TODO(stu): fix hashcode and remove this override of AbstractXContentTestCase's implementation
         // assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
+     */
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
@@ -221,8 +223,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
     protected Tuple<String, Object> randomMetadata() {
         IngestDocument.Metadata metadata = randomFrom(IngestDocument.Metadata.values());
         return new Tuple<>(metadata.getFieldName(), switch (metadata) {
-            case VERSION -> randomIntBetween(0, 124);
+            case VERSION, IF_SEQ_NO, IF_PRIMARY_TERM -> randomIntBetween(0, 124);
             case VERSION_TYPE -> VersionType.toString(randomFrom(VersionType.values()));
+            case DYNAMIC_TEMPLATES -> Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
             default -> randomAlphaOfLengthBetween(5, 10);
         });
     }

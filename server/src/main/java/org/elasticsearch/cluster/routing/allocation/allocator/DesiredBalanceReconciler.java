@@ -245,7 +245,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;
-                if (assignment == null || assignment.isIgnored()) {
+                if (assignment == null || assignment.isIgnored(shard.primary())) {
                     allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
                 } else if (isThrottled) {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;

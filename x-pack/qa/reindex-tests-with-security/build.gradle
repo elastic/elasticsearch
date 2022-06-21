@@ -10,6 +10,11 @@ dependencies {
   yamlRestTestImplementation(project(":client:rest-high-level"))
 }
 
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.pem'

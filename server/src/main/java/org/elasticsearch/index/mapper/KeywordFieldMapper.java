@@ -42,8 +42,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -74,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1146,7 +1145,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             int[] sortedOrds = ords.clone();
             Arrays.sort(sortedOrds);
-            LongObjectPagedHashMap<String> lookup = new LongObjectPagedHashMap<>(found, BigArrays.NON_RECYCLING_INSTANCE);
+            Map<Integer, String> lookup = new HashMap<>();
             int prev = -1;
             for (int ord : sortedOrds) {
                 if (ord != prev) {

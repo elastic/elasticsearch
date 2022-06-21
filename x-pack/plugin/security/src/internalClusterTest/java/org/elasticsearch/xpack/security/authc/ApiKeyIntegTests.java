@@ -1437,12 +1437,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertTrue(response.isUpdated());
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
-        if (request.getMetadata() != null) {
-            expectMetadataForApiKey(request.getMetadata(), updatedApiKeyDoc);
-        } else {
-            // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
-            expectMetadataForApiKey(createdApiKey.v2(), updatedApiKeyDoc);
-        }
+        // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
+        expectMetadataForApiKey(request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(), updatedApiKeyDoc);
         expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
 

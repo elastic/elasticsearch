@@ -915,7 +915,7 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
-        public static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+        static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
             .map(metadata -> metadata.fieldName)
             .collect(Collectors.toSet());
 

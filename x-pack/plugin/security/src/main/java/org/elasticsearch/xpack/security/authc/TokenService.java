@@ -173,8 +173,6 @@ public final class TokenService {
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
         Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""", XPackField.SECURITY);
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
-        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""", XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -433,25 +431,6 @@ public final class TokenService {
         } else {
             listener.onResponse(null);
         }
-    }
-
-    /**
-     * Decodes the provided token, and validates it (for format, expiry and invalidation).
-     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
-     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
-     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
-     * {@code null} authentication object.
-     */
-    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
-        decodeAndValidateToken(tokenString, listener.map(token -> {
-            if (token == null) {
-                // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
-                // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
-                throw new IllegalArgumentException("Cannot validate access token");
-            } else {
-                return token.getAuthentication();
-            }
-        }));
     }
 
     /**
@@ -1251,7 +1230,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -1947,8 +1926,9 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(userToken)).request();
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
-            tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(
+            tokensIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     getRequest,
@@ -2001,8 +1981,8 @@ public final class TokenService {
                         }
                     }),
                     client::get
-                );
-            });
+                )
+            );
         }
     }
 
@@ -2086,7 +2066,7 @@ public final class TokenService {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final String payload = in.readString();
-            return new Tuple<Version, String>(version, payload);
+            return new Tuple<>(version, payload);
         }
     }
 
@@ -2485,7 +2465,7 @@ public final class TokenService {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             keyAndTimestamp.getKey().close();
         }
 

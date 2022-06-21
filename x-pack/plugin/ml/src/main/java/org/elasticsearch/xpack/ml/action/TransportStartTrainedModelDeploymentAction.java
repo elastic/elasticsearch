@@ -301,6 +301,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
+        logger.trace(() -> format("[{}] Deleting failed deployment", modelId), exception);
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 () -> format(

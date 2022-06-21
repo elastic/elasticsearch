@@ -138,13 +138,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             rebalanceAssignments(
                 event.state(),
                 Optional.empty(),
-                "rebalancing allocations because nodes changed",
+                "nodes changed",
                 ActionListener.wrap(
                     newMetadata -> logger.trace(
-                        () -> format(
-                            "rebalanced model assignments [%s]",
-                            Strings.toString(TrainedModelAssignmentMetadata.fromState(event.state()), false, true)
-                        )
+                        () -> format("rebalanced model assignments [%s]", Strings.toString(newMetadata, false, true))
                     ),
                     e -> logger.warn("failed to rebalance models", e)
                 )
@@ -278,11 +275,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         rebalanceAssignments(
             clusterService.state(),
             Optional.of(params),
-            "create model assignment",
-            ActionListener.wrap(
-                newMetadata -> listener.onResponse(newMetadata.getModelAssignment(params.getModelId())),
-                listener::onFailure
-            )
+            "model [" + params.getModelId() + "] started",
+            ActionListener.wrap(newMetadata -> {
+                TrainedModelAssignment assignment = newMetadata.getModelAssignment(params.getModelId());
+                if (assignment == null) {
+                    // If we could not allocate the model anywhere then it is possible the assignment
+                    // here is null. We should notify the listener of an empty assignment as the
+                    // handling of this is done elsewhere with the wait-to-start predicate.
+                    assignment = TrainedModelAssignment.Builder.empty(params).build();
+                }
+                listener.onResponse(assignment);
+            }, listener::onFailure)
         );
     }
 
@@ -384,6 +387,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 listener.onFailure(e);
                 return;
             }
+
             submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -512,6 +516,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (builder.hasModel(modelId) == false) {
             throw new ResourceNotFoundException("assignment for model with id [{}] not found", modelId);
         }
+        logger.trace(() -> format("[%s] removing assignment", modelId));
         return update(currentState, builder.removeAssignment(modelId));
     }
 

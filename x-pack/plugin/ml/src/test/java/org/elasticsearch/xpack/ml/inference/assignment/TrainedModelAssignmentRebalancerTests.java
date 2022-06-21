@@ -149,6 +149,39 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
+    public void testRebalance_GivenProblemsOnMultipleNodes() {
+        String modelId = "model-to-add";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 4);
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        nodeLoads.put(
+            buildNode("node-1", ByteSizeValue.ofGb(1).getBytes(), 8),
+            NodeLoad.builder("node-1").setMaxMemory(ByteSizeValue.ofGb(1).getBytes()).build()
+        );
+        nodeLoads.put(
+            buildNode("node-2", ByteSizeValue.ofGb(10).getBytes(), 3),
+            NodeLoad.builder("node-2").setMaxMemory(ByteSizeValue.ofGb(10).getBytes()).build()
+        );
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
+            .rebalance()
+            .build();
+
+        TrainedModelAssignment assignment = result.getModelAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(assignment.getReason().isPresent(), is(true));
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-2]. Reason: This node has insufficient allocated processors.")
+        );
+    }
+
     public void testRebalance_GivenFirstModelToAdd_FitsFully() {
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 1);

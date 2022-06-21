@@ -244,7 +244,7 @@ create a new write index for a TSDS, {es} calculates the index's
 
 `now + index.look_ahead_time`
 
-At the <<time series poll interval,`time_series.poll_interval`>>,
+At the time series poll interval (controlled via `time_series.poll_interval` setting),
 {es} checks if the write index has met the rollover criteria in its index
 lifecycle policy. If not, {es} refreshes the `now` value and updates the write
 index's `index.time_series.end_time` to:

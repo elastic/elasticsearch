@@ -183,7 +183,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         if (logger.isTraceEnabled()) {
             if (hasChanges) {
                 logChanges(currentDesiredBalance, newDesiredBalance);
-                logger.trace("desired balance changed : {}", newDesiredBalance);
+                logger.trace("desired balance changed: {}", newDesiredBalance);
             } else {
                 logger.trace("desired balance unchanged: {}", newDesiredBalance);
             }

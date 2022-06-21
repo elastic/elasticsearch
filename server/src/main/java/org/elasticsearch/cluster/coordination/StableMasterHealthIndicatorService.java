@@ -84,44 +84,49 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     @Override
     public HealthIndicatorResult calculate(boolean explain) {
-        CoordinationDiagnosticsService.StableMasterResult stableMasterResult = coordinationDiagnosticsService.diagnoseMasterStability(
-            explain
-        );
-        return getHealthIndicatorResult(stableMasterResult, explain);
+        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics = coordinationDiagnosticsService
+            .diagnoseMasterStability(explain);
+        return getHealthIndicatorResult(coordinationDiagnostics, explain);
     }
 
     /**
-     * Transforms a CoordinationDiagnosticsService.StableMasterResult into a HealthIndicatorResult.
-     * @param stableMasterResult The StableMasterResult from the CoordinationDiagnosticsService to be transformed
+     * Transforms a CoordinationDiagnosticsService.CoordinationDiagnostics into a HealthIndicatorResult.
+     * @param coordinationDiagnostics The CoordinationDiagnostics from the CoordinationDiagnosticsService to be transformed
      * @param explain If false, the details and user actions returned will be empty
      * @return The HealthIndicatorResult
      */
     // Non-private for testing
-    HealthIndicatorResult getHealthIndicatorResult(CoordinationDiagnosticsService.StableMasterResult stableMasterResult, boolean explain) {
-        HealthStatus status = HealthStatus.fromStableMasterStatus(stableMasterResult.status());
-        HealthIndicatorDetails details = getDetails(stableMasterResult.details(), explain);
+    HealthIndicatorResult getHealthIndicatorResult(
+        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics,
+        boolean explain
+    ) {
+        HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnostics.status());
+        HealthIndicatorDetails details = getDetails(coordinationDiagnostics.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
         List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
-        return createIndicator(status, stableMasterResult.summary(), details, impacts, userActions);
+        return createIndicator(status, coordinationDiagnostics.summary(), details, impacts, userActions);
     }
 
     /**
-     * Returns a HealthIndicatorDetails populated with information from the stableMasterDetails. If explain is false,
+     * Returns a HealthIndicatorDetails populated with information from the coordinationDiagnosticsDetails. If explain is false,
      * HealthIndicatorDetails.EMPTY will be returned. Otherwise the xContent of the returned HealthIndicatorDetails will potentially
      * include some of "current_master", "recent_masters", and "exception_fetching_history" top-level objects. The "current_master" field
      * will have "node_id" and "name" fields. The "recent_masters" field will be an array of objects, each containing "node_id" and
      * "name" fields. The "exception_fetching_history" field will contain "message" and "stack_trace" fields.
-     * @param stableMasterDetails The StableMasterDetails to transform into a HealthIndicatorDetails
+     * @param coordinationDiagnosticsDetails The CoordinationDiagnosticsDetails to transform into a HealthIndicatorDetails
      * @param explain If false, HealthIndicatorDetails.EMPTY will be returned
      * @return A HealthIndicatorDetails
      */
-    private HealthIndicatorDetails getDetails(CoordinationDiagnosticsService.StableMasterDetails stableMasterDetails, boolean explain) {
+    private HealthIndicatorDetails getDetails(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails,
+        boolean explain
+    ) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
         return (builder, params) -> {
             builder.startObject();
-            DiscoveryNode masterNode = stableMasterDetails.currentMaster();
+            DiscoveryNode masterNode = coordinationDiagnosticsDetails.currentMaster();
             builder.object(DETAILS_CURRENT_MASTER, xContentBuilder -> {
                 if (masterNode != null) {
                     builder.field("node_id", masterNode.getId());
@@ -131,7 +136,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.nullField("name");
                 }
             });
-            List<DiscoveryNode> recentMasters = stableMasterDetails.recentMasters();
+            List<DiscoveryNode> recentMasters = coordinationDiagnosticsDetails.recentMasters();
             if (recentMasters != null) {
                 builder.array(DETAILS_RECENT_MASTERS, arrayXContentBuilder -> {
                     for (DiscoveryNode recentMaster : recentMasters) {
@@ -144,11 +149,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     }
                 });
             }
-            String remoteHistoryExceptionMessage = stableMasterDetails.remoteExceptionMessage();
+            String remoteHistoryExceptionMessage = coordinationDiagnosticsDetails.remoteExceptionMessage();
             if (remoteHistoryExceptionMessage != null) {
                 builder.object(DETAILS_EXCEPTION_FETCHING_HISTORY, xContentBuilder -> {
                     builder.field("message", remoteHistoryExceptionMessage);
-                    builder.field("stack_trace", stableMasterDetails.remoteExceptionStackTrace());
+                    builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
             }
             return builder.endObject();

@@ -54,7 +54,7 @@ public enum HealthStatus implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static HealthStatus fromStableMasterStatus(
+    public static HealthStatus fromCoordinationDiagnosticsStatus(
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus coordinationDiagnosticsStatus
     ) {
         return switch (coordinationDiagnosticsStatus) {

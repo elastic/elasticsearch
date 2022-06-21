@@ -8,13 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -249,20 +247,6 @@ public final class MappingLookup {
      */
     public PostingsFormat getPostingsFormat(String field) {
         return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
-    }
-
-    /**
-     * Returns the knn vectors format for a particular field
-     * @param field the field to retrieve a knn vectors format for
-     * @return the knn vectors format for the field, or {@code null} if the default format should be used
-     */
-    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        Mapper fieldMapper = fieldMappers.get(field);
-        if (fieldMapper instanceof DenseVectorFieldMapper) {
-            return ((DenseVectorFieldMapper) fieldMapper).getKnnVectorsFormatForField();
-        } else {
-            return null;
-        }
     }
 
     void checkLimits(IndexSettings settings) {

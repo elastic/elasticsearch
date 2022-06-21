@@ -15,7 +15,9 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
@@ -51,11 +53,12 @@ public class PerFieldMapperCodec extends Lucene92Codec {
 
     @Override
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        KnnVectorsFormat format = mapperService.mappingLookup().getKnnVectorsFormatForField(field);
-        if (format == null) {
+        Mapper mapper = mapperService.mappingLookup().getMapper(field);
+        if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
+            return vectorMapper.getKnnVectorsFormatForField();
+        } else {
             return super.getKnnVectorsFormatForField(field);
         }
-        return format;
     }
 
     @Override

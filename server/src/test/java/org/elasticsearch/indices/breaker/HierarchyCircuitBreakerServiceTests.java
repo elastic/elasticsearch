@@ -942,7 +942,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 ),
                 equalTo(
                     "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
-                        + "real usage: [-2], new bytes reserved: [-1], usages [child1=-7]"
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
                 )
             );
         } finally {

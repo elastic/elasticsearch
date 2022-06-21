@@ -24,13 +24,21 @@ public class CircuitBreakerStatsTests extends ESTestCase {
             """));
     }
 
+    public void testStringRepresentationPermitsNegativeOne() {
+        final var circuitBreakerStats = new CircuitBreakerStats("t", -1L, -1L, 1.0, 3L);
+        assertThat(circuitBreakerStats.toString(), equalTo("[t,limit=-1/-1b,estimated=-1/-1b,overhead=1.0,tripped=3]"));
+        assertThat(toJson(circuitBreakerStats), equalTo("""
+            {"t":{"limit_size_in_bytes":-1,"limit_size":"-1b","estimated_size_in_bytes":-1,"estimated_size":"-1b",\
+            "overhead":1.0,"tripped":3}}"""));
+    }
+
     public void testStringRepresentationsWithNegativeStats() {
         try {
             HierarchyCircuitBreakerService.permitNegativeValues = true;
-            final var circuitBreakerStats = new CircuitBreakerStats("t", -1L, -2L, 1.0, 3L);
-            assertThat(circuitBreakerStats.toString(), equalTo("[t,limit=-1,estimated=-2,overhead=1.0,tripped=3]"));
+            final var circuitBreakerStats = new CircuitBreakerStats("t", -2L, -3L, 1.0, 3L);
+            assertThat(circuitBreakerStats.toString(), equalTo("[t,limit=-2,estimated=-3,overhead=1.0,tripped=3]"));
             assertThat(toJson(circuitBreakerStats), equalTo("""
-                {"t":{"limit_size_in_bytes":-1,"limit_size":"","estimated_size_in_bytes":-2,"estimated_size":"",\
+                {"t":{"limit_size_in_bytes":-2,"limit_size":"","estimated_size_in_bytes":-3,"estimated_size":"",\
                 "overhead":1.0,"tripped":3}}"""));
         } finally {
             HierarchyCircuitBreakerService.permitNegativeValues = false;

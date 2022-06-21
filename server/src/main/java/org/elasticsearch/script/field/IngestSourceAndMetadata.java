@@ -9,6 +9,7 @@
 package org.elasticsearch.script.field;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 
@@ -116,7 +117,8 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * @throws IllegalArgumentException if a validator fails for a given key
      */
     public static IngestSourceAndMetadata fromMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
-        return new IngestSourceAndMetadata(sourceAndMetadata, extractMetadata(sourceAndMetadata), timestamp, VALIDATORS);
+        Tuple<Map<String, Object>, Map<String, Object>> split = splitSourceAndMetadata(sourceAndMetadata);
+        return new IngestSourceAndMetadata(split.v1(), split.v2(), timestamp, VALIDATORS);
     }
 
     /**
@@ -145,14 +147,20 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         return metadata;
     }
 
-    public static Map<String, Object> extractMetadata(Map<String, Object> sourceAndMetadata) {
+    /**
+     * Returns a new metadata map and the existing source map with metadata removed.
+     */
+    public static Tuple<Map<String, Object>, Map<String, Object>> splitSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
+        if (sourceAndMetadata instanceof IngestSourceAndMetadata ingestSourceAndMetadata) {
+            return new Tuple<>(ingestSourceAndMetadata.source, new HashMap<>(ingestSourceAndMetadata.metadata));
+        }
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
         for (String metadataName : VALIDATORS.keySet()) {
             if (sourceAndMetadata.containsKey(metadataName)) {
                 metadata.put(metadataName, sourceAndMetadata.remove(metadataName));
             }
         }
-        return metadata;
+        return new Tuple<>(sourceAndMetadata, metadata);
     }
 
     public Map<String, Object> getSource() {
@@ -230,7 +238,12 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     protected void validateMetadata() {
-        validators.forEach((k, v) -> v.apply(k, metadata.get(k)));
+        validators.forEach((k, v) -> {
+            v.apply(k, metadata.get(k));
+            if (source.containsKey(k)) {
+                throw new IllegalArgumentException("Unexpected metadata key [" + k + "] in source with value [" + source.get(k) + "]");
+            }
+        });
     }
 
     /**
@@ -540,5 +553,22 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         throw new IllegalArgumentException(
             key + " must be a null or a Map but was [" + value + "] with type [" + value.getClass().getName() + "]"
         );
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof IngestSourceAndMetadata) == false) return false;
+        if (super.equals(o) == false) return false;
+        IngestSourceAndMetadata that = (IngestSourceAndMetadata) o;
+        return Objects.equals(timestamp, that.timestamp)
+            && source.equals(that.source)
+            && metadata.equals(that.metadata)
+            && validators.equals(that.validators);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(timestamp, source, metadata, validators);
     }
 }

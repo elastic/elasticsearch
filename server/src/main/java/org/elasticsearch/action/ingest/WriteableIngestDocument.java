@@ -59,7 +59,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
             return new WriteableIngestDocument(
                 IngestDocument.of(
-                    new IngestSourceAndMetadata(metadata, source, IngestDocument.getTimestamp(ingestMetadata)),
+                    new IngestSourceAndMetadata(source, metadata, IngestDocument.getTimestamp(ingestMetadata)),
                     ingestMetadata
                 )
             );

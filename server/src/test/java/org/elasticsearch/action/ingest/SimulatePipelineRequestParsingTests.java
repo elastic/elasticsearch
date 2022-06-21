@@ -103,7 +103,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> metadataMap = ingestDocument.getMetadata();
             assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
-            assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
         assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
@@ -355,7 +355,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(metadataMap.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
             assertThat(metadataMap.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
             assertThat(metadataMap.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
-            assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
         assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.pipeline().getDescription(), nullValue());

@@ -84,27 +84,27 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     @Override
     public HealthIndicatorResult calculate(boolean explain) {
-        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics = coordinationDiagnosticsService
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
             .diagnoseMasterStability(explain);
-        return getHealthIndicatorResult(coordinationDiagnostics, explain);
+        return getHealthIndicatorResult(coordinationDiagnosticsResult, explain);
     }
 
     /**
-     * Transforms a CoordinationDiagnosticsService.CoordinationDiagnostics into a HealthIndicatorResult.
-     * @param coordinationDiagnostics The CoordinationDiagnostics from the CoordinationDiagnosticsService to be transformed
+     * Transforms a CoordinationDiagnosticsService.CoordinationDiagnosticsResult into a HealthIndicatorResult.
+     * @param coordinationDiagnosticsResult The CoordinationDiagnosticsResult from the CoordinationDiagnosticsService to be transformed
      * @param explain If false, the details and user actions returned will be empty
      * @return The HealthIndicatorResult
      */
     // Non-private for testing
     HealthIndicatorResult getHealthIndicatorResult(
-        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics,
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult,
         boolean explain
     ) {
-        HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnostics.status());
-        HealthIndicatorDetails details = getDetails(coordinationDiagnostics.details(), explain);
+        HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnosticsResult.status());
+        HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
         List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
-        return createIndicator(status, coordinationDiagnostics.summary(), details, impacts, userActions);
+        return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, userActions);
     }
 
     /**

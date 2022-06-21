@@ -101,9 +101,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
-        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics =
-            new CoordinationDiagnosticsService.CoordinationDiagnostics(inputStatus, "summary", coordinationDiagnosticsDetails);
-        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnostics, true);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(3));
@@ -140,9 +140,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
-        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics =
-            new CoordinationDiagnosticsService.CoordinationDiagnostics(inputStatus, "summary", coordinationDiagnosticsDetails);
-        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnostics, false);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, false);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(3));
@@ -165,9 +165,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
         );
-        CoordinationDiagnosticsService.CoordinationDiagnostics coordinationDiagnostics =
-            new CoordinationDiagnosticsService.CoordinationDiagnostics(inputStatus, "summary", coordinationDiagnosticsDetails);
-        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnostics, true);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+        HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
         assertThat(result.summary(), equalTo("summary"));
         assertThat(result.impacts().size(), equalTo(0));

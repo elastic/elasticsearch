@@ -1,0 +1,6 @@
+pr: 87900
+summary: Merging both String Utility classes on EQL
+area: Infra/Core
+type: refactoring
+issues:
+  - 87610

@@ -139,6 +139,28 @@ As an example, if a client has bounds for a grid-cell at a higher (or lower) pre
 by Elasticsearch when running a corresponding aggregation, the containment-check might be slightly different.
 This side-steps any disconnect based on projection/datum difference between client and Elasticsearch.
 
+[discrete]
+[[transforms-range-agg]]
+=== {transforms-cap} adds support for range aggregation
+
+Now it is possible to use the range aggregations in {transforms}.
+{transforms-cap} didn’t support multi-bucket aggregations, but this limitation 
+no longer exist.
+
+[discrete]
+[[ml-nlp-question-answering]]
+=== Question answering NLP task
+
+We introduce a new question answering NLP task in 8.3. This task extracts the 
+relevant section that answers a specific question from a larger context. This is 
+especially suited to search requests against large documents. You can find an 
+example of extracting an answer from a larger wiki article about Tower Bridge 
+below.
+
+[role="screenshot"]
+image::../images/nlp-qa-rh.png[A screenshot of a question answering NLP task in {kib}]
+
+
 // end::notable-highlights[]
 
 

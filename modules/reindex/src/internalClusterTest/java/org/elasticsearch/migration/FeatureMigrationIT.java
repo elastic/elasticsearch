@@ -17,18 +17,25 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeReques
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -311,6 +318,113 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
     }
 
-    // TODO[wrb]: Test that migrations quit when a destination index would match a legacy template
-    // TODO[wrb]: Test that migrations quit when a destination index would match a composable template
+    private String featureUpgradeErrorResponse(GetFeatureUpgradeStatusResponse statusResp) {
+        return statusResp.getFeatureUpgradeStatuses()
+            .stream()
+            .map(f -> f.getIndexVersions())
+            .flatMap(List::stream)
+            .map(i -> (i.getException() == null) ? "" : i.getException().getMessage())
+            .collect(Collectors.joining(" "));
+    }
+
+    public void testBailOnMigrateWithTemplatesV1() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        client().admin()
+            .indices()
+            .preparePutTemplate("bad_template")
+            .setPatterns(Collections.singletonList(".int*"))
+            .setOrder(0)
+            .addMapping(
+                "type1",
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .field("store", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
+            assertTrue(featureUpgradeErrorResponse(statusResp).contains(" match legacy templates [[bad_template]]"));
+        });
+    }
+
+    public void testBailOnMigrateWithTemplatesV2() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        ComponentTemplate ct = new ComponentTemplate(
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"field1\": {\n"
+                        + "          \"type\": \"text\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            3L,
+            Collections.singletonMap("foo", "bar")
+        );
+        client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("a-ct").componentTemplate(ct)).get();
+
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            Collections.singletonList(".int*"),
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"field2\": {\n"
+                        + "          \"type\": \"keyword\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            Collections.singletonList("a-ct"),
+            4L,
+            5L,
+            Collections.singletonMap("baz", "thud")
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, new PutComposableIndexTemplateAction.Request("a-it").indexTemplate(cit))
+            .get();
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
+            assertTrue(featureUpgradeErrorResponse(statusResp).contains(" it would match composable template [a-it]"));
+        });
+    }
 }

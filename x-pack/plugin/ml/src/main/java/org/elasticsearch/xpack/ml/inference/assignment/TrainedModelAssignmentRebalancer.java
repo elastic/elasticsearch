@@ -60,6 +60,7 @@ class TrainedModelAssignmentRebalancer {
         }
 
         if (modelToAdd.isEmpty() && areAllModelsSatisfied()) {
+            logger.trace(() -> "No need to rebalance as all model deployments are satisfied");
             return builder;
         }
 
@@ -96,10 +97,13 @@ class TrainedModelAssignmentRebalancer {
         final List<AssignmentPlan.Model> planModels = new ArrayList<>(
             currentMetadata.modelAssignments().size() + (modelToAdd.isPresent() ? 1 : 0)
         );
+        final Set<String> assignableNodeIds = planNodes.stream().map(AssignmentPlan.Node::id).collect(Collectors.toSet());
         currentMetadata.modelAssignments().values().stream().map(assignment -> {
             Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
                 .entrySet()
                 .stream()
+                // Filter out nodes that are no longer assignable
+                .filter(e -> assignableNodeIds.contains(e.getKey()))
                 // Filter out allocation without current and target allocations as they are from before using the rebalancer
                 .filter(e -> e.getValue().getCurrentAllocations() > 0 && e.getValue().getTargetAllocations() > 0)
                 .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))

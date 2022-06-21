@@ -316,7 +316,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         }
     }
 
-    public void testRebalance_GivenPreviousAssignments_AndRemovedNode() {
+    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeNotLargeEnough() {
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -324,7 +324,6 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
                 previousModel1Id,
                 TrainedModelAssignment.Builder.empty(newParams(previousModel1Id, 1024L, 3, 2))
                     .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
-
                     .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
             )
             .addNewAssignment(
@@ -374,6 +373,56 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
                         + "Available processors [4], free processors [0], processors required for each allocation of this model [1]"
                 )
             );
+        }
+    }
+
+    public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeLargeEnough() {
+        String previousModel1Id = "previous-model-1";
+        String previousModel2Id = "previous-model-2";
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                previousModel1Id,
+                TrainedModelAssignment.Builder.empty(newParams(previousModel1Id, 1024L, 3, 2))
+                    .addRoutingEntry("node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .addNewAssignment(
+                previousModel2Id,
+                TrainedModelAssignment.Builder.empty(newParams(previousModel2Id, 1024L, 1, 1))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 7), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
+            .rebalance()
+            .build();
+
+        assertThat(result.modelAssignments(), is(aMapWithSize(2)));
+
+        {
+            TrainedModelAssignment assignment = result.getModelAssignment(previousModel1Id);
+            assertThat(assignment, is(notNullValue()));
+            assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(3));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTED));
+            assertThat(assignment.getReason().isPresent(), is(false));
+        }
+        {
+            TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
+            assertThat(assignment, is(notNullValue()));
+            assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTING));
+            assertThat(assignment.getReason().isPresent(), is(false));
         }
     }
 

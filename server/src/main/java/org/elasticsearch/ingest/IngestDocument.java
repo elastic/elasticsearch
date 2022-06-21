@@ -901,9 +901,6 @@ public final class IngestDocument {
         return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
-    /**
-     * Metadata keys that may be present in this map.
-     */
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),
@@ -915,7 +912,7 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
-        static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
             .map(metadata -> metadata.fieldName)
             .collect(Collectors.toSet());
 

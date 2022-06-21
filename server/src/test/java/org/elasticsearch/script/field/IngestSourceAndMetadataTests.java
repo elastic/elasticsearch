@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class ValidatingMapTests extends ESTestCase {
+public class IngestSourceAndMetadataTests extends ESTestCase {
 
     IngestSourceAndMetadata map;
     static final String DELETE = "_delete";
@@ -18,12 +18,6 @@ public class ValidatingMapTests extends ESTestCase {
 
     @Override
     public void setUp() throws Exception {
-        super.setUp();
-        /*
-        map = new IngestSourceAndMetadata(new HashMap<>(Map.of(
-
-        )));
-         */
     }
 
     public void testEntrySet() {}

@@ -356,16 +356,21 @@ public class ApiKeyService {
         // TODO check status; possibly no if we filter
         // TODO check version
         final var version = clusterService.state().nodes().getMinNodeVersion();
-        findActiveApiKeyDocs(new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
-            if (apiKeys.isEmpty()) {
-                // TODO 404
-                listener.onResponse(new UpdateApiKeyResponse(false));
-                return;
-            }
-            // TODO what happens if `toBulkUpdateRequest` throws?
-            final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
-            doBulkUpdate(bulkRequest, listener);
-        }, listener::onFailure));
+        findApiKeyDocs(
+            new String[] { authentication.getEffectiveSubject().getRealm().getName() },
+            authentication.getEffectiveSubject().getUser().principal(),
+            new String[] { request.getId() },
+            ActionListener.wrap((apiKeys) -> {
+                if (apiKeys.isEmpty()) {
+                    // TODO 404
+                    listener.onResponse(new UpdateApiKeyResponse(false));
+                    return;
+                }
+                // TODO what happens if `toBulkUpdateRequest` throws?
+                final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
+                doBulkUpdate(bulkRequest, listener);
+            }, listener::onFailure)
+        );
     }
 
     private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<UpdateApiKeyResponse> listener) {
@@ -1083,14 +1088,19 @@ public class ApiKeyService {
         }
     }
 
-    private void findActiveApiKeyDocs(String[] apiKeyIds, ActionListener<Collection<VersionedApiKeyDoc>> listener) {
+    private void findApiKeyDocs(
+        String[] realmNames,
+        String userName,
+        String[] apiKeyIds,
+        ActionListener<Collection<VersionedApiKeyDoc>> listener
+    ) {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            null,
-            null,
+            realmNames,
+            userName,
             null,
             apiKeyIds,
-            true,
-            true,
+            false,
+            false,
             listener,
             ApiKeyService::convertSearchHitToVersionedApiKeyDoc
         );

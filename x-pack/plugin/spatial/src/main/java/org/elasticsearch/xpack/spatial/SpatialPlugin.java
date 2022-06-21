@@ -335,7 +335,8 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 null,
                 context,
                 parent,
-                metadata),
+                metadata
+            ),
             true
         );
     }

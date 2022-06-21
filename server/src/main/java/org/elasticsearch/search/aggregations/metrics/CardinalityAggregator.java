@@ -62,7 +62,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
-        CardinalityAggregatorFactory.ExecutionMode executionMode, AggregationContext context,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {

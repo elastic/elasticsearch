@@ -1669,7 +1669,7 @@ public class ApiKeyService {
 
         Map<String, Object> metadataAsMap() {
             // TODO is json safe here?
-            return metadataFlattened == NULL_BYTES ? null : XContentHelper.convertToMap(metadataFlattened, true, XContentType.JSON).v2();
+            return metadataFlattened == null ? null : XContentHelper.convertToMap(metadataFlattened, true, XContentType.JSON).v2();
         }
     }
 

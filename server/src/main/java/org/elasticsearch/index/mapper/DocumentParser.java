@@ -690,26 +690,26 @@ public final class DocumentParser {
     // find what the dynamic setting is given the current parse context and parent
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, DocumentParserContext context) {
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
-        String parentName = parentMapper.name();
         while (dynamic == null) {
-            int lastDotNdx = parentName.lastIndexOf('.');
+            int lastDotNdx = parentMapper.name().lastIndexOf('.');
             if (lastDotNdx == -1) {
-                // no dot means that the parent is the root
-                return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();
+                // no dot means we the parent is the root, so just delegate to the default outside the loop
+                break;
             }
-            parentName = parentMapper.name().substring(0, lastDotNdx);
-            ObjectMapper parent = context.mappingLookup().objectMappers().get(parentName);
-            if (parent == null) {
+            String parentName = parentMapper.name().substring(0, lastDotNdx);
+            parentMapper = context.mappingLookup().objectMappers().get(parentName);
+            if (parentMapper == null) {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
-                ObjectMapper.Builder dynamicObjectMapperBuilder = context.getDynamicObjectMapperBuilder(parentName);
-                if (dynamicObjectMapperBuilder == null) {
+                parentMapper = context.getDynamicObjectMapper(parentName);
+                if (parentMapper == null) {
                     // it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;
                 }
-                dynamic = dynamicObjectMapperBuilder.dynamic;
-            } else {
-                dynamic = parent.dynamic();
             }
+            dynamic = parentMapper.dynamic();
+        }
+        if (dynamic == null) {
+            return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();
         }
         return dynamic;
     }

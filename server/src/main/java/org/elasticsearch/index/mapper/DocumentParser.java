@@ -703,8 +703,7 @@ public final class DocumentParser {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
                 ObjectMapper.Builder dynamicObjectMapperBuilder = context.getDynamicObjectMapperBuilder(parentName);
                 if (dynamicObjectMapperBuilder == null) {
-                    // it can still happen that the path is ambiguous and we are not able to locate the parent
-                    break;
+                    throw new IllegalStateException("Missing intermediate object [" + parentName + "]");
                 }
                 dynamic = dynamicObjectMapperBuilder.dynamic;
             } else {

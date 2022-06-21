@@ -387,7 +387,7 @@ public class ApiKeyService {
     }
 
     private ResourceNotFoundException apiKeyNotFound(String apiKeyId) {
-        return new ResourceNotFoundException("api key " + apiKeyId + " not found");
+        return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
     }
 
     private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<UpdateApiKeyResponse> listener) {

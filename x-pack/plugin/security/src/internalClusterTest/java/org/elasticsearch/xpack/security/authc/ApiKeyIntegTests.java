@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -105,12 +106,14 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -1424,26 +1427,37 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final var serviceWithNodeName = getServiceWithNodeName();
         serviceWithNodeName.service()
-            .updateApiKey(
-                Authentication.newRealmAuthentication(
-                    new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                    new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName())
-                ),
-                request,
-                Set.of(expectedRoleDescriptor),
-                listener
-            );
+            .updateApiKey(rootUserFileRealmAuth(serviceWithNodeName), request, Set.of(expectedRoleDescriptor), listener);
         UpdateApiKeyResponse response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
+        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "role_descriptors");
+        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "limited_by_role_descriptors");
 
-        // Assert that we can authenticate with the updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
         assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
 
-        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "role_descriptors");
-        assertExpectedRoleDescriptorForApiKey(apiKeyId, expectedRoleDescriptor, "limited_by_role_descriptors");
+        // Test not found exception on non-existent API key
+        final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
+        final PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                rootUserFileRealmAuth(serviceWithNodeName),
+                new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
+                Set.of(expectedRoleDescriptor),
+                listener2
+            );
+        ExecutionException ex = expectThrows(ExecutionException.class, listener2::get);
+        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
+    }
+
+    private Authentication rootUserFileRealmAuth(ServiceWithNodeName serviceWithNodeName) {
+        return Authentication.newRealmAuthentication(
+            new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+            new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName())
+        );
     }
 
     private void assertExpectedRoleDescriptorForApiKey(String apiKeyId, RoleDescriptor expectedRoleDescriptor, String roleDescriptorType)
@@ -1463,7 +1477,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             false,
             XContentType.JSON
         );
-        assertEquals(roleDescriptor, expectedRoleDescriptor);
+        assertThat(roleDescriptor, equalTo(expectedRoleDescriptor));
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {

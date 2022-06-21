@@ -55,7 +55,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
             sourceAndMetadata.putAll((Map<String, Object>) a[5]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[6]));
+            return new WriteableIngestDocument(IngestDocument.of(sourceAndMetadata, (Map<String, Object>) a[6]));
         }
     );
     static {
@@ -89,7 +89,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+        this.ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
     }
 
     @Override

@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -109,7 +110,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             RestRequest.Method.GET,
             "/favicon.ico",
             RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
+            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE, null))
         );
     }
 
@@ -330,7 +331,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 e.addSuppressed(cause);
             }
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY, null));
         }
     }
 
@@ -558,7 +559,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             channel.sendResponse(restResponse);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY, null));
         }
     }
 
@@ -570,7 +571,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * - Options</a>).
      */
     private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
-        RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+        RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY, null);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
         if (validMethodSet.isEmpty() == false) {
@@ -640,6 +641,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
             throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
         }
 
         @Override

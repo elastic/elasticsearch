@@ -17,6 +17,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,7 +44,12 @@ public class RestResponse {
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
     private final RestStatus status;
+
+    @Nullable
     private final BytesReference content;
+
+    @Nullable
+    private final ChunkedRestResponseBody responseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -51,30 +57,36 @@ public class RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public RestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder));
+        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder), null);
     }
 
     /**
      * Creates a new plain text response.
      */
     public RestResponse(RestStatus status, String content) {
-        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
+        this(status, TEXT_CONTENT_TYPE, new BytesArray(content), null);
     }
 
     /**
      * Creates a new plain text response.
      */
     public RestResponse(RestStatus status, String responseMediaType, String content) {
-        this(status, responseMediaType, new BytesArray(content));
+        this(status, responseMediaType, new BytesArray(content), null);
     }
 
     /**
      * Creates a binary response.
      */
-    public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
+    public RestResponse(
+        RestStatus status,
+        String responseMediaType,
+        @Nullable BytesReference content,
+        @Nullable ChunkedRestResponseBody responseBody
+    ) {
         this.status = status;
         this.content = content;
         this.responseMediaType = responseMediaType;
+        this.responseBody = responseBody;
     }
 
     public RestResponse(RestChannel channel, Exception e) throws IOException {
@@ -106,14 +118,25 @@ public class RestResponse {
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
         }
+        this.responseBody = null;
     }
 
     public String contentType() {
         return this.responseMediaType;
     }
 
+    @Nullable
     public BytesReference content() {
         return this.content;
+    }
+
+    @Nullable
+    public ChunkedRestResponseBody chunkedContent() {
+        return responseBody;
+    }
+
+    public boolean isChunked() {
+        return responseBody != null;
     }
 
     public RestStatus status() {

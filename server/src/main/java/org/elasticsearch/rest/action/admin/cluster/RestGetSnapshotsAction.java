@@ -8,19 +8,26 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -33,10 +40,7 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
-    private final ThreadPool threadPool;
-
-    public RestGetSnapshotsAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
+    public RestGetSnapshotsAction() {
     }
 
     @Override
@@ -85,9 +89,20 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .getSnapshots(
-                getSnapshotsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-            );
+            .getSnapshots(getSnapshotsRequest, new RestActionListener<>(channel) {
+                @Override
+                protected void processResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
+                    ensureOpen();
+                    channel.sendResponse(
+                        new RestResponse(RestStatus.OK, request.getXContentType().mediaType(), null, new ChunkedRestResponseBody() {
+
+                            @Override
+                            public boolean encode(Consumer<ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
+                                return false;
+                            }
+                        })
+                    );
+                }
+            });
     }
 }

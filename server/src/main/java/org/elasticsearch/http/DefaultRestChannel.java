@@ -94,24 +94,28 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         String opaque = null;
         String contentLength = null;
         try {
-            final BytesReference content = restResponse.content();
-            if (content instanceof Releasable) {
-                toClose.add((Releasable) content);
-            }
-            toClose.add(this::releaseOutputBuffer);
-
-            BytesReference finalContent = content;
-            try {
-                if (request.method() == RestRequest.Method.HEAD) {
-                    finalContent = BytesArray.EMPTY;
+            final HttpResponse httpResponse;
+            if (restResponse.isChunked()) {
+                httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.chunkedContent());
+            } else {
+                final BytesReference content = restResponse.content();
+                if (content instanceof Releasable) {
+                    toClose.add((Releasable) content);
                 }
-            } catch (IllegalArgumentException ignored) {
-                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
-                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                toClose.add(this::releaseOutputBuffer);
+
+                BytesReference finalContent = content;
+                try {
+                    if (request.method() == RestRequest.Method.HEAD) {
+                        finalContent = BytesArray.EMPTY;
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                        : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                }
+
+                httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
             }
-
-            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
-
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
             opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
@@ -125,9 +129,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
-            // If our response has no content-length, calculate and set one
-            contentLength = String.valueOf(restResponse.content().length());
-            setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+            if (restResponse.isChunked() == false) {
+                // If our response has no content-length, calculate and set one
+                contentLength = String.valueOf(restResponse.content().length());
+                setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+            }
 
             addCookies(httpResponse);
 

@@ -1,0 +1,6 @@
+pr: 87892
+summary: Removing redundant method in server org.elasticsearch.common.inject.internal.Strings
+area: Core/Infra
+type: refactoring
+issues:
+  - 87892

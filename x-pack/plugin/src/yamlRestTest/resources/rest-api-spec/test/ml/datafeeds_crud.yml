@@ -379,6 +379,8 @@ setup:
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.bytes_in_avg.avg.field: "system.network.in.bytes" }
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
   - is_false: max_empty_searches
+  # This next one is because the x_pack_rest_user has the role _es_test_root
+  - match: { datafeeds.0.authorization.roles.0: "_es_test_root" }
 
 ---
 "Test delete datafeed":

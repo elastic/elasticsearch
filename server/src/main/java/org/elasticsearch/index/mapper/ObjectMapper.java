@@ -590,13 +590,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     @Override
-                    public void load(XContentBuilder b) throws IOException {
+                    public void write(XContentBuilder b) throws IOException {
                         if (hasValue == false) {
                             return;
                         }
                         startSyntheticField(b);
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.load(b);
+                            leaf.write(b);
                         }
                         b.endObject();
                     }

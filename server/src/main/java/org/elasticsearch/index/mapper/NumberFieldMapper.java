@@ -1650,7 +1650,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
                     if (false == hasValue) {
                         return;
                     }

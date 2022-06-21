@@ -99,7 +99,7 @@ public interface SourceLoader {
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                         if (leaf.advanceToDoc(docId)) {
-                            leaf.load(b);
+                            leaf.write(b);
                         } else {
                             b.startObject().endObject();
                         }
@@ -126,7 +126,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) throws IOException {}
         };
 
         /**
@@ -149,9 +149,9 @@ public interface SourceLoader {
             boolean advanceToDoc(int docId) throws IOException;
 
             /**
-             * Load values for this document.
+             * Write values for this document.
              */
-            void load(XContentBuilder b) throws IOException;
+            void write(XContentBuilder b) throws IOException;
         }
     }
 

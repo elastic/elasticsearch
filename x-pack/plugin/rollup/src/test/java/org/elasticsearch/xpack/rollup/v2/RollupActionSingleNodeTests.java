@@ -541,7 +541,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
                         // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
                         // `counter`. This way we can actually check that the label value stored in the rollup index
-                        // is the last value (which is what we store for a metric of type counter).
+                        // is the last value (which is what we store for a metric of type counter) by comparing the metric
+                        // field value to the label field value.
                         Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
                         Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
                         Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 
 import java.text.NumberFormat;
@@ -129,18 +128,6 @@ public class StopWatch {
         this.running = false;
         this.currentTaskName = null;
         return this;
-    }
-
-    public Releasable timing(String taskName) {
-        start(taskName);
-        return this::stop;
-    }
-
-    /**
-     * Return whether the stop watch is currently running.
-     */
-    public boolean isRunning() {
-        return this.running;
     }
 
     /**

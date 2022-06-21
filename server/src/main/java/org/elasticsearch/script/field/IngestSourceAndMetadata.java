@@ -232,10 +232,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
 
     @SuppressWarnings("unchecked")
     public Map<String, String> getDynamicTemplates() {
-        return (Map<String, String>) mapValidator(
-            IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
-            get(IngestDocument.Metadata.DYNAMIC_TEMPLATES)
-        );
+        return (Map<String, String>) metadata.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName());
     }
 
     protected void validateMetadata() {

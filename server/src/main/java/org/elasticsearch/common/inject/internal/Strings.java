@@ -15,6 +15,7 @@
  */
 
 package org.elasticsearch.common.inject.internal;
+import org.elasticsearch.common.Strings;
 
 /**
  * String utilities.
@@ -44,12 +45,4 @@ public class Strings {
      *         converted to uppercase
      * @throws NullPointerException if {@code s} is null
      */
-    public static String capitalize(String s) {
-        if (s.length() == 0) {
-            return s;
-        }
-        char first = s.charAt(0);
-        char capitalized = Character.toUpperCase(first);
-        return (first == capitalized) ? s : capitalized + s.substring(1);
-    }
 }

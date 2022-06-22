@@ -44,7 +44,8 @@ public interface SourceLoader {
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
 
         Leaf EMPTY_OBJECT = new Leaf() {
-            @Override public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+            @Override
+            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                     return BytesReference.bytes(b.startObject().endObject());

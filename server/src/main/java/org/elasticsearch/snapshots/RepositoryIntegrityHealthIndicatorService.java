@@ -46,7 +46,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
     public static final UserAction.Definition CORRUPTED_REPOSITORY = new UserAction.Definition(
         "corrupt-repo-integrity",
-        "Corrupted data detected in snapshot repository",
+        "Corrupted data detected in snapshot repository. Multiple clusters are writing to the same repository. Remove the repository " +
+            "from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository to this cluster.",
         HELP_URL
     );
 

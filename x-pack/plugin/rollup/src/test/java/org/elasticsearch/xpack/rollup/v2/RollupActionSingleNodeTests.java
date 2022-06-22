@@ -99,8 +99,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
-    public static final String FIELD_METRIC_LABEL_NUMERIC = "metric_label_numeric";
-    public static final String FIELD_LABEL_NUMERIC = "label_numeric";
+    public static final String FIELD_METRIC_LABEL_DOUBLE = "metric_label_double";
+    public static final String FIELD_LABEL_DOUBLE = "label_double";
     public static final String FIELD_LABEL_KEYWORD = "label_keyword";
     public static final String FIELD_LABEL_TEXT = "label_text";
 
@@ -169,13 +169,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=long,time_series_metric=gauge",
                 FIELD_NUMERIC_2,
                 "type=double,time_series_metric=counter",
-                FIELD_LABEL_NUMERIC,
+                FIELD_LABEL_DOUBLE,
                 "type=double",
                 FIELD_LABEL_KEYWORD,
                 "type=keyword",
                 FIELD_LABEL_TEXT,
                 "type=text",
-                FIELD_METRIC_LABEL_NUMERIC, /* numeric label indexed as a metric */
+                FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
                 "type=double,time_series_metric=counter"
             )
             .get();
@@ -185,7 +185,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
-            double labelNumericValue = DATE_FORMATTER.parseMillis(ts);
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -193,8 +193,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
-                .field(FIELD_LABEL_NUMERIC, labelNumericValue)
-                .field(FIELD_METRIC_LABEL_NUMERIC, labelNumericValue)
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
                 .field(FIELD_LABEL_TEXT, ts)
                 .endObject();

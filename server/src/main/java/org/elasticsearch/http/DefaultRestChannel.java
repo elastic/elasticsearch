@@ -133,6 +133,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 // If our response has no content-length, calculate and set one
                 contentLength = String.valueOf(restResponse.content().length());
                 setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+            } else {
+                setHeaderField(httpResponse, "Transfer-Encoding", "chunked");
             }
 
             addCookies(httpResponse);

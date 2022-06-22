@@ -80,7 +80,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     ) {
         super(name);
         this.fields = fields;
-        if (minimumSupport <= 0 || minimumSupport > 1) {
+        if (minimumSupport <= 0.0 || minimumSupport > 1.0) {
             throw new IllegalArgumentException(
                 "[minimum_support] must be greater than 0 and less or equal to 1. Found [" + minimumSupport + "] in [" + name + "]"
             );
@@ -176,7 +176,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        return Version.V_8_4_0;
     }
 
 }

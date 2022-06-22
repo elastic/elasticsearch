@@ -31,6 +31,9 @@ import java.util.Arrays;
  */
 class CountingItemSetTraverser implements Releasable {
 
+    // start size and size increment for the occurences stack
+    private static final int OCCURENCES_SIZE_INCREMENT = 10;
+
     private final TransactionStore transactionStore;
     private final ItemSetTraverser topItemSetTraverser;
     private final TransactionStore.TopTransactionIds topTransactionIds;
@@ -64,7 +67,7 @@ class CountingItemSetTraverser implements Releasable {
         this.cacheNumberOfTransactions = cacheNumberOfTransactions;
         transactionSkipCounts = new long[cacheTraversalDepth - 1];
         transactionSkipList = new FixedBitSet((cacheTraversalDepth - 1) * cacheNumberOfTransactions);
-        occurencesStack = new long[10];
+        occurencesStack = new long[OCCURENCES_SIZE_INCREMENT];
         visited = new java.util.BitSet();
     }
 
@@ -253,7 +256,7 @@ class CountingItemSetTraverser implements Releasable {
     // remember the count in the stack without tracking push and pop
     private void rememberCountInStack(int index, long occurences) {
         if (occurencesStack.length < index) {
-            occurencesStack = Arrays.copyOf(occurencesStack, index + 10);
+            occurencesStack = Arrays.copyOf(occurencesStack, index + OCCURENCES_SIZE_INCREMENT);
         }
 
         occurencesStack[index - 1] = occurences;

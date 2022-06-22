@@ -115,6 +115,10 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
     public EclatMapReducer(String aggregationName, double minimumSupport, int minimumSetSize, int size) {
         super(aggregationName, NAME);
+
+        assert size > 0;
+        assert minimumSetSize > 0;
+
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;

@@ -29,12 +29,15 @@ import java.util.List;
  */
 class ItemSetTraverser implements Releasable {
 
+    // start size and size increment for array holding items
+    private static final int SIZE_INCREMENT = 100;
+
     private final TransactionStore.TopItemIds topItemIds;
 
     // stack implementation: to avoid object churn this is not implemented as classical stack, but optimized for re-usage
     // non-optimized: Stack<TransactionStore.TopItemIds.IdIterator> itemIterators = new Stack<>();
     private final List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
-    private LongsRef itemIdStack2 = new LongsRef(100);
+    private LongsRef itemIdStack = new LongsRef(SIZE_INCREMENT);
 
     private int stackPosition = 0;
 
@@ -77,7 +80,7 @@ class ItemSetTraverser implements Releasable {
                 if (stackPosition == -1) {
                     return false;
                 }
-                itemIdStack2.length--;
+                itemIdStack.length--;
             }
         }
 
@@ -89,25 +92,25 @@ class ItemSetTraverser implements Releasable {
             itemIterators.get(stackPosition + 1).reset(itemIterators.get(stackPosition).getIndex());
         }
 
-        if (itemIdStack2.longs.length == itemIdStack2.length) {
-            LongsRef resizedItemIdStack2 = new LongsRef(itemIdStack2.length + 100);
-            System.arraycopy(itemIdStack2.longs, 0, resizedItemIdStack2.longs, 0, itemIdStack2.length);
-            resizedItemIdStack2.length = itemIdStack2.length;
-            itemIdStack2 = resizedItemIdStack2;
+        if (itemIdStack.longs.length == itemIdStack.length) {
+            LongsRef resizedItemIdStack2 = new LongsRef(itemIdStack.length + SIZE_INCREMENT);
+            System.arraycopy(itemIdStack.longs, 0, resizedItemIdStack2.longs, 0, itemIdStack.length);
+            resizedItemIdStack2.length = itemIdStack.length;
+            itemIdStack = resizedItemIdStack2;
         }
 
-        itemIdStack2.longs[itemIdStack2.length++] = itemId;
+        itemIdStack.longs[itemIdStack.length++] = itemId;
         ++stackPosition;
 
         return true;
     }
 
     public long getItemId() {
-        return itemIdStack2.longs[itemIdStack2.length - 1];
+        return itemIdStack.longs[itemIdStack.length - 1];
     }
 
     public LongsRef getItemSet() {
-        return itemIdStack2;
+        return itemIdStack;
     }
 
     public int getNumberOfItems() {
@@ -128,7 +131,7 @@ class ItemSetTraverser implements Releasable {
         if (stackPosition == -1) {
             return;
         }
-        itemIdStack2.length--;
+        itemIdStack.length--;
     }
 
     @Override

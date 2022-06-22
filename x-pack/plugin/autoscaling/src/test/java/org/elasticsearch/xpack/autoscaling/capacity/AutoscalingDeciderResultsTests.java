@@ -56,9 +56,8 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
         boolean node = randomBoolean();
         boolean storage = randomBoolean();
-        boolean memory = randomBoolean() || storage == false;
-        boolean processor = randomBoolean() || memory == false;
-
+        boolean memory = randomBoolean();
+        boolean processor = randomBoolean() || (storage == false && memory == false);
         AutoscalingCapacity large = randomCapacity(node, storage, memory, processor, 1000, 2000);
 
         List<AutoscalingCapacity> autoscalingCapacities = new ArrayList<>();

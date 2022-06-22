@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
 
 /**
  * Record for containing memory and processors for given node
@@ -22,12 +22,12 @@ public record MemoryAndProcessors(long memory, int processors) {
         private Long memory;
         private Integer processors;
 
-        public Builder setMemory(long memory) {
+        Builder setMemory(long memory) {
             this.memory = memory;
             return this;
         }
 
-        public Builder setProcessors(int processors) {
+        Builder setProcessors(int processors) {
             this.processors = processors;
             return this;
         }

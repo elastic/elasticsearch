@@ -551,16 +551,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             boolean includeMemory = randomBoolean();
             boolean includeProcessors = randomBoolean();
             return AutoscalingCapacity.builder()
-                .total(
-                    randomByteSizeValue(),
-                    includeMemory || includeProcessors ? randomByteSizeValue() : null,
-                    includeProcessors ? randomInt(64) : null
-                )
-                .node(
-                    randomByteSizeValue(),
-                    includeMemory || includeProcessors ? randomByteSizeValue() : null,
-                    includeProcessors ? randomInt(64) : null
-                )
+                .total(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomInt(64) : null)
+                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomInt(64) : null)
                 .build();
         } else {
             return null;

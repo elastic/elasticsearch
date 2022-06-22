@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryAndProcessorInfoService.FETCH_TIMEOUT;
+import static org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.AutoscalingMemoryAndProcessorInfoService.FETCH_TIMEOUT;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

@@ -45,7 +45,12 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     protected static AutoscalingDeciderResult randomAutoscalingDeciderResultWithCapacity(AutoscalingCapacity capacity) {
         return new AutoscalingDeciderResult(
             capacity,
-            new FixedAutoscalingDeciderService.FixedReason(randomNullableByteSizeValue(), randomNullableByteSizeValue(), randomInt(1000))
+            new FixedAutoscalingDeciderService.FixedReason(
+                randomNullableByteSizeValue(),
+                randomNullableByteSizeValue(),
+                randomInt(1000),
+                randomInt(64)
+            )
         );
     }
 

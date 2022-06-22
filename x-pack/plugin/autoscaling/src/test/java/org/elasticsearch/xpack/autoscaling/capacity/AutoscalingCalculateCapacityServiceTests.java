@@ -22,8 +22,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryAndProcessorInfo;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.MemoryAndProcessors;
+import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.AutoscalingMemoryAndProcessorInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.MemoryAndProcessors;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
@@ -83,11 +83,21 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(deciderResult.requiredCapacity(), equalTo(requiredCapacity));
             ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
             ByteSizeValue memory = configuration.getAsMemory(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
+            Integer processors = configuration.getAsInt(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
             int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
-            assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes)));
+            assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes, processors)));
             assertThat(
                 deciderResult.reason().summary(),
-                equalTo("fixed storage [" + storage + "] memory [" + memory + "] nodes [" + nodes + "]")
+                equalTo(
+                    "fixed storage ["
+                        + storage
+                        + "] memory ["
+                        + memory
+                        + "] nodes ["
+                        + nodes
+                        + "]"
+                        + (processors == null ? "" : " processors [" + processors + "]")
+                )
             );
 
             // there is no nodes in any tier.
@@ -142,6 +152,9 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         }
         if (randomBoolean()) {
             settings.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
+        }
+        if (randomBoolean()) {
+            settings.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), randomInt(64));
         }
         settings.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
         return new TreeMap<>(Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));

@@ -24,8 +24,8 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
         configurationBuilder = Settings.builder();
 
         ByteSizeValue storage = randomNullableByteSizeValue();
-        ByteSizeValue memory = storage != null ? randomNullableByteSizeValue() : randomByteSizeValue();
-        Integer processors = memory != null && randomBoolean() ? null : randomInt(64);
+        ByteSizeValue memory = randomNullableByteSizeValue();
+        Integer processors = (memory != null || storage != null) && randomBoolean() ? null : randomInt(64);
         if (storage != null) {
             configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), storage);
         }

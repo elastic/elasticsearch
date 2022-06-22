@@ -658,7 +658,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             @Override
             public long getShardSize(ShardRouting shardRouting, long defaultValue) {
                 Long shardSize = super.getShardSize(shardRouting);
-                return Objects.requireNonNullElseGet(shardSize, () -> delegate.getShardSize(shardRouting, defaultValue));
+                if (shardSize != null) {
+                    return shardSize;
+                } else {
+                    return delegate.getShardSize(shardRouting, defaultValue);
+                }
             }
 
             @Override

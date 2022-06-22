@@ -23,8 +23,8 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryAndProcessorInfo;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.MemoryAndProcessors;
+import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.AutoscalingMemoryAndProcessorInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.MemoryAndProcessors;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.util.Collections;

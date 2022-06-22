@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 

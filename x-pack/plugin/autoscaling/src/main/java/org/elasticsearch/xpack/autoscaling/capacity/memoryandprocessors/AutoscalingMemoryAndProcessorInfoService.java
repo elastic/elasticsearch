@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -114,6 +114,13 @@ public class AutoscalingMemoryAndProcessorInfoService {
     }
 
     private void sendToMissingNodes(Function<String, DiscoveryNode> nodeLookup, Set<DiscoveryNode> missingNodes) {
+        final Runnable onError = () -> {
+            synchronized (mutex) {
+                var builder = new HashMap<>(nodeToMemory);
+                missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
+                nodeToMemory = Collections.unmodifiableMap(builder);
+            }
+        };
         client.admin()
             .cluster()
             .nodesStats(
@@ -144,13 +151,14 @@ public class AutoscalingMemoryAndProcessorInfoService {
                                                 .setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
                                         )
                                     );
-                                nodesInfoResponse.getNodes()
-                                    .forEach(
-                                        nodeInfo -> builderBuilder.computeIfPresent(
-                                            nodeInfo.getNode().getEphemeralId(),
-                                            (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors())
-                                        )
+                                nodesInfoResponse.getNodes().forEach(nodeInfo -> {
+                                    assert builderBuilder.containsKey(nodeInfo.getNode().getEphemeralId())
+                                        : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
+                                    builderBuilder.computeIfPresent(
+                                        nodeInfo.getNode().getEphemeralId(),
+                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors())
                                     );
+                                });
                                 synchronized (mutex) {
                                     Map<String, MemoryAndProcessors> builder = new HashMap<>(nodeToMemory);
                                     // Remove all from the builder that failed getting info and stats
@@ -170,22 +178,12 @@ public class AutoscalingMemoryAndProcessorInfoService {
                                     nodeToMemory = Collections.unmodifiableMap(builder);
                                 }
                             }, e -> {
-                                synchronized (mutex) {
-                                    var builder = new HashMap<>(nodeToMemory);
-                                    missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
-                                    nodeToMemory = Collections.unmodifiableMap(builder);
-                                }
-
+                                onError.run();
                                 logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain processor info from [%s]", missingNodes), e);
                             })
                         ),
                     e -> {
-                        synchronized (mutex) {
-                            var builder = new HashMap<>(nodeToMemory);
-                            missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
-                            nodeToMemory = Collections.unmodifiableMap(builder);
-                        }
-
+                        onError.run();
                         logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain memory info from [%s]", missingNodes), e);
                     }
                 )

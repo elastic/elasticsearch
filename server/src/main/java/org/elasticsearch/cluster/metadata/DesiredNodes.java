@@ -43,7 +43,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 /**
  * <p>
  *  Desired nodes represents the cluster topology that the operator of the cluster is aiming for.
- *  Therefore, it is possible that the desired nodes contain nodes that are still not part of the
+ *  Therefore, it is possible that the desired nodes contain nodes that are not part of the
  *  cluster in contrast to {@link DiscoveryNodes} that contains only nodes that are part of the cluster.
  * </p>
  *

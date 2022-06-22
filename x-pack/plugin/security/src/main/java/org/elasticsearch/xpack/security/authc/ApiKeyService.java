@@ -262,10 +262,6 @@ public class ApiKeyService {
         }
     }
 
-    private static AcknowledgedResponse toUpdateApiKeyResponse(UpdateResponse updateResponse) {
-        return AcknowledgedResponse.TRUE;
-    }
-
     /**
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of

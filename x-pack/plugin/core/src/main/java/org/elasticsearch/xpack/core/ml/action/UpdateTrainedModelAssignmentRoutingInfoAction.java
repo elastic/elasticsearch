@@ -13,36 +13,36 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateTrainedModelAssignmentStateAction extends ActionType<AcknowledgedResponse> {
-    public static final UpdateTrainedModelAssignmentStateAction INSTANCE = new UpdateTrainedModelAssignmentStateAction();
+public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<AcknowledgedResponse> {
+    public static final UpdateTrainedModelAssignmentRoutingInfoAction INSTANCE = new UpdateTrainedModelAssignmentRoutingInfoAction();
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/update";
 
-    private UpdateTrainedModelAssignmentStateAction() {
+    private UpdateTrainedModelAssignmentRoutingInfoAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
         private final String nodeId;
         private final String modelId;
-        private final RoutingStateAndReason routingState;
+        private final RoutingInfoUpdate update;
 
-        public Request(String nodeId, String modelId, RoutingStateAndReason routingState) {
+        public Request(String nodeId, String modelId, RoutingInfoUpdate update) {
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "node_id");
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
-            this.routingState = ExceptionsHelper.requireNonNull(routingState, "routing_state");
+            this.update = ExceptionsHelper.requireNonNull(update, "update");
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
             this.modelId = in.readString();
-            this.routingState = new RoutingStateAndReason(in);
+            this.update = new RoutingInfoUpdate(in);
         }
 
         public String getNodeId() {
@@ -53,8 +53,8 @@ public class UpdateTrainedModelAssignmentStateAction extends ActionType<Acknowle
             return modelId;
         }
 
-        public RoutingStateAndReason getRoutingState() {
-            return routingState;
+        public RoutingInfoUpdate getUpdate() {
+            return update;
         }
 
         @Override
@@ -67,7 +67,7 @@ public class UpdateTrainedModelAssignmentStateAction extends ActionType<Acknowle
             super.writeTo(out);
             out.writeString(nodeId);
             out.writeString(modelId);
-            routingState.writeTo(out);
+            update.writeTo(out);
         }
 
         @Override
@@ -77,17 +77,17 @@ public class UpdateTrainedModelAssignmentStateAction extends ActionType<Acknowle
             Request request = (Request) o;
             return Objects.equals(nodeId, request.nodeId)
                 && Objects.equals(modelId, request.modelId)
-                && Objects.equals(routingState, request.routingState);
+                && Objects.equals(update, request.update);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, modelId, routingState);
+            return Objects.hash(nodeId, modelId, update);
         }
 
         @Override
         public String toString() {
-            return "Request{" + "nodeId='" + nodeId + '\'' + ", modelId='" + modelId + '\'' + ", routingState=" + routingState + '}';
+            return "Request{" + "nodeId='" + nodeId + '\'' + ", modelId='" + modelId + '\'' + ", update=" + update + '}';
         }
     }
 

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction.Request;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReasonTests;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction.Request;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdateTests;
 
-public class UpdateTrainedModelAssignmentStateActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class UpdateTrainedModelAssignmentRoutingInfoActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(10), randomAlphaOfLength(10), RoutingStateAndReasonTests.randomInstance());
+        return new Request(randomAlphaOfLength(10), randomAlphaOfLength(10), RoutingInfoUpdateTests.randomInstance());
     }
 
     @Override

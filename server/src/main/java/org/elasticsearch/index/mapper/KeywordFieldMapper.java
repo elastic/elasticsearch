@@ -1078,21 +1078,27 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            if (leaf.getValueCount() == 0) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING.leaf(reader);
+            }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean empty() {
+                    return false;
                 }
 
                 @Override
-                public boolean hasValue() {
-                    return hasValue;
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
+                    if (false == hasValue) {
+                        return;
+                    }
                     long first = leaf.nextOrd();
                     long next = leaf.nextOrd();
                     if (next == SortedSetDocValues.NO_MORE_ORDS) {

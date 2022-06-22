@@ -99,6 +99,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
@@ -694,7 +695,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         .entry("segments_with_deleted_docs", 0)
                         .entry(
                             "filters",
-                            matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 1))
+                            matchesList().item(
+                                matchesMap().entry("query", "*:*")
+                                    .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                            )
                         )
                 );
             }
@@ -706,8 +710,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * the index set up kind of like document level security. As a bonus, this
      * "looks" to the agg just like an index with deleted documents.
      * <p>
-     * This can't use the constant time counting because {@code term} doesn't
-     * know how to count in constant time when there are deleted documents.
+     * Segments with a filter that doesn't rewrite to {@code match_all} can't
+     * take the fast path. But segments who's filter rewrites to {@code match_all}
+     * can use the fast path - thus the assertion at the bottom of this:
+     * {@code "segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size())}.
      */
     public void testTermOnFilteredIndex() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("foo");
@@ -758,7 +764,75 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         .entry("segments_with_deleted_docs", 0)
                         .entry(
                             "filters",
-                            matchesList().item(matchesMap().entry("query", "foo:bar").entry("segments_counted_in_constant_time", 0))
+                            matchesList().item(
+                                matchesMap().entry("query", "foo:bar")
+                                    .entry("segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size()))
+                            )
+                        )
+                );
+            }
+        }
+    }
+
+    /**
+     * This runs {@code filters} with a single {@code term} filter with
+     * the index set up kind of like document level security where the
+     * document level security query matches all documents. These can
+     * always take the fast path in filter-by-filter.
+     */
+    public void testTermOnFilterWithMatchAll() throws IOException {
+        KeywordFieldType ft = new KeywordFieldType("foo");
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("foo", "bar")));
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            for (int i = 0; i < 10; i++) {
+                indexWriter.addDocument(List.of(new Field("foo", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+            }
+            indexWriter.close();
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                    @Override
+                    public void onRemoval(ShardId shardId, Accountable accountable) {}
+
+                    @Override
+                    public void onCache(ShardId shardId, Accountable accountable) {}
+                });
+                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    bitsetFilterCache,
+                    LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
+                );
+                IndexSearcher searcher = newIndexSearcher(limitedReader);
+                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
+                FilterByFilterAggregator aggregator = createAggregator(builder, context);
+                aggregator.preCollection();
+                searcher.search(context.query(), aggregator);
+                aggregator.postCollection();
+
+                InternalAggregation result = aggregator.buildTopLevel();
+                result = result.reduce(
+                    List.of(result),
+                    new AggregationReduceContext.ForFinal(context.bigArrays(), getMockScriptService(), () -> false, null, b -> {})
+                );
+                InternalFilters filters = (InternalFilters) result;
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(10L));
+
+                Map<String, Object> debug = new HashMap<>();
+                aggregator.collectDebugInfo(debug::put);
+                assertMap(
+                    debug,
+                    matchesMap().entry("segments_counted", greaterThanOrEqualTo(1))
+                        .entry("segments_collected", 0)
+                        .entry("segments_with_doc_count_field", 0)
+                        .entry("segments_with_deleted_docs", 0)
+                        .entry(
+                            "filters",
+                            matchesList().item(
+                                matchesMap().entry("query", "foo:bar")
+                                    .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                            )
                         )
                 );
             }

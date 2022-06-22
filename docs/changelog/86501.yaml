@@ -1,0 +1,12 @@
+pr: 86501
+summary: Support `range` aggregation in transform
+area: Transform
+type: enhancement
+issues: []
+highlight:
+  title: Transforms support range aggregation
+  body: |-
+    Now it is possible to use the range aggregations in {transforms}. 
+    {transforms-cap} didn’t support multi-bucket aggregations, but this 
+    limitation no longer exist.
+  notable: true

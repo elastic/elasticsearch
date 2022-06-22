@@ -1145,7 +1145,6 @@ public class ApiKeyService {
             false,
             false,
             listener,
-            // TODO what if this throws?
             ApiKeyService::convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm
         );
     }

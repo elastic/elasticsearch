@@ -159,9 +159,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     }
 
     private static String dependencyNotation(Jdk jdk) {
-        String platformDep = isJdkOnMacOsPlatform(jdk)
-            ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos")
-            : jdk.getPlatform();
+        String platformDep = isJdkOnMacOsPlatform(jdk) ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos") : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
         return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;

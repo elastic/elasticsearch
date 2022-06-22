@@ -7,12 +7,12 @@ issues: []
 highlight:
   title: Question answering NLP task
   body: |-
-    We introduce a new question answering NLP task in 8.3. This task extracts 
-    the relevant section that answers a specific question from a larger context. 
-    This is especially suited to search requests against large documents. You 
-    can find an example of extracting an answer from a larger wiki article about 
+    We introduce a new question answering NLP task in 8.3. This task extracts
+    the relevant section that answers a specific question from a larger context.
+    This is especially suited to search requests against large documents. You
+    can see an example of extracting an answer from a larger wiki article about
     Tower Bridge below.
-    
+
     [role="screenshot"]
     image::../images/nlp-qa-rh.png[A screenshot of a question answering NLP task in {kib}]
   notable: true

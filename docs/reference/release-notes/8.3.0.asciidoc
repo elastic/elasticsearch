@@ -37,6 +37,7 @@ CCR::
 
 Cluster Coordination::
 * Add `master_timeout` support to voting config exclusions APIs {es-pull}86670[#86670]
+* Small fixes to clear voting config excls API {es-pull}87828[#87828]
 
 Discovery-Plugins::
 * [discovery-gce] Fix initialisation of transport in FIPS mode {es-pull}85817[#85817] (issue: {es-issue}85803[#85803])
@@ -65,6 +66,9 @@ ILM+SLM::
 
 Indices APIs::
 * Make `GetIndexAction` cancellable {es-pull}87681[#87681]
+
+Infra/Circuit Breakers::
+* Make CBE message creation more robust {es-pull}87881[#87881]
 
 Infra/Core::
 * Adjust osprobe assertion for burst cpu {es-pull}86990[#86990]
@@ -133,6 +137,7 @@ Search::
 * Fields API to allow fetching values when `_source` is disabled {es-pull}87267[#87267] (issue: {es-issue}87072[#87072])
 * Fix `_terms_enum` on unconfigured `constant_keyword` {es-pull}86191[#86191] (issues: {es-issue}86187[#86187], {es-issue}86267[#86267])
 * Fix status code when open point in time without `keep_alive` {es-pull}87011[#87011] (issue: {es-issue}87003[#87003])
+* Handle empty point values in `DiskUsage` API {es-pull}87826[#87826] (issue: {es-issue}87761[#87761])
 * Make sure to rewrite explain query on coordinator {es-pull}87013[#87013] (issue: {es-issue}64281[#64281])
 
 Security::
@@ -144,6 +149,7 @@ Snapshot/Restore::
 * Distinguish missing and invalid repositories {es-pull}85551[#85551] (issue: {es-issue}85550[#85550])
 * Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87264[#87264] (issue: {es-issue}87237[#87237])
 * Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87254[#87254] (issue: {es-issue}87237[#87237])
+* Throw exception on illegal `RepositoryData` updates {es-pull}87654[#87654]
 * Upgrade Azure SDK to 12.16.0 {es-pull}86135[#86135]
 
 TSDB::
@@ -288,6 +294,7 @@ TSDB::
 
 Transform::
 * Prefer secondary auth headers for transforms {es-pull}86757[#86757]
+* Support `range` aggregation in transform {es-pull}86501[#86501]
 
 [[feature-8.3.0]]
 [float]
@@ -344,5 +351,8 @@ SQL::
 
 Search::
 * Update to public lucene 9.2.0 release {es-pull}87162[#87162]
+
+Snapshot/Restore::
+* Upgrade GCS Plugin to 1.118.1 {es-pull}87800[#87800]
 
 

@@ -217,7 +217,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<Boolean> HTTP_TCP_KEEP_ALIVE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.tcp.keep_alive",
-        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> HTTP_CONNECTION_POOL_TTL = Setting.affixKeySetting(

@@ -19,19 +19,24 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -141,7 +146,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             assertThat(recentMaster.getName(), not(emptyOrNullString()));
             assertThat(recentMaster.getId(), not(emptyOrNullString()));
         }
-
     }
 
     public void testMasterGoesNull() throws Exception {
@@ -358,7 +362,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRedForNoMaster() {
-        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
@@ -453,6 +459,131 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndNoMasterEligibleNodes() throws IOException {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            List<Cluster.ClusterNode> removedClusterNodes = new ArrayList<>();
+            for (Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
+                if (clusterNode.getLocalNode().isMasterNode()) {
+                    removedClusterNodes.add(clusterNode);
+                }
+            }
+            cluster.clusterNodes.removeAll(removedClusterNodes);
+            cluster.clusterNodes.removeIf(node -> node.getLocalNode().isMasterNode());
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = node.coordinationDiagnosticsService
+                    .diagnoseMasterStability(true);
+                assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                assertThat(result.summary(), equalTo("No master eligible nodes found in the cluster"));
+                List<DiscoveryNode> recentMasters = result.details().recentMasters();
+                // We don't show nulls in the recent_masters list:
+                assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                for (DiscoveryNode recentMaster : recentMasters) {
+                    assertThat(recentMaster.getName(), notNullValue());
+                    assertThat(recentMaster.getId(), not(emptyOrNullString()));
+                }
+                assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered yet"));
+            }
+            cluster.clusterNodes.addAll(removedClusterNodes);
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndLeader() throws IOException {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (currentLeader.equals(node) == false) { // The current leader still thinks it is leader
+                    DiscoveryNodes lastAcceptedNodes = node.coordinator.getLastAcceptedState().nodes();
+                    /*
+                     * The following has the effect of making the PeerFinder say that there is a leader, even though there is not. It is
+                     * effectively saying that there is some leader (this node) which this node has not been able to join. This is just the
+                     * easiest way to set up the condition for the test.
+                     */
+                    node.coordinator.getPeerFinder().deactivate(node.getLocalNode());
+                    CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = node.coordinationDiagnosticsService
+                        .diagnoseMasterStability(true);
+                    assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                    assertThat(result.summary(), containsString("has been elected master, but the node being queried"));
+                    List<DiscoveryNode> recentMasters = result.details().recentMasters();
+                    // We don't show nulls in the recent_masters list:
+                    assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                    for (DiscoveryNode recentMaster : recentMasters) {
+                        assertThat(recentMaster.getName(), notNullValue());
+                        assertThat(recentMaster.getId(), not(emptyOrNullString()));
+                    }
+                    assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered"));
+                    // This restores the PeerFinder so that the test cleanup doesn't fail:
+                    node.coordinator.getPeerFinder().activate(lastAcceptedNodes);
+                }
+            }
+
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRedForNoMasterAndWithMasterEligibleNodesAndNoLeader() throws IOException {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = node.coordinationDiagnosticsService
+                    .diagnoseMasterStability(true);
+                if (node.getLocalNode().isMasterNode() == false) {
+                    assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                    List<DiscoveryNode> recentMasters = result.details().recentMasters();
+                    // We don't show nulls in the recent_masters list:
+                    assertThat(recentMasters.size(), greaterThanOrEqualTo(1));
+                    for (DiscoveryNode recentMaster : recentMasters) {
+                        assertThat(recentMaster.getName(), notNullValue());
+                        assertThat(recentMaster.getId(), not(emptyOrNullString()));
+                    }
+                    assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered"));
+                }
+            }
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
     private static ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
@@ -501,6 +632,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new CoordinationDiagnosticsService(clusterService, masterHistoryService);
+        return new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+    }
+
+    private void createAndAddNonMasterNode(Cluster cluster) {
+        Cluster.ClusterNode nonMasterNode = cluster.new ClusterNode(
+            nextNodeIndex.getAndIncrement(), false, Settings.EMPTY, () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        cluster.clusterNodes.add(nonMasterNode);
     }
 }

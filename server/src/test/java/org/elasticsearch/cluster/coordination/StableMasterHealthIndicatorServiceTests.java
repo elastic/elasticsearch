@@ -284,7 +284,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(new CoordinationDiagnosticsService(clusterService, masterHistoryService));
+        return new StableMasterHealthIndicatorService(
+            new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService)
+        );
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

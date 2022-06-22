@@ -247,11 +247,6 @@ public abstract class Streams {
         }
 
         @Override
-        public void reset() throws IOException {
-            delegate.reset();
-        }
-
-        @Override
         public BytesReference bytes() {
             return delegate.bytes();
         }

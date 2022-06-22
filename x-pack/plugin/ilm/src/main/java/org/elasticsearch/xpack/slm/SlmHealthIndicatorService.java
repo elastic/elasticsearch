@@ -42,7 +42,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final UserAction SLM_NOT_RUNNING = new UserAction(
         new UserAction.Definition(
             "slm-not-running",
-            "Snapshot lifecycle management is not running. Start SLM using [POST /_slm/start]",
+            "Start SLM using [POST /_slm/start].",
             HELP_URL
         ),
         null

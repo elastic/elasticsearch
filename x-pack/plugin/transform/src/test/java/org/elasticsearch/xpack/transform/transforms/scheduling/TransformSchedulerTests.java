@@ -162,11 +162,7 @@ public class TransformSchedulerTests extends ESTestCase {
 
         assertThat(
             events,
-            is(
-                equalTo(
-                    List.of(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 2 * 1000, 60 * 1000))
-                )
-            )
+            contains(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 2 * 1000, 60 * 1000))
         );
 
         transformScheduler.deregisterTransform(transformId);
@@ -209,11 +205,7 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events, hasSize(2));
         assertThat(
             events,
-            is(
-                equalTo(
-                    List.of(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 5 * 1000, 5 * 1000))
-                )
-            )
+            contains(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 5 * 1000, 5 * 1000))
         );
     }
 
@@ -249,6 +241,15 @@ public class TransformSchedulerTests extends ESTestCase {
 
         clock.advanceTimeBy(Duration.ofMillis(5000));
         transformScheduler.processScheduledTasks();
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 5000L, 666, 6000, taskModifyingListener))
+        );
+        assertThat(events, hasSize(2));
+        assertThat(
+            events,
+            contains(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 5 * 1000, 5 * 1000))
+        );
     }
 
     public void testWithSystemClock() throws Exception {

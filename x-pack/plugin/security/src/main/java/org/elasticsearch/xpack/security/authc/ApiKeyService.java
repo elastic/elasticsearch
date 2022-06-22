@@ -415,11 +415,11 @@ public class ApiKeyService {
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
         Version version,
-        Collection<VersionedApiKeyDoc> versionedApiKeyDocs
+        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocWithSeqNoAndPrimaryTerms
     ) throws IOException {
         final var bulkRequestBuilder = client.prepareBulk();
-        for (VersionedApiKeyDoc versionedApiKeyDoc : versionedApiKeyDocs) {
-            bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, versionedApiKeyDoc));
+        for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDocWithSeqNoAndPrimaryTerm : apiKeyDocWithSeqNoAndPrimaryTerms) {
+            bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, apiKeyDocWithSeqNoAndPrimaryTerm));
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder;
@@ -430,9 +430,9 @@ public class ApiKeyService {
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
         Version version,
-        VersionedApiKeyDoc versionedApiKeyDoc
+        ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDocWithSeqNoAndPrimaryTerm
     ) throws IOException {
-        final var apiKeyDoc = versionedApiKeyDoc.apiKey();
+        final var apiKeyDoc = apiKeyDocWithSeqNoAndPrimaryTerm.apiKey();
         final var keyRoles = getRoleDescriptors(request.getId(), request.getRoleDescriptors(), apiKeyDoc);
         final var metadata = request.getMetadata() != null ? request.getMetadata() : apiKeyDoc.metadataAsMap();
 
@@ -453,8 +453,8 @@ public class ApiKeyService {
                     metadata
                 )
             )
-            .setIfSeqNo(versionedApiKeyDoc.seqNo())
-            .setIfPrimaryTerm(versionedApiKeyDoc.primaryTerm())
+            .setIfSeqNo(apiKeyDocWithSeqNoAndPrimaryTerm.seqNo())
+            .setIfPrimaryTerm(apiKeyDocWithSeqNoAndPrimaryTerm.primaryTerm())
             .request();
     }
 
@@ -1116,7 +1116,11 @@ public class ApiKeyService {
         }
     }
 
-    private void findApiKeyDocsForSubject(Subject subject, String[] apiKeyIds, ActionListener<Collection<VersionedApiKeyDoc>> listener) {
+    private void findApiKeyDocsForSubject(
+        Subject subject,
+        String[] apiKeyIds,
+        ActionListener<Collection<ApiKeyDocWithSeqNoAndPrimaryTerm>> listener
+    ) {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
             new String[] { subject.getRealm().getName() },
             subject.getUser().principal(),
@@ -1126,7 +1130,7 @@ public class ApiKeyService {
             false,
             listener,
             // TODO what if this throws?
-            ApiKeyService::convertSearchHitToVersionedApiKeyDoc
+            ApiKeyService::convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm
         );
     }
 
@@ -1441,18 +1445,17 @@ public class ApiKeyService {
         );
     }
 
-    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
+    private static ApiKeyDocWithSeqNoAndPrimaryTerm convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
         ) {
-            return new VersionedApiKeyDoc(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
+            return new ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
 
-    // TODO rename
-    private record VersionedApiKeyDoc(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
+    private record ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {

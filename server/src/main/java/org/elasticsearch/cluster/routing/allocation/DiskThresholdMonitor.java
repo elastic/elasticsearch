@@ -111,7 +111,7 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-            this::updateIndicesRemoveReadOnlyBlock
+            this::removeExistingIndexBlocksIfDisabled
         );
         this.client = client;
     }
@@ -415,12 +415,7 @@ public class DiskThresholdMonitor {
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
-        if (indicesToMarkReadOnly.isEmpty() == false && diskThresholdSettings.isEnabled()) {
-            logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
-            updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
-        } else {
-            listener.onResponse(null);
-        }
+        markIndicesAsReadOnly(indicesToMarkReadOnly, listener);
     }
 
     // exposed for tests to override
@@ -473,10 +468,23 @@ public class DiskThresholdMonitor {
             .execute(wrappedListener.map(r -> null));
     }
 
-    protected void updateIndicesRemoveReadOnlyBlock(boolean enabled) {
+    private synchronized void markIndicesAsReadOnly(Set<String> indices, ActionListener<Void> listener) {
+        if (indices.isEmpty() == false && diskThresholdSettings.isEnabled()) {
+            logger.trace("marking indices as read-only: [{}]", indices);
+            updateIndicesReadOnly(indices, listener, true);
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private synchronized void removeExistingIndexBlocksIfDisabled(boolean enabled) {
         if (enabled) {
             return;
         }
+        ActionListener<Void> wrappedListener = ActionListener.wrap(
+            r -> {},
+            e -> logger.debug("removing read-only blocks from indices failed", e)
+        );
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToRelease = state.routingTable()
             .indicesRouting()
@@ -490,7 +498,7 @@ public class DiskThresholdMonitor {
             .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
             .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
             .origin("disk-threshold-monitor")
-            .execute();
+            .execute(wrappedListener.map(r -> null));
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

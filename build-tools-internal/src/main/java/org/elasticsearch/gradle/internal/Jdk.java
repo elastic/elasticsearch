@@ -189,6 +189,7 @@ public class Jdk implements Buildable, Iterable<File> {
         platform.finalizeValue();
         vendor.finalizeValue();
         architecture.finalizeValue();
+        distributionVersion.finalizeValue();
     }
 
     @Override

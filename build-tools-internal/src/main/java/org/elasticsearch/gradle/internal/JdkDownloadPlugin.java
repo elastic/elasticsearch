@@ -128,7 +128,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             }
         } else if (jdk.getVendor().equals(VENDOR_ZULU)) {
             repoUrl = "https://cdn.azul.com";
-            if (jdk.getMajor().equals("8")) {
+            if (jdk.getMajor().equals("8") && isJdkOnMacOsPlatform(jdk) && jdk.getArchitecture().equals("aarch64")) {
                 artifactPattern = "zulu/bin/zulu"
                     + jdk.getDistributionVersion()
                     + "-ca-jdk"
@@ -159,12 +159,16 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     }
 
     private static String dependencyNotation(Jdk jdk) {
-        String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
+        String platformDep = isJdkOnMacOsPlatform(jdk)
             ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos")
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
         return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;
+    }
+
+    private static boolean isJdkOnMacOsPlatform(Jdk jdk) {
+        return jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac");
     }
 
     private static String groupName(Jdk jdk) {

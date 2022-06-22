@@ -382,18 +382,18 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     private static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
-        for (Model m : models.stream().filter(m -> m.currentAllocationByNodeId().isEmpty() == false).toList()) {
+        for (Model m : models.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();
             int allocations = 0;
             for (Map.Entry<Node, Integer> e : assignments.entrySet()) {
                 assignedNodeIds.add(e.getKey().id());
-                if (m.currentAllocationByNodeId().containsKey(e.getKey().id())) {
+                if (m.currentAllocationsByNodeId().containsKey(e.getKey().id())) {
                     assertThat(e.getValue(), greaterThanOrEqualTo(1));
                 }
                 allocations += e.getValue();
             }
-            assertThat(m.currentAllocationByNodeId().keySet(), everyItem(in(assignedNodeIds)));
+            assertThat(m.currentAllocationsByNodeId().keySet(), everyItem(in(assignedNodeIds)));
             assertThat(allocations, greaterThanOrEqualTo(m.getPreviouslyAssignedAllocations()));
         }
     }

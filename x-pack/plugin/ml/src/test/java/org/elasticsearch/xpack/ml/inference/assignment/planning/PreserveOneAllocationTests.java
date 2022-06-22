@@ -60,13 +60,13 @@ public class PreserveOneAllocationTests extends ESTestCase {
         assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(30L));
         assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
         assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
-        assertThat(modelsPreservingAllocations.get(0).currentAllocationByNodeId(), equalTo(Map.of("n_1", 0)));
+        assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
         assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
         assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(50L));
         assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(4));
         assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
-        assertThat(modelsPreservingAllocations.get(1).currentAllocationByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
+        assertThat(modelsPreservingAllocations.get(1).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(model1, model2))
             .assignModelToNode(model1, node1, 2)
@@ -79,6 +79,10 @@ public class PreserveOneAllocationTests extends ESTestCase {
 
         assertThat(plan.assignments(model1).get(), equalTo(Map.of(node1, 3)));
         assertThat(plan.assignments(model2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(20L));
+        assertThat(plan.getRemainingNodeCores("n_1"), equalTo(1));
+        assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(50L));
+        assertThat(plan.getRemainingNodeCores("n_2"), equalTo(0));
     }
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {
@@ -92,5 +96,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
         plan = preserveOneAllocation.mergePreservedAllocations(plan);
         assertThat(plan.assignments(model).isPresent(), is(true));
         assertThat(plan.assignments(model).get(), equalTo(Map.of(node, 1)));
+        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(70L));
+        assertThat(plan.getRemainingNodeCores("n_1"), equalTo(2));
     }
 }

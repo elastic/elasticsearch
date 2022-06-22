@@ -40,11 +40,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String HELP_URL = "https://ela.st/fix-slm";
     public static final UserAction SLM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition(
-            "slm-not-running",
-            "Start SLM using [POST /_slm/start].",
-            HELP_URL
-        ),
+        new UserAction.Definition("slm-not-running", "Start SLM using [POST /_slm/start].", HELP_URL),
         null
     );
 

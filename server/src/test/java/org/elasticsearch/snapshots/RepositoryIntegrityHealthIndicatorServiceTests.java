@@ -91,7 +91,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                   List.of(new UserAction(CORRUPTED_REPOSITORY, corruptedRepos))
+                    List.of(new UserAction(CORRUPTED_REPOSITORY, corruptedRepos))
                 )
             )
         );

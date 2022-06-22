@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 abstract class InferenceResultsTestCase<T extends InferenceResults> extends AbstractWireSerializingTestCase<T> {
@@ -25,7 +25,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+            IngestDocument document = TestIngestDocument.emptyIngestDocument();
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();
@@ -45,7 +45,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+            IngestDocument document = TestIngestDocument.emptyIngestDocument();
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();

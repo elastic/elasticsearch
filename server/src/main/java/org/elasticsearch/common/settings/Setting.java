@@ -1915,6 +1915,15 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        TimeValue defaultValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), validator, properties);
+    }
+
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }

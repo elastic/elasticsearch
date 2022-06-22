@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IngestSourceAndMetadataTests extends ESTestCase {
 
@@ -137,20 +139,21 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
     }
 
     public void testRemove() {
-        String key = "cannotRemove";
+        String cannotRemove = "cannotRemove";
+        String canRemove = "canRemove";
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("cannotRemove", "value");
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, Map.of(key, (k, v) -> {
+        metadata.put(cannotRemove, "value");
+        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, Map.of(cannotRemove, (k, v) -> {
             if (v == null) {
                 throw new IllegalArgumentException(k + " cannot be null or removed");
             }
             return v;
-        }));
+        }, canRemove, (k, v) -> v));
         String msg = "cannotRemove cannot be null or removed";
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(key));
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
 
-        err = expectThrows(IllegalArgumentException.class, () -> map.put(key, null));
+        err = expectThrows(IllegalArgumentException.class, () -> map.put(cannotRemove, null));
         assertEquals(msg, err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.entrySet().iterator().next().setValue(null));
@@ -170,5 +173,150 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             set.remove(map.entrySet().iterator().next());
         });
         assertEquals(msg, err.getMessage());
+
+        map.put(canRemove, "value");
+        assertEquals("value", map.get(canRemove));
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.clear());
+        assertEquals(msg, err.getMessage());
+
+        assertEquals(2, map.size());
+
+        map.entrySet().remove(new TestEntry(canRemove, "value"));
+        assertNull(map.get(canRemove));
+
+        map.put(canRemove, "value");
+        assertEquals("value", map.get(canRemove));
+        map.remove(canRemove);
+        assertNull(map.get(canRemove));
+
+        map.put("sourceKey", "sourceValue");
+        assertEquals("sourceValue", map.get("sourceKey"));
+        map.entrySet().remove(new TestEntry("sourceKey", "sourceValue"));
+        assertNull(map.get("sourceKey"));
+
+        map.put("sourceKey", "sourceValue");
+        assertEquals("sourceValue", map.get("sourceKey"));
+        map.remove("sourceKey");
+        assertNull(map.get("sourceKey"));
+    }
+
+    public void testEntryAndIterator() {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("_version", 123);
+        metadata.put("_version_type", "external");
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        source.put("baz", "qux");
+        source.put("noz", "zon");
+        map = new IngestSourceAndMetadata(source, metadata, null);
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if ("foo".equals(entry.getKey())) {
+                entry.setValue("changed");
+            } else if ("_version_type".equals(entry.getKey())) {
+                entry.setValue("external_gte");
+            }
+        }
+        assertEquals("changed", map.get("foo"));
+        assertEquals("external_gte", map.getVersionType());
+
+        assertEquals(5, map.entrySet().size());
+        assertEquals(5, map.size());
+
+        Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();
+        expectThrows(IllegalStateException.class, it::remove);
+
+        while (it.hasNext()) {
+            Map.Entry<String, Object> entry = it.next();
+            if ("baz".equals(entry.getKey())) {
+                it.remove();
+            } else if ("_version_type".equals(entry.getKey())) {
+                it.remove();
+            }
+        }
+
+        assertNull(map.getVersionType());
+        assertFalse(map.containsKey("baz"));
+        assertTrue(map.containsKey("_version"));
+        assertTrue(map.containsKey("foo"));
+        assertTrue(map.containsKey("noz"));
+        assertEquals(3, map.entrySet().size());
+        assertEquals(3, map.size());
+        map.clear();
+        assertEquals(0, map.size());
+    }
+
+    public void testContainsValue() {
+        Map<String, Object> sm = new HashMap<>();
+        sm.put("_version", 5678);
+        sm.put("myField", "fieldValue");
+        map = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sm, null);
+        assertTrue(map.containsValue(5678));
+        assertFalse(map.containsValue(5679));
+        assertTrue(map.containsValue("fieldValue"));
+        assertFalse(map.containsValue("fieldValue2"));
+    }
+
+    public void testValidators() {
+        map = new IngestSourceAndMetadata("myIndex", "myId", 1234, "myRouting", VersionType.EXTERNAL, null, new HashMap<>());
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.put("_index", 555));
+        assertEquals("_index must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("myIndex", map.getIndex());
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_id", 555));
+        assertEquals("_id must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("myId", map.getId());
+        map.put("_id", "myId2");
+        assertEquals("myId2", map.getId());
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_routing", 555));
+        assertEquals("_routing must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("myRouting", map.getRouting());
+        map.put("_routing", "myRouting2");
+        assertEquals("myRouting2", map.getRouting());
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version", "five-five-five"));
+        assertEquals("_version may only be set to an int or a long but was [five-five-five] with type [java.lang.String]", err.getMessage());
+        assertEquals(1234, map.getVersion());
+        map.put("_version", 555);
+        assertEquals(555, map.getVersion());
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", "vt"));
+        assertEquals("_version_type must be a null or one of [internal, external, external_gte]", err.getMessage());
+        assertEquals("external", map.getVersionType());
+        map.put("_version_type", "internal");
+        assertEquals("internal", map.getVersionType());
+
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_dynamic_templates", "5"));
+        assertEquals("_dynamic_templates must be a null or a Map but was [5] with type [java.lang.String]", err.getMessage());
+        Map<String, String> dt = Map.of("a", "b");
+        map.put("_dynamic_templates", dt);
+        assertThat(dt, equalTo(map.getDynamicTemplates()));
+    }
+
+    private static class TestEntry implements Map.Entry<String, Object> {
+        String key;
+        Object value;
+
+        TestEntry(String key, Object value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public Object getValue() {
+            return value;
+        }
+
+        @Override
+        public Object setValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -306,7 +306,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public void clear() {
-        // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped map's clear
+        // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
         validators.forEach((k, v) -> {
             if (metadata.containsKey(k)) {
                 v.apply(k, null);
@@ -418,8 +418,8 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * {@link AbstractSet#clear()}
      */
     class EntrySetIterator implements Iterator<Map.Entry<String, Object>> {
-        final Iterator<Map.Entry<String, Object>> metadataIter;
         final Iterator<Map.Entry<String, Object>> sourceIter;
+        final Iterator<Map.Entry<String, Object>> metadataIter;
 
         boolean sourceCur = true;
         Entry cur;
@@ -443,11 +443,12 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         /**
          * Remove current entry from the backing Map.  Checks the Entry's key's validator, if one exists, before removal.
          * @throws IllegalArgumentException if the validator does not allow the Entry to be removed
+         * @throws IllegalStateException if remove is called before {@link #next()}
          */
         @Override
         public void remove() {
             if (cur == null) {
-                return;
+                throw new IllegalStateException();
             }
             if (sourceCur) {
                 sourceIter.remove();
@@ -544,13 +545,15 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
             return null;
         }
         if (value instanceof String versionType) {
-            VersionType.fromString(versionType);
-            return versionType;
+            try {
+                VersionType.fromString(versionType);
+                return versionType;
+            } catch (IllegalArgumentException ignored) {}
         }
         throw new IllegalArgumentException(
             key
                 + " must be a null or one of ["
-                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(","))
+                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
                 + "]"
         );
     }

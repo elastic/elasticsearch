@@ -384,9 +384,10 @@ public class ApiKeyService {
         }
     }
 
-    private void validateApiKeyForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
+    // package-private for testing
+    void validateApiKeyForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
         if (isActive(apiKeyDoc) == false) {
-            throw cannotUpdateInactiveApiKey(apiKeyId);
+            throw new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
         }
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
@@ -405,10 +406,6 @@ public class ApiKeyService {
             throw new IllegalStateException("array must contain exactly one element");
         }
         return elements[0];
-    }
-
-    private ValidationException cannotUpdateInactiveApiKey(String apiKeyId) {
-        return new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
     }
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {

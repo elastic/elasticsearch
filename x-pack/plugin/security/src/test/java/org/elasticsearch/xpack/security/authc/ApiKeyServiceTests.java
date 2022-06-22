@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
@@ -1639,6 +1641,18 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals("bar", ((Map<String, Object>) creator.get("metadata")).get("foo"));
     }
 
+    public void testValidateApiKeyDocBeforeUpdate() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(12);
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = getFastStoredHashAlgoForTests();
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, null);
+        ApiKeyService apiKeyService = createApiKeyService();
+        ValidationException ex = expectThrows(ValidationException.class, () -> apiKeyService.validateApiKeyForUpdate(apiKeyId, apiKeyDoc));
+        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+    }
+
     public void testApiKeyDocDeserializationWithNullValues() throws IOException {
         final String apiKeyDocumentSource = """
             {
@@ -1857,6 +1871,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated) throws IOException {
+        return buildApiKeyDoc(hash, expirationTime, invalidated, randomAlphaOfLength(12));
+    }
+
+    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, String name) throws IOException {
         final BytesReference metadataBytes = XContentTestUtils.convertToXContent(ApiKeyTests.randomMetadata(), XContentType.JSON);
         return new ApiKeyDoc(
             "api_key",
@@ -1864,7 +1882,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             expirationTime,
             invalidated,
             new String(hash),
-            randomAlphaOfLength(12),
+            name,
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),

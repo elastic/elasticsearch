@@ -78,10 +78,11 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         });
         source.put("missing", null);
         map = new IngestSourceAndMetadata(source, metadata, null);
-        assertNull(map.getNumber("missing"));
-        assertNull(map.getNumber("no key"));
+        assertNull(map.getString("missing"));
+        assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
         assertEquals("myStr", map.getString("str"));
+        assertEquals("myRouting", map.getString("_routing"));
     }
 
     public void testGetNumber() {

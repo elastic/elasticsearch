@@ -352,7 +352,7 @@ public class ApiKeyService {
             return;
         }
 
-        findApiKeyDocsForSubject(authentication.getEffectiveSubject(), new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
+        findApiKeyDocsForSubject(authentication, new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
             final var apiKeyId = request.getId();
 
             if (apiKeys.isEmpty()) {
@@ -1126,13 +1126,13 @@ public class ApiKeyService {
     }
 
     private void findApiKeyDocsForSubject(
-        Subject subject,
+        Authentication authentication,
         String[] apiKeyIds,
         ActionListener<Collection<ApiKeyDocWithSeqNoAndPrimaryTerm>> listener
     ) {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            new String[] { subject.getRealm().getName() },
-            subject.getUser().principal(),
+            getOwnersRealmNames(authentication),
+            authentication.getEffectiveSubject().getUser().principal(),
             null,
             apiKeyIds,
             false,

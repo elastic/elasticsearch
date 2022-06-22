@@ -277,7 +277,10 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         assertEquals("myRouting2", map.getRouting());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version", "five-five-five"));
-        assertEquals("_version may only be set to an int or a long but was [five-five-five] with type [java.lang.String]", err.getMessage());
+        assertEquals(
+            "_version may only be set to an int or a long but was [five-five-five] with type [java.lang.String]",
+            err.getMessage()
+        );
         assertEquals(1234, map.getVersion());
         map.put("_version", 555);
         assertEquals(555, map.getVersion());

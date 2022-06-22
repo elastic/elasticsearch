@@ -36,7 +36,7 @@ jobs:
            base: esql/lang
            title: "🤖 ESQL: Merge upstream"
            body: ":robot: Generated PR to keep ESQL development branch up to date"
-           labels: "upstream-sync,auto-merge"
+           labels: "upstream-sync,auto-merge,esql"
            github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge ESQL PR

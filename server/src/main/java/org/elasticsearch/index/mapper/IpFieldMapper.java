@@ -555,9 +555,15 @@ public class IpFieldMapper extends FieldMapper {
         }
         return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected String convert(BytesRef value) {
+            protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                return NetworkAddress.format(InetAddressPoint.decode(bytes));
+                return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // No need to copy because convert has made a deep copy
+                return value;
             }
         };
     }

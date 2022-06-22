@@ -1061,8 +1061,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         return new BytesSyntheticFieldLoader(name(), simpleName) {
             @Override
-            protected String convert(BytesRef value) {
-                return value.utf8ToString();
+            protected BytesRef convert(BytesRef value) {
+                return value;
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                return BytesRef.deepCopyOf(value);
             }
         };
     }
@@ -1093,9 +1099,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                     return singletonLeaf(singleton, docIdsInLeaf);
                 }
             }
-            return new SortedSetLeaf(dv);
+            return new ImmediateLeaf(dv);
         }
 
+        /**
+         * Load all ordinals for all docs up front and resolve to their string
+         * values in order. This should be much more disk-friendly than
+         * {@link ImmediateLeaf} because it resolves the ordinals in order and
+         * marginally more cpu friendly because it resolves the ordinals one time.
+         */
         private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
             int[] ords = new int[docIdsInLeaf.length];
             int found = 0;
@@ -1121,14 +1133,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
             int[] uniqueOrds = new int[unique];
-            String[] converted = new String[unique];
+            BytesRef[] converted = new BytesRef[unique];
             unique = 0;
             prev = -1;
             for (int ord : sortedOrds) {
                 if (ord != prev) {
                     prev = ord;
                     uniqueOrds[unique] = ord;
-                    converted[unique] = convert(singleton.lookupOrd(ord));
+                    converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
                     unique++;
                 }
             }
@@ -1160,20 +1172,23 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     int idx = Arrays.binarySearch(uniqueOrds, ord);
                     if (idx < 0) {
-                        throw new IllegalStateException(
-                            "received unexpected ord [" + ord + "]. Expected " + Arrays.toString(uniqueOrds)
-                        );
+                        throw new IllegalStateException("received unexpected ord [" + ord + "]. Expected " + Arrays.toString(uniqueOrds));
                     }
-                    b.field(simpleName, converted[idx]);
+                    BytesRef c = converted[idx];
+                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
                 }
             };
         }
 
-        private class SortedSetLeaf implements Leaf {
+        /**
+         * Load ordinals in line with populating the doc and immediately
+         * convert from ordinals into {@link BytesRef}s.
+         */
+        private class ImmediateLeaf implements Leaf {
             private final SortedSetDocValues dv;
             private boolean hasValue;
 
-            SortedSetLeaf(SortedSetDocValues dv) {
+            ImmediateLeaf(SortedSetDocValues dv) {
                 this.dv = dv;
             }
 
@@ -1195,19 +1210,35 @@ public final class KeywordFieldMapper extends FieldMapper {
                 long first = dv.nextOrd();
                 long next = dv.nextOrd();
                 if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                    b.field(simpleName, convert(dv.lookupOrd(first)));
+                    BytesRef c = convert(dv.lookupOrd(first));
+                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
                     return;
                 }
                 b.startArray(simpleName);
-                b.value(convert(dv.lookupOrd(first)));
-                b.value(convert(dv.lookupOrd(next)));
+                BytesRef c = convert(dv.lookupOrd(first));
+                b.utf8Value(c.bytes, c.offset, c.length);
+                c = convert(dv.lookupOrd(next));
+                b.utf8Value(c.bytes, c.offset, c.length);
                 while ((next = dv.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                    b.value(convert(dv.lookupOrd(next)));
+                    c = convert(dv.lookupOrd(next));
+                    b.utf8Value(c.bytes, c.offset, c.length);
                 }
                 b.endArray();
             }
         }
 
-        protected abstract String convert(BytesRef value);
+        /**
+         * Convert a {@link BytesRef} read from the source into bytes to write
+         * to the xcontent. This shouldn't make a deep copy if the conversion
+         * process itself doesn't require one.
+         */
+        protected abstract BytesRef convert(BytesRef value);
+
+        /**
+         * Preserves {@link BytesRef bytes} returned by {@link #convert}
+         * to by written later. This should make a
+         * {@link BytesRef#deepCopyOf deep copy} if {@link #convert} didn't.
+         */
+        protected abstract BytesRef preserve(BytesRef value);
     }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.util.List;
@@ -140,7 +141,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
         });
         ActionFuture<Res> future = req.execute();
-        assertBusy(() -> assertTrue(masterCoordinator.cancelCommittedPublication()));
+        // cancel all commit publications produced by the request
+        internalCluster().getCurrentMasterNodeInstance(ThreadPool.class).generic().execute(() -> {
+            while (!future.isDone()) {
+                masterCoordinator.cancelCommittedPublication();
+            }
+        });
         return future;
     }
 
@@ -158,8 +164,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         indexDoc("test", "1");
         refresh();
         disruption.startDisrupting();
-        logger.info("--> delete index and recreate it");
+        logger.info("--> delete index");
         executeAndCancelCommittedPublication(client().admin().indices().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
+        logger.info("--> and recreate it");
         executeAndCancelCommittedPublication(
             prepareCreate("test").setSettings(
                 Settings.builder()

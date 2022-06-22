@@ -356,6 +356,7 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         }
+
         findApiKeyDocsForSubject(authentication.getEffectiveSubject(), new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
             if (apiKeys.isEmpty()) {
                 listener.onFailure(apiKeyNotFound(request.getId()));
@@ -377,7 +378,18 @@ public class ApiKeyService {
             // TODO what happens if `toBulkUpdateRequest` throws?
             final var version = clusterService.state().nodes().getMinNodeVersion();
             final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
-            doBulkUpdate(bulkRequest, listener);
+            doBulkUpdate(bulkRequest, ActionListener.wrap(bulkResponse -> {
+                assert bulkResponse.getItems().length == 1;
+                final var bulkItemResponse = bulkResponse.getItems()[0];
+                if (bulkItemResponse.isFailed()) {
+                    Throwable cause = bulkItemResponse.getFailure().getCause();
+                    listener.onFailure(new ElasticsearchException("Error updating api key", cause));
+                    return;
+                }
+                final var result = bulkItemResponse.getResponse().getResult();
+                assert result == DocWriteResponse.Result.UPDATED || result == DocWriteResponse.Result.NOOP;
+                listener.onResponse(new UpdateApiKeyResponse(result == DocWriteResponse.Result.UPDATED));
+            }, listener::onFailure));
         }, listener::onFailure));
     }
 
@@ -395,18 +407,14 @@ public class ApiKeyService {
         return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
     }
 
-    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<UpdateApiKeyResponse> listener) {
+    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<BulkResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 bulkUpdateRequest.request(),
-                ActionListener.<BulkResponse>wrap(
-                    // TODO translate here
-                    bulkResponse -> { listener.onResponse(new UpdateApiKeyResponse(true)); },
-                    listener::onFailure
-                ),
+                listener,
                 client::bulk
             )
         );

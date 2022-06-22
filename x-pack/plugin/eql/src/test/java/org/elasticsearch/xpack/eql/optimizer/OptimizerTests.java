@@ -799,7 +799,7 @@ public class OptimizerTests extends ESTestCase {
             .map(r -> r instanceof KeyedFilter ? (KeyedFilter) r : keyedFilter(r))
             .collect(toList());
 
-        return new Sample(EMPTY, collect, randomInt(100));
+        return new Sample(EMPTY, collect);
     }
 
     private static Expression filterCondition(LogicalPlan plan) {

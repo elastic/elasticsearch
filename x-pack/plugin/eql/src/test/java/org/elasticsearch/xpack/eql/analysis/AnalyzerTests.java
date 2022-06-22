@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.stats.Metrics;
@@ -196,7 +197,8 @@ public class AnalyzerTests extends ESTestCase {
                 [any where ?y != null] by ?z
             """;
         LogicalPlan plan = accept(index, eql);
-        assertTrue(plan instanceof Sample);
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
         Sample sample = (Sample) plan;
         assertEquals(3, sample.children().size());
         List<KeyedFilter> queries = sample.queries();

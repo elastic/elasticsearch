@@ -102,7 +102,13 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (ctx.pipe().size() > 0) {
                 throw new ParsingException(source(ctx.pipe().get(0)), "Samples do not support pipes yet");
             }
-            return plan;
+            LimitWithOffset limitPlan = new LimitWithOffset(
+                plan.source(),
+                new Literal(Source.EMPTY, params.size(), DataTypes.INTEGER),
+                0,
+                plan
+            );
+            return limitPlan;
         }
         //
         // Add implicit blocks
@@ -453,7 +459,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(missingJoinKeysSource, "A sample must have at least one join key, found none");
         }
 
-        return new Sample(source, queries, this.params.size());
+        return new Sample(source, queries);
     }
 
     private LogicalPlan pipe(PipeContext ctx, LogicalPlan plan) {

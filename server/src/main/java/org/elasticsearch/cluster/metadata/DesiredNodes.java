@@ -48,8 +48,9 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  * </p>
  *
  * <p>
- *  This concept is useful as it provides more context about future topology changes to the system,
- *  allowing it to make better decisions about allocation, autoscaling, auto-expand replicas, etc.
+ *  This concept is useful as it provides more context about future topology changes to the system
+ *  as well as the desired set of nodes in the cluster, allowing it to make better decisions
+ *  about allocation, autoscaling, auto-expand replicas, etc.
  * </p>
  *
  * <p>
@@ -90,7 +91,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *      <li>{@code ACTUALIZED}: The {@link DesiredNode} is or has been part of the cluster.
  *          Notice that it is possible that a node has {@code ACTUALIZED} status but it is not part of {@link DiscoveryNodes},
  *          this is a conscious decision as it is expected that nodes can leave the cluster momentarily due to network issues,
- *          gc pressure, etc, but are expected to still be part of the cluster.
+ *          gc pressure, restarts, hardware failures etc, but are expected to still be part of the cluster.
  *      </li>
  *  </ul>
  *

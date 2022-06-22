@@ -87,7 +87,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *  The two possible statuses {@link DesiredNodeWithStatus.Status} are:
  *  <ul>
  *      <li>{@code PENDING}: The {@link DesiredNode} is not part of the cluster yet</li>
- *      <li>{@code ACTUALIZED}: The {@link DesiredNode} ir or has been part of the cluster.
+ *      <li>{@code ACTUALIZED}: The {@link DesiredNode} is or has been part of the cluster.
  *          Notice that it is possible that a node has {@code ACTUALIZED} status but it is not part of {@link DiscoveryNodes},
  *          this is a conscious decision as it is expected that nodes can leave the cluster momentarily due to network issues,
  *          gc pressure, etc, but are expected to still be part of the cluster.

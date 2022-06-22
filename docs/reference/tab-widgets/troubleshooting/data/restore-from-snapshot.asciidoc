@@ -55,7 +55,7 @@ image::images/troubleshooting/data/kibana-restore-snapshot-select-resources.png[
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-restore-snapshot-confirm.png[{kib} confirm snapshot restore,width=30%]
 +
-. When the process will be complete you will see in the **Restore Status** tab the result of your restore.
+. When the process is complete, you will see in the **Restore Status** tab the result of your restore.
 +
 [role="screenshot"]
 image::images/troubleshooting/data/kibana-restore-snapshot-result.png[{kib} select resources to restore,align="center"]
@@ -69,7 +69,7 @@ For more guidance on creating and restoring snapshots see
 // tag::self-managed[]
 In order to restore the indices that are missing shards:
 
-. View the affected indices shards using the <<cat-indices,cat indices API>>.
+. View the affected indices using the <<cat-indices,cat indices API>>.
 +
 [source,console]
 ----
@@ -95,7 +95,7 @@ such a snapshot use the
 +
 [source,console]
 ----
-GET _snapshot/snap-repo/*?verbose=false
+GET _snapshot/my_repository/*?verbose=false
 ----
 // TEST[skip:illustration purposes only]
 +
@@ -108,11 +108,10 @@ The response will look like this:
     {
       "snapshot" : "snapshot-20200617",                                     <1>
       "uuid" : "dZyPs1HyTwS-cnKdH08EPg",
-      "repository" : "snap-repo",                                           <2>
+      "repository" : "my_repository",                                           <2>
       "indices" : [                                                         <3>
         ".apm-agent-configuration",
         ".apm-custom-link",
-        ".ds-.logs-deprecation.elasticsearch-default-2022.06.17-000001",
         ".ds-ilm-history-5-2022.06.17-000001",
         ".ds-my-data-stream-2022.06.17-000001",
         ".geoip_databases",
@@ -175,7 +174,7 @@ any complications using the <<restore-snapshot-api, restore snapshot API>>:
 +
 [source,console]
 ----
-POST _snapshot/snap-repo/snapshot-20200617/_restore
+POST _snapshot/my_repository/snapshot-20200617/_restore
 {
   "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001", <1>
   "include_aliases": true                                                       <2>

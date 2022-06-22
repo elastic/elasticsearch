@@ -24,6 +24,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -53,7 +54,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -290,11 +290,7 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    final Set<Map.Entry<String, FormattedDocValues>> fields = Stream.concat(
-                        metricsFieldLeaves.entrySet().stream(),
-                        labelFieldLeaves.entrySet().stream()
-                    ).collect(Collectors.toSet());
-                    for (Map.Entry<String, FormattedDocValues> e : fields) {
+                    for (Map.Entry<String, FormattedDocValues> e : Sets.union(metricsFieldLeaves.entrySet(), labelFieldLeaves.entrySet())) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
 

@@ -34,25 +34,19 @@ import java.util.stream.Collectors;
  * The Metadata values in {@link IngestDocument.Metadata} are validated when put in the map.
  * _index, _id and _routing must be a String or null
  * _version_type must be a lower case VersionType or null
- * _version must be representable as a long without loss of precision and may not be null
+ * _version must be representable as a long without loss of precision or null
+ * _dyanmic_templates must be a map
+ * _if_seq_no must be a long or null
+ * _if_primate_term must be a long or null
  *
- * The map is expected to be used by processors where-as the typed getter and setters should
- * be used by server code where possible.
- * ...
- * IngestSourceAndMetadata is an implementation of {@code Map<String, Object>} that has a validating functions for a subset of keys.
- *
- * The validators are BiFunctions that should either return the identity or throw an {@link IllegalArgumentException}.  The
- * arguments to the validator are the key and the proposed value or {@code null} for key removal.
- *
- * Validation occurs everywhere updates can happen, either directly via the {@link #put(String, Object)}, {@link #replace(Object, Object)},
- * {@link #merge(Object, Object, BiFunction)} family of methods, via {@link Map.Entry#setValue(Object)},
- * via the linked Set from {@link #entrySet()} or {@link Collection#remove(Object)} from the linked collection via {@link #values()}
+ * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
 public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final ZonedDateTime timestamp;
-    // protected static final BiFunction<String, Object, Object> IDENTITY = (k, v) -> v;
 
-    // map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value, otherwise return identity
+    /**
+     * map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value, otherwise return identity
+      */
     static final Map<String, BiFunction<String, Object, Object>> VALIDATORS = Map.of(
         IngestDocument.Metadata.INDEX.getFieldName(),
         IngestSourceAndMetadata::stringValidator,
@@ -75,7 +69,7 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final Map<String, Object> source;
     protected final Map<String, Object> metadata;
     protected final Map<String, BiFunction<String, Object, Object>> validators;
-    private EntrySet entrySet;
+    private EntrySet entrySet; // cache to avoid recreation
 
     public IngestSourceAndMetadata(
         String index,
@@ -91,11 +85,22 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
 
     /**
      * Creates an {@code IngestSourceAndMetadata} from the given source, metadata and timestamp
+     * @param source the source document map
+     * @param metadata the metadata map
+     * @param timestamp the time of ingestion
      */
     public IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
         this(source, metadata, timestamp, VALIDATORS);
     }
 
+    /**
+     * Create IngestSourceAndMetadata with custom validators.
+     *
+     * @param source the source document map
+     * @param metadata the metadata map
+     * @param timestamp the time of ingestion
+     * @param validators validators to run on metadata map, if a key is in this map, the value is stored in metadata
+     */
     IngestSourceAndMetadata(
         Map<String, Object> source,
         Map<String, Object> metadata,
@@ -134,6 +139,9 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         );
     }
 
+    /**
+     * Create the backing metadata map with the standard contents assuming default validators.
+     */
     protected static Map<String, Object> metadataMap(String index, String id, long version, String routing, VersionType versionType) {
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
         metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), index);
@@ -165,16 +173,21 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         return new Tuple<>(source, metadata);
     }
 
+    /**
+     * get the source map, if externally modified then the guarantees of this class are not enforced
+     */
     public Map<String, Object> getSource() {
         return source;
     }
 
+    /**
+     * get the metadata map, if externally modified then the guarantees of this class are not enforced
+     */
     public Map<String, Object> getMetadata() {
         return metadata;
     }
 
     // These are available to scripts
-
     public String getIndex() {
         return getString(IngestDocument.Metadata.INDEX.getFieldName());
     }
@@ -236,6 +249,9 @@ public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         return (Map<String, String>) metadata.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName());
     }
 
+    /**
+     * Check that all metadata map contains only valid metadata and no extraneous keys and source map contains no metadata
+     */
     protected void validateMetadata() {
         int numMetadata = 0;
         for (Map.Entry<String, BiFunction<String, Object, Object>> entry : validators.entrySet()) {

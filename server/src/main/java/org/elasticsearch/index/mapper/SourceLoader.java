@@ -22,6 +22,11 @@ import java.io.IOException;
  */
 public interface SourceLoader {
     /**
+     * Does this {@link SourceLoader} reorder field values?
+     */
+    boolean reordersFieldValues();
+
+    /**
      * Build the loader for some segment.
      */
     Leaf leaf(LeafReader reader) throws IOException;
@@ -44,6 +49,11 @@ public interface SourceLoader {
      */
     SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
         @Override
+        public boolean reordersFieldValues() {
+            return false;
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader) {
             return new Leaf() {
                 @Override
@@ -62,6 +72,11 @@ public interface SourceLoader {
 
         public Synthetic(Mapping mapping) {
             loader = mapping.getRoot().syntheticFieldLoader();
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return true;
         }
 
         @Override

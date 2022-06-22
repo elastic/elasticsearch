@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
@@ -555,6 +556,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterGetSettingsAction.INSTANCE, TransportClusterGetSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
+        actions.register(ClusterFormationInfoAction.INSTANCE, ClusterFormationInfoAction.TransportAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
@@ -734,7 +736,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
         registerHandler.accept(new RestPostFeatureUpgradeAction());
-        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestGetIndicesAction(threadPool));
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction(threadPool));
         registerHandler.accept(new RestIndicesShardStoresAction());

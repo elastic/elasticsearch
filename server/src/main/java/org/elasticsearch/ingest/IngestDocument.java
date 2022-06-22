@@ -58,17 +58,15 @@ public final class IngestDocument {
 
     private boolean doNoSelfReferencesCheck = false;
 
-    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
+    public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         // source + at max 5 extra fields
         this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         if (routing != null) {
             this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
@@ -85,13 +83,18 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
+    }
+
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
+    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**

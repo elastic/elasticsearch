@@ -300,6 +300,81 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(task1.hashCode(), is(not(equalTo(task2.hashCode()))));
     }
 
+    public void testRegisterMultipleTransforms() {
+        String transformId1 = "test-register-transforms-1";
+        String transformId2 = "test-register-transforms-2";
+        String transformId3 = "test-register-transforms-3";
+        TimeValue frequency = TimeValue.timeValueSeconds(5);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, Version.CURRENT, frequency, false);
+        FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
+        CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
+        TransformScheduler.Listener listener = events::add;
+
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        transformScheduler.registerTransform(transformTaskParams1, listener);
+        transformScheduler.registerTransform(transformTaskParams2, listener);
+        transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(
+                new TransformScheduledTask(transformId1, frequency, 0L, 0, 5000, listener),
+                new TransformScheduledTask(transformId2, frequency, 0L, 0, 5000, listener),
+                new TransformScheduledTask(transformId3, frequency, 0L, 0, 5000, listener)
+            )
+        );
+        assertThat(events, hasSize(3));
+        assertThat(events.get(0).transformId(), is(equalTo(transformId1)));
+        assertThat(events.get(1).transformId(), is(equalTo(transformId2)));
+        assertThat(events.get(2).transformId(), is(equalTo(transformId3)));
+    }
+
+    public void testMultipleTransformsEligibleForProcessingAtOnce() {
+        String transformId1 = "test-register-transforms-1";
+        String transformId2 = "test-register-transforms-2";
+        String transformId3 = "test-register-transforms-3";
+        TimeValue frequency = TimeValue.timeValueSeconds(5);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, Version.CURRENT, frequency, false);
+        FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
+        CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
+        TransformScheduler.Listener listener = events::add;
+
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        transformScheduler.registerTransform(transformTaskParams1, listener);
+        transformScheduler.registerTransform(transformTaskParams2, listener);
+        transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(
+                new TransformScheduledTask(transformId1, frequency, 0L, 0, 5000, listener),
+                new TransformScheduledTask(transformId2, frequency, 0L, 0, 5000, listener),
+                new TransformScheduledTask(transformId3, frequency, 0L, 0, 5000, listener)
+            )
+        );
+        assertThat(events, hasSize(3));
+        assertThat(events.get(0).transformId(), is(equalTo(transformId1)));
+        assertThat(events.get(1).transformId(), is(equalTo(transformId2)));
+        assertThat(events.get(2).transformId(), is(equalTo(transformId3)));
+
+        clock.advanceTimeBy(Duration.ofSeconds(5));  // Advance time to the next scheduled time of all 3 transforms
+        transformScheduler.processScheduledTasks();
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(
+                new TransformScheduledTask(transformId1, frequency, 5000L, 0, 10000, listener),
+                new TransformScheduledTask(transformId2, frequency, 5000L, 0, 10000, listener),
+                new TransformScheduledTask(transformId3, frequency, 5000L, 0, 10000, listener)
+            )
+        );
+        assertThat(events, hasSize(6));
+        assertThat(events.get(3).transformId(), is(equalTo(transformId1)));
+        assertThat(events.get(4).transformId(), is(equalTo(transformId2)));
+        assertThat(events.get(5).transformId(), is(equalTo(transformId3)));
+    }
+
     private static class FakeClock extends Clock {
 
         private Instant currentTime;

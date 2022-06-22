@@ -22,9 +22,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
 
 /**
  * {@link TransformScheduler} class is responsible for scheduling transform tasks according to their configured frequency as well as
@@ -99,8 +96,9 @@ public final class TransformScheduler {
         }
         logger.trace("Processing scheduled tasks started");
         Instant processingStarted = clock.instant();
+        final boolean taskWasProcessed;
         try {
-            processScheduledTasksInternal();
+            taskWasProcessed = processScheduledTasksInternal();
         } finally {
             // Make sure we clear the "isProcessingActive" bit regardless of whether there was a success or failure.
             // Otherwise, the processing would be stuck forever.
@@ -113,12 +111,17 @@ public final class TransformScheduler {
                 Duration.between(processingStarted, processingFinished).toMillis()
             )
         );
+        if (taskWasProcessed) {
+            // If we happened to process the task, there may be other tasks also eligible for processing.
+            // We try to process them ASAP as we don't want to wait the `delay` for every task.
+            processScheduledTasks();
+        }
     }
 
-    private void processScheduledTasksInternal() {
+    private boolean processScheduledTasksInternal() {
         if (scheduledTasks.isEmpty()) {
             // There are no scheduled tasks, hence, nothing to do
-            return;
+            return false;
         }
         long currentTimeMillis = clock.millis();
         TransformScheduledTask scheduledTask = scheduledTasks.first();
@@ -127,7 +130,7 @@ public final class TransformScheduler {
             // It is too early to process this task.
             // Consequently, it is too early to process other tasks because the tasks are sorted by their next scheduled time.
             // Try again later.
-            return;
+            return false;
         }
         // Create event that will be sent to the listener
         Event event = new Event(scheduledTask.getTransformId(), scheduledTask.getNextScheduledTimeMillis(), currentTimeMillis);
@@ -153,6 +156,7 @@ public final class TransformScheduler {
                 task.getListener()
             );
         });
+        return true;
     }
 
     /**
@@ -225,6 +229,6 @@ public final class TransformScheduler {
      * @return queue current contents
      */
     List<TransformScheduledTask> getTransformScheduledTasks() {
-        return StreamSupport.stream(scheduledTasks.spliterator(), false).collect(toUnmodifiableList());
+        return scheduledTasks.listScheduledTasks();
     }
 }

@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -27,7 +27,7 @@ import java.util.function.Function;
  *
  * The implementation of this queue is thread-safe and utilizes locks.
  */
-class TransformScheduledTaskQueue implements Iterable<TransformScheduledTask> {
+class TransformScheduledTaskQueue {
 
     private static final Logger logger = LogManager.getLogger(TransformScheduledTaskQueue.class);
 
@@ -37,7 +37,9 @@ class TransformScheduledTaskQueue implements Iterable<TransformScheduledTask> {
     private final Map<String, TransformScheduledTask> tasksById;
 
     TransformScheduledTaskQueue() {
-        this.tasks = new TreeSet<>(Comparator.comparing(TransformScheduledTask::getNextScheduledTimeMillis));
+        this.tasks = new TreeSet<>(
+            Comparator.comparing(TransformScheduledTask::getNextScheduledTimeMillis).thenComparing(TransformScheduledTask::getTransformId)
+        );
         this.tasksById = new HashMap<>();
     }
 
@@ -116,8 +118,11 @@ class TransformScheduledTaskQueue implements Iterable<TransformScheduledTask> {
         return task;
     }
 
-    @Override
-    public Iterator<TransformScheduledTask> iterator() {
-        return tasks.iterator();
+    // Visible for testing
+    /**
+     * @return queue current contents
+     */
+    public List<TransformScheduledTask> listScheduledTasks() {
+        return tasks.stream().toList();
     }
 }

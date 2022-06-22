@@ -1504,18 +1504,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
-        boolean invalidated = randomBoolean();
+        final boolean invalidated = randomBoolean();
         if (invalidated) {
-            PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+            final PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
             client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmName("file"), listener);
-            InvalidateApiKeyResponse invalidateResponse = listener.get();
+            final var invalidateResponse = listener.get();
             assertThat(invalidateResponse.getErrors(), empty());
             assertThat(invalidateResponse.getInvalidatedApiKeys(), contains(apiKeyId));
         }
         if (invalidated == false || randomBoolean()) {
-            Instant dayBefore = Instant.now().minus(1L, ChronoUnit.DAYS);
+            final var dayBefore = Instant.now().minus(1L, ChronoUnit.DAYS);
             assertTrue(Instant.now().isAfter(dayBefore));
-            UpdateResponse expirationDateUpdatedResponse = client().prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
+            final var expirationDateUpdatedResponse = client().prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -1535,8 +1535,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 updateListener
             );
         final var ex = expectThrows(ExecutionException.class, updateListener::get);
+
         assertThat(ex.getCause(), instanceOf(ValidationException.class));
-        assertThat(ex.getMessage(), containsString("cannot update inactive api key"));
+        assertThat(ex.getMessage(), containsString("cannot update inactive api key [" + apiKeyId + "]"));
     }
 
     private void testUpdateApiKeyNotFound(

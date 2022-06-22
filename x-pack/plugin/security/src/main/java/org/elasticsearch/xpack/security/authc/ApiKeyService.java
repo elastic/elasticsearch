@@ -369,7 +369,7 @@ public class ApiKeyService {
 
             final var apiKeyDoc = apiKeys.stream().iterator().next().apiKey();
             if (isActive(apiKeyDoc) == false) {
-                listener.onFailure(cannotUpdateInactiveApiKey());
+                listener.onFailure(cannotUpdateInactiveApiKey(request.getId()));
                 return;
             }
             // TODO assert on creator match, on version compatibility match
@@ -381,8 +381,8 @@ public class ApiKeyService {
         }, listener::onFailure));
     }
 
-    private ValidationException cannotUpdateInactiveApiKey() {
-        return new ValidationException().addValidationError("cannot update inactive api key");
+    private ValidationException cannotUpdateInactiveApiKey(String apiKeyId) {
+        return new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
     }
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {

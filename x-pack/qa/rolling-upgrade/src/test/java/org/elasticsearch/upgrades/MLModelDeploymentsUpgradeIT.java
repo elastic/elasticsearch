@@ -141,11 +141,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             var stat = stats.get(0);
-            assertThat(
-                stat.toString(),
-                XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
-                equalTo("fully_allocated")
-            );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }

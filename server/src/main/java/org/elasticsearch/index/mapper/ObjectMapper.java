@@ -102,14 +102,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         /**
-         * Adds a dynamically created Mapper to this builder.
+         * Adds a dynamically created {@link Mapper} to this builder.
          *
          * @param name      the name of the Mapper, including object prefixes
          * @param prefix    the object prefix of this mapper
          * @param mapper    the mapper to add
          * @param context   the DocumentParserContext in which the mapper has been built
          */
-        public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == false) {
@@ -118,29 +118,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
             // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-            // call addDynamic on it with the name 'bar.baz'.
+            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
-                String childName = name.substring(0, firstDotIndex);
-                String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
-                childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
-                add(childBuilder);
+                String immediateChild = name.substring(0, firstDotIndex);
+                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
-            // does the child mapper already exist? if so, use that
-            ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+            // does the object mapper already exist? if so, use that
+            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            // has the child mapper been added as a dynamic update already?
-            child = context.getDynamicObjectMapper(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+            // has the object mapper been added as a dynamic update already?
+            objectMapper = context.getDynamicObjectMapper(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
+            throw new IllegalStateException("Missing intermediate object " + fullName);
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -554,53 +554,51 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
-        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
-            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
-            if (subLoader != null) {
-                fields.add(subLoader);
-            }
-        });
+        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
+            .stream()
+            .sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != null)
+            .toList();
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Leaf leaf(LeafReader reader) throws IOException {
-                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+                List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    leaves.add(field.leaf(reader));
+                    Leaf leaf = field.leaf(reader);
+                    if (false == leaf.empty()) {
+                        l.add(leaf);
+                    }
                 }
+                SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
                     @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.advanceToDoc(docId);
-                        }
+                    public boolean empty() {
+                        return leaves.length == 0;
                     }
 
                     @Override
-                    public boolean hasValue() {
+                    public boolean advanceToDoc(int docId) throws IOException {
+                        hasValue = false;
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                return true;
-                            }
+                            boolean leafHasValue = leaf.advanceToDoc(docId);
+                            hasValue |= leafHasValue;
                         }
-                        return false;
+                        return hasValue;
                     }
 
                     @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        boolean started = false;
+                    public void write(XContentBuilder b) throws IOException {
+                        if (hasValue == false) {
+                            return;
+                        }
+                        startSyntheticField(b);
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                if (false == started) {
-                                    started = true;
-                                    startSyntheticField(b);
-                                }
-                                leaf.load(b);
-                            }
+                            leaf.write(b);
                         }
-                        if (started) {
-                            b.endObject();
-                        }
+                        b.endObject();
                     }
                 };
             }

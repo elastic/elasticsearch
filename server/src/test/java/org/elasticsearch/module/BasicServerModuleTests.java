@@ -36,9 +36,6 @@ public class BasicServerModuleTests extends ESTestCase {
     private static final String SERVER_MODULE_NAME = "org.elasticsearch.server";
 
     public void testQualifiedExports() {
-        // Temporarily skip on JDK 19, until this issue is resolved https://bugs.openjdk.java.net/browse/JDK-8287097
-        assumeTrue("Skip on 19", Runtime.version().feature() < 19);
-
         var md = getServerDescriptor();
 
         // The package containing the RestInterceptor type, org.elasticsearch.plugins.interceptor,
@@ -50,17 +47,11 @@ public class BasicServerModuleTests extends ESTestCase {
 
     // Ensures that there are no unqualified opens - too dangerous
     public void testEnsureNoUnqualifiedOpens() {
-        // Temporarily skip on JDK 19, until this issue is resolved https://bugs.openjdk.java.net/browse/JDK-8287097
-        assumeTrue("Skip on 19", Runtime.version().feature() < 19);
-
         var md = getServerDescriptor();
         assertThat(md.opens().stream().filter(not(ModuleDescriptor.Opens::isQualified)).collect(Collectors.toSet()), empty());
     }
 
     public void testQualifiedOpens() {
-        // Temporarily skip on JDK 19, until this issue is resolved https://bugs.openjdk.java.net/browse/JDK-8287097
-        assumeTrue("Skip on 19", Runtime.version().feature() < 19);
-
         var md = getServerDescriptor();
 
         // We tolerate introspection by log4j, for Plugins, e.g. ECSJsonLayout

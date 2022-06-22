@@ -157,8 +157,7 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
     public void testRandomGeoCollectionQuery() throws Exception {
         // Create a random geometry collection to index.
         GeometryCollection<Geometry> randomIndexCollection = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
-        org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
-        Polygon polygon = new Polygon(new LinearRing(randomPoly.getPolyLons(), randomPoly.getPolyLats()));
+        Polygon polygon = GeometryTestUtils.randomPolygon(false);
         List<Geometry> indexGeometries = new ArrayList<>();
         for (Geometry geometry : randomIndexCollection) {
             indexGeometries.add(geometry);

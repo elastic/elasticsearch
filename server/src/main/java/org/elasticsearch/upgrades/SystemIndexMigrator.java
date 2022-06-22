@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This is where the logic to actually perform the migration lives - {@link SystemIndexMigrator#run(SystemIndexMigrationTaskState)} will
@@ -117,7 +117,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             stateIndexName = taskState.getCurrentIndex();
             stateFeatureName = taskState.getCurrentFeature();
 
-            SystemIndices.Feature feature = systemIndices.getFeatures().get(stateFeatureName);
+            SystemIndices.Feature feature = systemIndices.getFeature(stateFeatureName);
             if (feature == null) {
                 markAsFailed(
                     new IllegalStateException(
@@ -144,7 +144,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             systemIndices.getFeatures()
-                .values()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
                 .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
@@ -184,16 +183,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
-                                new ParameterizedMessage(
-                                    "failed to resume system index migration from index [{}], that index is not present in the cluster",
+                                format(
+                                    "failed to resume system index migration from index [%s], that index is not present in the cluster",
                                     stateIndexName
-                                ).getFormattedMessage()
+                                )
                             )
                         );
                     }
                     logger.warn(
-                        new ParameterizedMessage(
-                            "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
+                        () -> format(
+                            "resuming system index migration with index [%s], which does not match index given in last task state [%s]",
                             nextMigrationInfo.getCurrentIndexName(),
                             stateIndexName
                         )
@@ -423,8 +422,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         }
                     }, e -> {
                         logger.error(
-                            new ParameterizedMessage(
-                                "error occurred while reindexing index [{}] from feature [{}] to destination index [{}]",
+                            () -> format(
+                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
                                 oldIndexName,
                                 migrationInfo.getFeatureName(),
                                 newIndexName
@@ -437,8 +436,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }, innerListener::onFailure));
         } catch (Exception ex) {
             logger.error(
-                new ParameterizedMessage(
-                    "error occurred while migrating index [{}] from feature [{}] to new index [{}]",
+                () -> format(
+                    "error occurred while migrating index [%s] from feature [%s] to new index [%s]",
                     oldIndexName,
                     migrationInfo.getFeatureName(),
                     newIndexName

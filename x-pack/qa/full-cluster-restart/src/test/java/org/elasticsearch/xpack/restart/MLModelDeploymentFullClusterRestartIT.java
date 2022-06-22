@@ -68,6 +68,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         loggingSettings.setJsonEntity("""
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.process.assignment.planning" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
                 }}""");

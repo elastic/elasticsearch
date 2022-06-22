@@ -77,7 +77,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        ReindexRequest request = new ReindexRequest();
+        request.getDestination().index("test");
+        return request;
     }
 
     @Override

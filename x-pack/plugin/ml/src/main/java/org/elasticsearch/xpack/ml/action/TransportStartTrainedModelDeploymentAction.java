@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -51,8 +50,8 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
@@ -77,6 +76,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
@@ -301,10 +301,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
+        logger.trace(() -> format("[{}] Deleting failed deployment", modelId), exception);
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
+                () -> format(
+                    "[%s] Failed to delete model allocation that had failed with the reason [%s]",
                     modelId,
                     exception.getMessage()
                 ),
@@ -452,16 +453,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAssignment.getNodeRoutingTable().entrySet();
+            final Set<Map.Entry<String, RoutingInfo>> nodeIdsAndRouting = trainedModelAssignment.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();
-            for (Map.Entry<String, RoutingStateAndReason> nodeIdAndState : nodesAndState) {
-                if (RoutingState.FAILED.equals(nodeIdAndState.getValue().getState())) {
-                    nodeFailuresAndReasons.put(nodeIdAndState.getKey(), nodeIdAndState.getValue().getReason());
+            for (Map.Entry<String, RoutingInfo> nodeIdAndRouting : nodeIdsAndRouting) {
+                if (RoutingState.FAILED.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodeFailuresAndReasons.put(nodeIdAndRouting.getKey(), nodeIdAndRouting.getValue().getReason());
                 }
-                if (RoutingState.STARTING.equals(nodeIdAndState.getValue().getState())) {
-                    nodesStillInitializing.add(nodeIdAndState.getKey());
+                if (RoutingState.STARTING.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodesStillInitializing.add(nodeIdAndRouting.getKey());
                 }
             }
 
@@ -482,7 +483,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
-            if (nodesAndState.isEmpty()
+            if (nodeIdsAndRouting.isEmpty()
                 // We cannot scale horizontally
                 && maxLazyMLNodes <= nodes.size()
                 // We cannot scale vertically
@@ -500,7 +501,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
 
-            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus(nodes).orElse(null);
+            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus().orElse(null);
             if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }
@@ -509,8 +510,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] tested with state [{}] and nodes {} still initializing",
+                () -> format(
+                    "[%s] tested with state [%s] and nodes %s still initializing",
                     modelId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing

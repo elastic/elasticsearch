@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -29,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
 import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK_SIZE;
 
@@ -155,8 +155,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
+            () -> format(
+                "using container [%s], chunk_size [%s], compress [%s], base_path [%s]",
                 blobStore,
                 chunkSize,
                 isCompress(),

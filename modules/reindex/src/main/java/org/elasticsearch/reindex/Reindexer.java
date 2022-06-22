@@ -30,10 +30,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -226,9 +229,20 @@ public class Reindexer {
                 scriptService,
                 sslConfig
             );
+            this.destinationIndexIdMapper = destinationIndexMode(state).buildNoFieldDataIdFieldMapper();
+        }
+
+        private IndexMode destinationIndexMode(ClusterState state) {
             IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
-            IndexMode destMode = destMeta == null ? IndexMode.STANDARD : IndexSettings.MODE.get(destMeta.getSettings());
-            this.destinationIndexIdMapper = destMode.buildNoFieldDataIdFieldMapper();
+            if (destMeta != null) {
+                return IndexSettings.MODE.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            if (template == null) {
+                return IndexMode.STANDARD;
+            }
+            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
+            return IndexSettings.MODE.get(settings);
         }
 
         @Override
@@ -275,7 +289,7 @@ public class Reindexer {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
-                return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -361,6 +375,7 @@ public class Reindexer {
         }
 
         class ReindexScriptApplier extends ScriptApplier {
+            private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -369,6 +384,14 @@ public class Reindexer {
                 Map<String, Object> params
             ) {
                 super(taskWorker, scriptService, script, params);
+            }
+
+            @Override
+            protected void execute(Map<String, Object> ctx) {
+                if (reindex == null) {
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
+                }
+                reindex.newInstance(params, ctx).execute();
             }
 
             /*

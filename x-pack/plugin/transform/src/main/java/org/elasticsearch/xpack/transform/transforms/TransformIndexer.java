@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -56,10 +55,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
@@ -452,8 +454,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
+            () -> format(
+                "[%s] Run delete based on retention policy using dbq [%s] with query: [%s]",
                 getJobId(),
                 deleteByQuery,
                 deleteByQuery.getSearchRequest()
@@ -462,7 +464,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         getStats().markStartDelete();
 
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
-            logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+            logger.trace(() -> format("[%s] dbq response: [%s]", getJobId(), bulkByScrollResponse));
 
             getStats().markEndDelete();
             getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
@@ -771,8 +773,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         } catch (InterruptedException e) {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Interrupt waiting ({}s) for transform state to be stored.",
+                () -> format(
+                    "[%s] Interrupt waiting (%ss) for transform state to be stored.",
                     getJobId(),
                     PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
                 ),
@@ -841,8 +843,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                        () -> format(
+                            "[%s] Timed out (%ss) waiting for transform state to be stored.",
                             getJobId(),
                             PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
                         )
@@ -946,10 +948,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+        int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
+            .orElse(context.getNumFailureRetries());
+        if (numFailureRetries != -1 && context.getAndIncrementFailureCount() > numFailureRetries) {
             failIndexer(
                 "task encountered more than "
-                    + context.getNumFailureRetries()
+                    + numFailureRetries
                     + " failures; latest failure: "
                     + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
             );

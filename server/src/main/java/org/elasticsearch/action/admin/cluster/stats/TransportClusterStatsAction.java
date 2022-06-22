@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -73,7 +72,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
-    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportClusterStatsAction(
@@ -82,8 +80,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
-        ActionFilters actionFilters,
-        StatsRequestLimiter statsRequestLimiter
+        ActionFilters actionFilters
     ) {
         super(
             ClusterStatsAction.NAME,
@@ -101,7 +98,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.indicesService = indicesService;
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
-        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -187,7 +183,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             true,
             false,
             false,
-            false,
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
@@ -236,11 +231,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[shardsStats.size()])
         );
 
-    }
-
-    @Override
-    protected void doExecute(Task task, ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
-        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     public static class ClusterStatsNodeRequest extends TransportRequest {

@@ -26,17 +26,7 @@ public class InternalPrecommitTasks {
         project.getPluginManager().apply(LicenseHeadersPrecommitPlugin.class);
         project.getPluginManager().apply(FilePermissionsPrecommitPlugin.class);
         project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
-
-        // TestingConventionsPlugin is incompatible with projects without
-        // test source sets. We wanna remove this plugin once we moved away from
-        // StandaloneRestTest plugin and RestTestPlugin. For apply this plugin only
-        // when tests are available.
-        // Long Term we want remove the need for most of this plugins functionality
-        // and not rely on multiple test tasks against a sourceSet.
-        if (project.file("src/test").exists()) {
-            project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
-        }
-
+        project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
         // tasks with just tests don't need certain tasks to run, so this flag makes adding
         // the task optional
         if (withProductiveCode) {
@@ -44,6 +34,7 @@ public class InternalPrecommitTasks {
             project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
             project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
             project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
+            project.getPluginManager().apply(JavaModulePrecommitPlugin.class);
         }
     }
 }

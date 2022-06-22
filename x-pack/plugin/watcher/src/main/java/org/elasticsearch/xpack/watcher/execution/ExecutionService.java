@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -81,6 +80,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class ExecutionService {
@@ -451,10 +451,7 @@ public class ExecutionService {
                     forcePutHistory(record);
                 } catch (Exception exc) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "Error storing watch history record for watch [{}] after thread pool rejection",
-                            triggeredWatch.id()
-                        ),
+                        () -> format("Error storing watch history record for watch [%s] after thread pool rejection", triggeredWatch.id()),
                         exc
                     );
                 }
@@ -462,8 +459,8 @@ public class ExecutionService {
                     deleteTrigger(triggeredWatch.id());
                 } catch (Exception exc) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
+                        () -> format(
+                            "Error deleting entry from .triggered_watches for watch [%s] after thread pool rejection",
                             triggeredWatch.id()
                         ),
                         exc

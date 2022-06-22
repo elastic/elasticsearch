@@ -17,14 +17,52 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+/**
+ * Loads source {@code _source} during a GET or {@code _search}.
+ */
 public interface SourceLoader {
-    interface Leaf {
-        BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
-    }
+    /**
+     * Does this {@link SourceLoader} reorder field values?
+     */
+    boolean reordersFieldValues();
 
+    /**
+     * Build the loader for some segment.
+     */
     Leaf leaf(LeafReader reader) throws IOException;
 
+    /**
+     * Loads {@code _source} from some segment.
+     */
+    interface Leaf {
+        /**
+         * Load the {@code _source} for a document.
+         * @param fieldsVisitor field visitor populated with {@code _source} if it
+         *                      has been saved
+         * @param docId the doc to load
+         */
+        BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+
+        Leaf EMPTY_OBJECT = new Leaf() {
+            @Override
+            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                // TODO accept a requested xcontent type
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    return BytesReference.bytes(b.startObject().endObject());
+                }
+            }
+        };
+    }
+
+    /**
+     * Load {@code _source} from a stored field.
+     */
     SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
+        @Override
+        public boolean reordersFieldValues() {
+            return false;
+        }
+
         @Override
         public Leaf leaf(LeafReader reader) {
             return new Leaf() {
@@ -36,24 +74,34 @@ public interface SourceLoader {
         }
     };
 
+    /**
+     * Load {@code _source} from doc vales.
+     */
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
-        Synthetic(RootObjectMapper root) {
-            loader = root.syntheticFieldLoader();
+        public Synthetic(Mapping mapping) {
+            loader = mapping.getRoot().syntheticFieldLoader();
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return true;
         }
 
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
             SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
+            if (leaf.empty()) {
+                return Leaf.EMPTY_OBJECT;
+            }
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        leaf.advanceToDoc(docId);
-                        if (leaf.hasValue()) {
-                            leaf.load(b);
+                        if (leaf.advanceToDoc(docId)) {
+                            leaf.write(b);
                         } else {
                             b.startObject().endObject();
                         }
@@ -64,28 +112,51 @@ public interface SourceLoader {
         }
     }
 
+    /**
+     * Load a field for {@link Synthetic}.
+     */
     interface SyntheticFieldLoader {
+        /**
+         * Load no values.
+         */
         SyntheticFieldLoader NOTHING = r -> new Leaf() {
             @Override
-            public void advanceToDoc(int docId) throws IOException {}
+            public boolean empty() {
+                return true;
+            }
 
             @Override
-            public boolean hasValue() {
+            public boolean advanceToDoc(int docId) throws IOException {
                 return false;
             }
 
             @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) throws IOException {}
         };
 
+        /**
+         * Build a loader for this field in the provided segment.
+         */
         Leaf leaf(LeafReader reader) throws IOException;
 
+        /**
+         * Loads values for a field in a particular leaf.
+         */
         interface Leaf {
-            void advanceToDoc(int docId) throws IOException;
+            /**
+             * Is this entirely empty?
+             */
+            boolean empty();
 
-            boolean hasValue();
+            /**
+             * Position the loader at a document.
+             */
+            boolean advanceToDoc(int docId) throws IOException;
 
-            void load(XContentBuilder b) throws IOException;
+            /**
+             * Write values for this document.
+             */
+            void write(XContentBuilder b) throws IOException;
         }
     }
 

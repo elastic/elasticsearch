@@ -8,6 +8,9 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +27,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertThat;
 
-public class MachineDependentHeapTests extends LaunchersTestCase {
+// TODO: rework these tests to mock jvm option finder so they can run with security manager, no forking needed
+@WithoutSecurityManager
+public class MachineDependentHeapTests extends ESTestCase {
 
     public void testDefaultHeapSize() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));

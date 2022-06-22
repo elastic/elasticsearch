@@ -103,6 +103,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_DOUBLE = "label_double";
     public static final String FIELD_LABEL_KEYWORD = "label_keyword";
     public static final String FIELD_LABEL_TEXT = "label_text";
+    //public static final String FIELD_LABEL_BOOLEAN = "label_boolean";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -175,6 +176,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=keyword",
                 FIELD_LABEL_TEXT,
                 "type=text",
+//                FIELD_LABEL_BOOLEAN,
+//                "type=boolean",
                 FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
                 "type=double,time_series_metric=counter"
             )
@@ -197,6 +200,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
                 .field(FIELD_LABEL_TEXT, ts)
+                //.field(FIELD_LABEL_BOOLEAN, randomBoolean())
                 .endObject();
         };
         bulkIndex(sourceSupplier);

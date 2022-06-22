@@ -40,7 +40,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final UserAction ILM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("ilm-not-running", "ILM is not running", HELP_URL),
+        new UserAction.Definition("ilm-not-running", "Start ILM using [POST /_ilm/start].", HELP_URL),
         null
     );
 
@@ -87,7 +87,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             );
             return createIndicator(
                 YELLOW,
-                "ILM is not running. Start ILM using [POST /_ilm/start].",
+                "ILM is not running",
                 createDetails(explain, ilmMetadata),
                 impacts,
                 List.of(ILM_NOT_RUNNING)

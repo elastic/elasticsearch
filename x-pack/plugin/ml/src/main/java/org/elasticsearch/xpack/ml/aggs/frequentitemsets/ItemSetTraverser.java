@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Stack;
 
 /**
  * A traverser that explores the item set tree, so item sets are generated exactly once.
@@ -34,13 +34,12 @@ class ItemSetTraverser implements Releasable {
     // stack implementation: to avoid object churn this is not implemented as classical stack, but optimized for re-usage
     // non-optimized: Stack<TransactionStore.TopItemIds.IdIterator> itemIterators = new Stack<>();
     private final List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
-    private final Stack<Long> itemIdStack = new Stack<>();
+    private LongsRef itemIdStack2 = new LongsRef(100);
 
     private int stackPosition = 0;
 
     ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
         this.topItemIds = topItemIds;
-
         // push the first iterator
         itemIterators.add(topItemIds.iterator());
     }
@@ -70,9 +69,6 @@ class ItemSetTraverser implements Releasable {
         for (;;) {
             if (itemIterators.get(stackPosition).hasNext()) {
                 itemId = itemIterators.get(stackPosition).next();
-
-                // the way the tree is traversed, it should not create dups
-                assert itemIdStack.contains(itemId) == false : "detected duplicate";
                 break;
             } else {
                 // non-optimized: itemIterators.pop();
@@ -81,7 +77,7 @@ class ItemSetTraverser implements Releasable {
                 if (stackPosition == -1) {
                     return false;
                 }
-                itemIdStack.pop();
+                itemIdStack2.length--;
             }
         }
 
@@ -93,18 +89,25 @@ class ItemSetTraverser implements Releasable {
             itemIterators.get(stackPosition + 1).reset(itemIterators.get(stackPosition).getIndex());
         }
 
-        itemIdStack.add(itemId);
+        if (itemIdStack2.longs.length == itemIdStack2.length) {
+            LongsRef resizedItemIdStack2 = new LongsRef(itemIdStack2.length + 100);
+            System.arraycopy(itemIdStack2.longs, 0, resizedItemIdStack2.longs, 0, itemIdStack2.length);
+            resizedItemIdStack2.length = itemIdStack2.length;
+            itemIdStack2 = resizedItemIdStack2;
+        }
+
+        itemIdStack2.longs[itemIdStack2.length++] = itemId;
         ++stackPosition;
 
         return true;
     }
 
     public long getItemId() {
-        return itemIdStack.peek();
+        return itemIdStack2.longs[itemIdStack2.length - 1];
     }
 
-    public List<Long> getItemSet() {
-        return itemIdStack;
+    public LongsRef getItemSet() {
+        return itemIdStack2;
     }
 
     public int getNumberOfItems() {
@@ -125,7 +128,7 @@ class ItemSetTraverser implements Releasable {
         if (stackPosition == -1) {
             return;
         }
-        itemIdStack.pop();
+        itemIdStack2.length--;
     }
 
     @Override

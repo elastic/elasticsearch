@@ -204,16 +204,14 @@ public final class FrequentItemSetCollector {
             return items.length;
         }
 
-        private void reset(int id, List<Long> items, long docCount) {
-            if (items.size() > this.items.length) {
-                this.items = new LongsRef(items.size());
+        private void reset(int id, LongsRef items, long docCount) {
+            if (items.length > this.items.length) {
+                this.items = new LongsRef(items.length);
             }
 
-            for (int i = 0; i < items.size(); ++i) {
-                this.items.longs[i] = items.get(i);
-            }
+            System.arraycopy(items.longs, 0, this.items.longs, 0, items.length);
 
-            this.items.length = items.size();
+            this.items.length = items.length;
             this.docCount = docCount;
             this.id = id;
         }
@@ -279,13 +277,13 @@ public final class FrequentItemSetCollector {
      * @param docCount the doc count for this set
      * @return the new minimum doc count necessary to enter the collector
      */
-    public long add(List<Long> itemSet, long docCount) {
-        logger.trace("add itemset [{}] count: {}", itemSet, docCount);
+    public long add(LongsRef itemSet, long docCount) {
+        logger.trace("add itemset [{}] count: {} size: {}, queue size: {}", itemSet, docCount, size, queue.size());
 
         // if the queue is full, shortcut if itemset has a lower count or fewer items than the last set in the queue
         if (queue.top() != null
             && queue.size() == size
-            && (docCount < queue.top().getDocCount() || (docCount == queue.top().getDocCount() && itemSet.size() <= queue.top().size()))) {
+            && (docCount < queue.top().getDocCount() || (docCount == queue.top().getDocCount() && itemSet.length <= queue.top().size()))) {
             return queue.top().getDocCount();
         }
 
@@ -346,33 +344,35 @@ public final class FrequentItemSetCollector {
      * [cat, dog, crocodile] gets skipped, because [cat, dog, crocodile, river] has the same support.
      *
      */
-    private boolean hasSuperSet(List<Long> itemSet, long docCount) {
+    private boolean hasSuperSet(LongsRef itemSet, long docCount) {
         List<FrequentItemSetCandidate> setsThatShareSameDocCount = frequentItemsByCount.get(docCount);
-        boolean foundSuperSet = false;
         if (setsThatShareSameDocCount != null) {
             for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCount) {
-                if (otherSet.size() < itemSet.size()) {
+                if (otherSet.size() < itemSet.length) {
                     continue;
                 }
 
-                int pos = 0;
-                LongsRef otherItemSet = otherSet.getItems();
-                for (int i = 0; i < otherItemSet.length; ++i) {
-                    if (otherItemSet.longs[i] == itemSet.get(pos)) {
+                // quick, intrinsic optimized prefix matching
+                int commonPrefix = Arrays.mismatch(otherSet.items.longs, 0, otherSet.items.longs.length, itemSet.longs, 0, itemSet.length);
+
+                if (commonPrefix == -1 || commonPrefix == itemSet.length) {
+                    return true;
+                }
+
+                int pos = commonPrefix;
+                int posOther = commonPrefix;
+
+                while (otherSet.size() - posOther >= itemSet.length - pos) {
+                    if (otherSet.items.longs[posOther++] == itemSet.longs[pos]) {
                         pos++;
-                        if (pos == itemSet.size()) {
-                            foundSuperSet = true;
-                            break;
+                        if (pos == itemSet.length) {
+                            return true;
                         }
                     }
                 }
-
-                if (foundSuperSet) {
-                    break;
-                }
             }
         }
-        return foundSuperSet;
+        return false;
     }
 
 }

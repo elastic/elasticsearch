@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -362,18 +363,19 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
      * @param transactionId the transaction id to check
      * @return true if all ids are part of this transaction or not
      */
-    public boolean transactionContainsAllIds(List<Long> ids, long transactionId) throws IOException {
+    public boolean transactionContainsAllIds(LongsRef ids, long transactionId) throws IOException {
+
         getTransactions().get(transactionId, scratchBytesRef);
         scratchByteArrayStreamInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
 
-        int pos = 0;
-        while (scratchByteArrayStreamInput.available() > 0) {
+        int itemsLeft = ids.length;
+        while (scratchByteArrayStreamInput.length() - scratchByteArrayStreamInput.getPosition() >= itemsLeft) {
             long item = scratchByteArrayStreamInput.readVLong();
 
             // we can do a linear scan, because we sorted the ids in the transaction in prune, see [ITEM-BOW]
-            if (item == ids.get(pos)) {
-                pos++;
-                if (ids.size() == pos) {
+            if (item == ids.longs[ids.length - itemsLeft]) {
+                --itemsLeft;
+                if (itemsLeft == 0) {
                     return true;
                 }
             }

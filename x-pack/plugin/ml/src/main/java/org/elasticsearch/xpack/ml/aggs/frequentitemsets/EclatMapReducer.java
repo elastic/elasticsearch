@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -277,8 +278,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
                     if (setTraverser.atLeaf()
                         && setTraverser.hasBeenVisited() == false
                         && setTraverser.getCount() >= minCount
-                        && setTraverser.getItemSet().size() >= minimumSetSize) {
-
+                        && setTraverser.getItemSet().length >= minimumSetSize) {
                         minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
                         // no need to set visited, as we are on a leaf
                     }
@@ -295,13 +295,13 @@ public final class EclatMapReducer extends AbstractMapReducer<
                  * iff the count of the subset is higher, collect
                  */
                 if (setTraverser.hasPredecessorBeenVisited() == false
-                    && setTraverser.getItemSet().size() > minimumSetSize
+                    && setTraverser.getItemSet().length > minimumSetSize
                     && setTraverser.getCount() < setTraverser.getPreviousCount()) {
                     // add the set without the last item
-                    minCount = collector.add(
-                        setTraverser.getItemSet().subList(0, setTraverser.getNumberOfItems() - 1),
-                        setTraverser.getPreviousCount()
-                    );
+
+                    LongsRef subItemSet = setTraverser.getItemSet().clone();
+                    subItemSet.length--;
+                    minCount = collector.add(subItemSet, setTraverser.getPreviousCount());
                 }
 
                 // closed set criteria: the predecessor is no longer of interest: either we reported in the previous step or we found a
@@ -321,7 +321,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
                  *
                  * Note: this also covers the last item, e.g. [a, x, y]
                  */
-                if (setTraverser.atLeaf() && setTraverser.getItemSet().size() >= minimumSetSize) {
+                if (setTraverser.atLeaf() && setTraverser.getItemSet().length >= minimumSetSize) {
                     minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
                     // no need to set visited, as we are on a leaf
                 }
@@ -332,7 +332,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
                  */
                 if (previousMinCount != minCount) {
                     previousMinCount = minCount;
-                    logger.trace("adjusting min count to {}", minCount);
+                    logger.debug("adjusting min count to {}", minCount);
                 }
             }
         }

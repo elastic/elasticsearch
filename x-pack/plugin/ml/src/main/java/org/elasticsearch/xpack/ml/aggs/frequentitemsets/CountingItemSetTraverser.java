@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Item set traverser to find the next interesting item set.
@@ -227,7 +227,7 @@ class CountingItemSetTraverser implements Releasable {
     /**
      * Get the current item set
      */
-    public List<Long> getItemSet() {
+    public LongsRef getItemSet() {
         return topItemSetTraverser.getItemSet();
     }
 

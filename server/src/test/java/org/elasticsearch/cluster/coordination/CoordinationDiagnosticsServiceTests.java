@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -28,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
@@ -360,7 +362,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRedForNoMaster() {
-        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
@@ -456,7 +460,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     @SuppressWarnings("unchecked")
     public void testRedForNoMasterAndNoMasterEligibleNodes() throws IOException {
-        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
@@ -497,7 +503,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     @SuppressWarnings("unchecked")
     public void testRedForNoMasterAndWithMasterEligibleNodesAndLeader() throws IOException {
-        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
             Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
@@ -542,7 +550,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     @SuppressWarnings("unchecked")
     public void testRedForNoMasterAndWithMasterEligibleNodesAndNoLeader() throws IOException {
-        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
@@ -622,5 +632,12 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         return new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+    }
+
+    private void createAndAddNonMasterNode(Cluster cluster) {
+        Cluster.ClusterNode nonMasterNode = cluster.new ClusterNode(
+            nextNodeIndex.getAndIncrement(), false, Settings.EMPTY, () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        cluster.clusterNodes.add(nonMasterNode);
     }
 }

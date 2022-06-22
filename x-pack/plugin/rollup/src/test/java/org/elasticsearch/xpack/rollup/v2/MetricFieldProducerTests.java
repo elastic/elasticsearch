@@ -23,7 +23,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testMinCountMetric() {
-        MetricFieldProducer.Metric metric = new MetricFieldProducer.MinMetric();
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.Min();
         assertNull(metric.get());
         metric.collect(40);
         metric.collect(5.5);
@@ -35,7 +35,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testMaxCountMetric() {
-        MetricFieldProducer.Metric metric = new MetricFieldProducer.MaxMetric();
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.Max();
         assertNull(metric.get());
         metric.collect(5.5);
         metric.collect(12.2);
@@ -46,7 +46,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testSumCountMetric() {
-        MetricFieldProducer.Metric metric = new MetricFieldProducer.SumMetric();
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.Sum();
         assertEquals(0d, metric.get());
         metric.collect(5.5);
         metric.collect(12.2);
@@ -98,7 +98,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testValueCountMetric() {
-        MetricFieldProducer.Metric metric = new MetricFieldProducer.ValueCountMetric();
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.ValueCount();
         assertEquals(0L, metric.get());
         metric.collect(40);
         metric.collect(30);
@@ -109,7 +109,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueMetric() {
-        MetricFieldProducer.Metric metric = new MetricFieldProducer.LastValueMetric();
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.LastValue();
         assertNull(metric.get());
         metric.collect(40);
         metric.collect(30);

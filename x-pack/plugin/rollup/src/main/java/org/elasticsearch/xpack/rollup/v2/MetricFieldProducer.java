@@ -22,7 +22,7 @@ import java.util.Map;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
+abstract class MetricFieldProducer extends AbstractFieldProducer<Number> {
     /**
      * a list of metrics that will be computed for the field
      */
@@ -55,7 +55,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
 
     /** Collect the value of a raw field and compute all downsampled metrics */
     @Override
-    public void collect(Double value) {
+    public void collect(Number value) {
         for (MetricFieldProducer.Metric metric : metrics) {
             metric.collect(value);
         }
@@ -79,7 +79,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
             this.name = name;
         }
 
-        abstract void collect(double number);
+        abstract void collect(Number number);
 
         abstract Number get();
 
@@ -89,16 +89,16 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that computes the maximum of all values of a field
      */
-    static class MaxMetric extends Metric {
+    static class Max extends Metric {
         private Double max;
 
-        MaxMetric() {
+        Max() {
             super("max");
         }
 
         @Override
-        void collect(double value) {
-            this.max = max != null ? Math.max(value, max) : value;
+        void collect(Number value) {
+            this.max = max != null ? Math.max(value.doubleValue(), max) : value.doubleValue();
         }
 
         @Override
@@ -115,16 +115,16 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that computes the minimum of all values of a field
      */
-    static class MinMetric extends Metric {
+    static class Min extends Metric {
         private Double min;
 
-        MinMetric() {
+        Min() {
             super("min");
         }
 
         @Override
-        void collect(double value) {
-            this.min = min != null ? Math.min(value, min) : value;
+        void collect(Number value) {
+            this.min = min != null ? Math.min(value.doubleValue(), min) : value.doubleValue();
         }
 
         @Override
@@ -144,13 +144,13 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class Sum extends Metric {
         private final CompensatedSum kahanSummation = new CompensatedSum();
 
-        SumMetric() {
+        Sum() {
             super("sum");
         }
 
         @Override
-        void collect(double value) {
-            kahanSummation.add(value);
+        void collect(Number value) {
+            kahanSummation.add(value.doubleValue());
         }
 
         @Override
@@ -167,15 +167,15 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     /**
      * Metric implementation that counts all values collected for a metric field
      */
-    static class ValueCountMetric extends Metric {
+    static class ValueCount extends Metric {
         private long count;
 
-        ValueCountMetric() {
+        ValueCount() {
             super("value_count");
         }
 
         @Override
-        void collect(double value) {
+        void collect(Number value) {
             count++;
         }
 
@@ -197,17 +197,17 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
      * the implementation of this class end up storing the first value it is empty and then
      * ignoring everything else.
      */
-    static class LastValueMetric extends Metric {
+    static class LastValue extends Metric {
         private Number lastValue;
 
-        LastValueMetric() {
+        LastValue() {
             super("last_value");
         }
 
         @Override
-        void collect(double value) {
+        void collect(Number value) {
             if (lastValue == null) {
-                lastValue = value;
+                lastValue = value.doubleValue();
             }
         }
 
@@ -228,7 +228,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
         CounterMetricFieldProducer(String field) {
-            super(field, List.of(new LastValueMetric()));
+            super(field, List.of(new LastValue()));
         }
 
         @Override
@@ -244,7 +244,7 @@ abstract class MetricFieldProducer extends AbstractFieldProducer<Double> {
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
         GaugeMetricFieldProducer(String field) {
-            super(field, List.of(new MinMetric(), new MaxMetric(), new SumMetric(), new ValueCountMetric()));
+            super(field, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
         }
 
         @Override

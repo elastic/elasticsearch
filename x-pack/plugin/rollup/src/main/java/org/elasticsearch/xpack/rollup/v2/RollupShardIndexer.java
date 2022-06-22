@@ -392,7 +392,7 @@ class RollupShardIndexer {
 
         private void collectMetric(final String field, final Object value) {
             if (value instanceof Number number) {
-                metricFieldProducers.get(field).collect((number.doubleValue()));
+                metricFieldProducers.get(field).collect(number);
             } else {
                 throw new IllegalArgumentException(
                     "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"

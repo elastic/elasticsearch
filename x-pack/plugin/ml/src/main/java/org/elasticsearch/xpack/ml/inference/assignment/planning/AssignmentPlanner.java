@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.N
 import java.util.Comparator;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * A planner that computes how allocations for model deployments will be
  * distributed across a set of nodes.
@@ -46,6 +48,7 @@ public class AssignmentPlanner {
     }
 
     public AssignmentPlan computePlan() {
+        logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
         AssignmentPlan planKeepingOneAllocationOnPreviousAssignments = solveKeepingOneAllocationOnPreviousAssignments();
         AssignmentPlan bestPlan = planKeepingOneAllocationOnPreviousAssignments.satisfiesPreviousAssignments()
             ? planKeepingOneAllocationOnPreviousAssignments
@@ -58,16 +61,20 @@ public class AssignmentPlanner {
     private AssignmentPlan solveKeepingOneAllocationOnPreviousAssignments() {
         // We do not want to ever completely unassign a model from a node so we
         // can move allocations without having temporary impact on performance.
+        logger.trace(() -> format("Solving preserving one allocation on previous assignments"));
         return solvePreservingPreviousAssignments(new PreserveOneAllocation(nodes, models));
     }
 
     private AssignmentPlan solvePreservingAllPreviousAssignments() {
+        logger.trace(() -> format("Solving preserving all allocations on previous assignments"));
         return solvePreservingPreviousAssignments(new PreserveAllAllocations(nodes, models));
     }
 
     private AssignmentPlan solvePreservingPreviousAssignments(AbstractPreserveAllocations preserveAllocations) {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
         List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
+        logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
+        logger.trace(() -> format("Models after applying allocation preserving strategy = %s", planModels));
         AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan();
         return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }

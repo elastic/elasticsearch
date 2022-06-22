@@ -461,7 +461,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     static void appendBytesSafe(StringBuilder stringBuilder, long bytes) {
         stringBuilder.append(bytes);
-        if (bytes >= 0) {
+        if (-1L <= bytes) {
             stringBuilder.append("/");
             stringBuilder.append(new ByteSizeValue(bytes));
         } else {

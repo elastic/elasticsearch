@@ -38,6 +38,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -361,26 +362,27 @@ public class ApiKeyService {
                 return;
             }
 
-            // Validation
             if (apiKeys.size() != 1) {
                 listener.onFailure(new IllegalStateException("more than one api key found for single api key update"));
                 return;
             }
+
             final var apiKeyDoc = apiKeys.stream().iterator().next().apiKey();
             if (isActive(apiKeyDoc) == false) {
-                // TODO should be 400
-                listener.onFailure(new IllegalStateException("api key must be active"));
+                listener.onFailure(cannotUpdateInactiveApiKey());
                 return;
             }
-            // TODO assert on creator
-
-            final var version = clusterService.state().nodes().getMinNodeVersion();
-            // TODO assert on version for now
+            // TODO assert on creator match, on version compatibility match
 
             // TODO what happens if `toBulkUpdateRequest` throws?
+            final var version = clusterService.state().nodes().getMinNodeVersion();
             final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
             doBulkUpdate(bulkRequest, listener);
         }, listener::onFailure));
+    }
+
+    private ValidationException cannotUpdateInactiveApiKey() {
+        return new ValidationException().addValidationError("cannot update inactive api key");
     }
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {

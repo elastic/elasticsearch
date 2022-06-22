@@ -29,6 +29,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -107,8 +108,10 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -1449,7 +1452,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
     }
 
-    public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
@@ -1495,6 +1498,33 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             ),
             new UpdateApiKeyRequest(apiKeyId, request.getRoleDescriptors(), request.getMetadata())
         );
+    }
+
+    public void testUpdateInactiveApiKeyScenarios() throws ExecutionException, InterruptedException {
+        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmName("file"), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getErrors(), empty());
+        assertThat(invalidateResponse.getInvalidatedApiKeys(), contains(apiKeyId));
+
+        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
+
+        final var serviceWithNodeName = getServiceWithNodeName();
+        final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                request,
+                Set.of(roleDescriptor),
+                updateListener
+            );
+        final var ex = expectThrows(ExecutionException.class, updateListener::get);
+        assertThat(ex.getCause(), instanceOf(ValidationException.class));
+        assertThat(ex.getMessage(), containsString("cannot update inactive api key"));
     }
 
     private void testUpdateApiKeyNotFound(

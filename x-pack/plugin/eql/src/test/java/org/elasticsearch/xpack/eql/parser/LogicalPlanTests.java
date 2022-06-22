@@ -196,6 +196,8 @@ public class LogicalPlanTests extends ESTestCase {
             "sample by pid [process where process_name == \"*\" ] by host_name [file where file_path == \"*\"] by host"
         );
 
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
         assertEquals(Sample.class, plan.getClass());
         Sample sample = (Sample) plan;
         List<? extends LogicalPlan> queries = sample.queries();

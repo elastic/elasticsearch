@@ -27,6 +27,10 @@ public class SampleExec extends PhysicalPlan {
     private final List<List<Attribute>> keys;
     private final Limit limit;
 
+    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys) {
+        this(source, children, keys, null);
+    }
+
     public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Limit limit) {
         super(source, children);
         this.keys = keys;
@@ -61,9 +65,13 @@ public class SampleExec extends PhysicalPlan {
         new ExecutionManager(session).assemble(keys(), children(), limit).execute(listener);
     }
 
+    public PhysicalPlan with(Limit limit) {
+        return new SampleExec(this.source(), this.children(), this.keys, limit);
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(keys, children());
+        return Objects.hash(keys, children(), limit);
     }
 
     @Override
@@ -77,7 +85,6 @@ public class SampleExec extends PhysicalPlan {
         }
 
         SampleExec other = (SampleExec) obj;
-        return Objects.equals(children(), other.children()) && Objects.equals(keys, other.keys);
+        return Objects.equals(children(), other.children()) && Objects.equals(keys, other.keys) && Objects.equals(limit, other.limit);
     }
-
 }

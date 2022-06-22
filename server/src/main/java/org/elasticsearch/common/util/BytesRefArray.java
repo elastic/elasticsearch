@@ -115,15 +115,6 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         Releasables.close(bytes, startOffsets);
     }
 
-    public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
-        BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
-        other.bytes = null;
-        other.startOffsets = null;
-        other.size = 0;
-
-        return b;
-    }
-
     /**
      * Create new instance and pass ownership of this array to the new one.
      *

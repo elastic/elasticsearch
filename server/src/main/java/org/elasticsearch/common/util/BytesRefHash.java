@@ -29,7 +29,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         // spare BytesRef
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
-    private BytesRefArray bytesRefs;
+    private final BytesRefArray bytesRefs;
     private final BytesRef spare;
 
     private IntArray hashes; // we cache hashes for faster re-hashing

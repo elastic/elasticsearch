@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -246,6 +247,14 @@ public class MultiGetRequest extends ActionRequest
     boolean refresh;
     List<Item> items = new ArrayList<>();
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private boolean forceSyntheticSource = false;
+
     public MultiGetRequest() {}
 
     public MultiGetRequest(StreamInput in) throws IOException {
@@ -254,6 +263,11 @@ public class MultiGetRequest extends ActionRequest
         refresh = in.readBoolean();
         realtime = in.readBoolean();
         items = in.readList(Item::new);
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
     @Override
@@ -263,6 +277,13 @@ public class MultiGetRequest extends ActionRequest
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
         out.writeList(items);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     public List<Item> getItems() {
@@ -329,6 +350,26 @@ public class MultiGetRequest extends ActionRequest
     public MultiGetRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
     }
 
     public MultiGetRequest add(

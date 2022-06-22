@@ -42,6 +42,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -131,6 +132,7 @@ public class MasterServiceTests extends ESTestCase {
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
+        masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
         masterService.start();
         return masterService;
     }
@@ -1072,6 +1074,7 @@ public class MasterServiceTests extends ESTestCase {
                 threadPool
             )
         ) {
+            masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
 
             final DiscoveryNode localNode = new DiscoveryNode(
                 "node1",
@@ -1264,6 +1267,7 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.get().publish(e, pl, al);
             });
             masterService.setClusterStateSupplier(() -> initialClusterState);
+            masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
             masterService.start();
 
             class LatchAckListener implements ClusterStateAckListener {

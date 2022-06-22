@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,6 +74,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             lastClusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishingCallback.set(publishListener);
         });
+        masterService.setTaskManager(new TaskManager(Settings.EMPTY, mockThreadPool, Collections.emptySet()));
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();

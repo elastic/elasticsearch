@@ -205,6 +205,7 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        masterService.setTaskManager(transportService.getTaskManager());
         coordinator = new Coordinator(
             "test_node",
             Settings.EMPTY,

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class ClusterService extends AbstractLifecycleComponent {
@@ -263,4 +264,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         masterService.submitStateUpdateTask(source, task, config, executor);
     }
 
+    public void setTaskManager(TaskManager taskManager) {
+        masterService.setTaskManager(taskManager);
+    }
 }

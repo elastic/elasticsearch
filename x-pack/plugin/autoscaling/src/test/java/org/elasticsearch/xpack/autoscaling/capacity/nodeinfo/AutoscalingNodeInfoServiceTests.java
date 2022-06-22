@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -60,7 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.AutoscalingMemoryAndProcessorInfoService.FETCH_TIMEOUT;
+import static org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfoService.FETCH_TIMEOUT;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -69,10 +68,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutoscalingMemoryAndProcessorInfoServiceTests extends AutoscalingTestCase {
+public class AutoscalingNodeInfoServiceTests extends AutoscalingTestCase {
 
     private NodeStatsClient client;
-    private AutoscalingMemoryAndProcessorInfoService service;
+    private AutoscalingNodeInfoService service;
     private TimeValue fetchTimeout;
     private AutoscalingMetadata autoscalingMetadata;
     private Metadata metadata;
@@ -95,7 +94,7 @@ public class AutoscalingMemoryAndProcessorInfoServiceTests extends AutoscalingTe
         Set<Setting<?>> settingsSet = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(FETCH_TIMEOUT));
         ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        service = new AutoscalingMemoryAndProcessorInfoService(clusterService, client);
+        service = new AutoscalingNodeInfoService(clusterService, client);
         autoscalingMetadata = randomAutoscalingMetadataOfPolicyCount(between(1, 8));
         metadata = Metadata.builder().putCustom(AutoscalingMetadata.NAME, autoscalingMetadata).build();
     }
@@ -401,7 +400,7 @@ public class AutoscalingMemoryAndProcessorInfoServiceTests extends AutoscalingTe
             assertThat(
                 service.snapshot().get(n).get(),
                 equalTo(
-                    new MemoryAndProcessors(
+                    new NodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
                         infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getAllocatedProcessors()
                     )
@@ -445,9 +444,24 @@ public class AutoscalingMemoryAndProcessorInfoServiceTests extends AutoscalingTe
         );
     }
 
-    private static NodeInfo infoForNode(DiscoveryNode node, int processors) {
+    private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
         OsInfo osInfo = new OsInfo(randomLong(), processors, processors, null, null, null, null);
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, node, null, osInfo, null, null, null, null, null, null, null, null, null);
+        return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            node,
+            null,
+            osInfo,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     private class NodeStatsClient extends NoOpClient {

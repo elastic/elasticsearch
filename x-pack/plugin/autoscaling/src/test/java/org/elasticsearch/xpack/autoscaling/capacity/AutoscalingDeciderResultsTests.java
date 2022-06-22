@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
@@ -110,7 +110,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
             }
             try (
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
             ) {
                 return parser.map();
             }
@@ -131,13 +131,9 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.total().storage(), expectedMemory.total().memory(), expectedProcessor.total().getProcessors());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory(), expectedProcessor.total().processors());
         if (node) {
-            expectedBuilder.node(
-                expectedStorage.node().storage(),
-                expectedMemory.node().memory(),
-                expectedProcessor.node().getProcessors()
-            );
+            expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory(), expectedProcessor.node().processors());
         }
         verifyRequiredCapacity(expectedBuilder.build(), autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
     }

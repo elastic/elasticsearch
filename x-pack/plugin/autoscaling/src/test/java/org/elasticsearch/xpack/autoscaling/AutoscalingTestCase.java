@@ -67,7 +67,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingCapacity(
             total,
             randomBoolean()
-                ? randomNullValueAutoscalingResources(total.storage() != null, total.memory() != null, total.processors().isPresent())
+                ? randomNullValueAutoscalingResources(total.storage() != null, total.memory() != null, total.processors() != null)
                 : null
         );
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,29 +40,28 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
-public class AutoscalingMemoryAndProcessorInfoService {
+public class AutoscalingNodeInfoService {
     public static final Setting<TimeValue> FETCH_TIMEOUT = Setting.timeSetting(
         "xpack.autoscaling.memory.monitor.timeout",
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private static final MemoryAndProcessors FETCHING_SENTINEL = new MemoryAndProcessors(Long.MIN_VALUE, Integer.MIN_VALUE);
+    private static final NodeInfo FETCHING_SENTINEL = new NodeInfo(Long.MIN_VALUE, Integer.MIN_VALUE);
 
-    private static final Logger logger = LogManager.getLogger(AutoscalingMemoryAndProcessorInfoService.class);
+    private static final Logger logger = LogManager.getLogger(AutoscalingNodeInfoService.class);
 
-    private volatile Map<String, MemoryAndProcessors> nodeToMemory = Map.of();
+    private volatile Map<String, NodeInfo> nodeToMemory = Map.of();
     private volatile TimeValue fetchTimeout;
 
     private final Client client;
     private final Object mutex = new Object();
 
     @Inject
-    public AutoscalingMemoryAndProcessorInfoService(ClusterService clusterService, Client client) {
+    public AutoscalingNodeInfoService(ClusterService clusterService, Client client) {
         this.client = client;
         this.fetchTimeout = FETCH_TIMEOUT.get(clusterService.getSettings());
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
@@ -140,15 +139,14 @@ public class AutoscalingMemoryAndProcessorInfoService {
                                     .toArray(String[]::new)
                             ).clear().addMetric(NodesInfoRequest.Metric.OS.metricName()).timeout(fetchTimeout),
                             ActionListener.wrap(nodesInfoResponse -> {
-                                final Map<String, MemoryAndProcessors.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
+                                final Map<String, NodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
                                     nodesStatsResponse.getNodes().size()
                                 );
                                 nodesStatsResponse.getNodes()
                                     .forEach(
                                         nodeStats -> builderBuilder.put(
                                             nodeStats.getNode().getEphemeralId(),
-                                            MemoryAndProcessors.builder()
-                                                .setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
+                                            NodeInfo.builder().setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
                                         )
                                     );
                                 nodesInfoResponse.getNodes().forEach(nodeInfo -> {
@@ -160,7 +158,7 @@ public class AutoscalingMemoryAndProcessorInfoService {
                                     );
                                 });
                                 synchronized (mutex) {
-                                    Map<String, MemoryAndProcessors> builder = new HashMap<>(nodeToMemory);
+                                    Map<String, NodeInfo> builder = new HashMap<>(nodeToMemory);
                                     // Remove all from the builder that failed getting info and stats
                                     Stream.concat(nodesStatsResponse.failures().stream(), nodesInfoResponse.failures().stream())
                                         .map(FailedNodeException::nodeId)
@@ -211,9 +209,7 @@ public class AutoscalingMemoryAndProcessorInfoService {
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {
         assert Thread.holdsLock(mutex);
         Set<String> ephemeralIds = currentNodes.stream().map(DiscoveryNode::getEphemeralId).collect(Collectors.toSet());
-        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keySet().spliterator(), false)
-            .filter(Predicate.not(ephemeralIds::contains))
-            .collect(Collectors.toSet());
+        Set<String> toRemove = nodeToMemory.keySet().stream().filter(Predicate.not(ephemeralIds::contains)).collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {
             nodeToMemory = nodeToMemory.entrySet()
                 .stream()
@@ -222,10 +218,10 @@ public class AutoscalingMemoryAndProcessorInfoService {
         }
     }
 
-    public AutoscalingMemoryAndProcessorInfo snapshot() {
-        final Map<String, MemoryAndProcessors> nodeToMemoryRef = this.nodeToMemory;
+    public AutoscalingNodeInfo snapshot() {
+        final Map<String, NodeInfo> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            MemoryAndProcessors result = nodeToMemoryRef.get(node.getEphemeralId());
+            NodeInfo result = nodeToMemoryRef.get(node.getEphemeralId());
             if (result == FETCHING_SENTINEL) {
                 return Optional.empty();
             } else {

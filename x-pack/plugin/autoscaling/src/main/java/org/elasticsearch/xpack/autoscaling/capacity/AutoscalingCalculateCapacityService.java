@@ -23,8 +23,8 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
-import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.AutoscalingMemoryAndProcessorInfo;
-import org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors.MemoryAndProcessors;
+import org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.NodeInfo;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.util.Collections;
@@ -109,7 +109,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryAndProcessorInfo memoryInfo,
+        AutoscalingNodeInfo autoscalingNodeInfo,
         Runnable ensureNotCancelled
     ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -121,7 +121,14 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                     .map(
                         e -> Tuple.tuple(
                             e.getKey(),
-                            calculateForPolicy(e.getValue().policy(), state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled)
+                            calculateForPolicy(
+                                e.getValue().policy(),
+                                state,
+                                clusterInfo,
+                                shardSizeInfo,
+                                autoscalingNodeInfo,
+                                ensureNotCancelled
+                            )
                         )
                     )
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
@@ -136,7 +143,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryAndProcessorInfo memoryInfo,
+        AutoscalingNodeInfo autoscalingNodeInfo,
         Runnable ensureNotCancelled
     ) {
         if (hasUnknownRoles(policy)) {
@@ -152,7 +159,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             state,
             clusterInfo,
             shardSizeInfo,
-            memoryInfo,
+            autoscalingNodeInfo,
             ensureNotCancelled
         );
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
@@ -193,10 +200,10 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryAndProcessorInfo memoryInfo,
+        AutoscalingNodeInfo autoscalingNodeInfo,
         Runnable ensureNotCancelled
     ) {
-        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled);
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, autoscalingNodeInfo, ensureNotCancelled);
     }
 
     /**
@@ -225,7 +232,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
         private final SnapshotShardSizeInfo snapshotShardSizeInfo;
-        private final AutoscalingMemoryAndProcessorInfo memoryInfo;
+        private final AutoscalingNodeInfo autoscalingNodeInfo;
         private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
@@ -236,7 +243,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             ClusterState state,
             ClusterInfo clusterInfo,
             SnapshotShardSizeInfo snapshotShardSizeInfo,
-            AutoscalingMemoryAndProcessorInfo memoryInfo,
+            AutoscalingNodeInfo autoscalingNodeInfo,
             Runnable ensureNotCancelled
         ) {
             this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
@@ -245,7 +252,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.state = state;
             this.clusterInfo = clusterInfo;
             this.snapshotShardSizeInfo = snapshotShardSizeInfo;
-            this.memoryInfo = memoryInfo;
+            this.autoscalingNodeInfo = autoscalingNodeInfo;
             this.currentNodes = state.nodes()
                 .stream()
                 .filter(this::rolesFilter)
@@ -297,7 +304,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 }
             }
 
-            return memoryInfo.get(node).isPresent();
+            return autoscalingNodeInfo.get(node).isPresent();
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {
@@ -321,11 +328,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 )
                 : 0L;
 
-            Optional<MemoryAndProcessors> memoryAndProcessors = memoryInfo.get(node);
+            Optional<NodeInfo> memoryAndProcessors = autoscalingNodeInfo.get(node);
             return new AutoscalingCapacity.AutoscalingResources(
                 storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
-                memoryAndProcessors.map(MemoryAndProcessors::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
-                memoryAndProcessors.map(MemoryAndProcessors::processors).orElse(0)
+                memoryAndProcessors.map(NodeInfo::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
+                memoryAndProcessors.map(NodeInfo::processors).orElse(0)
             );
         }
 

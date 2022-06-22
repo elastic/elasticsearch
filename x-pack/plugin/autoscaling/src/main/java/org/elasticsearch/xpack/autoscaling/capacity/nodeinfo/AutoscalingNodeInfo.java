@@ -5,19 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.Optional;
 
-public interface AutoscalingMemoryAndProcessorInfo {
-    AutoscalingMemoryAndProcessorInfo EMPTY = n -> Optional.empty();
+public interface AutoscalingNodeInfo {
+    AutoscalingNodeInfo EMPTY = n -> Optional.empty();
 
     /**
      * Get the memory and processor use for the indicated node. Returns null if not available (new, fetching or failed).
      * @param node the node to get info for
      * @return memory and processor info for node if possible
      */
-    Optional<MemoryAndProcessors> get(DiscoveryNode node);
+    Optional<NodeInfo> get(DiscoveryNode node);
 }

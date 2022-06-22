@@ -12,6 +12,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
+import java.util.Optional;
+
 public class AutoscalingCapacityWireSerializationTests extends AbstractWireSerializingTestCase<AutoscalingCapacity> {
     @Override
     protected Writeable.Reader<AutoscalingCapacity> instanceReader() {
@@ -30,7 +32,7 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
             // mutate total
             boolean hasAllMetrics = instance.total().memory() != null
                 && instance.total().storage() != null
-                && instance.total().processors().isPresent();
+                && instance.total().processors() != null;
             if (randomBoolean()) {
                 builder.total(
                     randomByteSize(
@@ -38,7 +40,7 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                         instance.total().storage()
                     ),
                     instance.total().memory(),
-                    instance.total().getProcessors()
+                    instance.total().processors()
                 );
             } else if (randomBoolean()) {
                 builder.total(
@@ -47,15 +49,15 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                         hasAllMetrics && (instance.node() == null || instance.node().memory() == null),
                         instance.total().memory()
                     ),
-                    instance.total().getProcessors()
+                    instance.total().processors()
                 );
             } else {
                 builder.total(
                     instance.total().storage(),
                     instance.total().memory(),
-                    hasAllMetrics && (instance.node() == null || instance.node().processors().isEmpty()) && randomBoolean()
+                    hasAllMetrics && (instance.node() == null || instance.node().processors() == null) && randomBoolean()
                         ? null
-                        : randomIntBetween(1, 64) + instance.total().processors().orElse(0)
+                        : randomIntBetween(1, 64) + Optional.ofNullable(instance.total().processors()).orElse(0)
                 );
             }
         } else {
@@ -65,47 +67,44 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                     AutoscalingTestCase.randomNullValueAutoscalingResources(
                         instance.total().storage() != null,
                         instance.total().memory() != null,
-                        instance.total().processors().isPresent()
+                        instance.total().processors() != null
                     )
                 );
             } else if (randomBoolean() && instance.total().storage() != null) {
                 builder.node(
-                    randomByteSize(instance.node().memory() != null || instance.node().processors().isPresent(), instance.node().storage()),
+                    randomByteSize(instance.node().memory() != null || instance.node().processors() != null, instance.node().storage()),
                     instance.node().memory(),
-                    instance.node().getProcessors()
+                    instance.node().processors()
                 );
             } else if (randomBoolean() && instance.total().memory() != null) {
                 builder.node(
                     instance.node().storage(),
-                    randomByteSize(instance.node().storage() != null || instance.node().processors().isPresent(), instance.node().memory()),
-                    instance.node().getProcessors()
+                    randomByteSize(instance.node().storage() != null || instance.node().processors() != null, instance.node().memory()),
+                    instance.node().processors()
                 );
-            } else if (instance.total().processors().isPresent()) {
+            } else if (instance.total().processors() != null) {
                 builder.node(
                     instance.node().storage(),
                     instance.node().memory(),
                     randomBoolean()
                         && (instance.node().storage() != null || instance.node().memory() != null)
-                        && instance.node().processors().isPresent()
+                        && instance.node().processors() != null
                             ? null
-                            : randomIntBetween(1, 64) + instance.node().processors().orElse(0)
+                            : randomIntBetween(1, 64) + Optional.ofNullable(instance.node().processors()).orElse(0)
                 );
             } else {
                 ByteSizeValue newStorage = instance.total().storage() != null
-                    ? randomByteSize(
-                        instance.node().memory() != null || instance.node().processors().isPresent(),
-                        instance.node().storage()
-                    )
+                    ? randomByteSize(instance.node().memory() != null || instance.node().processors() != null, instance.node().storage())
                     : null;
                 ByteSizeValue newMem = instance.total().memory() != null
-                    ? randomByteSize(newStorage != null || instance.node().processors().isPresent(), instance.node().memory())
+                    ? randomByteSize(newStorage != null || instance.node().processors() != null, instance.node().memory())
                     : null;
                 builder.node(
                     newStorage,
                     newMem,
-                    randomBoolean() && (newMem != null || newStorage != null) && instance.node().processors().isPresent() ? null
-                        : instance.total().processors().isPresent() && randomBoolean()
-                            ? randomIntBetween(1, 64) + instance.node().processors().orElse(0)
+                    randomBoolean() && (newMem != null || newStorage != null) && instance.node().processors() != null ? null
+                        : instance.total().processors() != null && randomBoolean()
+                            ? randomIntBetween(1, 64) + Optional.ofNullable(instance.node().processors()).orElse(0)
                         : null
                 );
             }

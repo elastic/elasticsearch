@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.OptionalInt;
 
 /**
  * Represents current/required capacity of a single tier.
@@ -56,20 +55,18 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             }
         }
 
+        @Nullable
         public ByteSizeValue storage() {
             return storage;
         }
 
+        @Nullable
         public ByteSizeValue memory() {
             return memory;
         }
 
-        public OptionalInt processors() {
-            return processors == null ? OptionalInt.empty() : OptionalInt.of(processors);
-        }
-
         @Nullable
-        Integer getProcessors() {
+        public Integer processors() {
             return processors;
         }
 

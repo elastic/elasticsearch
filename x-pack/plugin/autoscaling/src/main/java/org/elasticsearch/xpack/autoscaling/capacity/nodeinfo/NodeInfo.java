@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memoryandprocessors;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 /**
  * Record for containing memory and processors for given node
  * @param memory node total memory
  * @param processors allocated processors
  */
-public record MemoryAndProcessors(long memory, int processors) {
+public record NodeInfo(long memory, int processors) {
 
     static Builder builder() {
         return new Builder();
@@ -36,9 +36,9 @@ public record MemoryAndProcessors(long memory, int processors) {
             return memory != null && processors != null;
         }
 
-        MemoryAndProcessors build() {
+        NodeInfo build() {
             assert memory != null && processors != null : "unexpected null values when building node memory and processors information";
-            return new MemoryAndProcessors(memory, processors);
+            return new NodeInfo(memory, processors);
         }
     }
 }

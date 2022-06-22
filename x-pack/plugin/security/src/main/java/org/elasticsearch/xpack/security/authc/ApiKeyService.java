@@ -359,6 +359,8 @@ public class ApiKeyService {
                 throw apiKeyNotFound(apiKeyId);
             }
 
+            // TODO could make idempotency check here
+
             validateCurrentApiKeyDocForUpdate(apiKeyId, single(apiKeys).apiKey());
 
             doBulkUpdate(
@@ -373,6 +375,7 @@ public class ApiKeyService {
         if (bulkItemResponse.isFailed()) {
             listener.onFailure(bulkItemResponse.getFailure().getCause());
         } else {
+            // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
             assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
             assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
             listener.onResponse(new UpdateApiKeyResponse(true));
@@ -387,18 +390,19 @@ public class ApiKeyService {
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
         }
+        // TODO also assert that authentication subject matches creator on apiKeyDoc
     }
 
     private static <T> T single(Collection<T> elements) {
         if (elements.size() != 1) {
-            throw new IllegalStateException("collection must contain exactly one element");
+            throw new IllegalStateException("collection must have exactly one element but had [" + elements.size() + "]");
         }
         return elements.iterator().next();
     }
 
     private static <T> T single(T[] elements) {
         if (elements.length != 1) {
-            throw new IllegalStateException("array must contain exactly one element");
+            throw new IllegalStateException("array must contain exactly one element but had [" + elements.length + "]");
         }
         return elements[0];
     }
@@ -412,20 +416,14 @@ public class ApiKeyService {
         return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
     }
 
-    private void doBulkUpdate(BulkRequestBuilder bulkUpdateRequest, ActionListener<BulkResponse> listener) {
+    private void doBulkUpdate(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                bulkUpdateRequest.request(),
-                listener,
-                client::bulk
-            )
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
         );
     }
 
-    private BulkRequestBuilder buildBulkUpdateRequest(
+    private BulkRequest buildBulkUpdateRequest(
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
@@ -437,7 +435,7 @@ public class ApiKeyService {
             bulkRequestBuilder.add(buildIndexRequestForUpdate(authentication, request, userRoles, version, apiKeyDoc));
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        return bulkRequestBuilder;
+        return bulkRequestBuilder.request();
     }
 
     private IndexRequest buildIndexRequestForUpdate(

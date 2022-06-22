@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -99,7 +100,7 @@ public class SplitProcessorTests extends ESTestCase {
         Processor splitProcessor = (new SplitProcessor.Factory()).create(null, null, null, splitConfig);
         Map<String, Object> source = new HashMap<>();
         source.put("flags", "new|hot|super|fun|interesting");
-        IngestDocument ingestDocument = new IngestDocument(source, new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
         splitProcessor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
         List<String> flags = (List<String>) ingestDocument.getFieldValue("flags", List.class);

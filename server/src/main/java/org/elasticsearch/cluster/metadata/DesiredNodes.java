@@ -58,7 +58,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  * </p>
  *
  * <p>
- *  To modify the desired nodes it is needed to provide the entire collection of nodes that will
+ *  To modify the desired nodes it is necessary to provide the entire collection of nodes that will
  *  be part of the proposed cluster topology.
  * </p>
  *

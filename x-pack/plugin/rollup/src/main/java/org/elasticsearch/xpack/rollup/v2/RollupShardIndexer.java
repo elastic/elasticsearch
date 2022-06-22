@@ -394,7 +394,9 @@ class RollupShardIndexer {
             if (value instanceof Number number) {
                 metricFieldProducers.get(field).collect((number.doubleValue()));
             } else {
-                throw new IllegalArgumentException("Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'");
+                throw new IllegalArgumentException(
+                    "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"
+                );
             }
         }
 

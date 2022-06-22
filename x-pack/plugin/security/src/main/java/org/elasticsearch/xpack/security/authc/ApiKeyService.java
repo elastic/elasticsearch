@@ -429,6 +429,7 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoles,
         Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocs
     ) throws IOException {
+        assert apiKeyDocs.isEmpty() == false;
         final var version = clusterService.state().nodes().getMinNodeVersion();
         final var bulkRequestBuilder = client.prepareBulk();
         for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDoc : apiKeyDocs) {
@@ -459,6 +460,7 @@ public class ApiKeyService {
 
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
+            .setSource()
             .setSource()
             .setSource(
                 newDocument(

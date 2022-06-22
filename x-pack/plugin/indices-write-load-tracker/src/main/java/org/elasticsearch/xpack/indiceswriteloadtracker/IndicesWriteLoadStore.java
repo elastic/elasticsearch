@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,13 +39,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.INDICES_WRITE_LOAD_STORE_ORIGIN;
 
 class IndicesWriteLoadStore implements Closeable {
     static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
@@ -67,7 +69,7 @@ class IndicesWriteLoadStore implements Closeable {
     );
     static final Setting<Integer> MAX_DOCUMENTS_PER_BULK_SETTING = Setting.intSetting(
         "indices.write_load.store.max_documents",
-        2000,
+        20, // TODO: just for testing
         1,
         10000, // That sets an upper bound of ~5Mb
         Setting.Property.NodeScope
@@ -95,10 +97,10 @@ class IndicesWriteLoadStore implements Closeable {
             return new SystemDataStreamDescriptor(
                 INDICES_WRITE_LOAD_DATA_STREAM,
                 "Stores indices write load over time",
-                SystemDataStreamDescriptor.Type.INTERNAL,
+                SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),
-                Collections.emptyList(),
+                List.of("kibana"), // just for testing
                 ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
             );
         } catch (IOException e) {
@@ -130,7 +132,7 @@ class IndicesWriteLoadStore implements Closeable {
     }
 
     static BulkProcessor createBulkProcessor(Settings settings, ThreadPool threadPool, Client client) {
-        return BulkProcessor.builder(client, new BulkProcessor.Listener() {
+        return BulkProcessor.builder(new OriginSettingClient(client, INDICES_WRITE_LOAD_STORE_ORIGIN), new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -146,7 +148,7 @@ class IndicesWriteLoadStore implements Closeable {
                                 (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
                             )
                         );
-                    logger.warn("Failed to index some indices write load distributions: [{}]", failures);
+                    logger.warn("Failed to index some indices write load histograms: [{}]", failures);
                 }
             }
 

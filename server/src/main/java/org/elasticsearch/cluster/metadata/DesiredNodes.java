@@ -68,7 +68,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *  In order to identify the different proposed desired nodes within the same history, it is
  *  also expected that the orchestrator provides a monotonically increasing {@code version}
  *  when it communicates about future topology changes.
- *  The cluster would reject desired nodes updated with a {@code version} less than or equal
+ *  The cluster rejects desired nodes updated with a {@code version} less than or equal
  *  than the current {@code version} for the same {@code historyId}.
  * </p>
  *

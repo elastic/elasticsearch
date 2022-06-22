@@ -1641,14 +1641,18 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testValidateApiKeyDocBeforeUpdate() throws IOException {
-        final String apiKeyId = randomAlphaOfLength(12);
-        final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = getFastStoredHashAlgoForTests();
+        final var apiKeyId = randomAlphaOfLength(12);
+        final var apiKey = randomAlphaOfLength(16);
+        final var hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
-        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, null);
-        ApiKeyService apiKeyService = createApiKeyService();
-        ValidationException ex = expectThrows(ValidationException.class, () -> apiKeyService.validateApiKeyForUpdate(apiKeyId, apiKeyDoc));
+        final var apiKeyService = createApiKeyService();
+        final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null);
+        var ex = expectThrows(ValidationException.class, () -> apiKeyService.validateApiKeyForUpdate(apiKeyId, apiKeyDocWithNullName));
+        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+
+        final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "");
+        ex = expectThrows(ValidationException.class, () -> apiKeyService.validateApiKeyForUpdate(apiKeyId, apiKeyDocWithEmptyName));
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -962,7 +963,8 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+            sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -983,7 +985,8 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
         }

@@ -1,0 +1,5 @@
+pr: 87920
+summary: Add user action for `repository_integrity` indicator
+area: Health
+type: feature
+issues: []

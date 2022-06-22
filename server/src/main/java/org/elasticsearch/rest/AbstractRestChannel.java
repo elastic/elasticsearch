@@ -46,6 +46,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     private BytesStream bytesOut;
 
+    private String tracePath;
+
     /**
      * Construct a channel for handling the request.
      *
@@ -198,5 +200,15 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
+    }
+
+    @Override
+    public String getTracePath() {
+        return tracePath;
+    }
+
+    @Override
+    public void setTracePath(String tracePath) {
+        this.tracePath = tracePath;
     }
 }

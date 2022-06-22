@@ -19,6 +19,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -123,5 +124,10 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     @Override
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
         return SecurityTransportXPackInfoAction.class;
+    }
+
+    @Override
+    public void onTracer(Tracer tracer) {
+        plugins.forEach(plugin -> plugin.onTracer(tracer));
     }
 }

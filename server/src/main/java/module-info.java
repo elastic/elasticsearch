@@ -344,6 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.timeseries.support;
+    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;

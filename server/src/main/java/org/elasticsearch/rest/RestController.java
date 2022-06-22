@@ -671,6 +671,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
+        @Override
+        public void startTrace() {
+            delegate.startTrace();
+        }
+
+        @Override
+        public void stopTrace() {
+            delegate.stopTrace();
+        }
+
+        @Override
+        public void recordException(Throwable throwable) {
+            delegate.recordException(throwable);
+        }
+
+        @Override
+        public void setTracePath(String path) {
+            delegate.setTracePath(path);
+        }
+
+        @Override
+        public String getTracePath() {
+            return delegate.getTracePath();
+        }
     }
 
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {

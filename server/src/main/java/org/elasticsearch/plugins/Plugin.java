@@ -27,6 +27,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -205,4 +206,9 @@ public abstract class Plugin implements Closeable {
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.emptyList();
     }
+
+    /**
+     * Called with a Tracer so that each plugin has a chance to work with it.
+     */
+    public void onTracer(Tracer tracer) {}
 }

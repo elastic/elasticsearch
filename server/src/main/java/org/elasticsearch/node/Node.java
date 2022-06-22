@@ -185,6 +185,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -210,6 +211,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -700,6 +702,8 @@ public class Node implements Closeable {
                 )
             ).toList();
 
+            final Tracer tracer = getTracer(pluginComponents);
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -727,7 +731,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                tracer
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
                 Plugin::getIndexTemplateMetadataUpgrader
@@ -752,7 +757,8 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(),
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
-                taskManager
+                taskManager,
+                tracer
             );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -763,6 +769,8 @@ public class Node implements Closeable {
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
+
+            pluginsService.filterPlugins(Plugin.class).forEach(plugin -> plugin.onTracer(tracer));
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(
@@ -1003,6 +1011,7 @@ public class Node implements Closeable {
                 if (HealthNode.isEnabled()) {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                 }
+                b.bind(Tracer.class).toInstance(tracer);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1058,6 +1067,16 @@ public class Node implements Closeable {
         }
     }
 
+    private Tracer getTracer(Collection<Object> pluginComponents) {
+        final List<Tracer> tracers = pluginComponents.stream().map(c -> c instanceof Tracer t ? t : null).filter(Objects::nonNull).toList();
+
+        if (tracers.size() > 1) {
+            throw new IllegalStateException("A single Tracer was expected but got: " + tracers);
+        }
+
+        return tracers.isEmpty() ? Tracer.NOOP : tracers.get(0);
+    }
+
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
@@ -1110,9 +1129,10 @@ public class Node implements Closeable {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
-        TaskManager taskManager
+        TaskManager taskManager,
+        Tracer tracer
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {

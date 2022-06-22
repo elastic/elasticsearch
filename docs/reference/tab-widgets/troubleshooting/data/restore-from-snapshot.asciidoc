@@ -89,7 +89,7 @@ kibana_sample_data_flights           open   red
 The `red` health of the indices above indicates that these indices are missing primary shards,
 meaning they are missing data.
 +
-. In order to restore the data we need to find a snapshot that contains these two indices.To find
+. In order to restore the data we need to find a snapshot that contains these two indices. To find
 such a snapshot use the
 <<get-snapshot-api,get snapshot API>>.
 +
@@ -141,7 +141,7 @@ The response will look like this:
 <4> If the snapshot was successful.
 
 . The snapshot `snapshot-20200617` contains the two indices we want to restore.
-You might have multiple snapshots from which you could restore the target indices. Choose the latest one.
+You might have multiple snapshots from which you could restore the target indices. Choose the latest snapshot.
 +
 . Now that we found a snapshot, we will close the target indices via the use the <<indices-close, close indices API>>.
 +
@@ -169,7 +169,7 @@ index                                status health
 kibana_sample_data_flights           close   red
 ----
 +
-. The indices are closed, now we can restore the, from snapshots without causing
+. The indices are closed, now we can restore them from snapshots without causing
 any complications using the <<restore-snapshot-api, restore snapshot API>>:
 +
 [source,console]

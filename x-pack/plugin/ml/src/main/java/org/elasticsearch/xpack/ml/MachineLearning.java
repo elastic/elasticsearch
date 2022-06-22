@@ -170,7 +170,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -462,6 +462,7 @@ public class MachineLearning extends Plugin
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
+    public static final String NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME = NAME + "_native_inference_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
@@ -512,6 +513,7 @@ public class MachineLearning extends Plugin
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
+    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -701,10 +703,12 @@ public class MachineLearning extends Plugin
         );
     }
 
+    @Override
     public Settings additionalSettings() {
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
 
         if (enabled == false) {
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
@@ -719,10 +723,11 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Integer.toString(getAllocatedProcessors()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, allocatedProcessorsAttrName);
         }
         return additionalSettings.build();
     }
@@ -734,6 +739,10 @@ public class MachineLearning extends Plugin
         } else {
             reportClashingNodeAttribute(attrName);
         }
+    }
+
+    private int getAllocatedProcessors() {
+        return EsExecutors.allocatedProcessors(settings);
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {
@@ -1061,7 +1070,7 @@ public class MachineLearning extends Plugin
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAssignmentClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(settings, clusterService, threadPool, new NodeLoadDetector(memoryTracker))
         );
 
         mlAutoscalingDeciderService.set(
@@ -1333,7 +1342,10 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(DeleteTrainedModelAssignmentAction.INSTANCE, TransportDeleteTrainedModelAssignmentAction.class),
             new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
             new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class),
-            new ActionHandler<>(UpdateTrainedModelAssignmentStateAction.INSTANCE, TransportUpdateTrainedModelAssignmentStateAction.class),
+            new ActionHandler<>(
+                UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
+                TransportUpdateTrainedModelAssignmentStateAction.class
+            ),
             usageAction,
             infoAction
         );
@@ -1372,6 +1384,21 @@ public class MachineLearning extends Plugin
             "xpack.ml.job_comms_thread_pool"
         );
 
+        // 3 threads per native inference process: for input, c++ logger output, and result processing.
+        // As we cannot assign more models than the number of allocated processors, this thread pool's
+        // size is limited by the number of allocated processors on this node.
+        // Only use this thread pool for the main long-running process associated with a native inference model deployment.
+        // (Using it for some other purpose could mean that an unrelated pytorch model assignment fails to start
+        // or that whatever needed the thread for another purpose has to queue for a very long time.)
+        ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
+            NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
+            3,
+            getAllocatedProcessors() * 3,
+            TimeValue.timeValueMinutes(1),
+            false,
+            "xpack.ml.native_inference_comms_thread_pool"
+        );
+
         // This pool is used by renormalization, data frame analytics memory estimation, plus some other parts
         // of ML that need to kick off non-trivial activities that mustn't block other threads.
         ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
@@ -1392,7 +1419,7 @@ public class MachineLearning extends Plugin
             "xpack.ml.datafeed_thread_pool"
         );
 
-        return List.of(jobComms, utility, datafeed);
+        return List.of(jobComms, pytorchComms, utility, datafeed);
     }
 
     @Override

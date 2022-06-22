@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsActionResponseTe
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 
 import java.net.InetAddress;
@@ -48,12 +48,12 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             0
         );
 
-        Map<TrainedModelAssignment, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
+        Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
         for (var modelId : new String[] { "model1", "model2" }) {
             TrainedModelAssignment assignment = createAssignment(modelId);
-            Map<String, RoutingStateAndReason> nodeRoutes = new HashMap<>();
+            Map<String, RoutingInfo> nodeRoutes = new HashMap<>();
             for (var nodeId : new String[] { "nodeA", "nodeB" }) {
-                nodeRoutes.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, "failure reason"));
+                nodeRoutes.put(nodeId, new RoutingInfo(1, 1, RoutingState.FAILED, "failure reason"));
             }
             badRoutes.put(assignment, nodeRoutes);
         }
@@ -86,9 +86,9 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             nodeStatsList
         );
 
-        Map<TrainedModelAssignment, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
-        Map<String, RoutingStateAndReason> nodeRoutes = new HashMap<>();
-        nodeRoutes.put("node3", new RoutingStateAndReason(RoutingState.FAILED, "failed on node3"));
+        Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
+        Map<String, RoutingInfo> nodeRoutes = new HashMap<>();
+        nodeRoutes.put("node3", new RoutingInfo(1, 1, RoutingState.FAILED, "failed on node3"));
         badRoutes.put(createAssignment("model1"), nodeRoutes);
 
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
@@ -123,9 +123,9 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
         // failed state for node 2 conflicts with the task response
-        Map<TrainedModelAssignment, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
-        Map<String, RoutingStateAndReason> nodeRoutes = new HashMap<>();
-        nodeRoutes.put("node2", new RoutingStateAndReason(RoutingState.FAILED, "failed on node3"));
+        Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
+        Map<String, RoutingInfo> nodeRoutes = new HashMap<>();
+        nodeRoutes.put("node2", new RoutingInfo(1, 1, RoutingState.FAILED, "failed on node3"));
         badRoutes.put(createAssignment("model1"), nodeRoutes);
 
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(response, badRoutes, nodes);

@@ -42,6 +42,16 @@ public interface SourceLoader {
          * @param docId the doc to load
          */
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+
+        Leaf EMPTY_OBJECT = new Leaf() {
+            @Override
+            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                // TODO accept a requested xcontent type
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    return BytesReference.bytes(b.startObject().endObject());
+                }
+            }
+        };
     }
 
     /**
@@ -83,15 +93,7 @@ public interface SourceLoader {
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
             if (leaf.empty()) {
-                return new Leaf() {
-                    @Override
-                    public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                        // TODO accept a requested xcontent type
-                        try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                            return BytesReference.bytes(b.startObject().endObject());
-                        }
-                    }
-                };
+                return Leaf.EMPTY_OBJECT;
             }
             return new Leaf() {
                 @Override

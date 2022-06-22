@@ -1088,16 +1088,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (dv.getValueCount() == 0) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
-            if (docIdsInLeaf.length > 1) {
+            if (docIdsInLeaf.length == 1) {
                 /*
                  * The singleton optimization is mostly about looking up ordinals
                  * in sorted order and doesn't buy anything if there is only a single
                  * document.
                  */
-                SortedDocValues singleton = DocValues.unwrapSingleton(dv);
-                if (singleton != null) {
-                    return singletonLeaf(singleton, docIdsInLeaf);
-                }
+                return new ImmediateLeaf(dv);
+            }
+            SortedDocValues singleton = DocValues.unwrapSingleton(dv);
+            if (singleton != null) {
+                return singletonLeaf(singleton, docIdsInLeaf);
             }
             return new ImmediateLeaf(dv);
         }

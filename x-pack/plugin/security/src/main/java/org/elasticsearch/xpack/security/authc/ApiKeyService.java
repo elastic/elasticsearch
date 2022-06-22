@@ -364,7 +364,7 @@ public class ApiKeyService {
                 throw apiKeyNotFound(apiKeyId);
             }
 
-            validateApiKeyForUpdate(apiKeyId, single(apiKeys).apiKey());
+            validateCurrentApiKeyDocForUpdate(apiKeyId, single(apiKeys).apiKey());
 
             doBulkUpdate(
                 buildBulkUpdateRequest(authentication, request, userRoles, apiKeys),
@@ -385,7 +385,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateApiKeyForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
+    void validateCurrentApiKeyDocForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
         if (isActive(apiKeyDoc) == false) {
             throw new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
         }

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -99,7 +98,12 @@ public abstract class AbstractRestChannel implements RestChannel {
         @Nullable XContentType responseContentType,
         boolean useFiltering
     ) throws IOException {
-        return newBuilder(requestContentType, responseContentType, useFiltering, bytesOutput());
+        return newBuilder(
+            requestContentType,
+            responseContentType,
+            useFiltering,
+            org.elasticsearch.common.io.Streams.flushOnCloseStream(bytesOutput())
+        );
     }
 
     /**
@@ -144,8 +148,6 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        OutputStream unclosableOutputStream = Streams.noCloseStream(outputStream);
-
         Map<String, String> parameters = request.getParsedAccept() != null
             ? request.getParsedAccept().getParameters()
             : Collections.emptyMap();
@@ -153,7 +155,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         XContentBuilder builder = new XContentBuilder(
             XContentFactory.xContent(responseContentType),
-            unclosableOutputStream,
+            outputStream,
             includes,
             excludes,
             responseMediaType,

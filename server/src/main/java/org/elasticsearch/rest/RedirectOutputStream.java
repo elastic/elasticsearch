@@ -29,7 +29,6 @@ public final class RedirectOutputStream extends OutputStream {
         return target;
     }
 
-
     @Override
     public void write(int b) throws IOException {
         target.write(b);

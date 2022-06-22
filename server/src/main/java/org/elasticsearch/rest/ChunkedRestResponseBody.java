@@ -12,9 +12,9 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 public interface ChunkedRestResponseBody {
 
-    boolean encode(Consumer<ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) throws IOException;
+    boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) throws IOException;
 }

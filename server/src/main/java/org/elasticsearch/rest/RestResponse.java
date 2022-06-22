@@ -74,6 +74,10 @@ public class RestResponse {
         this(status, responseMediaType, new BytesArray(content), null);
     }
 
+    public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
+        this(status, responseMediaType, content, null);
+    }
+
     /**
      * Creates a binary response.
      */

@@ -11,6 +11,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.compression.JdkZlibEncoder;
@@ -29,8 +30,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -50,6 +54,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final PriorityQueue<Tuple<? extends Netty4RestResponse, ChannelPromise>> outboundHoldingQueue;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, Netty4ChunkedHttpResponse response) {}
+
     private ChunkedWrite currentWrite;
 
     /*
@@ -199,10 +204,20 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         combiner.add((Future<Void>) first);
         enqueueWrite(ctx, readyResponse, first);
         while (ctx.channel().isWritable()) {
-            // TODO build http chunks from bytes etc.
-            if (readyResponse.body().encode()) {
-
-                currentWrite.combiner.finish(currentWrite.onDone);
+            try {
+                if (readyResponse.body().encode((done, bytes) -> {
+                    final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+                    final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
+                    f.addListener(ignored -> bytes.close());
+                    combiner.add(f);
+                }, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler())) {
+                    currentWrite.combiner.finish(currentWrite.onDone);
+                    currentWrite = null;
+                    writeSequence++;
+                    return;
+                }
+            } catch (IOException e) {
+                promise.tryFailure(e);
             }
         }
     }

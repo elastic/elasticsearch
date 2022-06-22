@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RedirectOutputStream;
@@ -35,7 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -107,37 +108,43 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                             null,
                             new ChunkedRestResponseBody() {
 
-                            final RedirectOutputStream out = new RedirectOutputStream();
-                            private XContentBuilder builder;
+                                final RedirectOutputStream out = new RedirectOutputStream();
+                                private XContentBuilder builder;
 
-                            private final Iterator<SnapshotInfo> snapshotInfoIterator = getSnapshotsResponse.getSnapshots().iterator();
+                                private final Iterator<SnapshotInfo> snapshotInfoIterator = getSnapshotsResponse.getSnapshots().iterator();
 
-                            @Override
-                            public boolean encode(Consumer<ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler)
-                                throws IOException {
-                                final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-                                out.newTarget(chunkStream);
-                                if (builder == null) {
-                                    builder = channel.newBuilder(request.getXContentType(), null, true, out);
-                                    GetSnapshotsResponse.toXContentStart(builder);
+                                @Override
+                                public boolean encode(
+                                    BiConsumer<Boolean, ReleasableBytesReference> target,
+                                    int sizeHint,
+                                    Recycler<BytesRef> recycler
+                                ) throws IOException {
+                                    final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
+                                    out.newTarget(chunkStream);
+                                    if (builder == null) {
+                                        builder = channel.newBuilder(request.getXContentType(), null, true, Streams.noCloseStream(out));
+                                        GetSnapshotsResponse.toXContentStart(builder);
+                                    }
+                                    while (snapshotInfoIterator.hasNext() && chunkStream.size() < sizeHint) {
+                                        snapshotInfoIterator.next().toXContentExternal(builder, request);
+                                    }
+                                    if (snapshotInfoIterator.hasNext() == false) {
+                                        getSnapshotsResponse.toXContentEnd(builder);
+                                        builder.close();
+                                    }
+                                    out.clearTarget();
+                                    boolean done = snapshotInfoIterator.hasNext() == false;
+                                    target.accept(
+                                        done,
+                                        new ReleasableBytesReference(
+                                            chunkStream.bytes(),
+                                            () -> IOUtils.closeWhileHandlingException(chunkStream)
+                                        )
+                                    );
+                                    return done;
                                 }
-                                while (snapshotInfoIterator.hasNext() && chunkStream.size() < sizeHint) {
-                                    snapshotInfoIterator.next().toXContentExternal(builder, request);
-                                }
-                                if (snapshotInfoIterator.hasNext() == false) {
-                                    getSnapshotsResponse.toXContentEnd(builder);
-                                    builder.close();
-                                }
-                                out.clearTarget();
-                                target.accept(
-                                    new ReleasableBytesReference(
-                                        chunkStream.bytes(),
-                                        () -> IOUtils.closeWhileHandlingException(chunkStream)
-                                    )
-                                );
-                                return snapshotInfoIterator.hasNext() == false;
                             }
-                        })
+                        )
                     );
                 }
             });

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.rest.job;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
@@ -62,7 +62,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
                     builder.startObject();
                     builder.field("task", client.getLocalNodeId() + ":" + task.getId());
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                    channel.sendResponse(new RestResponse(RestStatus.OK, builder));
                 }
             };
         }

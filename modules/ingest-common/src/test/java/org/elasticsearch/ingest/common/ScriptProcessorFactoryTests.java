@@ -17,7 +17,6 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.Before;
@@ -157,7 +156,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getType(), equalTo(ScriptType.INLINE));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
         assertNotNull(processor.getPrecompiledIngestScript());
-        Map<String, Object> ctx = IngestSourceAndMetadata.ofMixedSourceAndMetadata(new HashMap<>(), null);
+        Map<String, Object> ctx = new HashMap<>();
         processor.getPrecompiledIngestScript().execute(ctx);
         assertThat(ctx.get("foo"), equalTo("bar"));
     }

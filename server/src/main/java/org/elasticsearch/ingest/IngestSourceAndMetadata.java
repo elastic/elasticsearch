@@ -70,7 +70,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final Map<String, BiFunction<String, Object, Object>> validators;
     private EntrySet entrySet; // cache to avoid recreation
 
-    public IngestSourceAndMetadata(
+    IngestSourceAndMetadata(
         String index,
         String id,
         long version,
@@ -88,7 +88,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * @param metadata the metadata map
      * @param timestamp the time of ingestion
      */
-    public IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
+    IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
         this(source, metadata, timestamp, VALIDATORS);
     }
 

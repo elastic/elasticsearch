@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
  * Construct ingest documents for testing purposes
@@ -41,8 +42,11 @@ public class TestIngestDocument {
     /**
      * Create an IngestDocument for testing but takes a pre-constructed {@link IngestSourceAndMetadata}
      */
-    public static IngestDocument ofIngestSourceAndMetadata(IngestSourceAndMetadata ingestSourceAndMetadata) {
-        return new IngestDocument(ingestSourceAndMetadata, new HashMap<>());
+    public static IngestDocument ofMetadataWithValidator(
+        Map<String, Object> metadata,
+        Map<String, BiFunction<String, Object, Object>> validators
+    ) {
+        return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), metadata, null, validators), new HashMap<>());
     }
 
     /**

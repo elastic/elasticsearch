@@ -897,7 +897,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                IngestSourceAndMetadata sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+                IngestSourceAndMetadata sourceAndMetadata = ingestDocument.getIngestSourceAndMetadata();
 
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.

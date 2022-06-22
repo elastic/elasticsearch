@@ -330,8 +330,8 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(0)
             );
-            // 2 of the 3 nodes in the cluster are ML nodes
-            assertThat(nodes, hasSize(2));
+            // 2 of the 3 nodes in the cluster are ML nodes but we have asked for a single allocation
+            assertThat(nodes, hasSize(1));
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
             }
@@ -408,12 +408,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(i)
             );
-            // 2 ml nodes
-            assertThat(nodes, hasSize(2));
-            for (int j : new int[] { 0, 1 }) {
-                Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-                assertEquals("started", state);
-            }
+            // 2 ml nodes but we've asked a single allocation for each model
+            assertThat(nodes, hasSize(1));
+            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+            assertEquals("started", state);
         }
 
         stopDeployment(modelFoo);
@@ -425,17 +423,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(stats, hasSize(2));
         assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
-        // check all nodes are started for the non-stopped deployment
+        // check a node is started for the non-stopped deployment
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(1)
         );
-        // 2 ml nodes
-        assertThat(nodes, hasSize(2));
-        for (int j : new int[] { 0, 1 }) {
-            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-            assertEquals("started", state);
-        }
+        // 2 ml nodes but we've asked a single allocation
+        assertThat(nodes, hasSize(1));
+        Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+        assertEquals("started", state);
 
         stopDeployment(modelBar);
     }

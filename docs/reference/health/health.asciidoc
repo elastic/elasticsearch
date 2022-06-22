@@ -285,7 +285,7 @@ details have contents and a structure that is unique to each indicator.
 
 `recent_masters`::
     (Optional, array) A list of nodes that have been elected or replaced as master in a recent
-    time window (based on `master_history.max_age`). This field is present if the master
+    time window. This field is present if the master
     is changing rapidly enough to cause problems, and also present as additional information
     when the indicator is `green`.
 +

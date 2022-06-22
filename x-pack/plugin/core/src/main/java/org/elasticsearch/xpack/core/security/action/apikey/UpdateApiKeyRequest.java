@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -36,13 +37,11 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public UpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        // TODO handle null
-        this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
+        this.roleDescriptors = readOptionalList(in);
         this.metadata = in.readMap();
     }
 
     @Override
-    // TODO test me
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
@@ -51,10 +50,33 @@ public final class UpdateApiKeyRequest extends ActionRequest {
                 validationException
             );
         }
-        for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
+        if (roleDescriptors != null) {
+            for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
+            }
         }
         return validationException;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+        writeOptionalList(out);
+        out.writeGenericMap(metadata);
+    }
+
+    private List<RoleDescriptor> readOptionalList(StreamInput in) throws IOException {
+        return in.readBoolean() ? in.readList(RoleDescriptor::new) : null;
+    }
+
+    private void writeOptionalList(StreamOutput out) throws IOException {
+        if (roleDescriptors == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeList(roleDescriptors);
+        }
     }
 
     public String getId() {

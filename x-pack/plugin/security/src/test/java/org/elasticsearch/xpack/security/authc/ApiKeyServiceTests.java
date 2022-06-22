@@ -1648,11 +1648,17 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var apiKeyService = createApiKeyService();
         final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null);
-        var ex = expectThrows(ValidationException.class, () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithNullName));
+        var ex = expectThrows(
+            ValidationException.class,
+            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithNullName)
+        );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "");
-        ex = expectThrows(ValidationException.class, () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithEmptyName));
+        ex = expectThrows(
+            ValidationException.class,
+            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithEmptyName)
+        );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
     }
 

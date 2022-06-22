@@ -77,7 +77,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = TestIngestSourceAndMetadata.withoutValidators(source, metadata);
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -204,13 +204,13 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
     public void testEntryAndIterator() {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_version", 123);
+        metadata.put("_routing", "myRouting");
         metadata.put("_version_type", "external");
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = TestIngestSourceAndMetadata.withoutValidators(source, metadata);
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {
@@ -239,7 +239,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
         assertNull(map.getVersionType());
         assertFalse(map.containsKey("baz"));
-        assertTrue(map.containsKey("_version"));
+        assertTrue(map.containsKey("_routing"));
         assertTrue(map.containsKey("foo"));
         assertTrue(map.containsKey("noz"));
         assertEquals(3, map.entrySet().size());

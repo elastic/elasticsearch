@@ -54,7 +54,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         IngestDocument.Metadata.ROUTING.getFieldName(),
         IngestSourceAndMetadata::stringValidator,
         IngestDocument.Metadata.VERSION.getFieldName(),
-        IngestSourceAndMetadata::longValidator,
+        IngestSourceAndMetadata::versionValidator,
         IngestDocument.Metadata.VERSION_TYPE.getFieldName(),
         IngestSourceAndMetadata::versionTypeValidator,
         IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
@@ -550,6 +550,16 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         throw new IllegalArgumentException(
             "_version may only be set to an int or a long but was [" + value + "] with type [" + value.getClass().getName() + "]"
         );
+    }
+
+    /**
+     * Version must be non-null and representable as a long without loss of precision
+     */
+    protected static Long versionValidator(String key, Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException(key + " cannot be null");
+        }
+        return longValidator(key, value);
     }
 
     /**

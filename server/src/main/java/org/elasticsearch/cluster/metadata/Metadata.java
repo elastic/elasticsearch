@@ -1961,12 +1961,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
                     assert dataStream.getIndices().isEmpty() == false;
 
-                    List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
-                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream, aliases);
-                    IndexAbstraction existing = indicesLookup.put(
-                        dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, aliases)
-                    );
+                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
+                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {

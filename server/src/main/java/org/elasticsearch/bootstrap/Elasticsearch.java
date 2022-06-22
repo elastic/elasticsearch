@@ -42,8 +42,9 @@ class Elasticsearch {
 
         PrintStream out = getStdout();
         PrintStream err = getStderr();
+        final ServerArgs serverArgs = initPhase1(err);
+
         try {
-            final ServerArgs serverArgs = initPhase1();
             initPidFile(serverArgs.pidFile());
             Bootstrap.init(
                 serverArgs.daemonize() == false,
@@ -64,8 +65,8 @@ class Elasticsearch {
             exitWithUserException(err, ExitCodes.CONFIG, e);
         } catch (UserException e) {
             exitWithUserException(err, e.exitCode, e);
-        } catch (Exception e) {
-            exitWithUnknownException(err, e);
+        } catch (Throwable t) {
+            exitWithUnknownException(err, t);
         }
     }
 
@@ -75,16 +76,16 @@ class Elasticsearch {
         gracefullyExit(err, exitCode);
     }
 
-    private static void exitWithUnknownException(PrintStream err, Exception e) {
-        if (System.getProperty("es.logs.base_path") != null) {
-            // this is a horrible hack to see if logging has been initialized
-            // we need to find a better way!
-            Logger logger = LogManager.getLogger(Elasticsearch.class);
-            logger.error("fatal exception while booting Elasticsearch", e);
-        }
-        // format exceptions to the console in a special way to avoid 2MB stacktraces from guice, etc.
-        StartupException.printStackTrace(e, err);
+    private static void exitWithUnknownException(PrintStream err, Throwable e) {
+        Logger logger = LogManager.getLogger(Elasticsearch.class);
+        logger.error("fatal exception while booting Elasticsearch", e);
         gracefullyExit(err, 1); // mimic JDK exit code on exception
+    }
+
+    // sends a stacktrace of an exception to the controlling cli process
+    private static void sendGenericException(PrintStream err, Throwable t) {
+        t.printStackTrace(err);
+        err.flush();
     }
 
     private static void gracefullyExit(PrintStream err, int exitCode) {
@@ -116,37 +117,45 @@ class Elasticsearch {
      * finally initializing logging. As little as possible should be done in this phase because
      * initializing logging is the last step.
      */
-    private static ServerArgs initPhase1() throws IOException, UserException {
-        initSecurityProperties();
+    private static ServerArgs initPhase1(PrintStream err) {
+        final ServerArgs args;
+        try {
+            initSecurityProperties();
 
-        /*
-         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
-         * forces such policies to take effect immediately.
-         */
-        org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-            @Override
-            public void checkPermission(Permission perm) {
-                // grant all permissions so that we can later set the security manager to the one that we want
-            }
-        });
-        LogConfigurator.registerErrorListener();
+            /*
+             * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on
+             * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
+             * This forces such policies to take effect immediately.
+             */
+            org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
+                @Override
+                public void checkPermission(Permission perm) {
+                    // grant all permissions so that we can later set the security manager to the one that we want
+                }
+            });
+            LogConfigurator.registerErrorListener();
 
-        BootstrapInfo.init();
+            BootstrapInfo.init();
 
-        // note that reading server args does *not* close System.in, as it will be read from later for shutdown notification
-        var in = new InputStreamStreamInput(System.in);
-        var args = new ServerArgs(in);
+            // note that reading server args does *not* close System.in, as it will be read from later for shutdown notification
+            var in = new InputStreamStreamInput(System.in);
+            args = new ServerArgs(in);
 
-        // mostly just paths are used in phase 1, so secure settings are not needed
-        Environment nodeEnv = new Environment(args.nodeSettings(), args.configDir());
+            // mostly just paths are used in phase 1, so secure settings are not needed
+            Environment nodeEnv = new Environment(args.nodeSettings(), args.configDir());
 
-        BootstrapInfo.setConsole(ConsoleLoader.loadConsole(nodeEnv));
+            BootstrapInfo.setConsole(ConsoleLoader.loadConsole(nodeEnv));
 
-        // DO NOT MOVE THIS
-        // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
-        LogConfigurator.configure(nodeEnv, args.quiet() == false);
+            // DO NOT MOVE THIS
+            // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
+            LogConfigurator.configure(nodeEnv, args.quiet() == false);
+        } catch (Throwable t) {
+            // any exception this early needs to be fully printed and fail startup
+            sendGenericException(err, t);
+            exit(1); // mimic JDK exit code on exception
+            return null; // unreachable, to satisfy compiler
+        }
 
         return args;
     }
@@ -157,17 +166,14 @@ class Elasticsearch {
      */
     static void printLogsSuggestion(PrintStream err) {
         final String basePath = System.getProperty("es.logs.base_path");
-        // It's possible to fail before logging has been configured, in which case there's no point
-        // suggesting that the user look in the log file.
-        if (basePath != null) {
-            err.println(
-                "ERROR: Elasticsearch did not exit normally - check the logs at "
-                    + basePath
-                    + System.getProperty("file.separator")
-                    + System.getProperty("es.logs.cluster_name")
-                    + ".log"
-            );
-        }
+        assert basePath != null : "logging wasn't initialized";
+        err.println(
+            "ERROR: Elasticsearch did not exit normally - check the logs at "
+                + basePath
+                + System.getProperty("file.separator")
+                + System.getProperty("es.logs.cluster_name")
+                + ".log"
+        );
     }
 
     /**

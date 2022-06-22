@@ -56,6 +56,47 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(0d, metric.get());
     }
 
+    /**
+     * Testing summation accuracy.
+     * Tests stolen from SumAggregatorTests#testSummationAccuracy
+     */
+    public void testSummationAccuracy() {
+        MetricFieldProducer.Metric metric = new MetricFieldProducer.Sum();
+        // Summing up a normal array and expect an accurate value
+        double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
+        for (int i = 0; i < values.length; i++) {
+            metric.collect(values[i]);
+        }
+        assertEquals(metric.get().doubleValue(), 15.3, Double.MIN_NORMAL);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        metric.reset();
+        int n = randomIntBetween(5, 10);
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            double d = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += d;
+            metric.collect(d);
+        }
+        assertEquals(metric.get().doubleValue(), sum, 1e-10);
+
+        // Summing up some big double values and expect infinity result
+        metric.reset();
+        n = randomIntBetween(5, 10);
+        for (int i = 0; i < n; i++) {
+            metric.collect(Double.MAX_VALUE);
+        }
+        assertEquals(metric.get().doubleValue(), Double.POSITIVE_INFINITY, 0d);
+
+        metric.reset();
+        for (int i = 0; i < n; i++) {
+            metric.collect(-Double.MAX_VALUE);
+        }
+        assertEquals(metric.get().doubleValue(), Double.NEGATIVE_INFINITY, 0d);
+    }
+
     public void testValueCountMetric() {
         MetricFieldProducer.Metric metric = new MetricFieldProducer.ValueCount();
         assertEquals(0L, metric.get());

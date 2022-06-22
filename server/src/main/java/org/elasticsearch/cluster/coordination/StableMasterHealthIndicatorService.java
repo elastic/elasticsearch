@@ -45,6 +45,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
     private static final String DETAILS_EXCEPTION_FETCHING_HISTORY = "exception_fetching_history";
+    private static final String CLUSTER_FORMATION = "cluster_formation";
 
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
@@ -155,6 +156,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.field("message", remoteHistoryExceptionMessage);
                     builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
+            }
+            if (coordinationDiagnosticsDetails.clusterFormationDescription() != null) {
+                builder.object(
+                    CLUSTER_FORMATION,
+                    xContentBuilder -> { builder.field("description", coordinationDiagnosticsDetails.clusterFormationDescription()); }
+                );
             }
             return builder.endObject();
         };

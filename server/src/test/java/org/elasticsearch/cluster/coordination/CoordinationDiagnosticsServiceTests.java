@@ -407,6 +407,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 leader.disconnect();
                 cluster.stabilise();
                 leader.heal(); // putting it back in the cluster after another leader has been elected so that we always keep a quorum
+                cluster.stabilise();
             }
 
             final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();

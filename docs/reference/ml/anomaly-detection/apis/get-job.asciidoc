@@ -89,7 +89,9 @@ property is informational; you cannot change its value.
 ====
 `authorization`:::
 (Optional, object)
-The security privileges that the {dfeed} uses to run its queries.
+The security privileges that the {dfeed} uses to run its queries. If
+{stack-security-features} were disabled at the time of the most recent update to
+the {dfeed}, this property is omitted.
 +
 .Properties of `authorization`
 [%collapsible%open]

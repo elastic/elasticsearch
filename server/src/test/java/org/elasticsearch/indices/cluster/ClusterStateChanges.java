@@ -89,6 +89,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -191,6 +192,7 @@ public class ClusterStateChanges {
         };
         // mocks
         clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, null);
+        clusterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()));
         resetMasterService();
         masterService.start();
 

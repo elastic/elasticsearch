@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,6 +39,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,8 +83,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
-    private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -97,8 +97,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private RefreshScheduler refreshScheduler;
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
-        this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
+        this.leastAvailableSpaceUsages = Map.of();
+        this.mostAvailableSpaceUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -181,15 +181,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
                     }
 
-                    ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                    ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
+                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
                     fillDiskUsagePerNode(
                         adjustNodesStats(nodesStatsResponse.getNodes()),
                         leastAvailableUsagesBuilder,
                         mostAvailableUsagesBuilder
                     );
-                    leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
-                    mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
+                    leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
+                    mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
                 }
 
                 @Override
@@ -199,8 +199,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     } else {
                         logger.warn("failed to retrieve node stats", e);
                     }
-                    leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                    mostAvailableSpaceUsages = ImmutableOpenMap.of();
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
                 }
             }, this::onStatsProcessed));
 
@@ -246,9 +246,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
 
                     final ShardStats[] stats = indicesStatsResponse.getShards();
-                    final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
-                    final ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder = ImmutableOpenMap.builder();
-                    final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
+                    final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
+                    final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
+                    final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
                     final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
                     buildShardLevelInfo(
                         stats,
@@ -258,15 +258,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         reservedSpaceBuilders
                     );
 
-                    final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = ImmutableOpenMap
-                        .builder();
+                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
                     reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
                     indicesStatsSummary = new IndicesStatsSummary(
-                        shardSizeByIdentifierBuilder.build(),
-                        shardDataSetSizeBuilder.build(),
-                        dataPathByShardRoutingBuilder.build(),
-                        rsrvdSpace.build()
+                        Collections.unmodifiableMap(shardSizeByIdentifierBuilder),
+                        Collections.unmodifiableMap(shardDataSetSizeBuilder),
+                        Collections.unmodifiableMap(dataPathByShardRoutingBuilder),
+                        Collections.unmodifiableMap(rsrvdSpace)
                     );
                 }
 
@@ -342,8 +341,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             return currentRefresh::execute;
         } else {
             return () -> {
-                leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                mostAvailableSpaceUsages = ImmutableOpenMap.of();
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 thisRefreshListeners.forEach(l -> l.onResponse(ClusterInfo.EMPTY));
             };
@@ -413,9 +412,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     static void buildShardLevelInfo(
         ShardStats[] stats,
-        ImmutableOpenMap.Builder<String, Long> shardSizes,
-        ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder,
-        ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizeBuilder,
+        Map<ShardRouting, String> newShardRoutingToDataPath,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
@@ -448,8 +447,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     static void fillDiskUsagePerNode(
         List<NodeStats> nodeStatsArray,
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages,
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages
+        Map<String, DiskUsage> newLeastAvailableUsages,
+        Map<String, DiskUsage> newMostAvailableUsages
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
@@ -534,18 +533,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     private record IndicesStatsSummary(
-        ImmutableOpenMap<String, Long> shardSizes,
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-        ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
-        ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<ShardRouting, String> shardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
-
+        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of());
     }
 
 }

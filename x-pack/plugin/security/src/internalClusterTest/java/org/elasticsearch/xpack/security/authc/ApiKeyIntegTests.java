@@ -1504,11 +1504,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
-        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmName("file"), listener);
-        InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getErrors(), empty());
-        assertThat(invalidateResponse.getInvalidatedApiKeys(), contains(apiKeyId));
+        boolean invalidated = randomBoolean();
+        if (invalidated) {
+            PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+            client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmName("file"), listener);
+            InvalidateApiKeyResponse invalidateResponse = listener.get();
+            assertThat(invalidateResponse.getErrors(), empty());
+            assertThat(invalidateResponse.getInvalidatedApiKeys(), contains(apiKeyId));
+        }
+        if (invalidated == false || randomBoolean()) {
+            Instant dayBefore = Instant.now().minus(1L, ChronoUnit.DAYS);
+            assertTrue(Instant.now().isAfter(dayBefore));
+            UpdateResponse expirationDateUpdatedResponse = client().prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
+                .setDoc("expiration_time", dayBefore.toEpochMilli())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+        }
 
         final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());

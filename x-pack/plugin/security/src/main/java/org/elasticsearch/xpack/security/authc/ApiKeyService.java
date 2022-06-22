@@ -350,6 +350,7 @@ public class ApiKeyService {
         ActionListener<UpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
+
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;

@@ -67,9 +67,11 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -1420,6 +1422,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
+        // TODO randomize more
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
@@ -1445,34 +1448,66 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Test authenticate works with updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
         assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
+    }
+
+    public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException, IOException {
+        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+        final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
+
+        // Validate can update own API key
+        final var serviceWithNodeName = getServiceWithNodeName();
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                request,
+                Set.of(expectedRoleDescriptor),
+                listener
+            );
+        UpdateApiKeyResponse response = listener.get();
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
 
         // Test not found exception on non-existent API key
         final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
-        final PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()),
-                Set.of(expectedRoleDescriptor),
-                listener2
-            );
-        var ex = expectThrows(ExecutionException.class, listener2::get);
-        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("api key [" + otherApiKeyId + "] not found"));
+        testUpdateApiKeyNotFound(
+            serviceWithNodeName,
+            fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+            new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata())
+        );
 
         // Test not found exception on other user's API key
         final var otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
-        final PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata()),
-                Set.of(expectedRoleDescriptor),
-                listener3
-            );
-        ex = expectThrows(ExecutionException.class, listener3::get);
+        testUpdateApiKeyNotFound(
+            serviceWithNodeName,
+            fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+            new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
+        );
+
+        // Test not found exception on API key of user from other realm
+        testUpdateApiKeyNotFound(
+            serviceWithNodeName,
+            Authentication.newRealmAuthentication(
+                new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                // Use native realm; no need to actually create user since we are injecting the authentication object directly
+                new Authentication.RealmRef(NativeRealmSettings.DEFAULT_NAME, NativeRealmSettings.TYPE, serviceWithNodeName.nodeName())
+            ),
+            new UpdateApiKeyRequest(apiKeyId, request.getRoleDescriptors(), request.getMetadata())
+        );
+    }
+
+    private void testUpdateApiKeyNotFound(
+        ServiceWithNodeName serviceWithNodeName,
+        Authentication authentication,
+        UpdateApiKeyRequest request
+    ) {
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
+        final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("api key [" + otherUsersApiKey.v1().getId() + "] not found"));
+        assertThat(ex.getMessage(), containsString("api key [" + request.getId() + "] not found"));
     }
 
     public void testUpdateApiKeyRequestWithNullRoleDescriptorsDoesNotOverwriteExistingRoleDescriptors() throws ExecutionException,

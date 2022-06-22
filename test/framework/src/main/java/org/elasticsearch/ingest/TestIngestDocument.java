@@ -10,7 +10,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

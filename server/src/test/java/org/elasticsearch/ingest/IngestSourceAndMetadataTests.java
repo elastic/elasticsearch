@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;

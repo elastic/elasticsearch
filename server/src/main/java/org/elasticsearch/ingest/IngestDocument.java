@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.script.field.IngestSourceAndMetadata;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -101,6 +100,13 @@ public final class IngestDocument {
      */
     public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         return new IngestDocument(sourceAndMetadata, ingestMetadata);
+    }
+
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
+    public static IngestDocument of(Map<String, Object> source, Map<String, Object> metadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(new IngestSourceAndMetadata(source, metadata, getTimestamp(ingestMetadata)), ingestMetadata);
     }
 
     /**

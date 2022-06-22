@@ -16,7 +16,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
-import org.elasticsearch.script.field.IngestSourceAndMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -57,12 +56,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             }
             Map<String, Object> source = (Map<String, Object>) a[5];
             Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
-            return new WriteableIngestDocument(
-                IngestDocument.of(
-                    new IngestSourceAndMetadata(source, metadata, IngestDocument.getTimestamp(ingestMetadata)),
-                    ingestMetadata
-                )
-            );
+            return new WriteableIngestDocument(IngestDocument.of(source, metadata, ingestMetadata));
         }
     );
     static {

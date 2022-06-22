@@ -6,12 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field;
+package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.IngestDocument;
 
 import java.time.ZonedDateTime;
 import java.util.AbstractCollection;
@@ -41,7 +40,7 @@ import java.util.stream.Collectors;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-public class IngestSourceAndMetadata extends AbstractMap<String, Object> {
+class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final ZonedDateTime timestamp;
 
     /**

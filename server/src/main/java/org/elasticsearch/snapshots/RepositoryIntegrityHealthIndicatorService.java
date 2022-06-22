@@ -17,6 +17,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -43,6 +44,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NAME = "repository_integrity";
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+    public static final UserAction.Definition CORRUPTED_REPOSITORY = new UserAction.Definition("corrupt-repo-integrity",
+        "Corrupted data detected in snapshot repository", HELP_URL);
 
     public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
     public static final String NO_CORRUPT_REPOS = "No corrupted snapshot repositories.";
@@ -117,18 +120,18 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             createCorruptedRepositorySummary(corrupted),
             explain
                 ? new SimpleHealthIndicatorDetails(
-                    Map.of(
-                        "total_repositories",
-                        totalRepositories,
-                        "corrupted_repositories",
-                        corruptedRepositories,
-                        "corrupted",
-                        limitSize(corrupted, 10)
-                    )
+                Map.of(
+                    "total_repositories",
+                    totalRepositories,
+                    "corrupted_repositories",
+                    corruptedRepositories,
+                    "corrupted",
+                    limitSize(corrupted, 10)
                 )
+            )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            Collections.emptyList()
+            List.of(new UserAction(CORRUPTED_REPOSITORY, corrupted))
         );
     }
 

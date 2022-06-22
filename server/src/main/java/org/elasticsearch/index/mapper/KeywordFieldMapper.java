@@ -1156,7 +1156,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 public void write(XContentBuilder b) throws IOException {
                     if (ord < 0) {
-                        return; // NOCOMMIT make sure tests hit this
+                        return;
                     }
                     int idx = Arrays.binarySearch(uniqueOrds, ord);
                     if (idx < 0) {

@@ -460,8 +460,6 @@ public class ApiKeyService {
 
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
-            .setSource()
-            .setSource()
             .setSource(
                 newDocument(
                     // TODO fill array in finally block?

@@ -358,48 +358,51 @@ public class ApiKeyService {
         }
 
         findApiKeyDocsForSubject(authentication.getEffectiveSubject(), new String[] { request.getId() }, ActionListener.wrap((apiKeys) -> {
+            final var apiKeyId = request.getId();
+
             if (apiKeys.isEmpty()) {
-                listener.onFailure(apiKeyNotFound(request.getId()));
-                return;
+                throw apiKeyNotFound(apiKeyId);
             }
 
-            try {
-                final var apiKeyDoc = single(apiKeys).apiKey();
-                if (isActive(apiKeyDoc) == false) {
-                    throw cannotUpdateInactiveApiKey(request.getId());
-                }
-                // TODO assert on creator match, on version compatibility match
-            } catch (IllegalStateException | ValidationException ex) {
-                listener.onFailure(ex);
-                return;
-            }
+            validateApiKeyForUpdate(apiKeyId, single(apiKeys).apiKey());
 
-            final var version = clusterService.state().nodes().getMinNodeVersion();
-            // TODO what happens if this throws?
-            final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
-            doBulkUpdate(bulkRequest, ActionListener.wrap(bulkResponse -> {
-                // TODO what happens if this throws?
-                final var bulkItemResponse = single(bulkResponse.getItems());
-                if (bulkItemResponse.isFailed()) {
-                    listener.onFailure(new ElasticsearchException("error updating api key", bulkItemResponse.getFailure().getCause()));
-                } else {
-                    assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-                    listener.onResponse(new UpdateApiKeyResponse(true));
-                }
-            }, listener::onFailure));
+            doBulkUpdate(
+                buildBulkUpdateRequest(authentication, request, userRoles, apiKeys),
+                ActionListener.wrap(bulkResponse -> toUpdateApiKeyResponse(apiKeyId, bulkResponse, listener), listener::onFailure)
+            );
         }, listener::onFailure));
+    }
+
+    private void toUpdateApiKeyResponse(String apiKeyId, BulkResponse bulkResponse, ActionListener<UpdateApiKeyResponse> listener) {
+        final var bulkItemResponse = single(bulkResponse.getItems());
+        if (bulkItemResponse.isFailed()) {
+            listener.onFailure(bulkItemResponse.getFailure().getCause());
+        } else {
+            assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
+            listener.onResponse(new UpdateApiKeyResponse(true));
+        }
+    }
+
+    private void validateApiKeyForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
+        if (isActive(apiKeyDoc) == false) {
+            throw cannotUpdateInactiveApiKey(apiKeyId);
+        }
+        if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
+            throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
+        }
     }
 
     private static <T> T single(Collection<T> elements) {
         if (elements.size() != 1) {
-            throw new IllegalStateException("collection must contain single element");
+            throw new IllegalStateException("collection must contain exactly one element");
         }
         return elements.iterator().next();
     }
 
     private static <T> T single(T[] elements) {
         if (elements.length != 1) {
-            throw new IllegalStateException("array must contain single element");
+            throw new IllegalStateException("array must contain exactly one element");
         }
         return elements[0];
     }
@@ -410,7 +413,6 @@ public class ApiKeyService {
 
     private boolean isActive(ApiKeyDoc apiKeyDoc) {
         return apiKeyDoc.invalidated == false
-            // TODO shared
             && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
     }
 
@@ -431,22 +433,22 @@ public class ApiKeyService {
         );
     }
 
-    private BulkRequestBuilder toBulkUpdateRequest(
+    private BulkRequestBuilder buildBulkUpdateRequest(
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
-        Version version,
-        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocWithSeqNoAndPrimaryTerms
+        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocs
     ) throws IOException {
+        final var version = clusterService.state().nodes().getMinNodeVersion();
         final var bulkRequestBuilder = client.prepareBulk();
-        for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDocWithSeqNoAndPrimaryTerm : apiKeyDocWithSeqNoAndPrimaryTerms) {
-            bulkRequestBuilder.add(singleIndexRequest(authentication, request, userRoles, version, apiKeyDocWithSeqNoAndPrimaryTerm));
+        for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDoc : apiKeyDocs) {
+            bulkRequestBuilder.add(buildIndexRequestForUpdate(authentication, request, userRoles, version, apiKeyDoc));
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder;
     }
 
-    private IndexRequest singleIndexRequest(
+    private IndexRequest buildIndexRequestForUpdate(
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
@@ -454,7 +456,15 @@ public class ApiKeyService {
         ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDocWithSeqNoAndPrimaryTerm
     ) throws IOException {
         final var apiKeyDoc = apiKeyDocWithSeqNoAndPrimaryTerm.apiKey();
-        final var keyRoles = getRoleDescriptors(request.getId(), request.getRoleDescriptors(), apiKeyDoc);
+        final var newRoleDescriptors = request.getRoleDescriptors();
+        // TODO feels backwards that we deserialize just to serialize again
+        final var keyRoles = newRoleDescriptors != null
+            ? newRoleDescriptors
+            : parseRoleDescriptors(
+                request.getId(),
+                XContentHelper.convertToMap(apiKeyDoc.roleDescriptorsBytes, true, XContentType.JSON).v2(),
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
         final var metadata = request.getMetadata() != null ? request.getMetadata() : apiKeyDoc.metadataAsMap();
 
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
@@ -477,18 +487,6 @@ public class ApiKeyService {
             .setIfSeqNo(apiKeyDocWithSeqNoAndPrimaryTerm.seqNo())
             .setIfPrimaryTerm(apiKeyDocWithSeqNoAndPrimaryTerm.primaryTerm())
             .request();
-    }
-
-    private List<RoleDescriptor> getRoleDescriptors(String apiKeyId, List<RoleDescriptor> newRoleDescriptors, ApiKeyDoc apiKeyDoc) {
-        // TODO need to account for legacy versions here, potentially
-        // TODO feels backwards that we deserialize just to serialize again
-        return newRoleDescriptors != null
-            ? newRoleDescriptors
-            : parseRoleDescriptors(
-                apiKeyId,
-                XContentHelper.convertToMap(apiKeyDoc.roleDescriptorsBytes, true, XContentType.JSON).v2(),
-                RoleReference.ApiKeyRoleType.ASSIGNED
-            );
     }
 
     /**
@@ -1476,6 +1474,7 @@ public class ApiKeyService {
         }
     }
 
+    // TODO this a very long name -- maybe `ApiKeyWithDocVersioning`?
     private record ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {

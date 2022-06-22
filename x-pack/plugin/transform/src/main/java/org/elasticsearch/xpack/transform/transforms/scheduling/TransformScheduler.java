@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +19,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -106,7 +106,8 @@ public final class TransformScheduler {
         }
         Instant processingFinished = clock.instant();
         logger.trace(
-            () -> new ParameterizedMessage(
+            String.format(
+                Locale.ROOT,
                 "Processing scheduled tasks finished, took {}ms",
                 Duration.between(processingStarted, processingFinished).toMillis()
             )
@@ -140,7 +141,8 @@ public final class TransformScheduler {
         scheduledTasks.update(scheduledTask.getTransformId(), task -> {
             if (task.equals(scheduledTask) == false) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
+                    () -> String.format(
+                        Locale.ROOT,
                         "[{}] task object got modified while processing. Expected: {}, was: {}",
                         scheduledTask.getTransformId(),
                         scheduledTask,
@@ -176,7 +178,7 @@ public final class TransformScheduler {
      */
     public void registerTransform(TransformTaskParams transformTaskParams, Listener listener) {
         String transformId = transformTaskParams.getId();
-        logger.trace(() -> new ParameterizedMessage("[{}] register the transform", transformId));
+        logger.trace(() -> String.format(Locale.ROOT, "[{}] register the transform", transformId));
         long currentTimeMillis = clock.millis();
         TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
@@ -199,7 +201,7 @@ public final class TransformScheduler {
      * @param failureCount new value of transform task's failure count
      */
     public void handleTransformFailureCountChanged(String transformId, int failureCount) {
-        logger.trace(() -> new ParameterizedMessage("[{}] handle transform failure count change to {}", transformId, failureCount));
+        logger.trace(() -> String.format(Locale.ROOT, "[{}] handle transform failure count change to {}", transformId, failureCount));
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
@@ -220,7 +222,7 @@ public final class TransformScheduler {
      */
     public void deregisterTransform(String transformId) {
         Objects.requireNonNull(transformId);
-        logger.trace(() -> new ParameterizedMessage("[{}] de-register the transform", transformId));
+        logger.trace(() -> String.format(Locale.ROOT, "[{}] de-register the transform", transformId));
         scheduledTasks.remove(transformId);
     }
 

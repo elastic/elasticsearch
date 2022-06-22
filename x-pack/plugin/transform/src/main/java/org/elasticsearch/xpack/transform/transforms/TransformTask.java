@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -396,7 +396,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     @Override
     public void triggered(TransformScheduler.Event event) {
-        logger.trace(() -> new ParameterizedMessage("[{}] triggered(event={}) ", getTransformId(), event));
+        logger.trace(() -> String.format(Locale.ROOT, "[{}] triggered(event={}) ", getTransformId(), event));
         // Ignore if event is not for this job
         if (event.transformId().equals(getTransformId()) == false) {
             return;

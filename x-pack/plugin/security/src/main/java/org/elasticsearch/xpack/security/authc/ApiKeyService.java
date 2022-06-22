@@ -363,34 +363,45 @@ public class ApiKeyService {
                 return;
             }
 
-            if (apiKeys.size() != 1) {
-                listener.onFailure(new IllegalStateException("more than one api key found for single api key update"));
+            try {
+                final var apiKeyDoc = single(apiKeys).apiKey();
+                if (isActive(apiKeyDoc) == false) {
+                    throw cannotUpdateInactiveApiKey(request.getId());
+                }
+                // TODO assert on creator match, on version compatibility match
+            } catch (IllegalStateException | ValidationException ex) {
+                listener.onFailure(ex);
                 return;
             }
 
-            final var apiKeyDoc = apiKeys.stream().iterator().next().apiKey();
-            if (isActive(apiKeyDoc) == false) {
-                listener.onFailure(cannotUpdateInactiveApiKey(request.getId()));
-                return;
-            }
-            // TODO assert on creator match, on version compatibility match
-
-            // TODO what happens if `toBulkUpdateRequest` throws?
             final var version = clusterService.state().nodes().getMinNodeVersion();
+            // TODO what happens if this throws?
             final var bulkRequest = toBulkUpdateRequest(authentication, request, userRoles, version, apiKeys);
             doBulkUpdate(bulkRequest, ActionListener.wrap(bulkResponse -> {
-                assert bulkResponse.getItems().length == 1;
-                final var bulkItemResponse = bulkResponse.getItems()[0];
+                // TODO what happens if this throws?
+                final var bulkItemResponse = single(bulkResponse.getItems());
                 if (bulkItemResponse.isFailed()) {
-                    Throwable cause = bulkItemResponse.getFailure().getCause();
-                    listener.onFailure(new ElasticsearchException("Error updating api key", cause));
-                    return;
+                    listener.onFailure(new ElasticsearchException("error updating api key", bulkItemResponse.getFailure().getCause()));
+                } else {
+                    assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+                    listener.onResponse(new UpdateApiKeyResponse(true));
                 }
-                final var result = bulkItemResponse.getResponse().getResult();
-                assert result == DocWriteResponse.Result.UPDATED || result == DocWriteResponse.Result.NOOP;
-                listener.onResponse(new UpdateApiKeyResponse(result == DocWriteResponse.Result.UPDATED));
             }, listener::onFailure));
         }, listener::onFailure));
+    }
+
+    private static <T> T single(Collection<T> elements) {
+        if (elements.size() != 1) {
+            throw new IllegalStateException("collection must contain single element");
+        }
+        return elements.iterator().next();
+    }
+
+    private static <T> T single(T[] elements) {
+        if (elements.length != 1) {
+            throw new IllegalStateException("array must contain single element");
+        }
+        return elements[0];
     }
 
     private ValidationException cannotUpdateInactiveApiKey(String apiKeyId) {

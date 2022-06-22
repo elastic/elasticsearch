@@ -1426,6 +1426,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeyId = createdApiKey.v1().getId();
         // TODO randomize more
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var expectedLimitedByRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         final var serviceWithNodeName = getServiceWithNodeName();
@@ -1434,7 +1435,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .updateApiKey(
                 fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
                 request,
-                Set.of(expectedRoleDescriptor),
+                Set.of(expectedLimitedByRoleDescriptor),
                 listener
             );
         UpdateApiKeyResponse response = listener.get();
@@ -1445,7 +1446,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         expectMetadataForApiKey(request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(), updatedApiKeyDoc);
         expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
-        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
 
         // Test authenticate works with updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());

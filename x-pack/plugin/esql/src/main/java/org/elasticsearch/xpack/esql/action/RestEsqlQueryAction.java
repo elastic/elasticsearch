@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,7 +50,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
                     esqlQueryResponse.toXContent(builder, request);
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                    channel.sendResponse(new RestResponse(RestStatus.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -59,7 +59,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(channel, e));
+                    channel.sendResponse(new RestResponse(channel, e));
                 } catch (Exception inner) {
                     inner.addSuppressed(e);
                     logger.error("failed to send failure response", inner);

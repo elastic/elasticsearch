@@ -140,9 +140,9 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
-import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
-import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
-import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLiteral;
+import static org.elasticsearch.xpack.qautil.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.qautil.DateUtils.asTimeOnly;
+import static org.elasticsearch.xpack.qautil.DateUtils.dateTimeOfEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 

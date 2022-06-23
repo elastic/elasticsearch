@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
+import static org.elasticsearch.xpack.qautil.DateUtils.asTimeAtZone;
 
 public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 

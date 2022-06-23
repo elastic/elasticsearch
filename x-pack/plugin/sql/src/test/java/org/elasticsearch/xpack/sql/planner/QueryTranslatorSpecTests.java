@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.planner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 

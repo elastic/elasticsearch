@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
 import java.time.Period;
@@ -133,25 +133,25 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         assertEquals(
             "2000-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("millennia"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
         assertEquals(
             "2000-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("CENTURY"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
         assertEquals(
             "2010-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("decades"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
         assertEquals(
             "2019-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("years"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
@@ -324,7 +324,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         Literal dateTime = l(dateTime(-11412, 9, 3, 18, 10, 37, 123456789));
         assertEquals(
             "-11000-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("millennia"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
@@ -332,7 +332,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         dateTime = l(dateTime(-12999, 9, 3, 18, 10, 37, 123456789));
         assertEquals(
             "-12900-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("centuries"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );
@@ -340,7 +340,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         dateTime = l(dateTime(-32999, 9, 3, 18, 10, 37, 123456789));
         assertEquals(
             "-32990-01-01T00:00:00.000+10:00",
-            DateUtils.toString(
+            org.elasticsearch.xpack.qautil.DateUtils.toString(
                 (ZonedDateTime) new DateTrunc(Source.EMPTY, l("decades"), dateTime, zoneId).makePipe().asProcessor().process(null)
             )
         );

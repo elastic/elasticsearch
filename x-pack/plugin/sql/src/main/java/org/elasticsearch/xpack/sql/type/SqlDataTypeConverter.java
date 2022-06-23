@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.OffsetTime;
@@ -356,7 +356,7 @@ public final class SqlDataTypeConverter {
      * is important because it is used for serialization.
      */
     public enum SqlConverter implements Converter {
-        DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
+        DATE_TO_STRING(o -> org.elasticsearch.xpack.qautil.DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
 
         DATE_TO_UNSIGNED_LONG(delegate(DATETIME_TO_UNSIGNED_LONG)),
@@ -383,13 +383,13 @@ public final class SqlDataTypeConverter {
         RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
         INTEGER_TO_DATE(toDate(INTEGER_TO_LONG)),
         BOOL_TO_DATE(toDate(BOOL_TO_INT)),
-        STRING_TO_DATE(fromString(DateUtils::asDateOnly, "date")),
+        STRING_TO_DATE(fromString(org.elasticsearch.xpack.qautil.DateUtils::asDateOnly, "date")),
         DATETIME_TO_DATE(fromDatetimeToDate()),
 
         RATIONAL_TO_TIME(toTime(RATIONAL_TO_LONG)),
         INTEGER_TO_TIME(toTime(INTEGER_TO_LONG)),
         BOOL_TO_TIME(toTime(BOOL_TO_INT)),
-        STRING_TO_TIME(fromString(DateUtils::asTimeOnly, "time")),
+        STRING_TO_TIME(fromString(org.elasticsearch.xpack.qautil.DateUtils::asTimeOnly, "time")),
         DATE_TO_TIME(fromDatetimeToTime()),
         DATETIME_TO_TIME(fromDatetimeToTime()),
 
@@ -407,19 +407,19 @@ public final class SqlDataTypeConverter {
         }
 
         private static Function<Object, Object> fromTime(Function<Long, Object> converter) {
-            return l -> converter.apply(((OffsetTime) l).atDate(DateUtils.EPOCH).toInstant().toEpochMilli());
+            return l -> converter.apply(((OffsetTime) l).atDate(org.elasticsearch.xpack.qautil.DateUtils.EPOCH).toInstant().toEpochMilli());
         }
 
         private static Function<Object, Object> toDate(Converter conversion) {
-            return l -> DateUtils.asDateOnly(((Number) conversion.convert(l)).longValue());
+            return l -> org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(((Number) conversion.convert(l)).longValue());
         }
 
         private static Function<Object, Object> toTime(Converter conversion) {
-            return l -> DateUtils.asTimeOnly(((Number) conversion.convert(l)).longValue());
+            return l -> org.elasticsearch.xpack.qautil.DateUtils.asTimeOnly(((Number) conversion.convert(l)).longValue());
         }
 
         private static Function<Object, Object> fromDatetimeToDate() {
-            return l -> DateUtils.asDateOnly((ZonedDateTime) l);
+            return l -> org.elasticsearch.xpack.qautil.DateUtils.asDateOnly((ZonedDateTime) l);
         }
 
         private static Function<Object, Object> fromDatetimeToTime() {

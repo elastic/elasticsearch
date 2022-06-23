@@ -43,7 +43,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class SqlParser {
 

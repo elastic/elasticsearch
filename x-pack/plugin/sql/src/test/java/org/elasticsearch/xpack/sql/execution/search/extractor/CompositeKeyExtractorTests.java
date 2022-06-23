@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -28,7 +27,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCase<CompositeKeyExtractor> {
 
@@ -94,7 +93,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
-        assertEquals(DateUtils.asDateTimeWithMillis(millis, extractor.zoneId()), extractor.extract(bucket));
+        assertEquals(org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis(millis, extractor.zoneId()), extractor.extract(bucket));
     }
 
     public void testExtractIncorrectDateKey() {

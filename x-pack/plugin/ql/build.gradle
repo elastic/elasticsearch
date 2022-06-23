@@ -19,7 +19,7 @@ dependencies {
   api project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))
 
-  compileOnly project(xpackModule('qa-util:common'))
+  compileOnly project(path: xpackModule('qa-util:common'))
 
   testApi(project(xpackModule('ql:test-fixtures'))) {
     exclude group: 'org.elasticsearch.plugin', module: 'ql'

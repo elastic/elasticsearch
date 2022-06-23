@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexCompatibility;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.Types;
 import java.util.ArrayList;
@@ -305,7 +305,7 @@ public class SysColumnsTests extends ESTestCase {
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
         final SqlConfiguration config = new SqlConfiguration(
-            DateUtils.UTC,
+            org.elasticsearch.xpack.qautil.DateUtils.UTC,
             null,
             randomIntBetween(1, 15),
             Protocol.REQUEST_TIMEOUT,

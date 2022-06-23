@@ -30,8 +30,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
-import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.DAY_IN_MILLIS;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class DateDiff extends ThreeArgsDateTimeFunction {
 

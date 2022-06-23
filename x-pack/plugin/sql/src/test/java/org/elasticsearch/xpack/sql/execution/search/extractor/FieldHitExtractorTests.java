@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 import static org.hamcrest.Matchers.is;
 
 public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<FieldHitExtractor> {
@@ -121,7 +120,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         long totalNanos = randomLongBetween(72000000000000L, Long.MAX_VALUE);
         long millis = toMilliSeconds(totalNanos);
         long nanosOnly = (int) (totalNanos % 1_000_000_000);
-        ZonedDateTime zdt = DateUtils.asDateTimeWithMillis(millis, zoneId).plusNanos(nanosOnly);
+        ZonedDateTime zdt = org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis(millis, zoneId).plusNanos(nanosOnly);
         List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
         DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
         SearchHit hit = new SearchHit(1, null, singletonMap("my_date_nanos_field", field), null);

@@ -147,7 +147,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

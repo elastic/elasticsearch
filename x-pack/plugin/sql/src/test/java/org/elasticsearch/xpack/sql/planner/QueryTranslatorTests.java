@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
@@ -136,7 +135,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         public LogicalPlan plan(String sql) {
-            return plan(sql, DateUtils.UTC);
+            return plan(sql, org.elasticsearch.xpack.qautil.DateUtils.UTC);
         }
 
         public LogicalPlan plan(String sql, ZoneId zoneId) {
@@ -152,7 +151,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-            return analyzer.analyze(parser.createStatement(sql, asList(params), DateUtils.UTC), true);
+            return analyzer.analyze(parser.createStatement(sql, asList(params), org.elasticsearch.xpack.qautil.DateUtils.UTC), true);
         }
     }
 
@@ -164,7 +163,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String sql) {
-        return defaultTestContext.plan(sql, DateUtils.UTC);
+        return defaultTestContext.plan(sql, org.elasticsearch.xpack.qautil.DateUtils.UTC);
     }
 
     private LogicalPlan plan(String sql, ZoneId zoneId) {
@@ -527,24 +526,24 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeWithCurrentDate() {
-        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
             "CURRENT_DATE()",
             DATE_FORMAT,
             null,
-            DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-            DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+            org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
     public void testDateRangeWithToday() {
-        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
             "TODAY()",
             DATE_FORMAT,
             null,
-            DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-            DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+            org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            org.elasticsearch.xpack.qautil.DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
@@ -605,14 +604,14 @@ public class QueryTranslatorTests extends ESTestCase {
         if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
             assertEquals(
                 DateFormatter.forPattern(pattern)
-                    .format(now.withNano(DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
+                    .format(now.withNano(org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
                 rq.upper()
             );
         }
         if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
             assertEquals(
                 DateFormatter.forPattern(pattern)
-                    .format(now.withNano(DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
+                    .format(now.withNano(org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
                 rq.lower()
             );
         }
@@ -663,7 +662,7 @@ public class QueryTranslatorTests extends ESTestCase {
             DateFormatter.forPattern(pattern)
                 .format(
                     upperValue.withNano(
-                        DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano())
+                        org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano())
                     )
                 ),
             rq.upper()
@@ -672,7 +671,7 @@ public class QueryTranslatorTests extends ESTestCase {
             DateFormatter.forPattern(pattern)
                 .format(
                     lowerValue.withNano(
-                        DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano())
+                        org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano())
                     )
                 ),
             rq.lower()

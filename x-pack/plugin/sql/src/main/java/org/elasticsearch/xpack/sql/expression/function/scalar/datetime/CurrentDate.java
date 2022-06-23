@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZonedDateTime;
 

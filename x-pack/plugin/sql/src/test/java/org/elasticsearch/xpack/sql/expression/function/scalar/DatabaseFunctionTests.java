@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 public class DatabaseFunctionTests extends ESTestCase {
 

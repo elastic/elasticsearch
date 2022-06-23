@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProces
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -331,7 +331,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.asDateTimeWithMillis(((Number) dateTime).longValue());
+                return org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis(((Number) dateTime).longValue());
             }
 
             if (dateTime instanceof String) {

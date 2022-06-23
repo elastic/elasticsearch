@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class QuarterProcessorTests extends ESTestCase {
 

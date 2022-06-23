@@ -15,7 +15,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<DateTimeProcessor> {

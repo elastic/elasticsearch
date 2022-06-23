@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -30,7 +29,7 @@ import java.util.Collections;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase<TopHitsAggExtractor> {
 
@@ -97,11 +96,11 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
             0,
             1,
             null,
-            searchHitsOf(StringUtils.toString(DateUtils.asDateTimeWithMillis(value, zoneId))),
+            searchHitsOf(StringUtils.toString(org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis(value, zoneId))),
             null
         );
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
+        assertEquals(org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
     public void testExtractUnsignedLong() {

@@ -34,7 +34,7 @@ dependencies {
   api project('sql-action')
   api project(':modules:aggs-matrix-stats')
   compileOnly project(path: xpackModule('ql'))
-  compileOnly project(xpackModule('qa-util:common'))
+  compileOnly project(path: xpackModule('qa-util:common'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('security'))))

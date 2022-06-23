@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.eql.util.StringUtils.toLikePattern;
+import static org.elasticsearch.xpack.eql.util.ExtractSubstring.toLikePattern;
 
 public class StringUtilsTests extends ESTestCase {
 

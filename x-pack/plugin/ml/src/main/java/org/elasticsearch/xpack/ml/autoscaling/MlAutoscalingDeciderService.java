@@ -662,7 +662,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             // Given maxOpenJobs, could we scale down to just one node?
             // We have no way of saying "we need X nodes"
             if (nodeLoads.size() > 1) {
-                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobs).sum();
+                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobsAndModels).sum();
                 // one volatile read
                 long maxOpenJobsCopy = this.maxOpenJobs;
                 if (totalAssignedJobs > maxOpenJobsCopy) {
@@ -876,7 +876,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
                 this::getAllocatedModelRequirement,
-                NodeLoad.Builder::incNumAssignedNativeInferenceJobs,
+                NodeLoad.Builder::incNumAssignedNativeInferenceModels,
                 0,
                 analyticsCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, analyticsCapacityAndNewLoad.v2()));

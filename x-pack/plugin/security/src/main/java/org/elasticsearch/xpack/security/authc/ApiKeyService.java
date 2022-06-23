@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -539,11 +540,13 @@ public class ApiKeyService {
             builder.field("metadata_flattened", metadata);
         } else {
             // TODO revisit this
-            if (currentApiKeyDoc.metadataFlattened != null) {
-                builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
-            } else {
-                builder.nullField("metadata_flattened");
-            }
+            builder.rawField(
+                "metadata_flattened",
+                currentApiKeyDoc.metadataFlattened == null
+                    ? InputStream.nullInputStream()
+                    : currentApiKeyDoc.metadataFlattened.streamInput(),
+                XContentType.JSON
+            );
         }
 
         addCreator(builder, authentication);

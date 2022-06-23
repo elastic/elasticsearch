@@ -99,7 +99,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 2001818691 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 2005177954 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
-  - is_false: hits.hits.0._source.k8s\.pod\.ip   # k8s.pod.ip isn't a dimension and is not rolled up
+  - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.1" }
 
   # Assert rollup index settings
   - do:

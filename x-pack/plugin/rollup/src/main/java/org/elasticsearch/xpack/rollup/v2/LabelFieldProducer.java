@@ -18,7 +18,7 @@ import java.util.Map;
  */
 abstract class LabelFieldProducer extends AbstractFieldProducer<Object> {
 
-    private Label label;
+    private final Label label;
 
     LabelFieldProducer(String field, Label label) {
         super(field);

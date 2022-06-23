@@ -1580,6 +1580,58 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
     }
 
+    public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
+        final List<ServiceWithNodeName> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> new ServiceWithNodeName(internalCluster().getInstance(ApiKeyService.class, n), n))
+            .toList();
+
+        // Create two API keys and authenticate with them
+        final var apiKey1 = createApiKeyAndAuthenticateWithIt();
+        final var apiKey2 = createApiKeyAndAuthenticateWithIt();
+
+        // Find out which nodes handled the above authentication requests
+        final var serviceForDoc1 = services.stream()
+            .filter(s -> s.service().getDocCache().get(apiKey1.v1()) != null)
+            .findFirst()
+            .orElseThrow();
+        final var serviceForDoc2 = services.stream()
+            .filter(s -> s.service().getDocCache().get(apiKey2.v1()) != null)
+            .findFirst()
+            .orElseThrow();
+        assertNotNull(serviceForDoc1.service().getFromCache(apiKey1.v1()));
+        assertNotNull(serviceForDoc2.service().getFromCache(apiKey2.v1()));
+        final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
+        if (sameServiceNode) {
+            assertEquals(2, serviceForDoc1.service().getDocCache().count());
+        } else {
+            assertEquals(1, serviceForDoc1.service().getDocCache().count());
+            assertEquals(1, serviceForDoc2.service().getDocCache().count());
+        }
+
+        // Update the first key
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceForDoc1.service()
+            .updateApiKey(
+                fileRealmAuth(serviceForDoc1.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+                new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null),
+                Set.of(),
+                listener
+            );
+        final var response = listener.get();
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        // The cache entry should be gone for the first key
+        if (sameServiceNode) {
+            assertEquals(1, serviceForDoc1.service().getDocCache().count());
+            assertNull(serviceForDoc1.service().getDocCache().get(apiKey1.v1()));
+            assertNotNull(serviceForDoc1.service().getDocCache().get(apiKey2.v1()));
+        } else {
+            assertEquals(0, serviceForDoc1.service().getDocCache().count());
+            assertEquals(1, serviceForDoc2.service().getDocCache().count());
+        }
+    }
+
     private Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
         return Authentication.newRealmAuthentication(
             new User(userName, roleName),

@@ -379,28 +379,9 @@ public class ApiKeyService {
 
             doBulkUpdate(
                 buildBulkUpdateRequest(versionedDocs, authentication, request, userRoles),
-                ActionListener.wrap(
-                    bulkResponse -> handleBulkResponseForSingleKeyUpdate(apiKeyId, bulkResponse, listener),
-                    listener::onFailure
-                )
+                ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
             );
         }, listener::onFailure));
-    }
-
-    private void handleBulkResponseForSingleKeyUpdate(
-        String apiKeyId,
-        BulkResponse bulkResponse,
-        ActionListener<UpdateApiKeyResponse> listener
-    ) {
-        final var bulkItemResponse = single(bulkResponse.getItems());
-        if (bulkItemResponse.isFailed()) {
-            listener.onFailure(bulkItemResponse.getFailure().getCause());
-        } else {
-            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
-            // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
-            assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-            clearApiKeyDocCache(new UpdateApiKeyResponse(apiKeyId, true), listener);
-        }
     }
 
     // package-private for testing
@@ -411,6 +392,23 @@ public class ApiKeyService {
         }
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
+        }
+    }
+
+    private boolean isActive(ApiKeyDoc apiKeyDoc) {
+        return apiKeyDoc.invalidated == false
+            && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
+    }
+
+    private void translateResponseAndClearCache(String apiKeyId, BulkResponse bulkResponse, ActionListener<UpdateApiKeyResponse> listener) {
+        final var bulkItemResponse = single(bulkResponse.getItems());
+        if (bulkItemResponse.isFailed()) {
+            listener.onFailure(bulkItemResponse.getFailure().getCause());
+        } else {
+            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
+            // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
+            assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+            clearApiKeyDocCache(new UpdateApiKeyResponse(apiKeyId, true), listener);
         }
     }
 
@@ -428,20 +426,8 @@ public class ApiKeyService {
         return elements[0];
     }
 
-    private boolean isActive(ApiKeyDoc apiKeyDoc) {
-        return apiKeyDoc.invalidated == false
-            && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
-    }
-
     private ResourceNotFoundException apiKeyNotFound(String apiKeyId) {
         return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
-    }
-
-    private void doBulkUpdate(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
-        );
     }
 
     private BulkRequest buildBulkUpdateRequest(
@@ -482,6 +468,13 @@ public class ApiKeyService {
             .setIfSeqNo(currentVersionedDoc.seqNo())
             .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
             .request();
+    }
+
+    private void doBulkUpdate(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
+        );
     }
 
     /**

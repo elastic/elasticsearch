@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * _version must be representable as a long without loss of precision or null
  * _dyanmic_templates must be a map
  * _if_seq_no must be a long or null
- * _if_primate_term must be a long or null
+ * _if_primary_term must be a long or null
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
@@ -62,7 +62,9 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         IngestDocument.Metadata.IF_SEQ_NO.getFieldName(),
         IngestSourceAndMetadata::longValidator,
         IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName(),
-        IngestSourceAndMetadata::longValidator
+        IngestSourceAndMetadata::longValidator,
+        IngestDocument.Metadata.TYPE.getFieldName(),
+        IngestSourceAndMetadata::stringValidator
     );
 
     protected final Map<String, Object> source;
@@ -569,6 +571,10 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
             key
                 + " must be a null or one of ["
                 + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
+                + "] but was ["
+                + value
+                + "] with type ["
+                + value.getClass().getName()
                 + "]"
         );
     }

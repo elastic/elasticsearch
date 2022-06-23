@@ -18,6 +18,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestSourceAndMetadataTests extends ESTestCase {
 
@@ -287,16 +289,43 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         assertEquals(555, map.getVersion());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", "vt"));
-        assertEquals("_version_type must be a null or one of [internal, external, external_gte]", err.getMessage());
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [vt] with type [java.lang.String]",
+            err.getMessage()
+        );
         assertEquals("external", map.getVersionType());
         map.put("_version_type", "internal");
         assertEquals("internal", map.getVersionType());
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL.toString()));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
+            err.getMessage()
+        );
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type"
+                + " [org.elasticsearch.index.VersionType$2]",
+            err.getMessage()
+        );
+        assertEquals("internal", map.getVersionType());
+        err = expectThrows(IllegalArgumentException.class, () -> map.setVersionType(VersionType.EXTERNAL.toString()));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
+            err.getMessage()
+        );
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_dynamic_templates", "5"));
         assertEquals("_dynamic_templates must be a null or a Map but was [5] with type [java.lang.String]", err.getMessage());
         Map<String, String> dt = Map.of("a", "b");
         map.put("_dynamic_templates", dt);
         assertThat(dt, equalTo(map.getDynamicTemplates()));
+    }
+
+    public void testDefaultValidatorForAllMetadata() {
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            assertThat(IngestSourceAndMetadata.VALIDATORS, hasEntry(equalTo(m.getFieldName()), notNullValue()));
+        }
+        assertEquals(IngestDocument.Metadata.values().length, IngestSourceAndMetadata.VALIDATORS.size());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

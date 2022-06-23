@@ -42,7 +42,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
-            Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(4);
+            Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(5);
             metadata.put(Metadata.INDEX.getFieldName(), a[0]);
             metadata.put(Metadata.ID.getFieldName(), a[1]);
             if (a[2] != null) {

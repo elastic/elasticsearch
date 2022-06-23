@@ -14,9 +14,12 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
+import spock.lang.IgnoreIf
 import spock.lang.Shared
 import spock.lang.Unroll
 
+// see https://github.com/elastic/elasticsearch/issues/87913
+@IgnoreIf({ os.windows })
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class

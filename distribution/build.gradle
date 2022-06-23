@@ -230,7 +230,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsJDKAgent', 'libsBootExts', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -250,6 +250,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   dependencies {
     libs project(':server')
 
+    libsJDKAgent project(path: ':libs:elasticsearch-jdk-agent:agent', configuration: 'shadow')
+    libsBootExts project(':libs:elasticsearch-jdk-agent:boot-exts')
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
     libsServerCli project(':distribution:tools:server-cli')
@@ -270,6 +272,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
+        into('jdk-agent') {
+          from(configurations.libsJDKAgent)
+        }
+        into('boot-exts') {
+          from(configurations.libsBootExts)
+        }
         into('java-version-checker') {
           from(configurations.libsVersionChecker)
         }

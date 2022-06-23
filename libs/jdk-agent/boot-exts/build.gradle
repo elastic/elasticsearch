@@ -1,0 +1,18 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+description = 'Elasticsearch classes JDK bootstrap extension classes'
+archivesBaseName = 'elasticsearch-boot-exts'
+
+tasks.named("javadoc").configure { enabled = false }
+
+// disable checkstyleMain to avoid gratuitous refactorings of third-party code
+// TODO: disable for just fast double
+tasks.named("checkstyleMain").configure { enabled = false }
+
+// disable forbiddenApisMain for now, FIX ME
+// * What went wrong:
+// Execution failed for task ':libs:elasticsearch-jdk-agent:boot-exts:forbiddenApisMain'.
+// > Parsing signatures failed: Class 'org.apache.lucene.util.IOUtils' not found on classpath while
+//    parsing signature: org.apache.lucene.util.IOUtils
+tasks.named("forbiddenApisMain").configure { enabled = false }

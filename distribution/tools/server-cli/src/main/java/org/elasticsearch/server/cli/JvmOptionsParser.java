@@ -116,6 +116,9 @@ final class JvmOptionsParser {
         }
     }
 
+    /* The Elasticsearch agent for JDK retransforms */
+    boolean addJDKAgent = true;
+
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
@@ -142,7 +145,42 @@ final class JvmOptionsParser {
         finalJvmOptions.addAll(ergonomicJvmOptions);
         finalJvmOptions.addAll(bootstrapOptions);
 
+        if (addJDKAgent) {
+            Path libPath = config.resolve("../").resolve("lib").normalize().toAbsolutePath();
+            finalJvmOptions.add("-javaagent:" + agentJar(libPath));
+            finalJvmOptions.add("-Xbootclasspath/a:" + bootExtsJar(libPath));
+        }
+
         return finalJvmOptions;
+    }
+
+    private static String agentJar(Path libPath) throws IOException {
+        Path p = ensurePathExists(libPath.resolve("jdk-agent"));
+        try (var s = Files.walk(p, 1)) {
+            return s.filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().startsWith("elasticsearch-jdk-agent"))
+                .map(Path::toString)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("cannot find jdk-agent jar"));
+        }
+    }
+
+    private static String bootExtsJar(Path libPath) throws IOException {
+        Path p = ensurePathExists(libPath.resolve("boot-exts"));
+        try (var s = Files.walk(p, 1)) {
+            return s.filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().startsWith("elasticsearch-boot-exts"))
+                .map(Path::toString)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("cannot find boot-exts jar"));
+        }
+    }
+
+    static Path ensurePathExists(Path p) {
+        if (Files.notExists(p)) {
+            throw new AssertionError("path does not exist: " + p);
+        }
+        return p;
     }
 
     List<String> readJvmOptionsFiles(final Path config) throws IOException, JvmOptionsFileParserException {

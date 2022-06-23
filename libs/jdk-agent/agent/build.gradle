@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+description = 'Elasticsearch agent for JDK retransforms'
+archivesBaseName = 'elasticsearch-jdk-agent'
+
+def agentPackage = 'com.elasticsearch.jdk.agent'
+def agentRepackaged = "${agentPackage}.shadow"
+def agentMainClass = "${agentPackage}.Premain"
+
+dependencies {
+  implementation 'org.ow2.asm:asm:9.3'
+  implementation 'org.ow2.asm:asm-analysis:9.3'
+  implementation 'org.ow2.asm:asm-tree:9.3'
+  implementation 'org.ow2.asm:asm-util:9.3'
+}
+
+jar {
+    manifest {
+        attributes 'Premain-Class': agentMainClass
+        attributes 'Can-Retransform-Classes': true
+    }
+}
+
+tasks.named("shadowJar").configure {
+  // TODO: check what should be excluded/included
+  // exclude 'META-INF/maven/**'
+  relocate 'org.objectweb.asm', agentRepackaged + '.org.objectweb.asm'
+}
+
+javadoc {
+  enabled = false
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+// disable forbiddenApisMain for now, FIX ME
+// * What went wrong:
+// Execution failed for task ':libs:elasticsearch-jdk-agent:agent:forbiddenApisMain'.
+// > Parsing signatures failed: Class 'org.apache.lucene.util.IOUtils' not found on classpath while
+//    parsing signature: org.apache.lucene.util.IOUtils
+tasks.named("forbiddenApisMain").configure { enabled = false }

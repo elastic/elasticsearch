@@ -1,5 +1,5 @@
 // tag::cloud[]
-In order to start {ilm} we need to go to Kibana and execute the <<ilm-start, start command>>.
+In order to start {slm} we need to go to Kibana and execute the <<slm-api-start, start command>>.
 
 **Use {kib}**
 
@@ -22,11 +22,11 @@ and go to **Dev Tools > Console**.
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. <<ilm-start, Start>> {ilm}:
+. <<slm-api-start, Start>> {slm}:
 +
 [source,console]
 ----
-POST _ilm/start
+POST _slm/start
 ----
 +
 The reponse will look like this:
@@ -39,12 +39,11 @@ The reponse will look like this:
 ----
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 +
-
-. Verify {ilm} is now running:
+. Verify {slm} is now running:
 +
 [source,console]
 ----
-GET _ilm/status
+GET _slm/status
 ----
 +
 The reponse will look like this:
@@ -56,20 +55,16 @@ The reponse will look like this:
 }
 ----
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
-
 //end::kibana-api-ex[]
 // end::cloud[]
 
 // tag::self-managed[]
-<<ilm-start, Start ILM>>:
-
+<<slm-api-start, Start>> {slm}:
 [source,console]
 ----
-POST _ilm/start
+POST _slm/start
 ----
-
 The reponse will look like this:
-
 [source,console-result]
 ----
 {
@@ -77,17 +72,12 @@ The reponse will look like this:
 }
 ----
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
-
-
-Verify {ilm} is now running:
-
+Verify the {slm} is now running:
 [source,console]
 ----
-GET _ilm/status
+GET _slm/status
 ----
-
 The reponse will look like this:
-
 [source,console-result]
 ----
 {
@@ -97,4 +87,3 @@ The reponse will look like this:
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
 // end::self-managed[]
-

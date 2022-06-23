@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -227,7 +228,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     private static void checkForDuplicatedExternalIDs(List<DesiredNodeWithStatus> nodes) {
-        Set<String> nodeIDs = new HashSet<>(nodes.size());
+        Set<String> nodeIDs = Sets.newHashSetWithExpectedSize(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNodeWithStatus node : nodes) {
             String externalID = node.desiredNode().externalId();

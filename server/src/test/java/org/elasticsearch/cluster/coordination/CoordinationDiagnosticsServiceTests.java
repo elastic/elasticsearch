@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -632,7 +633,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+        TransportService transportService = mock(TransportService.class);
+        return new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService);
     }
 
     private void createAndAddNonMasterNode(Cluster cluster) {

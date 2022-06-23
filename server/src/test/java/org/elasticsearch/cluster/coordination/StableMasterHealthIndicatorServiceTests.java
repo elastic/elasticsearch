@@ -26,6 +26,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -96,7 +97,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
@@ -135,7 +136,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
@@ -160,7 +161,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
@@ -284,8 +285,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
+        TransportService transportService = mock(TransportService.class);
         return new StableMasterHealthIndicatorService(
-            new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService)
+            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService)
         );
     }
 

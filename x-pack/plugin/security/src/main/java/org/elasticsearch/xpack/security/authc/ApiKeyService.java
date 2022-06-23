@@ -254,6 +254,21 @@ public class ApiKeyService {
                     apiKeyAuthCache.invalidateAll();
                 }
             });
+            cacheInvalidatorRegistry.registerCacheInvalidator("api_key_doc", new CacheInvalidatorRegistry.CacheInvalidator() {
+                @Override
+                public void invalidate(Collection<String> keys) {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidate(keys);
+                    }
+                }
+
+                @Override
+                public void invalidateAll() {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidateAll();
+                    }
+                }
+            });
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
@@ -384,19 +399,19 @@ public class ApiKeyService {
             assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
             // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
             assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-            listener.onResponse(new UpdateApiKeyResponse(true));
+            clearApiKeyDocCache(new UpdateApiKeyResponse(apiKeyId, true), listener);
         }
     }
 
     // package-private for testing
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
+        // TODO also assert that authentication subject matches creator on apiKeyDoc
         if (isActive(apiKeyDoc) == false) {
             throw new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
         }
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
         }
-        // TODO also assert that authentication subject matches creator on apiKeyDoc
     }
 
     private static <T> T single(Collection<T> elements) {
@@ -1314,8 +1329,18 @@ public class ApiKeyService {
     }
 
     private void clearCache(InvalidateApiKeyResponse result, ActionListener<InvalidateApiKeyResponse> listener) {
-        final ClearSecurityCacheRequest clearApiKeyCacheRequest = new ClearSecurityCacheRequest().cacheName("api_key")
-            .keys(result.getInvalidatedApiKeys().toArray(String[]::new));
+        executeClearCacheRequest(
+            result,
+            listener,
+            new ClearSecurityCacheRequest().cacheName("api_key").keys(result.getInvalidatedApiKeys().toArray(String[]::new))
+        );
+    }
+
+    private void clearApiKeyDocCache(UpdateApiKeyResponse result, ActionListener<UpdateApiKeyResponse> listener) {
+        executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(result.getId()));
+    }
+
+    private <T> void executeClearCacheRequest(T result, ActionListener<T> listener, ClearSecurityCacheRequest clearApiKeyCacheRequest) {
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearApiKeyCacheRequest, new ActionListener<>() {
             @Override
             public void onResponse(ClearSecurityCacheResponse nodes) {
@@ -1324,6 +1349,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
+                // TODO
                 logger.error("unable to clear API key cache", e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }

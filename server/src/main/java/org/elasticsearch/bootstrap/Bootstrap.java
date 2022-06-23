@@ -59,13 +59,6 @@ final class Bootstrap {
             }
         }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
         keepAliveThread.setDaemon(false);
-        // keep this thread alive (non daemon thread) until we shutdown
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                keepAliveLatch.countDown();
-            }
-        });
         this.spawner = spawner;
     }
 
@@ -180,11 +173,6 @@ final class Bootstrap {
 
         // fail if somebody replaced the lucene jars
         checkLucene();
-
-        // install the default uncaught exception handler; must be done before security is
-        // initialized as we do not want to grant the runtime permission
-        // setDefaultUncaughtExceptionHandler
-        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
         INSTANCE.node = new Node(state.environment()) {
             @Override

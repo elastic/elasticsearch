@@ -188,7 +188,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );
@@ -208,7 +208,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );

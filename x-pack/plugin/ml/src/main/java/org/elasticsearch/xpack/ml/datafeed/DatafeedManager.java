@@ -298,7 +298,7 @@ public final class DatafeedManager {
             request.getDatafeed(),
             headers,
             ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
+                response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())),
                 listener::onFailure
             )
         );

@@ -17,7 +17,6 @@ import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -139,7 +138,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         // Skip docker compose tasks if it is unavailable
         maybeSkipTasks(tasks, dockerSupport, Test.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
-        maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);

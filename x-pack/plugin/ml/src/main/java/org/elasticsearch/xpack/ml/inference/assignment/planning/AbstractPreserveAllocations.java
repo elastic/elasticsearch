@@ -34,7 +34,7 @@ abstract class AbstractPreserveAllocations {
         long bytesUsed = 0;
         int coresUsed = 0;
         for (Model m : models) {
-            if (m.currentAllocationByNodeId().containsKey(n.id())) {
+            if (m.currentAllocationsByNodeId().containsKey(n.id())) {
                 bytesUsed += m.memoryBytes();
                 coresUsed += calculateUsedCores(n, m);
             }
@@ -48,7 +48,7 @@ abstract class AbstractPreserveAllocations {
     }
 
     Model modifyModelPreservingPreviousAssignments(Model m) {
-        if (m.currentAllocationByNodeId().isEmpty()) {
+        if (m.currentAllocationsByNodeId().isEmpty()) {
             return m;
         }
 
@@ -78,8 +78,11 @@ abstract class AbstractPreserveAllocations {
         for (Model m : models) {
             for (Node n : nodes) {
                 int allocations = assignmentsByModelNodeIdPair.getOrDefault(Tuple.tuple(m.id(), n.id()), 0);
-                if (m.currentAllocationByNodeId().containsKey(n.id())) {
+                if (m.currentAllocationsByNodeId().containsKey(n.id())) {
                     allocations += addPreservedAllocations(n, m);
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    mergedPlanBuilder.accountMemory(m, n);
                 }
                 if (allocations > 0) {
                     mergedPlanBuilder.assignModelToNode(m, n, allocations);

@@ -12,7 +12,7 @@ from their default values.
 ==== Cluster level settings
 
 `health.master_history.has_master_lookup_timeframe`::
-(<<static-cluster-setting,Static>>) The amount of time the API looks back to see if the cluster has had
+(<<static-cluster-setting,Static>>) The amount of time a node looks back to see if it has observed
 a master at all, before moving on with other checks. Defaults to `30s` (30 seconds).
 
 `master_history.max_age`::

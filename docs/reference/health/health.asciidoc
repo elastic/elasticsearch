@@ -259,7 +259,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 ======
 =====
 ====
-alt
+
 [[health-api-example]]
 ==== {api-examples-title}
 

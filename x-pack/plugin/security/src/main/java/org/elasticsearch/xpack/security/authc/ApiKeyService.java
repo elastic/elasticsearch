@@ -364,19 +364,26 @@ public class ApiKeyService {
 
             doBulkUpdate(
                 buildBulkUpdateRequest(apiKeys, authentication, request, userRoles),
-                ActionListener.wrap(bulkResponse -> toUpdateApiKeyResponse(apiKeyId, bulkResponse, listener), listener::onFailure)
+                ActionListener.wrap(
+                    bulkResponse -> handleBulkResponseForSingleKeyUpdate(apiKeyId, bulkResponse, listener),
+                    listener::onFailure
+                )
             );
         }, listener::onFailure));
     }
 
-    private void toUpdateApiKeyResponse(String apiKeyId, BulkResponse bulkResponse, ActionListener<UpdateApiKeyResponse> listener) {
+    private void handleBulkResponseForSingleKeyUpdate(
+        String apiKeyId,
+        BulkResponse bulkResponse,
+        ActionListener<UpdateApiKeyResponse> listener
+    ) {
         final var bulkItemResponse = single(bulkResponse.getItems());
         if (bulkItemResponse.isFailed()) {
             listener.onFailure(bulkItemResponse.getFailure().getCause());
         } else {
+            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
             // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
             assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
             listener.onResponse(new UpdateApiKeyResponse(true));
         }
     }
@@ -423,7 +430,7 @@ public class ApiKeyService {
     }
 
     private BulkRequest buildBulkUpdateRequest(
-        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocs,
+        Collection<ApiKeyDocWithVersioning> apiKeyDocs,
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles
@@ -431,7 +438,7 @@ public class ApiKeyService {
         assert apiKeyDocs.isEmpty() == false;
         final var version = clusterService.state().nodes().getMinNodeVersion();
         final var bulkRequestBuilder = client.prepareBulk();
-        for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDoc : apiKeyDocs) {
+        for (ApiKeyDocWithVersioning apiKeyDoc : apiKeyDocs) {
             bulkRequestBuilder.add(buildIndexRequestForUpdate(apiKeyDoc, authentication, request, userRoles, version));
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
@@ -439,7 +446,7 @@ public class ApiKeyService {
     }
 
     private IndexRequest buildIndexRequestForUpdate(
-        ApiKeyDocWithSeqNoAndPrimaryTerm currentApiKeyDoc,
+        ApiKeyDocWithVersioning currentApiKeyDoc,
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
@@ -1159,7 +1166,7 @@ public class ApiKeyService {
     private void findApiKeyDocsForSubject(
         Authentication authentication,
         String[] apiKeyIds,
-        ActionListener<Collection<ApiKeyDocWithSeqNoAndPrimaryTerm>> listener
+        ActionListener<Collection<ApiKeyDocWithVersioning>> listener
     ) {
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
             getOwnersRealmNames(authentication),
@@ -1484,18 +1491,17 @@ public class ApiKeyService {
         );
     }
 
-    private static ApiKeyDocWithSeqNoAndPrimaryTerm convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm(SearchHit hit) {
+    private static ApiKeyDocWithVersioning convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
         ) {
-            return new ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
+            return new ApiKeyDocWithVersioning(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
 
-    // TODO this a very long name -- maybe `ApiKeyWithDocVersioning`?
-    private record ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc doc, long seqNo, long primaryTerm) {}
+    private record ApiKeyDocWithVersioning(ApiKeyDoc doc, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {
@@ -1707,8 +1713,6 @@ public class ApiKeyService {
         }
 
         static ApiKeyDoc fromXContent(XContentParser parser) {
-            // TODO remove?
-            assert parser.contentType() == XContentType.JSON;
             return PARSER.apply(parser, null);
         }
     }

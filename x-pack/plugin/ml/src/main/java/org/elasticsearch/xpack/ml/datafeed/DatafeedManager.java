@@ -297,10 +297,7 @@ public final class DatafeedManager {
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
             headers,
-            ActionListener.wrap(
-                response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())),
-                listener::onFailure
-            )
+            ActionListener.wrap(response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())), listener::onFailure)
         );
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {

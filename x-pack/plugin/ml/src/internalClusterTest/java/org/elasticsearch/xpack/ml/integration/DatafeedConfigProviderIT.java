@@ -569,8 +569,9 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     private DatafeedConfig putDatafeedConfig(DatafeedConfig.Builder builder, Map<String, String> headers) throws Exception {
         builder.setHeaders(headers);
         DatafeedConfig config = builder.build();
-        this.<Tuple<DatafeedConfig, IndexResponse>>blockingCall(actionListener -> datafeedConfigProvider.putDatafeedConfig(config, headers,
-            actionListener));
+        this.<Tuple<DatafeedConfig, IndexResponse>>blockingCall(
+            actionListener -> datafeedConfigProvider.putDatafeedConfig(config, headers, actionListener)
+        );
         return config;
     }
 }

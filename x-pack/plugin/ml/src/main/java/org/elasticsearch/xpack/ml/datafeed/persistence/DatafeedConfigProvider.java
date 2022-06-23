@@ -107,8 +107,11 @@ public class DatafeedConfigProvider {
      * @param config The datafeed configuration
      * @param listener Listener that returns config augmented with security headers and index response
      */
-    public void putDatafeedConfig(DatafeedConfig config, Map<String, String> headers, ActionListener<Tuple<DatafeedConfig, IndexResponse>>
-        listener) {
+    public void putDatafeedConfig(
+        DatafeedConfig config,
+        Map<String, String> headers,
+        ActionListener<Tuple<DatafeedConfig, IndexResponse>> listener
+    ) {
 
         DatafeedConfig finalConfig;
         if (headers.isEmpty()) {
@@ -130,16 +133,20 @@ public class DatafeedConfigProvider {
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> listener.onResponse(
-                Tuple.tuple(finalConfig, r)
-            ), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    // the datafeed already exists
-                    listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                IndexAction.INSTANCE,
+                indexRequest,
+                ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        // the datafeed already exists
+                        listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));

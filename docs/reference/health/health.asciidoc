@@ -288,7 +288,7 @@ details have contents and a structure that is unique to each indicator.
     time window. This field is present if the master
     is changing rapidly enough to cause problems, and also present as additional information
     when the indicator is `green`. This array includes only elected masters, and does _not_
-    include null entries for periods when there was no elected master.
+    include empty entries for periods when there was no elected master.
 +
 .Properties of `recent_masters`
 [%collapsible%open]
@@ -301,9 +301,10 @@ details have contents and a structure that is unique to each indicator.
 ====
 
 `exception_fetching_history`::
-    (Optional, object) If the node being queried sees that the elected master has gone away repeatedly, the
-    master history is requested from the most recently elected master node for diagnosis purposes. If
-    fetching this remote history fails, the exception information is returned in this detail field.
+    (Optional, object) If the node being queried sees that the elected master has stepped down
+    repeatedly, the master history is requested from the most recently elected master node for
+    diagnosis purposes. If fetching this remote history fails, the exception information is
+    returned in this detail field.
 +
 .Properties of `exception_fetching_history`
 [%collapsible%open]

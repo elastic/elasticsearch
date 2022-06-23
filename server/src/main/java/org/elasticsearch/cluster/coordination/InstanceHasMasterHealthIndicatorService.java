@@ -37,8 +37,8 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     public static final UserAction NO_MASTER = new UserAction(
         new UserAction.Definition(
             "no-master-on-instance",
-            "The instance handling the health request doesn’t recognise a master node. Please try executing the API against a different node "
-                + "or try again later",
+            "The instance handling the health request doesn’t recognise a master node. Please try executing the API against a different "
+                + "node or try again later",
             GET_HELP_GUIDE
         ),
         null

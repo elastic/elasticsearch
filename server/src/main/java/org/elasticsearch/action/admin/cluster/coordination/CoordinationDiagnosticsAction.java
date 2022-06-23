@@ -38,7 +38,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
     }
 
     public static class Request extends ActionRequest {
-        private final boolean explain;
+        final boolean explain; // Non-private for testing
 
         public Request(boolean explain) {
             this.explain = explain;

@@ -43,7 +43,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             request,
             indexNameExpressionResolver,
             response,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
     }
 

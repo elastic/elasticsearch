@@ -903,6 +903,7 @@ public class Node implements Closeable {
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
             CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
+                discoveryModule.getCoordinator(),
                 masterHistoryService
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);

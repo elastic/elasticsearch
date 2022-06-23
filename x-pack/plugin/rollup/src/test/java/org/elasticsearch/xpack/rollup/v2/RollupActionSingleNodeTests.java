@@ -79,8 +79,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,10 +103,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
     public static final String FIELD_METRIC_LABEL_DOUBLE = "metric_label_double";
+    public static final String FIELD_METRIC_LABEL_INTEGER = "metric_label_integer";
     public static final String FIELD_LABEL_DOUBLE = "label_double";
+    public static final String FIELD_LABEL_INTEGER = "label_integer";
     public static final String FIELD_LABEL_KEYWORD = "label_keyword";
     public static final String FIELD_LABEL_TEXT = "label_text";
-    // public static final String FIELD_LABEL_BOOLEAN = "label_boolean";
+    public static final String FIELD_LABEL_BOOLEAN = "label_boolean";
+    public static final String FIELD_LABEL_IPv4_ADDRESS = "label_ipv4_address";
+    public static final String FIELD_LABEL_IPv6_ADDRESS = "label_ipv6_address";
+    public static final String FIELD_LABEL_DATE = "label_date";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -172,6 +180,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=double,time_series_metric=counter",
                 FIELD_LABEL_DOUBLE,
                 "type=double",
+                // FIELD_LABEL_INTEGER,
+                // "type=integer",
                 FIELD_LABEL_KEYWORD,
                 "type=keyword",
                 FIELD_LABEL_TEXT,
@@ -179,7 +189,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 // FIELD_LABEL_BOOLEAN,
                 // "type=boolean",
                 FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
-                "type=double,time_series_metric=counter"
+                "type=double,time_series_metric=counter",
+                // FIELD_METRIC_LABEL_INTEGER,
+                // "type=double,time_series_metric=counter",
+                FIELD_LABEL_IPv4_ADDRESS,
+                "type=ip",
+                FIELD_LABEL_IPv6_ADDRESS,
+                "type=ip",
+                FIELD_LABEL_DATE,
+                "type=date"
             )
             .get();
     }
@@ -189,6 +207,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            int labelIntegerValue = randomInt();
+            String labelIpv4Address = randomIp(true).getHostAddress();
+            String labelIpv6Address = randomIp(false).getHostAddress();
+            Date labelDateValue = randomDate();
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -198,9 +220,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                // .field(FIELD_LABEL_INTEGER, labelIntegerValue)
+                // .field(FIELD_METRIC_LABEL_INTEGER, labelIntegerValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
                 .field(FIELD_LABEL_TEXT, ts)
                 // .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
+                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
+                .field(FIELD_LABEL_DATE, labelDateValue)
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -209,6 +236,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String sourceIndexClone = cloneSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+    }
+
+    private Date randomDate() {
+        int randomYear = randomIntBetween(1970, 2020);
+        int randomMonth = randomIntBetween(1, 12);
+        int randomDayOfMonth = randomIntBetween(1, 28);
+        int randomHour = randomIntBetween(0, 23);
+        int randomMinute = randomIntBetween(0, 59);
+        int randomSecond = randomIntBetween(0, 59);
+        return Date.from(
+            ZonedDateTime.of(randomYear, randomMonth, randomDayOfMonth, randomHour, randomMinute, randomSecond, 0, ZoneOffset.UTC)
+                .toInstant()
+        );
     }
 
     public void testNullSourceIndexName() {

@@ -49,6 +49,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final String origin;
     private final String indexType;
     private final SystemIndices.Feature owningFeature;
+    private final boolean allowsTemplates;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemIndexMigrationInfo::getFeatureName
@@ -61,7 +62,8 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         String mapping,
         String origin,
         String indexType,
-        SystemIndices.Feature owningFeature
+        SystemIndices.Feature owningFeature,
+        boolean allowsTemplates
     ) {
         this.currentIndex = currentIndex;
         this.featureName = featureName;
@@ -70,6 +72,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         this.origin = origin;
         this.indexType = indexType;
         this.owningFeature = owningFeature;
+        this.allowsTemplates = allowsTemplates;
     }
 
     /**
@@ -126,6 +129,16 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getIndexType() {
         return indexType;
+    }
+
+    /**
+     * By default, system indices should not be affected by user defined templates, so this
+     * method should return false in almost all cases. At the moment certain Kibana indices use
+     * templates, therefore we allow templates to be used on Kibana created system indices until
+     * Kibana removes the template use on system index creation.
+     */
+    boolean allowsTemplates() {
+        return allowsTemplates;
     }
 
     /**
@@ -237,7 +250,8 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             mapping,
             descriptor.getOrigin(),
             descriptor.getIndexType(),
-            feature
+            feature,
+            descriptor.allowsTemplates()
         );
     }
 

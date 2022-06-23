@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -28,12 +27,17 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public class AutoscalingMemoryInfoService {
     public static final Setting<TimeValue> FETCH_TIMEOUT = Setting.timeSetting(
@@ -46,7 +50,7 @@ public class AutoscalingMemoryInfoService {
 
     private static final Logger logger = LogManager.getLogger(AutoscalingMemoryInfoService.class);
 
-    private volatile ImmutableOpenMap<String, Long> nodeToMemory = ImmutableOpenMap.<String, Long>builder().build();
+    private volatile Map<String, Long> nodeToMemory = Map.of();
     private volatile TimeValue fetchTimeout;
 
     private final Client client;
@@ -54,7 +58,6 @@ public class AutoscalingMemoryInfoService {
 
     @Inject
     public AutoscalingMemoryInfoService(ClusterService clusterService, Client client) {
-
         this.client = client;
         this.fetchTimeout = FETCH_TIMEOUT.get(clusterService.getSettings());
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
@@ -95,10 +98,9 @@ public class AutoscalingMemoryInfoService {
                 .filter(dn -> nodeToMemory.containsKey(dn.getEphemeralId()) == false)
                 .collect(Collectors.toSet());
             if (missingNodes.size() > 0) {
-                ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.<String, Long>builder(nodeToMemory);
+                var builder = new HashMap<>(nodeToMemory);
                 missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(id -> builder.put(id, FETCHING_SENTINEL));
-                nodeToMemory = builder.build();
-
+                nodeToMemory = Collections.unmodifiableMap(builder);
                 return missingNodes;
             }
         }
@@ -117,7 +119,7 @@ public class AutoscalingMemoryInfoService {
                     @Override
                     public void onResponse(NodesStatsResponse nodesStatsResponse) {
                         synchronized (mutex) {
-                            ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.<String, Long>builder(nodeToMemory);
+                            Map<String, Long> builder = new HashMap<>(nodeToMemory);
                             nodesStatsResponse.failures()
                                 .stream()
                                 .map(FailedNodeException::nodeId)
@@ -126,16 +128,16 @@ public class AutoscalingMemoryInfoService {
                                 .forEach(builder::remove);
 
                             nodesStatsResponse.getNodes().forEach(nodeStats -> addNodeStats(builder, nodeStats));
-                            nodeToMemory = builder.build();
+                            nodeToMemory = Collections.unmodifiableMap(builder);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         synchronized (mutex) {
-                            ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.<String, Long>builder(nodeToMemory);
+                            var builder = new HashMap<>(nodeToMemory);
                             missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
-                            nodeToMemory = builder.build();
+                            nodeToMemory = Collections.unmodifiableMap(builder);
                         }
 
                         logger.warn("Unable to obtain memory info from [{}]", missingNodes);
@@ -169,20 +171,21 @@ public class AutoscalingMemoryInfoService {
             .filter(Predicate.not(ephemeralIds::contains))
             .collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {
-            ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.<String, Long>builder(nodeToMemory);
-            builder.removeAll(toRemove::contains);
-            nodeToMemory = builder.build();
+            nodeToMemory = nodeToMemory.entrySet()
+                .stream()
+                .filter(n -> toRemove.contains(n.getKey()) == false)
+                .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
     }
 
-    private void addNodeStats(ImmutableOpenMap.Builder<String, Long> builder, NodeStats nodeStats) {
+    private void addNodeStats(Map<String, Long> builder, NodeStats nodeStats) {
         // we might add nodes that already died here, but those will be removed on next cluster state update anyway and is only a small
         // waste.
         builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getAdjustedTotal().getBytes());
     }
 
     public AutoscalingMemoryInfo snapshot() {
-        final ImmutableOpenMap<String, Long> nodeToMemoryRef = this.nodeToMemory;
+        final Map<String, Long> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
             Long result = nodeToMemoryRef.get(node.getEphemeralId());
             // noinspection NumberEquality

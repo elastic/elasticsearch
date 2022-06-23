@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -59,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -293,12 +293,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             // fail if a transform is too old, this can only happen on a rolling upgrade
             if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
-                String transformTooOldError = new ParameterizedMessage(
-                    "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
-                        + "Minimum required version is [{}]",
+                String transformTooOldError = format(
+                    "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
+                        + "Minimum required version is [%s]",
                     config.getVersion(),
                     TransformDeprecations.MIN_TRANSFORM_VERSION
-                ).getFormattedMessage();
+                );
                 auditor.error(transformId, transformTooOldError);
                 markAsFailed(buildTask, transformTooOldError);
                 return;

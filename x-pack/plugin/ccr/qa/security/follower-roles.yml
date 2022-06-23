@@ -2,7 +2,7 @@ ccruser:
   cluster:
     - manage_ccr
   indices:
-    - names: [ 'allowed-index', 'forget-follower', 'logs-eu*' ]
+    - names: [ 'allowed-index', 'forget-follower', 'logs-eu*', 'testautofollowpatterns-eu*' ]
       privileges:
         - monitor
         - read

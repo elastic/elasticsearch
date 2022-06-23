@@ -1,18 +1,16 @@
 ---
 "cluster health test drilling down into a component and a feature":
   - skip:
-      version: "- 8.2.99"
-      reason: "health drilldown was only added in 8.3.0"
+      version: "- 8.3.99"
+      reason: "health drilldown was only added in 8.3.0, and master_is_stable in 8.4.0"
 
   - do:
       _internal.health:
         component: cluster_coordination
-        feature: instance_has_master
+        feature: master_is_stable
 
   - is_true: cluster_name
-  - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has an elected master node." }
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.name
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.name
+  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
+  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
+  - is_true: components.cluster_coordination.indicators.master_is_stable.details.current_master
+  - is_true: components.cluster_coordination.indicators.master_is_stable.details.recent_masters

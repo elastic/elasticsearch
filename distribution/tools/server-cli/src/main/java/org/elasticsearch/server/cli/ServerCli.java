@@ -78,13 +78,14 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
-            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
-        }
+        validateConfig(options, env);
 
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+
+        // install/remove plugins from elasticsearch-plugins.yml
+        syncPlugins(terminal, env, processInfo);
 
         ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
@@ -112,6 +113,17 @@ class ServerCli extends EnvironmentAwareCommand {
             JvmInfo.jvmInfo().version()
         );
         terminal.println(versionOutput);
+    }
+
+    private void validateConfig(OptionSet options, Environment env) throws UserException {
+        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        }
+
+        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        if (Files.exists(log4jConfig) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
+        }
     }
 
     private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
@@ -169,6 +181,15 @@ class ServerCli extends EnvironmentAwareCommand {
             env = createEnv(options, processInfo);
         }
         return env;
+    }
+
+    private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+        String pluginCliLibs = "lib/tools/plugin-cli";
+        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        assert cmd instanceof EnvironmentAwareCommand;
+        @SuppressWarnings("raw")
+        var syncPlugins = (EnvironmentAwareCommand) cmd;
+        syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
     }
 
     private void validatePidFile(Path pidFile) throws UserException {

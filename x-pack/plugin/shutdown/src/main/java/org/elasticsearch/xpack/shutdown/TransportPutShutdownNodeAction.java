@@ -130,7 +130,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     continue;
                 }
                 var reroute = clusterService.getRerouteService();
-                taskContext.success(taskContext.getTask().listener().delegateFailure((l, s) -> ackAndMaybeReroute(request, l, reroute)));
+                taskContext.success(() -> ackAndMaybeReroute(request, taskContext.getTask().listener(), reroute));
             }
             if (changed == false) {
                 return currentState;

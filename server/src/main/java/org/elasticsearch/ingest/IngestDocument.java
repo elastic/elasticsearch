@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,17 +55,17 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
-    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
+    private boolean doNoSelfReferencesCheck = false;
+
+    public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         // source + at max 5 extra fields
         this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         if (routing != null) {
             this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
@@ -83,13 +82,18 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
+    }
+
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
+    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**
@@ -760,7 +764,7 @@ public final class IngestDocument {
             }
             return copy;
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = new HashSet<>(setValue.size());
+            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
@@ -841,6 +845,26 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * @return Whether a self referencing check should be performed
+     */
+    public boolean doNoSelfReferencesCheck() {
+        return doNoSelfReferencesCheck;
+    }
+
+    /**
+     * Whether the ingest framework should perform a self referencing check after this ingest document
+     * has been processed by all pipelines. Doing this check adds an extra tax to ingest and should
+     * only be performed when really needed. Only if a processor is executed that could add self referencing
+     * maps or lists then this check must be performed. Most processors will not be able to do this, hence
+     * the default is <code>false</code>.
+     *
+     * @param doNoSelfReferencesCheck Whether a self referencing check should be performed
+     */
+    public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
+        this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,6 +56,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
+    }
+
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
     }
 
     public void testTrainedModelDeployment() throws Exception {
@@ -135,11 +141,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             var stat = stats.get(0);
-            assertThat(
-                stat.toString(),
-                XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
-                equalTo("fully_allocated")
-            );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }

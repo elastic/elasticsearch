@@ -1590,46 +1590,55 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKey2 = createApiKeyAndAuthenticateWithIt();
 
         // Find out which nodes handled the above authentication requests
-        final var serviceForDoc1 = services.stream()
+        final var serviceWithNameForDoc1 = services.stream()
             .filter(s -> s.service().getDocCache().get(apiKey1.v1()) != null)
             .findFirst()
             .orElseThrow();
-        final var serviceForDoc2 = services.stream()
+        final var serviceWithNameForDoc2 = services.stream()
             .filter(s -> s.service().getDocCache().get(apiKey2.v1()) != null)
             .findFirst()
             .orElseThrow();
-        assertNotNull(serviceForDoc1.service().getFromCache(apiKey1.v1()));
-        assertNotNull(serviceForDoc2.service().getFromCache(apiKey2.v1()));
-        final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
+        final var serviceForDoc1 = serviceWithNameForDoc1.service();
+        final var serviceForDoc2 = serviceWithNameForDoc2.service();
+        assertNotNull(serviceForDoc1.getFromCache(apiKey1.v1()));
+        assertNotNull(serviceForDoc2.getFromCache(apiKey2.v1()));
+
+        final boolean sameServiceNode = serviceWithNameForDoc1 == serviceWithNameForDoc2;
         if (sameServiceNode) {
-            assertEquals(2, serviceForDoc1.service().getDocCache().count());
+            assertEquals(2, serviceForDoc1.getDocCache().count());
         } else {
-            assertEquals(1, serviceForDoc1.service().getDocCache().count());
-            assertEquals(1, serviceForDoc2.service().getDocCache().count());
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
         }
+
+        final int serviceForDoc1AuthCacheCount = serviceForDoc1.getApiKeyAuthCache().count();
+        final int serviceForDoc2AuthCacheCount = serviceForDoc2.getApiKeyAuthCache().count();
 
         // Update the first key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceForDoc1.service()
-            .updateApiKey(
-                fileRealmAuth(serviceForDoc1.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null),
-                Set.of(),
-                listener
-            );
+        serviceForDoc1.updateApiKey(
+            fileRealmAuth(serviceWithNameForDoc1.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+            new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null),
+            Set.of(),
+            listener
+        );
         final var response = listener.get();
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // The cache entry should be gone for the first key
         if (sameServiceNode) {
-            assertEquals(1, serviceForDoc1.service().getDocCache().count());
-            assertNull(serviceForDoc1.service().getDocCache().get(apiKey1.v1()));
-            assertNotNull(serviceForDoc1.service().getDocCache().get(apiKey2.v1()));
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertNull(serviceForDoc1.getDocCache().get(apiKey1.v1()));
+            assertNotNull(serviceForDoc1.getDocCache().get(apiKey2.v1()));
         } else {
-            assertEquals(0, serviceForDoc1.service().getDocCache().count());
-            assertEquals(1, serviceForDoc2.service().getDocCache().count());
+            assertEquals(0, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
         }
+
+        // Auth cache has not been affected
+        assertEquals(serviceForDoc1AuthCacheCount, serviceForDoc1.getApiKeyAuthCache().count());
+        assertEquals(serviceForDoc2AuthCacheCount, serviceForDoc2.getApiKeyAuthCache().count());
     }
 
     private Authentication fileRealmAuth(String nodeName, String userName, String roleName) {

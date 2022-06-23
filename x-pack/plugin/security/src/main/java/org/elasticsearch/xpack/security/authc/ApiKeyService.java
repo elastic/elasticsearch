@@ -528,6 +528,7 @@ public class ApiKeyService {
         if (keyRoles != null) {
             addRoleDescriptors(builder, keyRoles);
         } else {
+            // TODO can this be null?
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
@@ -537,7 +538,10 @@ public class ApiKeyService {
         if (metadata != null) {
             builder.field("metadata_flattened", metadata);
         } else {
-            builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
+            // TODO revisit this
+            if (currentApiKeyDoc.metadataFlattened != null) {
+                builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
+            }
         }
 
         addCreator(builder, authentication);

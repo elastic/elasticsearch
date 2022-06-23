@@ -18,9 +18,9 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
+import org.elasticsearch.health.UserAction;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
@@ -29,16 +29,26 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     public static final String NAME = "instance_has_master";
 
-    private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has an elected master node.";
-    private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have an elected master node.";
+    static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has an elected master node.";
+    static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have an elected master node.";
 
-    private static final String HELP_URL = "https://ela.st/fix-master";
+    public static final String HELP_URL = "https://ela.st/fix-master";
+    public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
+    public static final UserAction NO_MASTER = new UserAction(
+        new UserAction.Definition(
+            "no-master-on-instance",
+            "The instance handling the health request doesn’t recognise a master node. Please try executing the API against a different node "
+                + "or try again later",
+            GET_HELP_GUIDE
+        ),
+        null
+    );
 
-    private static final String NO_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot insert or "
+    static final String NO_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot insert or "
         + "update documents.";
-    private static final String NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not work. "
+    static final String NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not work. "
         + "The _cat APIs will not work.";
-    private static final String NO_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be mounted.";
+    static final String NO_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be mounted.";
 
     private final ClusterService clusterService;
 
@@ -94,6 +104,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        } : HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
+        } : HealthIndicatorDetails.EMPTY, impacts, List.of(NO_MASTER));
     }
 }

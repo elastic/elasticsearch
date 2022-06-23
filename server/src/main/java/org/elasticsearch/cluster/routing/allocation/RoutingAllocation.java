@@ -62,6 +62,8 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
 
+    private boolean batchShardFetchMode = false;
+
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
@@ -325,6 +327,18 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
+    }
+
+    /**
+     * group shards in node level for async shard data fetching process.
+     * @return true batch mode, else single shard mode.
+     */
+    public boolean isBatchShardFetchMode() {
+        return batchShardFetchMode;
+    }
+
+    public void setBatchShardFetchMode(boolean batchShardFetchMode) {
+        this.batchShardFetchMode = batchShardFetchMode;
     }
 
     public enum DebugMode {

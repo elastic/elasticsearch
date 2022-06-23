@@ -122,7 +122,13 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
-        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this.allocationService = new AllocationService(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            clusterService
+        );
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }
 

@@ -997,7 +997,11 @@ public class StoreTests extends ESTestCase {
             );
         }
         TransportNodesListShardStoreMetadata.StoreFilesMetadata outStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
+            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                new ShardId("index", "_na_", 1),
+                metadataSnapshot,
+                peerRecoveryRetentionLeases
+            );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
@@ -1018,7 +1022,11 @@ public class StoreTests extends ESTestCase {
     public void testStreamEmptyStoreFilesMetadata() throws Exception {
         var outStoreFileMetadata = randomBoolean()
             ? TransportNodesListShardStoreMetadata.StoreFilesMetadata.EMPTY
-            : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
+            : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                new ShardId("index", "_na_", 1),
+                Store.MetadataSnapshot.EMPTY,
+                emptyList()
+            );
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
         var targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);

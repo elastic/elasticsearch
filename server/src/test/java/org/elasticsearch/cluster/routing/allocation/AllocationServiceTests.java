@@ -129,7 +129,8 @@ public class AllocationServiceTests extends ESTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            null
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -228,7 +229,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
-        final AllocationService allocationService = new AllocationService(null, null, null, null);
+        final AllocationService allocationService = new AllocationService(null, (ShardsAllocator) null, null, null, null);
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );

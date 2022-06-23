@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -71,7 +72,23 @@ public class AllocationService {
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
-    private final SnapshotsInfoService snapshotsInfoService;
+    private SnapshotsInfoService snapshotsInfoService;
+    private boolean batchFetchShardEnable;
+    private int batchFetchShardStepSize;
+
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.batch_fetch_shard.enable",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.batch_fetch_shard.step_size",
+        10000,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -81,7 +98,7 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, null);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -89,12 +106,24 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ClusterService clusterService
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        if (clusterService != null) {
+            this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
+            this.batchFetchShardStepSize = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING,
+                    this::setBatchFetchShardStepSize
+                );
+        }
     }
 
     /**
@@ -542,12 +571,33 @@ public class AllocationService {
             existingShardsAllocator.beforeAllocation(allocation);
         }
 
+        GatewayAllocator gatewayAllocator = null;
+        if (logger.isDebugEnabled()) {
+            logger.debug("set batch fetch mode [{}] for routing allocation.", batchFetchShardEnable);
+        }
+        allocation.setBatchShardFetchMode(batchFetchShardEnable);
+
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
             final ShardRouting shardRouting = primaryIterator.next();
             if (shardRouting.primary()) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator);
+                ExistingShardsAllocator allocator = getAllocatorForShard(shardRouting, allocation);
+                allocator.allocateUnassigned(shardRouting, allocation, primaryIterator);
+                if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
+                    gatewayAllocator = (GatewayAllocator) allocator;
+                }
+
+                if (gatewayAllocator != null
+                    && gatewayAllocator.getPrimaryPendingFetchShardCount() > 0
+                    && gatewayAllocator.getPrimaryPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                    gatewayAllocator.flushPendingPrimaryFetchRequests(batchFetchShardStepSize);
+                }
             }
+        }
+
+        // flush the rest primaries
+        if (gatewayAllocator != null) {
+            gatewayAllocator.flushPendingPrimaryFetchRequests(batchFetchShardStepSize);
         }
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
@@ -558,8 +608,23 @@ public class AllocationService {
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();
             if (shardRouting.primary() == false) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
+                ExistingShardsAllocator allocator = getAllocatorForShard(shardRouting, allocation);
+                allocator.allocateUnassigned(shardRouting, allocation, replicaIterator);
+                if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
+                    gatewayAllocator = (GatewayAllocator) allocator;
+                }
+
+                if (gatewayAllocator != null
+                    && gatewayAllocator.getReplicaPendingFetchShardCount() > 0
+                    && gatewayAllocator.getReplicaPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                    gatewayAllocator.flushPendingReplicaFetchRequests(batchFetchShardStepSize);
+                }
             }
+        }
+
+        // flush the rest replicas
+        if (gatewayAllocator != null) {
+            gatewayAllocator.flushPendingReplicaFetchRequests(batchFetchShardStepSize);
         }
     }
 
@@ -626,6 +691,14 @@ public class AllocationService {
      */
     private static RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
         return clusterState.mutableRoutingNodes();
+    }
+
+    public void setBatchFetchShardEnable(boolean batchFetchShardEnable) {
+        this.batchFetchShardEnable = batchFetchShardEnable;
+    }
+
+    public void setBatchFetchShardStepSize(int batchFetchShardStepSize) {
+        this.batchFetchShardStepSize = batchFetchShardStepSize;
     }
 
     /** override this to control time based decisions during allocation */

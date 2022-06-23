@@ -133,6 +133,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexShard != null) {
                     try {
                         final StoreFilesMetadata storeFilesMetadata = new StoreFilesMetadata(
+                            shardId,
                             indexShard.snapshotStoreMetadata(),
                             indexShard.getPeerRecoveryRetentionLeases()
                         );
@@ -180,7 +181,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
-            return new StoreFilesMetadata(metadataSnapshot, emptyList());
+            return new StoreFilesMetadata(shardId, metadataSnapshot, emptyList());
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -191,35 +192,33 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public record StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases)
-        implements
-            Iterable<StoreFileMetadata>,
-            Writeable {
+    public record StoreFilesMetadata(
+        ShardId shardId,
+        Store.MetadataSnapshot metadataSnapshot,
+        List<RetentionLease> peerRecoveryRetentionLeases
+    ) implements Iterable<StoreFileMetadata>, Writeable {
 
         private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", "_na_", 0);
-        public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
+        public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(FAKE_SHARD_ID, Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_8_2_0)) {
-                new ShardId(in);
+            ShardId shardId = FAKE_SHARD_ID;
+            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+                shardId = new ShardId(in);
             }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
             final var peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
             if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
                 return EMPTY;
             } else {
-                return new StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
+                return new StoreFilesMetadata(shardId, metadataSnapshot, peerRecoveryRetentionLeases);
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_8_2_0)) {
-                // no compatible version cares about the shard ID, we can just make one up
-                FAKE_SHARD_ID.writeTo(out);
-
-                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getVersion().onOrAfter(Version.V_7_17_0) : out.getVersion();
+            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                shardId.writeTo(out);
             }
             metadataSnapshot.writeTo(out);
             out.writeList(peerRecoveryRetentionLeases);

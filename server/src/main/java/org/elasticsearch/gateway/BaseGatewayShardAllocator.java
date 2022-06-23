@@ -106,4 +106,12 @@ public abstract class BaseGatewayShardAllocator {
         }
         return results;
     }
+
+    protected void flushPendingFetchShardRequests(int batchStepSize) {
+        // default no-op
+    }
+
+    protected int getPendingFetchShardCount() {
+        return 0;
+    }
 }

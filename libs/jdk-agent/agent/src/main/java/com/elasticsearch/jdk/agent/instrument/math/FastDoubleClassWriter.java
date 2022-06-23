@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.ASM9;
+import static org.objectweb.asm.Opcodes.DLOAD;
 
 public class FastDoubleClassWriter implements Supplier<byte[]> {
     private final ClassReader reader;
@@ -88,6 +89,27 @@ public class FastDoubleClassWriter implements Supplier<byte[]> {
                         mv.visitLabel(handler);
                         mv.visitMaxs(0, 0);
                         mv.visitEnd();
+                    }
+                };
+            } else if (name.equals("toString") && descriptor.equals("(D)Ljava/lang/String;")) {
+                MethodVisitor delegate = cv.visitMethod(access, name, descriptor, signature, exceptions);
+                return new MethodVisitor(ASM9) {
+                    @Override
+                    public void visitCode() {
+                        delegate.visitCode();
+                        traceOutput.println("Rewriting Double::toString");
+
+                        delegate.visitVarInsn(DLOAD, 0);
+                        delegate.visitMethodInsn(
+                            Opcodes.INVOKESTATIC,
+                            "com/elasticsearch/jdk/boot/math/DoubleToDecimal",
+                            "toString",
+                            "(D)Ljava/lang/String;",
+                            false
+                        );
+                        delegate.visitInsn(Opcodes.ARETURN);
+                        delegate.visitMaxs(2, 2);
+                        delegate.visitEnd();
                     }
                 };
             } else {

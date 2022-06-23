@@ -84,4 +84,6 @@ The reponse will look like this:
   "operation_mode": "RUNNING"
 }
 ----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
 // end::self-managed[]

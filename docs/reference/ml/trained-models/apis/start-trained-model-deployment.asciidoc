@@ -40,7 +40,7 @@ improvement. Each model allocation uses a number of threads defined by
 `threads_per_allocation`.
 
 Model allocations are distributed across {ml} nodes. All allocations assigned
-to a node share the same copy of the model in memory. In order to avoid
+to a node share the same copy of the model in memory. To avoid
 thread oversubscription which is detrimental to performance, model allocations
 are distributed in such a way that the total number of used threads does not
 surpass the node's allocated processors.

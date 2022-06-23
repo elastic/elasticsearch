@@ -222,7 +222,7 @@ PUT /_ilm/policy/rollover_policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "50G"
+            "max_size": "50GB"
           }
         }
       },

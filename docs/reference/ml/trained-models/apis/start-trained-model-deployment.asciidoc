@@ -30,7 +30,7 @@ in an ingest pipeline or directly in the <<infer-trained-model>> API.
 Scaling inference performance can be achieved by setting the parameters
 `number_of_allocations` and `threads_per_allocation`.
 
-Increasing `threads_per_allocation` means more threads will be used when
+Increasing `threads_per_allocation` means more threads are used when
 an inference request is processed on a node. This can improve inference speed
 for certain models. It may also result in improvement to throughput.
 

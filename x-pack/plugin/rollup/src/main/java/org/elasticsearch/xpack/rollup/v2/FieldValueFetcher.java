@@ -30,7 +30,10 @@ import java.util.function.Function;
  */
 class FieldValueFetcher {
 
-    private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
+    private static final Set<Class<?>> VALID_METRIC_TYPES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
+    );
+    private static final Set<Class<?>> VALID_LABEL_TYPES = Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class, Boolean.class))
     );
 
@@ -102,7 +105,7 @@ class FieldValueFetcher {
     /**
      * Retrieve field fetchers for a list of fields.
      */
-    static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
+    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields, Set<Class<?>> validTypes) {
         List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
@@ -110,20 +113,28 @@ class FieldValueFetcher {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }
             IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
+            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
         }
         return Collections.unmodifiableList(fetchers);
     }
 
-    static Function<Object, Object> getValidator(String field) {
+    static Function<Object, Object> getValidator(String field, Set<Class<?>> validTypes) {
         return value -> {
-            if (VALID_TYPES.contains(value.getClass()) == false) {
+            if (validTypes.contains(value.getClass()) == false) {
                 throw new IllegalArgumentException(
-                    "Expected [" + VALID_TYPES + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
+                    "Expected [" + VALID_METRIC_TYPES + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
                 );
             }
             return value;
         };
+    }
+
+    static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
+        return build(context, metricFields, VALID_METRIC_TYPES);
+    }
+
+    static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
+        return build(context, labelFields, VALID_LABEL_TYPES);
     }
 
 }

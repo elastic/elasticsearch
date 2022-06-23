@@ -126,8 +126,8 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.metricFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);
-            this.labelFieldFetchers = FieldValueFetcher.build(searchExecutionContext, labelFields);
+            this.metricFieldFetchers = FieldValueFetcher.forMetrics(searchExecutionContext, metricFields);
+            this.labelFieldFetchers = FieldValueFetcher.forLabels(searchExecutionContext, labelFields);
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);

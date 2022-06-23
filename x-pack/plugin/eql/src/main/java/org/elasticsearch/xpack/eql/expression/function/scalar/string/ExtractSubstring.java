@@ -14,9 +14,9 @@ import java.util.Locale;
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 
-final class StringUtils {
+final class ExtractSubstring {
 
-    private StringUtils() {}
+    private ExtractSubstring() {}
 
     /**
      * Extracts a substring from string between left and right strings.

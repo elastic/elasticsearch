@@ -315,13 +315,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String NODE_CAPACITY_ACTION_GUIDE = "http://ela.st/node-capacity";
+    public static final String TIER_CAPACITY_ACTION_GUIDE = "http://ela.st/tier-capacity";
     public static final UserAction.Definition ACTION_INCREASE_NODE_CAPACITY = new UserAction.Definition(
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
             + "allocate each shard copy on a different node. Increase the number of nodes in the cluster or decrease the number of "
             + "replica shards in the affected indices.",
-        NODE_CAPACITY_ACTION_GUIDE
+        TIER_CAPACITY_ACTION_GUIDE
     );
 
     public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
@@ -335,7 +335,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         + tier
                         + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
                         + "decrease the number of replica shards in the affected indices.",
-                    NODE_CAPACITY_ACTION_GUIDE
+                    TIER_CAPACITY_ACTION_GUIDE
                 )
             )
         );

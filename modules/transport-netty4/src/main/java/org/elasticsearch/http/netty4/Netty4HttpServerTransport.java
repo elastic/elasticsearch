@@ -304,19 +304,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
-                handlingSettings.getMaxInitialLineLength(),
-                handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize()
+                handlingSettings.maxInitialLineLength(),
+                handlingSettings.maxHeaderSize(),
+                handlingSettings.maxChunkSize()
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline().addLast("aggregator", aggregator);
-            if (handlingSettings.isCompression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+            if (handlingSettings.compression()) {
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents, transport));
             transport.serverAcceptedChannel(nettyHttpChannel);

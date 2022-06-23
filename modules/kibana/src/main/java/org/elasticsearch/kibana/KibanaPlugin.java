@@ -31,6 +31,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAliasName(".kibana")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .setAllowsTemplates()
         .build();
 
     public static final SystemIndexDescriptor REPORTING_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()

@@ -113,6 +113,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final boolean isNetNew;
 
     /**
+     * We typically don't want to apply user defined templates on system indices, since they may have unexpected
+     * behaviour when upgrading Elasticsearch versions. Currently, only the .kibana_ indices use templates, so we
+     * are making this property by default as false.
+     */
+    private final boolean allowsTemplates;
+
+    /**
      * The thread pools that actions will use to operate on this descriptor's system indices
      */
     private final ExecutorNames executorNames;
@@ -142,6 +149,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             emptyList(),
             emptyList(),
             null,
+            false,
             false
         );
     }
@@ -174,6 +182,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             allowedElasticProductOrigins,
             emptyList(),
             null,
+            false,
             false
         );
     }
@@ -201,6 +210,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *                                     indices
      * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
      *                                    older versions of Elasticsearch
+     * @param allowsTemplates if this system index descriptor allows templates to affect its settings (e.g. .kibana_ indices)
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -218,7 +228,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
         ExecutorNames executorNames,
-        boolean isNetNew
+        boolean isNetNew,
+        boolean allowsTemplates
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -369,6 +380,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
         this.isNetNew = isNetNew;
+        this.allowsTemplates = allowsTemplates;
     }
 
     /**
@@ -482,6 +494,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     public boolean isNetNew() {
         return isNetNew;
+    }
+
+    public boolean allowsTemplates() {
+        return allowsTemplates;
     }
 
     public Version getMappingVersion() {
@@ -610,6 +626,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = emptyList();
         private ExecutorNames executorNames;
         private boolean isNetNew = false;
+        private boolean allowsTemplates = false;
 
         private Builder() {}
 
@@ -703,12 +720,16 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder setAllowsTemplates() {
+            this.allowsTemplates = true;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
          */
         public SystemIndexDescriptor build() {
-
             return new SystemIndexDescriptor(
                 indexPattern,
                 primaryIndex,
@@ -725,7 +746,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,
                 executorNames,
-                isNetNew
+                isNetNew,
+                allowsTemplates
             );
         }
     }

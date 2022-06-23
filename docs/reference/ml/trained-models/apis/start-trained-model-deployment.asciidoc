@@ -34,8 +34,8 @@ Increasing `threads_per_allocation` means more threads are used when
 an inference request is processed on a node. This can improve inference speed
 for certain models. It may also result in improvement to throughput.
 
-Increasing `number_of_allocations` means more threads will be used in order
-to process multiple inference requests in parallel resulting in throughput
+Increasing `number_of_allocations` means more threads are used to 
+process multiple inference requests in parallel resulting in throughput
 improvement. Each model allocation uses a number of threads defined by
 `threads_per_allocation`.
 

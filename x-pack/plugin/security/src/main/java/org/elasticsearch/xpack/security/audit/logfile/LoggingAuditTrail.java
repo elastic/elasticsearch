@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -374,7 +375,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         );
         clusterService.getClusterSettings()
             .addAffixGroupUpdateConsumer(
-                List.of(
+                org.elasticsearch.core.List.of(
                     FILTER_POLICY_IGNORE_PRINCIPALS,
                     FILTER_POLICY_IGNORE_REALMS,
                     FILTER_POLICY_IGNORE_ROLES,

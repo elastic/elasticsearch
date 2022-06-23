@@ -88,9 +88,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
-        when(clusterService.getClusterName()).thenReturn(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        when(clusterService.state()).thenReturn(clusterState);
         clusterSettings = mockClusterSettings();
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         Mockito.doAnswer((Answer) invocation -> {
@@ -2791,7 +2788,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
 
         final String requestId = randomAlphaOfLength(10);
-        final Authentication authentication = Authentication.newRealmAuthentication(
+        final Authentication authentication = new Authentication(
             new User(
                 username != null ? username : randomAlphaOfLengthBetween(3, 10),
                 roleName != null ? roleName : randomAlphaOfLengthBetween(3, 10)
@@ -2799,9 +2796,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             new RealmRef(
                 realmName != null ? realmName : randomAlphaOfLengthBetween(3, 10),
                 randomAlphaOfLengthBetween(3, 10),
-                randomAlphaOfLengthBetween(3, 8),
-                randomFrom(AuthenticationTestHelper.randomDomain(randomBoolean()), null)
-            )
+                randomAlphaOfLengthBetween(3, 8)
+            ),
+            null
         );
         final MockIndicesRequest request = new MockIndicesRequest(
             threadContext,

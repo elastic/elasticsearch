@@ -73,11 +73,8 @@ public abstract class MapReduceAggregator<
         this.profiling = context.profiling();
 
         // big arrays used for the map reduce context have a lifespan beyond this aggregator, so they can't use the bigarray from the
-        // context. But the non-recycling big array instance does not trip the circuit breaker, so we do a trick here:
-        // We use the non-recycling big array but with the circuit breaker of the context and the counter of the aggregation.
-        // This ensures that we 1st of all have a circuit breaker _and_ that all bytes that are added to the circuit breaker get deducted
-        // later. This is important as otherwise the circuit breaker continues with a wrong count and eventually trips.
-        // (if we would use the big array breaker we would not deduct the counter)
+        // context. The {@link DelegatingCircuitBreakerService} workarounds several accounting problems. Please have a look
+        // into the description of {@link DelegatingCircuitBreakerService} for more details.
         this.breakerService = new DelegatingCircuitBreakerService(context.breaker(), this::addRequestCircuitBreakerBytes);
         this.bigArraysForMapReduce = BigArrays.NON_RECYCLING_INSTANCE.withBreakerService(breakerService).withCircuitBreaking();
         this.mapReduceContextByBucketOrdinal = new LongObjectPagedHashMap<>(1, context.bigArrays());

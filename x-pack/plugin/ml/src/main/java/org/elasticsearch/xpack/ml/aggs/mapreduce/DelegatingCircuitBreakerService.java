@@ -12,17 +12,47 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
 
 import java.util.function.Consumer;
 
 /**
  * Special purpose circuit breaker, don't reuse it.
  *
- * This breaker service and breaker wraps another breaker that has a shorter lifetime than the
- * objects using this breaker. Therefore it is possible to disconnect the wrapped breaker.
+ * This breaker service is written for aggregators which use big arrays that have a lifespan beyond the mapping phase.
  *
- * This class is only used to workaround a problem in search/aggs and should eventually be
- * removed once search/aggs fixes problems.
+ * The breaker service and breaker wraps another breaker - namely the one from the aggregation context - which has a shorter
+ * lifetime than the objects using this breaker. Using the breaker from the aggregation context ensures that we actually
+ * break if the agg is running out of memory.
+ *
+ * TL/DR
+ *
+ * (Using the non-recycling big array instance does not trip the circuit breaker, it is not only non-recycling, but also
+ * non-accounting.)
+ *
+ * After the mapping phase, when the aggregation context gets destructed, see {@link MapReduceAggregator#doClose()}, all objects
+ * are normally freed. "a lifespan beyond the mapping phase" - however means, we still have to keep internal big array objects
+ * _after_ `doClose()` got called. This adapter ensures objects aren't freed. In order to not double-account freed memory
+ * the agg context gets disconnected in `doClose()`.
+ *
+ * (Circuit breaker additions must always be in sync, you absolutely must deduct exactly the same number of allocated bytes
+ * you added before, including exceptional cases like request cancellation or exceptions. gh#67476 might tackle this issue.
+ * At the time of writing circuit breakers are a global gauge.)
+ *
+ * After the map phase and before reduce, the {@link MapReduceAggregator} creates instances of {@link InternalMapReduceAggregation},
+ * see {@link MapReduceAggregator#buildAggregations(long[])}.
+ *
+ * (Note 1: Instead of keeping the existing instance, it would have been possible to deep-copy the object like
+ * {@link CardinalityAggregator#buildAggregations(long[])}. I decided against this approach mainly because the deep-copy isn't
+ * secured by circuit breakers, meaning the node could run out of memory during the deep-copy.)
+ * (Note 2: Between {@link MapReduceAggregator#doClose()} and serializing {@link InternalMapReduceAggregation} memory accounting
+ * is broken, meaning the agg context gets closed and bytes get returned to the circuit breaker before memory is actually freed.
+ * An incoming expensive request could potentially arrive during that window of time. However, this scenario is less likely than the
+ * out of memory during deep-copy)
+ *
+ * Summing up, this class workarounds problems in search/aggs. It should not exist and eventually it should be removed.
+ *
+ * Further follow up is tracked in gh#TBD
  */
 public class DelegatingCircuitBreakerService extends CircuitBreakerService {
 

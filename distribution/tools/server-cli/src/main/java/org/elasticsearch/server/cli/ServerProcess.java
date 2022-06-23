@@ -66,8 +66,8 @@ public class ServerProcess {
 
     // this allows mocking the process building by tests
     interface OptionsBuilder {
-        List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-            IOException, UserException;
+        List<String> getJvmOptions(Path esHome, Path configDir, Path pluginsDir, Path tmpDir, String envOptions)
+            throws InterruptedException, IOException, UserException;
     }
 
     // this allows mocking the process building by tests
@@ -208,11 +208,11 @@ public class ServerProcess {
             envVars.put("LIBFFI_TMPDIR", tempDir.toString());
         }
 
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
+        final Path esHome = processInfo.workingDir();
+        List<String> jvmOptions = optionsBuilder.getJvmOptions(esHome, configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
         // also pass through distribution type
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 
-        Path esHome = processInfo.workingDir();
         Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
         List<String> command = new ArrayList<>();
         boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");

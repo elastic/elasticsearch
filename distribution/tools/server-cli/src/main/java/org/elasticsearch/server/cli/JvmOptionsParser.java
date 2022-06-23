@@ -77,9 +77,8 @@ final class JvmOptionsParser {
      * @throws IOException if there is a problem reading any of the files
      * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
      */
-    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
-
+    static List<String> determineJvmOptions(Path esHome, Path configDir, Path pluginsDir, Path tmpDir, String envOptions)
+        throws InterruptedException, IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
@@ -87,7 +86,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
+            return parser.jvmOptions(esHome, configDir, pluginsDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -119,8 +118,13 @@ final class JvmOptionsParser {
     /* The Elasticsearch agent for JDK retransforms */
     boolean addJDKAgent = true;
 
-    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws InterruptedException, IOException, JvmOptionsFileParserException {
+    private List<String> jvmOptions(
+        final Path esHome,
+        final Path config,
+        Path plugins,
+        final String esJavaOpts,
+        final Map<String, String> substitutions
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
@@ -146,7 +150,7 @@ final class JvmOptionsParser {
         finalJvmOptions.addAll(bootstrapOptions);
 
         if (addJDKAgent) {
-            Path libPath = config.resolve("../").resolve("lib").normalize().toAbsolutePath();
+            Path libPath = esHome.resolve("lib").normalize().toAbsolutePath();
             finalJvmOptions.add("-javaagent:" + agentJar(libPath));
             finalJvmOptions.add("-Xbootclasspath/a:" + bootExtsJar(libPath));
         }

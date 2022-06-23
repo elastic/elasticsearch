@@ -541,6 +541,8 @@ public class ApiKeyService {
             // TODO revisit this
             if (currentApiKeyDoc.metadataFlattened != null) {
                 builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
+            } else {
+                builder.nullField("metadata_flattened");
             }
         }
 

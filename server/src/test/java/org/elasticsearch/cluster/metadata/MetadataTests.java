@@ -218,7 +218,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testAliasCollidingWithAnExistingIndex() {
         int indexCount = randomIntBetween(10, 100);
-        Set<String> indices = new HashSet<>(indexCount);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(indexCount);
         for (int i = 0; i < indexCount; i++) {
             indices.add(randomAlphaOfLength(10));
         }
@@ -570,7 +570,7 @@ public class MetadataTests extends ESTestCase {
 
     private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
         final int size = randomIntBetween(0, 10);
-        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
@@ -2171,7 +2171,7 @@ public class MetadataTests extends ESTestCase {
         final Set<String> randomMappingDefinitions;
         {
             int numEntries = randomIntBetween(4, 8);
-            randomMappingDefinitions = new HashSet<>(numEntries);
+            randomMappingDefinitions = Sets.newHashSetWithExpectedSize(numEntries);
             for (int i = 0; i < numEntries; i++) {
                 Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
                 String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));

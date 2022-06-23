@@ -81,9 +81,12 @@ also optionally provide URLs to troubleshooting documentation.
     components are:
 +
 --
-  `instance_has_master`::
+  `master_is_stable`::
       (Component `cluster_coordination`) Reports health issues regarding
-      connections to the master node.
+      the stability of the node that is seen as the master by the node handling
+      the health request. In case of enough observed master changes in a short period of time
+      this indicator will aim to diagnose and report back useful information
+      regarding the cluster formation issues it detects.
 
   `shards_availability`::
       (Component `data`) Reports health issues regarding shard assignments.

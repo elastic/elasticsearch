@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -170,7 +170,7 @@ final class QueryTranslator {
                 if (cm.input() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) cm.input()).exactAttribute());
 
-                    Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(cm.addresses().size()));
+                    Set<Object> set = Sets.newLinkedHashSetWithExpectedSize(CollectionUtils.mapSize(cm.addresses().size()));
 
                     for (Expression e : cm.addresses()) {
                         set.add(valueOf(e));

@@ -66,7 +66,7 @@ class FieldValueFetcher {
 
     FormattedDocValues getLeaf(LeafReaderContext context) {
 
-        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
+        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(format);
         return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {

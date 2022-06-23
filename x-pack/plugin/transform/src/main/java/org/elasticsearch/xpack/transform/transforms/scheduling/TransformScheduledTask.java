@@ -18,7 +18,7 @@ import java.util.Objects;
  * <p>
  * This class is immutable.
  */
-class TransformScheduledTask {
+final class TransformScheduledTask {
 
     /**
      * Minimum delay that can be applied after a failure.
@@ -82,7 +82,8 @@ class TransformScheduledTask {
      * @return next scheduled time for a task
      */
     static long calculateNextScheduledTimeAfterFailure(long lastTriggeredTimeMillis, int failureCount) {
-        long delayMillis = Math.min(Math.max((long) Math.pow(2, failureCount) * 1000, MIN_DELAY_MILLIS), MAX_DELAY_MILLIS);
+        // Math.min(failureCount, 32) is applied in order to avoid overflow.
+        long delayMillis = Math.min(Math.max((1L << Math.min(failureCount, 32)) * 1000, MIN_DELAY_MILLIS), MAX_DELAY_MILLIS);
         return lastTriggeredTimeMillis + delayMillis;
     }
 

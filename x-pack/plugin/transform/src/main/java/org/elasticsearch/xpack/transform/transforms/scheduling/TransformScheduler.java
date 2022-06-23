@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.transform.transforms.scheduling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.Transform;
@@ -19,7 +21,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -71,6 +72,10 @@ public final class TransformScheduler {
      * Set to {@code false} after processing (doesn't matter whether successful or not).
      */
     private final AtomicBoolean isProcessingActive;
+    /**
+     * Stored the scheduled execution for future cancellation.
+     */
+    private Scheduler.Cancellable scheduledFuture;
 
     public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings) {
         this.clock = Objects.requireNonNull(clock);
@@ -85,7 +90,9 @@ public final class TransformScheduler {
      * Method {@code processScheduledTasks} is invoked according to its configured {@code schedulerFrequency}.
      */
     public void start() {
-        threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, ThreadPool.Names.GENERIC);
+        if (scheduledFuture == null) {
+            scheduledFuture = threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, ThreadPool.Names.GENERIC);
+        }
     }
 
     // Visible for testing
@@ -106,17 +113,18 @@ public final class TransformScheduler {
         }
         Instant processingFinished = clock.instant();
         logger.trace(
-            String.format(
-                Locale.ROOT,
+            () -> Strings.format(
                 "Processing scheduled tasks finished, took {}ms",
                 Duration.between(processingStarted, processingFinished).toMillis()
             )
         );
-        if (taskWasProcessed) {
-            // If we happened to process the task, there may be other tasks also eligible for processing.
-            // We try to process them ASAP as we don't want to wait the `delay` for every task.
-            processScheduledTasks();
+        if (taskWasProcessed == false) {
+            return;
         }
+        // If we happened to process the task, there may be other tasks also eligible for processing.
+        // We try to process them ASAP as we don't want to wait the `delay` for every task.
+        // Tail call optimization is enforced by making the following call the last call in this method.
+        processScheduledTasks();
     }
 
     private boolean processScheduledTasksInternal() {
@@ -141,8 +149,7 @@ public final class TransformScheduler {
         scheduledTasks.update(scheduledTask.getTransformId(), task -> {
             if (task.equals(scheduledTask) == false) {
                 logger.debug(
-                    () -> String.format(
-                        Locale.ROOT,
+                    () -> Strings.format(
                         "[{}] task object got modified while processing. Expected: {}, was: {}",
                         scheduledTask.getTransformId(),
                         scheduledTask,
@@ -165,6 +172,10 @@ public final class TransformScheduler {
      * Stops the processing.
      */
     public void stop() {
+        if (scheduledFuture != null) {
+            scheduledFuture.cancel();
+            scheduledFuture = null;
+        }
         threadPool.shutdown();
     }
 
@@ -178,7 +189,7 @@ public final class TransformScheduler {
      */
     public void registerTransform(TransformTaskParams transformTaskParams, Listener listener) {
         String transformId = transformTaskParams.getId();
-        logger.trace(() -> String.format(Locale.ROOT, "[{}] register the transform", transformId));
+        logger.trace(() -> Strings.format("[{}] register the transform", transformId));
         long currentTimeMillis = clock.millis();
         TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
@@ -201,7 +212,7 @@ public final class TransformScheduler {
      * @param failureCount new value of transform task's failure count
      */
     public void handleTransformFailureCountChanged(String transformId, int failureCount) {
-        logger.trace(() -> String.format(Locale.ROOT, "[{}] handle transform failure count change to {}", transformId, failureCount));
+        logger.trace(() -> Strings.format("[{}] handle transform failure count change to {}", transformId, failureCount));
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
@@ -222,7 +233,7 @@ public final class TransformScheduler {
      */
     public void deregisterTransform(String transformId) {
         Objects.requireNonNull(transformId);
-        logger.trace(() -> String.format(Locale.ROOT, "[{}] de-register the transform", transformId));
+        logger.trace(() -> Strings.format("[{}] de-register the transform", transformId));
         scheduledTasks.remove(transformId);
     }
 

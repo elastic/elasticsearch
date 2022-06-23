@@ -51,13 +51,6 @@ class TransformScheduledTaskQueue {
     }
 
     /**
-     * @return the set of all the transform ids.
-     */
-    public synchronized Set<String> getTransformIds() {
-        return Collections.unmodifiableSet(new HashSet<>(tasksById.keySet()));
-    }
-
-    /**
      * @return the task with the *lowest* priority.
      */
     public synchronized TransformScheduledTask first() {
@@ -74,7 +67,7 @@ class TransformScheduledTaskQueue {
         String transformId = task.getTransformId();
         logger.trace("add({}): {}", transformId, task);
         if (tasksById.containsKey(transformId)) {
-            logger.trace("add({}) is a no-op as the task for this transform already exists", transformId);
+            logger.debug("add({}) is a no-op as the task for this transform already exists", transformId);
             return false;
         }
         tasksById.put(transformId, task);
@@ -104,25 +97,36 @@ class TransformScheduledTaskQueue {
      * Removes the task with the given transform id from the queue.
      *
      * @param transformId id of the transform to remove
-     * @return the removed task
+     * @return the removed task or {@code null} if the task does not exist
      */
     public synchronized TransformScheduledTask remove(String transformId) {
         logger.trace("remove({})", transformId);
-        if (tasksById.containsKey(transformId) == false) {
-            logger.trace("remove({}) is a no-op as the transform does not exist", transformId);
+        TransformScheduledTask task = tasksById.remove(transformId);
+        if (task == null) {
+            logger.debug("remove({}) is a no-op as the task for this transform does not exist", transformId);
             return null;
         }
-        TransformScheduledTask task = tasksById.get(transformId);
         tasks.remove(task);
-        tasksById.remove(transformId);
         return task;
     }
 
     // Visible for testing
     /**
-     * @return queue current contents
+     * @return the set of all the transform ids
+     *
+     * Should not be used in production as it creates the new set every time.
      */
-    public List<TransformScheduledTask> listScheduledTasks() {
+    synchronized Set<String> getTransformIds() {
+        return Collections.unmodifiableSet(new HashSet<>(tasksById.keySet()));
+    }
+
+    // Visible for testing
+    /**
+     * @return queue current contents
+     *
+     * Should not be used in production as it creates the new set every time.
+     */
+    synchronized List<TransformScheduledTask> listScheduledTasks() {
         return tasks.stream().toList();
     }
 }

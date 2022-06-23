@@ -243,7 +243,7 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.processScheduledTasks();
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
-            contains(new TransformScheduledTask(transformId, frequency, 5000L, 666, 6000, taskModifyingListener))
+            contains(new TransformScheduledTask(transformId, frequency, 5000L, 666, 3605000, taskModifyingListener))
         );
         assertThat(events, hasSize(2));
         assertThat(

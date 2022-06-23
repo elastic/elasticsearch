@@ -82,11 +82,11 @@ public class TransformScheduledTaskTests extends ESTestCase {
             3600000, // 1h
             3600000  // 1h
         };
-        for (int failureCount = 0; failureCount < expectedDelayMillis.length; ++failureCount) {
+        for (int failureCount = 0; failureCount < 1000; ++failureCount) {
             assertThat(
                 "failureCount = " + failureCount,
                 TransformScheduledTask.calculateNextScheduledTimeAfterFailure(lastTriggeredTimeMillis, failureCount),
-                is(equalTo(lastTriggeredTimeMillis + expectedDelayMillis[failureCount]))
+                is(equalTo(lastTriggeredTimeMillis + expectedDelayMillis[Math.min(failureCount, expectedDelayMillis.length - 1)]))
             );
         }
     }

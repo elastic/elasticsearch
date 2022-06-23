@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -396,7 +395,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     @Override
     public void triggered(TransformScheduler.Event event) {
-        logger.trace(() -> String.format(Locale.ROOT, "[{}] triggered(event={}) ", getTransformId(), event));
+        logger.trace(() -> format("[{}] triggered(event={}) ", getTransformId(), event));
         // Ignore if event is not for this job
         if (event.transformId().equals(getTransformId()) == false) {
             return;

@@ -82,12 +82,13 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         Map<String, Settings> settings = Map.of();
         Map<String, Settings> defaultSettings = Map.of();
-        Map<String, String> dataStreams = Map.copyOf(state.metadata()
-                    .findDataStreams(concreteIndices)
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
-            );
+        Map<String, String> dataStreams = Map.copyOf(
+            state.metadata()
+                .findDataStreams(concreteIndices)
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
+        );
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;

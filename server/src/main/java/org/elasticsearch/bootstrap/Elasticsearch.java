@@ -202,7 +202,11 @@ class Elasticsearch {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> Bootstrap.INSTANCE.shutdown()));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Bootstrap.INSTANCE != null) {
+                Bootstrap.INSTANCE.shutdown();
+            }
+        }));
 
         // look for jar hell
         final Logger logger = LogManager.getLogger(JarHell.class);

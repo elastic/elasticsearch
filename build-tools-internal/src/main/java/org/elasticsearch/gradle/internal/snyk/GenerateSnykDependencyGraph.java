@@ -65,21 +65,31 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
 
     @TaskAction
     void resolveGraph() {
+        Map<String, Object> payload = generateGradleGraphPayload();
+        jsonOutput = JsonOutput.prettyPrint(JsonOutput.toJson(payload));
+        try {
+            Files.writeString(
+                getOutputFile().getAsFile().get().toPath(),
+                jsonOutput,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        } catch (IOException e) {
+            throw new GradleException("Cannot generate dependencies json file", e);
+        }
+    }
+
+    private Map<String, Object> generateGradleGraphPayload() {
         Set<ResolvedDependency> firstLevelModuleDependencies = configuration.get()
             .getResolvedConfiguration()
             .getFirstLevelModuleDependencies();
         SnykModelBuilder builder = new SnykModelBuilder(gradleVersion.get());
-        createGraph(firstLevelModuleDependencies, builder);
+        builder.walkGraph((projectPath.equals(":") ? projectName.get() : projectPath.get()), version.get(), firstLevelModuleDependencies);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("meta", generateMetaData());
         payload.put("depGraphJSON", builder.build());
         payload.put("target", buildTargetData());
-        jsonOutput = JsonOutput.prettyPrint(JsonOutput.toJson(payload));
-        try {
-            Files.writeString(getOutputFile().getAsFile().get().toPath(), jsonOutput, StandardOpenOption.TRUNCATE_EXISTING);
-        } catch (IOException e) {
-            throw new GradleException("Cannot generate dependencies json file", e);
-        }
+        return payload;
     }
 
     private Object buildTargetData() {
@@ -91,19 +101,15 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
 
     private Map<String, Object> generateMetaData() {
         Map<String, Object> metaData = new LinkedHashMap<>();
-//        metaData.put("method", "custom gradle");
-//        metaData.put("id", "gradle");
-//        metaData.put("node", "v16.15.1");
-//        metaData.put("name", "gradle");
-//        metaData.put("plugin", "extern:gradle");
-//        metaData.put("pluginRuntime", "unknown");
-//        metaData.put("monitorGraph", true);
-//        metaData.put("version", version.get());
+        metaData.put("method", "custom gradle");
+        metaData.put("id", "gradle");
+        metaData.put("node", "v16.15.1");
+        metaData.put("name", "gradle");
+        metaData.put("plugin", "extern:gradle");
+        metaData.put("pluginRuntime", "unknown");
+        metaData.put("monitorGraph", true);
+        // metaData.put("version", version.get());
         return metaData;
-    }
-
-    private void createGraph(Set<ResolvedDependency> deps, SnykModelBuilder builder) {
-        builder.walkGraph((projectPath.equals(":") ? projectName.get() : projectPath.get()), version.get(), deps);
     }
 
     @InputFiles

@@ -75,12 +75,17 @@ public class SnykDependencyGraph {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             SnykDependencyNode that = (SnykDependencyNode) o;
-            return Objects.equals(nodeId, that.nodeId) && Objects.equals(pkgId, that.pkgId) && Objects.equals(deps, that.deps);
+            return Objects.equals(nodeId, that.nodeId) && Objects.equals(pkgId, that.pkgId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, pkgId, deps);
+            return Objects.hash(nodeId, pkgId);
+        }
+
+        @Override
+        public String toString() {
+            return "SnykDependencyNode{" + "nodeId='" + nodeId + '\'' + ", pkgId='" + pkgId + '\'' + '}';
         }
     }
 

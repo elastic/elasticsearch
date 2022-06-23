@@ -8,12 +8,10 @@
 
 package org.elasticsearch.gradle.internal.snyk;
 
-import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
@@ -45,14 +43,16 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
 
         project.getTasks().register("uploadSnykDependencyGraph", UploadSnykDependenciesGraph.class, t -> {
             t.getInputFile().set(generateTaskProvider.get().getOutputFile());
-            t.getUrl().set("https://snyk.io/api/v1/monitor/gradle/graph");
             t.getToken().set(providerFactory.gradleProperty("snykToken"));
-//             the elasticsearch snyk project id
-//            t.getProjectId().set("f27934bf-9ad1-4d91-901c-cb77168a34db");
+            // the elasticsearch snyk project id
+            t.getProjectId().set("f27934bf-9ad1-4d91-901c-cb77168a34db");
         });
 
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> generateTaskProvider.configure(generateSnykDependencyGraph -> {
-            SourceSet main = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            SourceSet main = project.getExtensions()
+                .getByType(JavaPluginExtension.class)
+                .getSourceSets()
+                .getByName(SourceSet.MAIN_SOURCE_SET_NAME);
             Configuration runtimeConfiguration = project.getConfigurations().getByName(main.getRuntimeClasspathConfigurationName());
             generateSnykDependencyGraph.getConfiguration().set(runtimeConfiguration);
         }));

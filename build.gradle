@@ -159,7 +159,7 @@ subprojects { proj ->
   apply plugin: 'elasticsearch.base'
 
   plugins.withType(JavaPlugin) {
-    if(proj.getPath().contains(":qa:") == false) {
+    if(proj.name != 'qa' && proj.getPath().contains(":qa:") == false) {
       project.apply plugin: 'elasticsearch.snyk-dependency-monitoring'
     }
   }

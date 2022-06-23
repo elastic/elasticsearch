@@ -29,6 +29,9 @@ import javax.inject.Inject;
 
 public class UploadSnykDependenciesGraph extends DefaultTask {
 
+    public static final String GRADLE_GRAPH_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/gradle/graph";
+    public static final String SNYK_DEP_GRAPH_API_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/dep-graph";
+
     private final RegularFileProperty inputFile;
     private final Property<String> token;
     private final Property<String> url;
@@ -36,7 +39,7 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     @Inject
     public UploadSnykDependenciesGraph(ObjectFactory objectFactory) {
-        url = objectFactory.property(String.class);
+        url = objectFactory.property(String.class).convention(GRADLE_GRAPH_ENDPOINT_URL);
         projectId = objectFactory.property(String.class);
         token = objectFactory.property(String.class);
         inputFile = objectFactory.fileProperty();
@@ -44,7 +47,7 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     @TaskAction
     void upload() {
-        String endpoint = url.map(u -> u + projectId.map(id -> "?org=" + id).getOrElse("")).get();
+        String endpoint = calculateEffectiveEndpoint();
         try (CloseableHttpClient client = HttpClients.createDefault()) {
             String content = FileUtils.readFileToString(inputFile.getAsFile().get());
             HttpPut putRequest = new HttpPut(endpoint);
@@ -52,11 +55,17 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
             putRequest.addHeader("Content-Type", "application/json");
             putRequest.setEntity(new StringEntity(content));
             CloseableHttpResponse response = client.execute(putRequest);
-            getLogger().info("API call response status: " + response.getStatusLine().getStatusCode());
+            int statusCode = response.getStatusLine().getStatusCode();
+            getLogger().info("API call response status: " + statusCode);
             getLogger().info(EntityUtils.toString(response.getEntity()));
         } catch (Exception e) {
             throw new GradleException("Failed to call API endpoint to submit updated dependency graph", e);
         }
+    }
+
+    private String calculateEffectiveEndpoint() {
+        String url = this.url.get();
+        return url.equals(GRADLE_GRAPH_ENDPOINT_URL) ? url : projectId.map(id -> url + "?org=" + id).getOrElse(url);
     }
 
     @Input

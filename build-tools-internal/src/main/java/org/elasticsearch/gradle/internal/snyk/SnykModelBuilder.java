@@ -11,8 +11,10 @@ package org.elasticsearch.gradle.internal.snyk;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyGraph.SnykDependencyNode;
 import org.gradle.api.artifacts.ResolvedDependency;
 
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class SnykModelBuilder {
 
@@ -54,6 +56,17 @@ public class SnykModelBuilder {
     }
 
     public SnykDependencyGraph build() {
+        nodes.stream().sorted(new Comparator<SnykDependencyNode>() {
+            @Override
+            public int compare(SnykDependencyNode o1, SnykDependencyNode o2) {
+                return o1.getNodeId().compareTo(o2.getNodeId());
+            }
+        }).forEach(new Consumer<SnykDependencyNode>() {
+            @Override
+            public void accept(SnykDependencyNode snykDependencyNode) {
+                System.out.println("snykDependencyNode = " + snykDependencyNode);
+            }
+        });
         return new SnykDependencyGraph(gradleVersion, nodes, pkgs);
     }
 

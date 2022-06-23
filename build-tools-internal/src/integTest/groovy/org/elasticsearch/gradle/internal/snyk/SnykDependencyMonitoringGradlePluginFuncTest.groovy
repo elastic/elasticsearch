@@ -41,7 +41,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
             }
         """
         when:
-        def build = gradleRunner("generateSnykDependencyGraph", "-i", "--stacktrace").build()
+        def build = gradleRunner("generateSnykDependencyGraph").build()
         then:
         build.task(":resolveSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
 

@@ -329,7 +329,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         int numDocs = randomIntBetween(1, 64);
         List<IngestDocument> documents = new ArrayList<>(numDocs);
         for (int id = 0; id < numDocs; id++) {
-            documents.add(new IngestDocument("_index", Integer.toString(id), null, 0L, VersionType.INTERNAL, new HashMap<>()));
+            documents.add(new IngestDocument("_index", Integer.toString(id), 0L, null, VersionType.INTERNAL, new HashMap<>()));
         }
         Processor processor1 = new AbstractProcessor(null, null) {
 

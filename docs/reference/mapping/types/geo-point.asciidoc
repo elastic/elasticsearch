@@ -203,3 +203,47 @@ For performance reasons, it is better to access the lat/lon values directly:
 def lat      = doc['location'].lat;
 def lon      = doc['location'].lon;
 --------------------------------------------------
+
+ifeval::["{release-state}"=="unreleased"]
+[[geo-point-synthetic-source]]
+==== Synthetic source
+`geo_point` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with 
+<<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with
+<<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `geo_point` fields (first by latitude and then
+longitude) and reduces them to their stored precision. For example:
+[source,console,id=synthetic-source-geo-point-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "synthetic": true },
+    "properties": {
+      "point": { "type": "geo_point" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "point": [
+    {"lat":-90, "lon":-80},
+    {"lat":10, "lon":30}
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "point": [
+    {"lat":-90.0, "lon":-80.00000000931323},
+    {"lat":9.999999990686774, "lon":29.999999972060323}
+   ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+endif::[]

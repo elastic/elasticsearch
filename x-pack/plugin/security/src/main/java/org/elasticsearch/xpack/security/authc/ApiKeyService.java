@@ -360,7 +360,7 @@ public class ApiKeyService {
 
             // TODO could make idempotency check here
 
-            validateCurrentApiKeyDocForUpdate(apiKeyId, single(apiKeys).apiKey());
+            validateCurrentApiKeyDocForUpdate(apiKeyId, single(apiKeys).doc());
 
             doBulkUpdate(
                 buildBulkUpdateRequest(authentication, request, userRoles, apiKeys),
@@ -432,49 +432,33 @@ public class ApiKeyService {
         final var version = clusterService.state().nodes().getMinNodeVersion();
         final var bulkRequestBuilder = client.prepareBulk();
         for (ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDoc : apiKeyDocs) {
-            bulkRequestBuilder.add(buildIndexRequestForUpdate(authentication, request, userRoles, version, apiKeyDoc));
+            bulkRequestBuilder.add(buildIndexRequestForUpdate(apiKeyDoc, authentication, request, userRoles, version));
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder.request();
     }
 
     private IndexRequest buildIndexRequestForUpdate(
+        ApiKeyDocWithSeqNoAndPrimaryTerm currentApiKeyDoc,
         Authentication authentication,
         UpdateApiKeyRequest request,
         Set<RoleDescriptor> userRoles,
-        Version version,
-        ApiKeyDocWithSeqNoAndPrimaryTerm apiKeyDocWithSeqNoAndPrimaryTerm
+        Version version
     ) throws IOException {
-        final var apiKeyDoc = apiKeyDocWithSeqNoAndPrimaryTerm.apiKey();
-        final var newRoleDescriptors = request.getRoleDescriptors();
-        // TODO feels backwards that we deserialize just to serialize again
-        final var keyRoles = newRoleDescriptors != null
-            ? newRoleDescriptors
-            : parseRoleDescriptors(
-                request.getId(),
-                XContentHelper.convertToMap(apiKeyDoc.roleDescriptorsBytes, true, XContentType.JSON).v2(),
-                RoleReference.ApiKeyRoleType.ASSIGNED
-            );
-        final var metadata = request.getMetadata() != null ? request.getMetadata() : apiKeyDoc.metadataAsMap();
-
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
             .setSource(
-                newDocument(
-                    // TODO fill array in finally block?
-                    apiKeyDoc.hash.toCharArray(),
-                    apiKeyDoc.name,
+                mergedDocument(
+                    currentApiKeyDoc.doc(),
                     authentication,
                     userRoles,
-                    Instant.ofEpochMilli(apiKeyDoc.creationTime),
-                    apiKeyDoc.expirationTime == -1 ? null : Instant.ofEpochMilli(apiKeyDoc.expirationTime),
-                    keyRoles,
+                    request.getRoleDescriptors(),
                     version,
-                    metadata
+                    request.getMetadata()
                 )
             )
-            .setIfSeqNo(apiKeyDocWithSeqNoAndPrimaryTerm.seqNo())
-            .setIfPrimaryTerm(apiKeyDocWithSeqNoAndPrimaryTerm.primaryTerm())
+            .setIfSeqNo(currentApiKeyDoc.seqNo())
+            .setIfPrimaryTerm(currentApiKeyDoc.primaryTerm())
             .request();
     }
 
@@ -526,6 +510,77 @@ public class ApiKeyService {
         builder.endObject();
 
         builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
+        {
+            builder.startObject("creator")
+                .field("principal", authentication.getUser().principal())
+                .field("full_name", authentication.getUser().fullName())
+                .field("email", authentication.getUser().email())
+                .field("metadata", authentication.getUser().metadata())
+                .field("realm", authentication.getSourceRealm().getName())
+                .field("realm_type", authentication.getSourceRealm().getType());
+            if (authentication.getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        return builder;
+    }
+
+    static XContentBuilder mergedDocument(
+        ApiKeyDoc currentApiKeyDoc,
+        Authentication authentication,
+        Set<RoleDescriptor> userRoles,
+        List<RoleDescriptor> keyRoles,
+        Version version,
+        Map<String, Object> metadata
+    ) throws IOException {
+        final var created = currentApiKeyDoc.creationTime;
+        final var expiration = currentApiKeyDoc.expirationTime;
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject()
+            .field("doc_type", "api_key")
+            .field("creation_time", created)
+            .field("expiration_time", expiration == -1 ? null : expiration)
+            .field("api_key_invalidated", false);
+
+        byte[] utf8Bytes = null;
+        try {
+            utf8Bytes = CharArrays.toUtf8Bytes(currentApiKeyDoc.hash.toCharArray());
+            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+        } finally {
+            if (utf8Bytes != null) {
+                Arrays.fill(utf8Bytes, (byte) 0);
+            }
+        }
+
+        if (keyRoles != null) {
+            builder.startObject("role_descriptors");
+            if (keyRoles.isEmpty() == false) {
+                for (RoleDescriptor descriptor : keyRoles) {
+                    builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                }
+            }
+            builder.endObject();
+        } else {
+            builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
+        }
+
+        builder.startObject("limited_by_role_descriptors");
+        for (RoleDescriptor descriptor : userRoles) {
+            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+        }
+        builder.endObject();
+
+        builder.field("name", currentApiKeyDoc.name).field("version", version.id);
+        if (metadata != null) {
+            builder.field("metadata_flattened", metadata);
+        } else {
+            builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
+        }
+
         {
             builder.startObject("creator")
                 .field("principal", authentication.getUser().principal())
@@ -1463,7 +1518,7 @@ public class ApiKeyService {
     }
 
     // TODO this a very long name -- maybe `ApiKeyWithDocVersioning`?
-    private record ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc apiKey, long seqNo, long primaryTerm) {}
+    private record ApiKeyDocWithSeqNoAndPrimaryTerm(ApiKeyDoc doc, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {
@@ -1675,13 +1730,9 @@ public class ApiKeyService {
         }
 
         static ApiKeyDoc fromXContent(XContentParser parser) {
+            // TODO remove?
             assert parser.contentType() == XContentType.JSON;
             return PARSER.apply(parser, null);
-        }
-
-        Map<String, Object> metadataAsMap() {
-            // TODO is json safe here?
-            return metadataFlattened == null ? null : XContentHelper.convertToMap(metadataFlattened, true, XContentType.JSON).v2();
         }
     }
 

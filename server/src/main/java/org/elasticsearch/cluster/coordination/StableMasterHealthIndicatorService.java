@@ -38,6 +38,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     public static final String NAME = "master_is_stable";
     private static final String HELP_URL = "https://ela.st/fix-master";
+    public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
 
     private final CoordinationDiagnosticsService coordinationDiagnosticsService;
 
@@ -176,9 +177,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (explain) {
             UserAction.Definition contactSupport = new UserAction.Definition(
                 "contact_support",
-                "The Elasticsearch cluster does not have a stable master node. Please contact Elastic Support "
-                    + "(https://support.elastic.co) to discuss available options.",
-                null
+                "The Elasticsearch cluster does not have a stable master node. Get help at " + GET_HELP_GUIDE,
+                GET_HELP_GUIDE
             );
             UserAction userAction = new UserAction(contactSupport, null);
             return List.of(userAction);

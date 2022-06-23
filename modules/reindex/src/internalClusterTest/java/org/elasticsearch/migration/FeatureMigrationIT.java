@@ -341,7 +341,10 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         ensureGreen();
 
-        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
+            .get();
+
+        assertTrue(migrationResponse.isAccepted());
     }
 
     public void testBailOnMigrateWithTemplatesV1() throws Exception {
@@ -423,7 +426,9 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         ensureGreen();
 
-        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
+            .get();
+        assertTrue(migrationResponse.isAccepted());
     }
 
     public void testBailOnMigrateWithTemplatesV2() throws Exception {

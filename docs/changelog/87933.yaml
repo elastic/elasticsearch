@@ -2,4 +2,4 @@ pr: 87933
 summary: Prevent migration of indices that match templates
 area: Infra/Core
 type: bug
-issues: []
+issues: [86801, 87827]

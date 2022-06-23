@@ -113,7 +113,7 @@
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.processors: 2 }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10] processors [2]" }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10] processors [2.0]" }
   - length: { policies.my_autoscaling_policy.current_nodes: 0 }
 
 

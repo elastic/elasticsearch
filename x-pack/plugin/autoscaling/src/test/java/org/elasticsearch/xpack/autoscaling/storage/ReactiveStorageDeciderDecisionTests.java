@@ -526,7 +526,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 List<ShardRouting> started = RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED);
                 if (started.isEmpty() == false) {
                     ShardRouting toMove = randomFrom(started);
-                    Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                    Set<RoutingNode> candidates = allocation.routingNodes()
+                        .stream()
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
                         .collect(Collectors.toSet());
                     if (candidates.isEmpty() == false) {
@@ -535,10 +536,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 }
             }
         });
-    }
-
-    private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role) {
-        return createContext(state, Set.of(role));
     }
 
     private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
@@ -551,8 +548,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             boolean includeMemory = randomBoolean();
             boolean includeProcessors = randomBoolean();
             return AutoscalingCapacity.builder()
-                .total(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomInt(64) : null)
-                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomInt(64) : null)
+                .total(
+                    randomByteSizeValue(),
+                    includeMemory ? randomByteSizeValue() : null,
+                    includeProcessors ? (float) randomInt(64) : null
+                )
+                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? (float) randomInt(64) : null)
                 .build();
         } else {
             return null;
@@ -686,12 +687,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {
-        return randomFrom(
-            StreamSupport.stream(routingNodes.spliterator(), false)
-                .map(RoutingNode::node)
-                .filter(n -> n.getRoles().contains(role))
-                .collect(Collectors.toSet())
-        ).getId();
+        return randomFrom(routingNodes.stream().map(RoutingNode::node).filter(n -> n.getRoles().contains(role)).collect(Collectors.toSet()))
+            .getId();
     }
 
     private static Set<ShardId> shardIds(Iterable<ShardRouting> candidateShards) {

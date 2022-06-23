@@ -56,7 +56,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
             builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
             builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
         } else {
-            builder.total(0L, 0L, 0);
+            builder.total(0L, 0L, 0f);
         }
 
         return new AutoscalingDeciderResult(builder.build(), new FrozenExistenceReason(indicesNeedingFrozen));

@@ -49,7 +49,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                 randomNullableByteSizeValue(),
                 randomNullableByteSizeValue(),
                 randomInt(1000),
-                randomInt(64)
+                (float) randomInt(64)
             )
         );
     }
@@ -77,7 +77,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
-        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), randomInt(128));
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), (float) randomInt(128));
     }
 
     private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
@@ -96,7 +96,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingCapacity.AutoscalingResources(
             addStorage ? randomByteSizeValue() : null,
             addMemory ? randomByteSizeValue() : null,
-            addProcessors ? randomInt(128) : null
+            addProcessors ? (float) randomInt(128) : null
         );
     }
 

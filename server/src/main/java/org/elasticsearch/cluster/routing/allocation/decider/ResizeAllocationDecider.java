@@ -82,19 +82,23 @@ public class ResizeAllocationDecider extends AllocationDecider {
 
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
-        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+        if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             var targetIndexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-            if (allocation.metadata().index(targetIndexMetadata.getResizeSourceIndex()) == null) {
+            var sourceIndexMetadata = allocation.metadata().index(targetIndexMetadata.getResizeSourceIndex());
+            if (sourceIndexMetadata == null) {
                 return Optional.of(Set.of());// source index not found
             }
-            var sourceIndexMetadata = allocation.metadata().getIndexSafe(targetIndexMetadata.getResizeSourceIndex());
             if (targetIndexMetadata.getNumberOfShards() < sourceIndexMetadata.getNumberOfShards()) {
                 return Optional.empty();
             }
-            ShardId shardId = targetIndexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards()
+            var shardId = targetIndexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards()
                 ? IndexMetadata.selectCloneShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards())
                 : IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards());
-            return Optional.ofNullable(allocation.routingNodes().activePrimary(shardId)).map(ShardRouting::currentNodeId).map(Set::of);
+            var activePrimary = allocation.routingNodes().activePrimary(shardId);
+            if (activePrimary == null) {
+                return Optional.of(Set.of());// primary is active
+            }
+            return Optional.of(Set.of(activePrimary.currentNodeId()));
         }
         return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
     }

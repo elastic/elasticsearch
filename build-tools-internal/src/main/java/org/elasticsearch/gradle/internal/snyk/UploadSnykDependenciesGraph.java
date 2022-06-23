@@ -57,7 +57,11 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
             CloseableHttpResponse response = client.execute(putRequest);
             int statusCode = response.getStatusLine().getStatusCode();
             getLogger().info("API call response status: " + statusCode);
-            getLogger().info(EntityUtils.toString(response.getEntity()));
+            String responseString = EntityUtils.toString(response.getEntity());
+            getLogger().info(responseString);
+            if (statusCode != 201) {
+                throw new GradleException("Uploading Snyk Graph failed with http code " + statusCode + ":" + responseString);
+            }
         } catch (Exception e) {
             throw new GradleException("Failed to call API endpoint to submit updated dependency graph", e);
         }

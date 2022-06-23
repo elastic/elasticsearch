@@ -20,7 +20,6 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.initialization.layout.BuildLayout;
@@ -28,7 +27,6 @@ import org.gradle.initialization.layout.BuildLayout;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,11 +39,8 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     private final Property<String> projectPath;
     private final Property<String> version;
     private final Property<String> gradleVersion;
-    private final SnykGraph graph = new SnykGraph("root-node");
     private final RegularFileProperty outputFile;
-    private BuildLayout buildLayout;
-
-    private String jsonOutput = null;
+    private final BuildLayout buildLayout;
 
     @Inject
     public GenerateSnykDependencyGraph(ObjectFactory objectFactory, BuildLayout buildLayout) {
@@ -58,15 +53,10 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         this.buildLayout = buildLayout;
     }
 
-    @Internal
-    public SnykGraph getGraph() {
-        return graph;
-    }
-
     @TaskAction
     void resolveGraph() {
         Map<String, Object> payload = generateGradleGraphPayload();
-        jsonOutput = JsonOutput.prettyPrint(JsonOutput.toJson(payload));
+        String jsonOutput = JsonOutput.prettyPrint(JsonOutput.toJson(payload));
         try {
             Files.writeString(
                 getOutputFile().getAsFile().get().toPath(),
@@ -83,33 +73,42 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         Set<ResolvedDependency> firstLevelModuleDependencies = configuration.get()
             .getResolvedConfiguration()
             .getFirstLevelModuleDependencies();
-        SnykModelBuilder builder = new SnykModelBuilder(gradleVersion.get());
-        builder.walkGraph((projectPath.equals(":") ? projectName.get() : projectPath.get()), version.get(), firstLevelModuleDependencies);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("meta", generateMetaData());
-        payload.put("depGraphJSON", builder.build());
-        payload.put("target", buildTargetData());
-        return payload;
+        SnykDependencyGraphBuilder builder = new SnykDependencyGraphBuilder(gradleVersion.get());
+        String effectiveProjectPath = projectPath.get();
+        builder.walkGraph(
+            (effectiveProjectPath.equals(":") ? projectName.get() : effectiveProjectPath),
+            version.get(),
+            firstLevelModuleDependencies
+        );
+        return Map.of("meta", generateMetaData(), "depGraphJSON", builder.build(), "target", buildTargetData());
     }
 
     private Object buildTargetData() {
-        Map<String, Object> target = new LinkedHashMap<>();
-        target.put("remoteUrl", "http://github.com/elastic/elasticsearch.git");
-        target.put("branch", GitInfo.gitInfo(buildLayout.getRootDirectory()).getRevision());
-        return target;
+        return Map.of(
+            "remoteUrl",
+            "http://github.com/elastic/elasticsearch.git",
+            "branch",
+            GitInfo.gitInfo(buildLayout.getRootDirectory()).getRevision()
+        );
     }
 
     private Map<String, Object> generateMetaData() {
-        Map<String, Object> metaData = new LinkedHashMap<>();
-        metaData.put("method", "custom gradle");
-        metaData.put("id", "gradle");
-        metaData.put("node", "v16.15.1");
-        metaData.put("name", "gradle");
-        metaData.put("plugin", "extern:gradle");
-        metaData.put("pluginRuntime", "unknown");
-        metaData.put("monitorGraph", true);
-        // metaData.put("version", version.get());
-        return metaData;
+        return Map.of(
+            "method",
+            "custom gradle",
+            "id",
+            "gradle",
+            "node",
+            "v16.15.1",
+            "name",
+            "gradle",
+            "plugin",
+            "extern:gradle",
+            "pluginRuntime",
+            "unknown",
+            "monitorGraph",
+            true
+        );
     }
 
     @InputFiles

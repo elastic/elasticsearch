@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.snyk;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +22,7 @@ public class SnykDependencyGraph {
 
     public SnykDependencyGraph(String gradleVersion, Set<SnykDependencyNode> nodes, Set<SnykDependencyPkg> pkgs) {
         this.pkgs = pkgs;
-        this.graph = new LinkedHashMap();
+        this.graph = new HashMap();
         graph.put("rootNodeId", "root-node");
         graph.put("nodes", nodes);
         this.pkgManager = Map.of("name", "gradle", "version", gradleVersion);
@@ -90,15 +90,14 @@ public class SnykDependencyGraph {
     }
 
     static class SnykDependencyPkg {
-        private String id;
-        private Map<String, String> info = new LinkedHashMap<>();
+        private final String id;
+        private final Map<String, String> info;
 
         SnykDependencyPkg(String pkgId) {
             id = pkgId;
             String name = id.substring(0, id.indexOf('@'));
             String version = id.substring(id.indexOf('@') + 1);
-            info.put("name", name);
-            info.put("version", version);
+            info = Map.of("name", name, "version", version);
         }
 
         public String getId() {

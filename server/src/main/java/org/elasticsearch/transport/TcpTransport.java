@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkNatives;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.recycler.Recycler;
@@ -953,6 +954,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public final TransportStats getStats() {
+
+        for (NetworkNatives.ExtendedSocketStats extendedSocketStats : NetworkNatives.getExtendedNetworkStats()) {
+            logger.info("socket stats: {}", extendedSocketStats);
+        }
+
         final long bytesWritten = statsTracker.getBytesWritten();
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();

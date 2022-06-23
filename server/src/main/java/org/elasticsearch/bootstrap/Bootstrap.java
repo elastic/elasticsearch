@@ -20,6 +20,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.network.NetworkNatives;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -142,6 +143,9 @@ final class Bootstrap {
 
         // init filesystem natives
         FileSystemNatives.init();
+
+        // init network natives
+        NetworkNatives.init();
     }
 
     static void initializeProbes() {

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -167,40 +168,60 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         );
     }
 
-    /**
-     * Check that a legacy template does not create an alias for a system index
-     */
-    public void testAutoCreateSystemAliasViaV1Template() throws Exception {
+    private String autoCreateSystemAliasViaV1Template(String indexName) throws Exception {
         assertAcked(
             client().admin()
                 .indices()
                 .preparePutTemplate("test-template")
-                .setPatterns(List.of(INDEX_NAME + "*"))
-                .addAlias(new Alias(INDEX_NAME + "-legacy-alias"))
+                .setPatterns(List.of(indexName + "*"))
+                .addAlias(new Alias(indexName + "-legacy-alias"))
                 .get()
         );
 
-        String nonPrimaryIndex = INDEX_NAME + "-2";
+        String nonPrimaryIndex = indexName + "-2";
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
-
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index"));
+        return nonPrimaryIndex;
+    }
+
+    /**
+     * Check that a legacy template does not create an alias for a system index
+     */
+    public void testAutoCreateSystemAliasViaV1Template() throws Exception {
+        var nonPrimaryIndex = autoCreateSystemAliasViaV1Template(INDEX_NAME);
+
+        assertAliasesHidden(nonPrimaryIndex, Set.of(INDEX_NAME), 1);
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     /**
-     * Check that a composable template does not create an alias for a system index
+     * Check that a legacy template does create an alias for a system index, because of allows templates
      */
-    public void testAutoCreateSystemAliasViaComposableTemplate() throws Exception {
+    public void testAutoCreateSystemAliasViaV1TemplateAllowsTemplates() throws Exception {
+        var nonPrimaryIndex = autoCreateSystemAliasViaV1Template(TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME);
+
+        assertAliasesHidden(
+            nonPrimaryIndex,
+            Set.of(
+                TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME,
+                TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME + "-legacy-alias"
+            ),
+            2
+        );
+
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+    }
+
+    private String autoCreateSystemAliasViaComposableTemplate(String indexName) throws Exception {
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(INDEX_NAME + "*"),
+            Collections.singletonList(indexName + "*"),
             new Template(
                 null,
                 null,
-                Map.of(INDEX_NAME + "-composable-alias", AliasMetadata.builder(INDEX_NAME + "-composable-alias").build())
+                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
             ),
             Collections.emptyList(),
             4L,
@@ -214,13 +235,22 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             ).get()
         );
 
-        String nonPrimaryIndex = INDEX_NAME + "-2";
+        String nonPrimaryIndex = indexName + "-2";
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index"));
+        return nonPrimaryIndex;
+    }
+
+    /**
+     * Check that a composable template does not create an alias for a system index
+     */
+    public void testAutoCreateSystemAliasViaComposableTemplate() throws Exception {
+        String nonPrimaryIndex = autoCreateSystemAliasViaComposableTemplate(INDEX_NAME);
+
+        assertAliasesHidden(nonPrimaryIndex, Set.of(INDEX_NAME), 1);
 
         assertAcked(
             client().execute(
@@ -230,14 +260,38 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         );
     }
 
-    private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames) throws InterruptedException, ExecutionException {
+    /**
+     * Check that a composable template does create an alias for a system index, because of allows templates
+     */
+    public void testAutoCreateSystemAliasViaComposableTemplateAllowsTemplates() throws Exception {
+        String nonPrimaryIndex = autoCreateSystemAliasViaComposableTemplate(TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME);
+
+        assertAliasesHidden(
+            nonPrimaryIndex,
+            Set.of(
+                TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME,
+                TestSystemIndexDescriptorAllowsTemplates.INDEX_NAME + "-composable-alias"
+            ),
+            2
+        );
+
+        assertAcked(
+            client().execute(
+                DeleteComposableIndexTemplateAction.INSTANCE,
+                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+            ).get()
+        );
+    }
+
+    private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames, int aliasCount) throws InterruptedException,
+        ExecutionException {
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(aliasCount));
         assertThat(
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)

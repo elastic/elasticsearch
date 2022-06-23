@@ -45,8 +45,34 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+    }
+
+    public void testCreatingSystemIndexWithLegacyAlias() throws Exception {
+        {
+            Request request = new Request("PUT", "/_template/system_template");
+            request.setJsonEntity(
+                "{"
+                    + "  \"index_patterns\": [\".internal-unmanaged-*\"],"
+                    + "  \"aliases\": {"
+                    + "    \".internal-unmanaged-alias\": {}"
+                    + "  }"
+                    + "}"
+            );
+            request.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", false);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", false);
     }
 
     public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
@@ -68,8 +94,8 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     public void testCreatingSystemIndexWithAliasEndpoint() throws Exception {
@@ -92,8 +118,8 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     public void testCreatingSystemIndexWithAliasesEndpoint() throws Exception {
@@ -128,12 +154,12 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName) throws IOException {
+    private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName, boolean expectMatch) throws IOException {
         Request request = new Request("GET", "/" + indexName);
         request.setOptions(
             expectWarnings(
@@ -151,14 +177,18 @@ public class SystemAliasIT extends ESRestTestCase {
         assertThat(indexSettingsMap.get("hidden"), equalTo("true"));
 
         Map<String, Object> aliasesMap = (Map<String, Object>) indexMap.get("aliases");
-        assertThat(aliasesMap.keySet(), equalTo(Set.of(aliasName)));
-        Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
-        assertThat(aliasMap.get("is_hidden"), notNullValue());
-        assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        if (expectMatch == false) {
+            assertTrue(aliasesMap.keySet().isEmpty());
+        } else {
+            assertThat(aliasesMap.keySet(), equalTo(Set.of(aliasName)));
+            Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
+            assertThat(aliasMap.get("is_hidden"), notNullValue());
+            assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private void assertAliasIsHiddenInAliasesEndpoint(String indexName, String aliasName) throws IOException {
+    private void assertAliasIsHiddenInAliasesEndpoint(String indexName, String aliasName, boolean expectMatch) throws IOException {
         Request request = new Request("GET", "/_aliases");
         request.setOptions(
             expectWarnings(
@@ -173,7 +203,11 @@ public class SystemAliasIT extends ESRestTestCase {
         Map<String, Object> indexAliasMap = (Map<String, Object>) responseMap.get(indexName);
         Map<String, Object> aliasesMap = (Map<String, Object>) indexAliasMap.get("aliases");
         Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
-        assertThat(aliasMap.get("is_hidden"), notNullValue());
-        assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        if (expectMatch == false) {
+            assertNull(aliasMap);
+        } else {
+            assertThat(aliasMap.get("is_hidden"), notNullValue());
+            assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        }
     }
 }

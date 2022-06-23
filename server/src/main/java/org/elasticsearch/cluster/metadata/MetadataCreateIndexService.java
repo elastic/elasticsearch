@@ -354,8 +354,9 @@ public class MetadataCreateIndexService {
             }
 
             SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(request.index());
-            // ignore all templates for all system indices
-            if (Objects.nonNull(descriptor)) {
+            // ignore all templates for all system indices that do not allow templates.
+            // Essentially, all but .kibana indices, see KibanaPlugin.java.
+            if (Objects.nonNull(descriptor) && descriptor.allowsTemplates() == false) {
                 return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern());
             }
 

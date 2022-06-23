@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -526,6 +527,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         Function<String, Predicate<String>> fieldFilter,
         Runnable onNextIndex
     ) {
+        assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
+
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();

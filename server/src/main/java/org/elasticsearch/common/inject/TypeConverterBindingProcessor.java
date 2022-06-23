@@ -19,7 +19,7 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 import org.elasticsearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.internal.Strings;
+import org.elasticsearch.common.inject.internal.FirstStringUpper;
 import org.elasticsearch.common.inject.matcher.AbstractMatcher;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.matcher.Matchers;

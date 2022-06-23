@@ -1240,37 +1240,30 @@ public class MetadataTests extends ESTestCase {
         IndexAbstraction value = metadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
 
         value = metadata.getIndicesLookup().get("d2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a1"));
 
         value = metadata.getIndicesLookup().get("d3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a2"));
 
         value = metadata.getIndicesLookup().get("d4");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), empty());
 
         value = metadata.getIndicesLookup().get("a1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
     }
 
     public void testDataStreamAliasValidation() {

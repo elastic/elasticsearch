@@ -1757,7 +1757,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 
-            for (IndexMetadata indexMetadata : indicesMap.values()) {
+            final String[] allIndicesArray = new String[indicesMap.size()];
+            int i = 0;
+            for (var entry : indicesMap.entrySet()) {
+                allIndicesArray[i++] = entry.getKey();
+                final IndexMetadata indexMetadata = entry.getValue();
                 totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 final String name = indexMetadata.getIndex().getName();
                 final boolean visible = indexMetadata.isHidden() == false;
@@ -1803,7 +1807,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = indicesMap.keySet().toArray(Strings.EMPTY_ARRAY);
             String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
@@ -1958,12 +1961,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
                     assert dataStream.getIndices().isEmpty() == false;
 
-                    List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
-                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream, aliases);
-                    IndexAbstraction existing = indicesLookup.put(
-                        dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, aliases)
-                    );
+                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
+                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {

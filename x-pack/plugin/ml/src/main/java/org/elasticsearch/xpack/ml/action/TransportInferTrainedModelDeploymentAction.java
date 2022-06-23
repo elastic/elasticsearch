@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -14,7 +16,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -32,11 +33,15 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
     InferTrainedModelDeploymentAction.Request,
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     private final TrainedModelProvider provider;
 
@@ -94,16 +99,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        String[] randomRunningNode = assignment.getStartedNodes();
-        if (randomRunningNode.length == 0) {
-            String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-            return;
-        }
-        // TODO Do better routing for inference calls
-        int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
-        request.setNodes(randomRunningNode[nodeIndex]);
-        super.doExecute(task, request, listener);
+        logger.trace(() -> format("[%s] selecting node from routing table: %s", assignment.getModelId(), assignment.getNodeRoutingTable()));
+        assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
+            logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
+            request.setNodes(node);
+            super.doExecute(task, request, listener);
+        }, () -> {
+            logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model [" + deploymentId + "] is not allocated to any nodes")
+            );
+        });
     }
 
     @Override

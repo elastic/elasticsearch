@@ -15,6 +15,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -132,10 +133,6 @@ public abstract class AbstractScopedSettings {
     // pkg private for tests
     static boolean isValidAffixKey(String key) {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
-    }
-
-    public Setting.Property getScope() {
-        return this.scope;
     }
 
     /**
@@ -349,7 +346,7 @@ public abstract class AbstractScopedSettings {
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
-                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    Set<String> concreteSettings = Sets.newHashSetWithExpectedSize(settings.size());
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }

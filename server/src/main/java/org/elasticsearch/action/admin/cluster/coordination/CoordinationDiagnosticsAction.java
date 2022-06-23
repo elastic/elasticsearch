@@ -28,6 +28,12 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsResult;
+
+/**
+ * This action exposes CoordinationDiagnosticsService.diagnoseMasterStability() so that a node can get a remote node's view of
+ * coordination diagnostics (including master stability).
+ */
 public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagnosticsAction.Response> {
 
     public static final CoordinationDiagnosticsAction INSTANCE = new CoordinationDiagnosticsAction();
@@ -76,18 +82,18 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
 
     public static class Response extends ActionResponse {
 
-        private final CoordinationDiagnosticsService.CoordinationDiagnosticsResult result;
+        private final CoordinationDiagnosticsResult result;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(in);
+            result = new CoordinationDiagnosticsResult(in);
         }
 
-        public Response(CoordinationDiagnosticsService.CoordinationDiagnosticsResult result) {
+        public Response(CoordinationDiagnosticsResult result) {
             this.result = result;
         }
 
-        public CoordinationDiagnosticsService.CoordinationDiagnosticsResult getCoordinationDiagnosticsResult() {
+        public CoordinationDiagnosticsResult getCoordinationDiagnosticsResult() {
             return result;
         }
 

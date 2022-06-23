@@ -15,12 +15,14 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
+    private final ThreadPool threadPool;
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
@@ -31,6 +33,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final Writeable.Reader<Request> requestReader;
 
     public RequestHandlerRegistry(
+        ThreadPool threadPool,
         String action,
         Writeable.Reader<Request> requestReader,
         TaskManager taskManager,
@@ -40,6 +43,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         boolean canTripCircuitBreaker,
         Tracer tracer
     ) {
+        this.threadPool = threadPool;
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -59,19 +63,21 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        final Task task = taskManager.register(channel.getChannelType(), action, request);
-        Releasable unregisterTask = () -> taskManager.unregister(task);
-        try {
-            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
-                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
-                unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task = taskManager.register(channel.getChannelType(), action, request);
+            Releasable unregisterTask = () -> taskManager.unregister(task);
+            try {
+                if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+                    final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                    final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+                    unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
+                }
+                final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
+                handler.messageReceived(request, taskTransportChannel, task);
+                unregisterTask = null;
+            } finally {
+                Releasables.close(unregisterTask);
             }
-            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
-            handler.messageReceived(request, taskTransportChannel, task);
-            unregisterTask = null;
-        } finally {
-            Releasables.close(unregisterTask);
         }
     }
 
@@ -101,6 +107,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         TransportRequestHandler<R> handler
     ) {
         return new RequestHandlerRegistry<>(
+            registry.threadPool,
             registry.action,
             registry.requestReader,
             registry.taskManager,

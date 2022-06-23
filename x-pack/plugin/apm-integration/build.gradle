@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'x-pack-apm-integration'
+  description 'Provides APM integration for Elasticsearch'
+  classname 'org.elasticsearch.xpack.apm.APM'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  implementation "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:${versions.apm_agent}"
+
+  // OTel context needs these, I think
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security')))) {
+    exclude group: 'com.google.guava', module: 'guava'
+  }
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'org.slf4j.ext.EventData'
+  )
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+}

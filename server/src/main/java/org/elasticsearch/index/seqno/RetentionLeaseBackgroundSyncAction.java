@@ -99,46 +99,52 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
-            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
-            transportService.sendChildRequest(
-                clusterService.localNode(),
-                transportPrimaryAction,
-                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-                task,
-                transportOptions,
-                new TransportResponseHandler<ReplicationResponse>() {
-                    @Override
-                    public ReplicationResponse read(StreamInput in) throws IOException {
-                        return newResponseInstance(in);
-                    }
-
-                    @Override
-                    public void handleResponse(ReplicationResponse response) {
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                    }
-
-                    @Override
-                    public void handleException(TransportException e) {
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                            // node shutting down
-                            return;
+            try (var ignored = threadContext.newTraceContext()) {
+                final ReplicationTask task = (ReplicationTask) taskManager.register(
+                    "transport",
+                    "retention_lease_background_sync",
+                    request
+                );
+                transportService.sendChildRequest(
+                    clusterService.localNode(),
+                    transportPrimaryAction,
+                    new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                    task,
+                    transportOptions,
+                    new TransportResponseHandler<ReplicationResponse>() {
+                        @Override
+                        public ReplicationResponse read(StreamInput in) throws IOException {
+                            return newResponseInstance(in);
                         }
-                        if (ExceptionsHelper.unwrap(
-                            e,
-                            IndexNotFoundException.class,
-                            AlreadyClosedException.class,
-                            IndexShardClosedException.class
-                        ) != null) {
-                            // the index was deleted or the shard is closed
-                            return;
+
+                        @Override
+                        public void handleResponse(ReplicationResponse response) {
+                            task.setPhase("finished");
+                            taskManager.unregister(task);
                         }
-                        getLogger().warn(() -> format("%s retention lease background sync failed", shardId), e);
+
+                        @Override
+                        public void handleException(TransportException e) {
+                            task.setPhase("finished");
+                            taskManager.unregister(task);
+                            if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                                // node shutting down
+                                return;
+                            }
+                            if (ExceptionsHelper.unwrap(
+                                e,
+                                IndexNotFoundException.class,
+                                AlreadyClosedException.class,
+                                IndexShardClosedException.class
+                            ) != null) {
+                                // the index was deleted or the shard is closed
+                                return;
+                            }
+                            getLogger().warn(() -> format("%s retention lease background sync failed", shardId), e);
+                        }
                     }
-                }
-            );
+                );
+            }
         }
     }
 

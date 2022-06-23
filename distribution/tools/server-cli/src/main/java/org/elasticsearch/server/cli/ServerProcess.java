@@ -66,8 +66,8 @@ public class ServerProcess {
 
     // this allows mocking the process building by tests
     interface OptionsBuilder {
-        List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-            IOException, UserException;
+        List<String> getJvmOptions(ServerArgs args, Path configDir, Path pluginsDir, Path tmpDir, String envOptions)
+            throws InterruptedException, IOException, UserException;
     }
 
     // this allows mocking the process building by tests
@@ -103,7 +103,7 @@ public class ServerProcess {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
+            jvmProcess = createProcess(args, processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(args, jvmProcess.getOutputStream());
@@ -196,6 +196,7 @@ public class ServerProcess {
     }
 
     private static Process createProcess(
+        ServerArgs args,
         ProcessInfo processInfo,
         Path configDir,
         Path pluginsDir,
@@ -208,7 +209,7 @@ public class ServerProcess {
             envVars.put("LIBFFI_TMPDIR", tempDir.toString());
         }
 
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
+        List<String> jvmOptions = optionsBuilder.getJvmOptions(args, configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
         // also pass through distribution type
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 

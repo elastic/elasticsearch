@@ -465,15 +465,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    channel.setTracePath(handlers.getPath());
+                    channel.startTrace();
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
+            channel.startTrace();
+            channel.recordException(e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
+        channel.startTrace();
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -497,7 +502,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
                         threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }

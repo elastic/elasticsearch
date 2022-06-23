@@ -103,7 +103,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
     public static final String FIELD_METRIC_LABEL_DOUBLE = "metric_label_double";
-    public static final String FIELD_METRIC_LABEL_INTEGER = "metric_label_integer";
     public static final String FIELD_LABEL_DOUBLE = "label_double";
     public static final String FIELD_LABEL_INTEGER = "label_integer";
     public static final String FIELD_LABEL_KEYWORD = "label_keyword";
@@ -180,8 +179,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=double,time_series_metric=counter",
                 FIELD_LABEL_DOUBLE,
                 "type=double",
-                // FIELD_LABEL_INTEGER,
-                // "type=integer",
+                FIELD_LABEL_INTEGER,
+                "type=integer",
                 FIELD_LABEL_KEYWORD,
                 "type=keyword",
                 FIELD_LABEL_TEXT,
@@ -190,8 +189,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 // "type=boolean",
                 FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
                 "type=double,time_series_metric=counter",
-                // FIELD_METRIC_LABEL_INTEGER,
-                // "type=double,time_series_metric=counter",
                 FIELD_LABEL_IPv4_ADDRESS,
                 "type=ip",
                 FIELD_LABEL_IPv6_ADDRESS,
@@ -220,8 +217,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
-                // .field(FIELD_LABEL_INTEGER, labelIntegerValue)
-                // .field(FIELD_METRIC_LABEL_INTEGER, labelIntegerValue)
+                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
                 .field(FIELD_LABEL_TEXT, ts)
                 // .field(FIELD_LABEL_BOOLEAN, randomBoolean())

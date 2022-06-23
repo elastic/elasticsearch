@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -205,8 +206,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
             int labelIntegerValue = randomInt();
-            String labelIpv4Address = randomIp(true).getHostAddress();
-            String labelIpv6Address = randomIp(false).getHostAddress();
+            String labelIpv4Address = NetworkAddress.format(randomIp(true));
+            String labelIpv6Address = NetworkAddress.format(randomIp(false));
             Date labelDateValue = randomDate();
             return XContentFactory.jsonBuilder()
                 .startObject()

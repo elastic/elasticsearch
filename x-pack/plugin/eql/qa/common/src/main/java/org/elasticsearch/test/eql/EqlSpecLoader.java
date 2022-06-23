@@ -94,12 +94,20 @@ public class EqlSpecLoader {
 
             arr = table.getList("expected_event_ids");
             if (arr != null) {
-                long[] expectedEventIds = new long[arr.size()];
-                int i = 0;
-                for (Object obj : arr) {
-                    expectedEventIds[i++] = (Long) obj;
+                List<long[]> expectedEventIdsList = new ArrayList<>();
+                if (arr.size() == 0) {
+                    expectedEventIdsList.add(new long[] {});
+                } else if (arr.stream().allMatch(x -> x instanceof Long)) {
+                    long[] expectedEventIds = asLongArray(arr);
+                    expectedEventIdsList.add(expectedEventIds);
+                } else if (arr.stream().allMatch(x -> x instanceof List)) {
+                    for (Object o : arr) {
+                        expectedEventIdsList.add(asLongArray((List) o));
+                    }
+                } else {
+                    throw new IllegalArgumentException("Invalid expected_event_ids");
                 }
-                spec.expectedEventIds(expectedEventIds);
+                spec.expectedEventIds(expectedEventIdsList);
             }
 
             arr = table.getList("join_keys");
@@ -108,5 +116,14 @@ public class EqlSpecLoader {
         }
 
         return testSpecs;
+    }
+
+    private static long[] asLongArray(List<?> arr) {
+        long[] expectedEventIds = new long[arr.size()];
+        int i = 0;
+        for (Object obj : arr) {
+            expectedEventIds[i++] = (Long) obj;
+        }
+        return expectedEventIds;
     }
 }

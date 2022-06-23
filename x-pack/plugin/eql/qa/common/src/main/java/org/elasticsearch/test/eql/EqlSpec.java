@@ -10,7 +10,9 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class EqlSpec {
     private String name;
@@ -18,7 +20,7 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
-    private long[] expectedEventIds;
+    private List<long[]> expectedEventIds;
     private String[] joinKeys;
 
     public String name() {
@@ -61,11 +63,11 @@ public class EqlSpec {
         this.query = query;
     }
 
-    public long[] expectedEventIds() {
+    public List<long[]> expectedEventIds() {
         return expectedEventIds;
     }
 
-    public void expectedEventIds(long[] expectedEventIds) {
+    public void expectedEventIds(List<long[]> expectedEventIds) {
         this.expectedEventIds = expectedEventIds;
     }
 
@@ -90,7 +92,11 @@ public class EqlSpec {
         }
 
         if (expectedEventIds != null) {
-            str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+            str = appendWithComma(
+                str,
+                "expected_event_ids",
+                "[" + expectedEventIds.stream().map(Arrays::toString).collect(Collectors.joining(", ")) + "]"
+            );
         }
 
         if (joinKeys != null) {

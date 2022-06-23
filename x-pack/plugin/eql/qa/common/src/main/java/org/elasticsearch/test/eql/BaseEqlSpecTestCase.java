@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -39,7 +40,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final String index;
     private final String query;
     private final String name;
-    private final long[] eventIds;
+    private final List<long[]> eventIds;
     /**
      * Join keys can be of multiple types, but toml is very restrictive and doesn't allow mixed types values in the same array of values
      * For now, every value will be converted to a String.
@@ -102,7 +103,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
+    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys) {
         this.index = index;
 
         this.query = query;
@@ -168,20 +169,43 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             }
         });
 
-        long[] expected = eventIds;
         long[] actual = extractIds(events);
-        assertArrayEquals(
-            LoggerMessageFormat.format(
-                null,
-                "unexpected result for spec[{}] [{}] -> {} vs {}",
-                name,
-                query,
-                Arrays.toString(expected),
-                Arrays.toString(actual)
-            ),
-            expected,
-            actual
-        );
+        boolean succeeded = false;
+        if (eventIds.size() == 1) {
+            assertArrayEquals(
+                LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}] -> {} vs {}",
+                    name,
+                    query,
+                    Arrays.toString(eventIds.get(0)),
+                    Arrays.toString(actual)
+                ),
+                eventIds.get(0),
+                actual
+            );
+        } else {
+            for (long[] expected : eventIds) {
+                if (Arrays.equals(expected, actual)) {
+                    succeeded = true;
+                    break;
+                }
+            }
+            if (succeeded == false) {
+                String msg = LoggerMessageFormat.format(
+                    null,
+                    "unexpected result for spec[{}] [{}]. Found: {} - Expected one of the following: {}",
+                    name,
+                    query,
+                    Arrays.toString(actual),
+                    eventIds.stream().map(Arrays::toString).collect(Collectors.joining(", "))
+                );
+
+                fail(msg);
+
+            }
+        }
+
     }
 
     private String eventsToString(List<Map<String, Object>> events) {

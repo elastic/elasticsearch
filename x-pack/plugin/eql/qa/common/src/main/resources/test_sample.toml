@@ -3,11 +3,14 @@ name = "anyRulesWithOneDifferentNameKey"
 query = '''
   sample by host
     [any where uptime > 0]   by os
-    [any where port > 100]   by op_sys 
+    [any where port > 100]   by op_sys
     [any where bool == true] by os
 '''
-expected_event_ids  = [17,26,16,
-                       13,23,110]
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [17, 26, 16, 13, 23, 110],
+    [17, 26, 16, 110, 23, 33]
+]
 join_keys = ["doom","redhat",
              "farcry","win10"]
 
@@ -205,9 +208,11 @@ query = '''
     [success where true]
     [alert where true]
 '''
-expected_event_ids  = [29,24,
-                       28,21,
-                       18,11]
+# this test is not completely deterministic, it can return any of the following event id combinations
+expected_event_ids  = [
+    [29, 24, 28, 21, 18, 11],
+    [29, 24, 28, 26, 18, 11]
+]
 join_keys = ["GTA","null",
              "doom","null",
              "doom","win10"]

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Class that collects all raw values for a label field.

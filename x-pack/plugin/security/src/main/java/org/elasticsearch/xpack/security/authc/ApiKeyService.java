@@ -363,7 +363,7 @@ public class ApiKeyService {
             validateCurrentApiKeyDocForUpdate(apiKeyId, single(apiKeys).doc());
 
             doBulkUpdate(
-                buildBulkUpdateRequest(authentication, request, userRoles, apiKeys),
+                buildBulkUpdateRequest(apiKeys, authentication, request, userRoles),
                 ActionListener.wrap(bulkResponse -> toUpdateApiKeyResponse(apiKeyId, bulkResponse, listener), listener::onFailure)
             );
         }, listener::onFailure));
@@ -423,10 +423,10 @@ public class ApiKeyService {
     }
 
     private BulkRequest buildBulkUpdateRequest(
+        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocs,
         Authentication authentication,
         UpdateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles,
-        Collection<ApiKeyDocWithSeqNoAndPrimaryTerm> apiKeyDocs
+        Set<RoleDescriptor> userRoles
     ) throws IOException {
         assert apiKeyDocs.isEmpty() == false;
         final var version = clusterService.state().nodes().getMinNodeVersion();
@@ -483,6 +483,25 @@ public class ApiKeyService {
             .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
             .field("api_key_invalidated", false);
 
+        addApiKeyHash(builder, apiKeyHashChars);
+        addRoleDescriptors(builder, keyRoles);
+        addLimitedByRoleDescriptors(builder, userRoles);
+
+        builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
+        addCreator(builder, authentication);
+
+        return builder.endObject();
+    }
+
+    private static void addLimitedByRoleDescriptors(XContentBuilder builder, Set<RoleDescriptor> userRoles) throws IOException {
+        builder.startObject("limited_by_role_descriptors");
+        for (RoleDescriptor descriptor : userRoles) {
+            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+        }
+        builder.endObject();
+    }
+
+    private static void addApiKeyHash(XContentBuilder builder, char[] apiKeyHashChars) throws IOException {
         byte[] utf8Bytes = null;
         try {
             utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
@@ -492,40 +511,6 @@ public class ApiKeyService {
                 Arrays.fill(utf8Bytes, (byte) 0);
             }
         }
-
-        // Save role_descriptors
-        builder.startObject("role_descriptors");
-        if (keyRoles != null && keyRoles.isEmpty() == false) {
-            for (RoleDescriptor descriptor : keyRoles) {
-                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-            }
-        }
-        builder.endObject();
-
-        // Save limited_by_role_descriptors
-        builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
-            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-        }
-        builder.endObject();
-
-        builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
-        {
-            builder.startObject("creator")
-                .field("principal", authentication.getUser().principal())
-                .field("full_name", authentication.getUser().fullName())
-                .field("email", authentication.getUser().email())
-                .field("metadata", authentication.getUser().metadata())
-                .field("realm", authentication.getSourceRealm().getName())
-                .field("realm_type", authentication.getSourceRealm().getType());
-            if (authentication.getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        return builder;
     }
 
     static XContentBuilder mergedDocument(
@@ -536,43 +521,22 @@ public class ApiKeyService {
         Version version,
         Map<String, Object> metadata
     ) throws IOException {
-        final var created = currentApiKeyDoc.creationTime;
-        final var expiration = currentApiKeyDoc.expirationTime;
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
-            .field("creation_time", created)
-            .field("expiration_time", expiration == -1 ? null : expiration)
+            .field("creation_time", currentApiKeyDoc.creationTime)
+            .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
             .field("api_key_invalidated", false);
 
-        byte[] utf8Bytes = null;
-        try {
-            utf8Bytes = CharArrays.toUtf8Bytes(currentApiKeyDoc.hash.toCharArray());
-            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
-        } finally {
-            if (utf8Bytes != null) {
-                Arrays.fill(utf8Bytes, (byte) 0);
-            }
-        }
+        addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
         if (keyRoles != null) {
-            builder.startObject("role_descriptors");
-            if (keyRoles.isEmpty() == false) {
-                for (RoleDescriptor descriptor : keyRoles) {
-                    builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-                }
-            }
-            builder.endObject();
+            addRoleDescriptors(builder, keyRoles);
         } else {
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
-        builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
-            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-        }
-        builder.endObject();
+        addLimitedByRoleDescriptors(builder, userRoles);
 
         builder.field("name", currentApiKeyDoc.name).field("version", version.id);
         if (metadata != null) {
@@ -581,22 +545,35 @@ public class ApiKeyService {
             builder.rawField("metadata_flattened", currentApiKeyDoc.metadataFlattened.streamInput(), XContentType.JSON);
         }
 
-        {
-            builder.startObject("creator")
-                .field("principal", authentication.getUser().principal())
-                .field("full_name", authentication.getUser().fullName())
-                .field("email", authentication.getUser().email())
-                .field("metadata", authentication.getUser().metadata())
-                .field("realm", authentication.getSourceRealm().getName())
-                .field("realm_type", authentication.getSourceRealm().getType());
-            if (authentication.getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
-            }
-            builder.endObject();
+        addCreator(builder, authentication);
+
+        return builder.endObject();
+    }
+
+    private static void addCreator(XContentBuilder builder, Authentication authentication) throws IOException {
+        final var user = authentication.getEffectiveSubject().getUser();
+        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        builder.startObject("creator")
+            .field("principal", user.principal())
+            .field("full_name", user.fullName())
+            .field("email", user.email())
+            .field("metadata", user.metadata())
+            .field("realm", sourceRealm.getName())
+            .field("realm_type", sourceRealm.getType());
+        if (sourceRealm.getDomain() != null) {
+            builder.field("realm_domain", sourceRealm.getDomain());
         }
         builder.endObject();
+    }
 
-        return builder;
+    private static void addRoleDescriptors(XContentBuilder builder, List<RoleDescriptor> keyRoles) throws IOException {
+        builder.startObject("role_descriptors");
+        if (keyRoles != null && keyRoles.isEmpty() == false) {
+            for (RoleDescriptor descriptor : keyRoles) {
+                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+            }
+        }
+        builder.endObject();
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {

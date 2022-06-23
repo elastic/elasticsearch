@@ -40,7 +40,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
     private final AutoscalingCalculateCapacityService capacityService;
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
-    private final AutoscalingNodeInfoService memoryAndProcessorInfoService;
+    private final AutoscalingNodeInfoService nodeInfoService;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final CapacityResponseCache<GetAutoscalingCapacityAction.Response> responseCache = new CapacityResponseCache<>(
         run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
@@ -57,7 +57,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
         final ClusterInfoService clusterInfoService,
         final SnapshotsInfoService snapshotsInfoService,
-        final AutoscalingNodeInfoService memoryAndProcessorInfoService,
+        final AutoscalingNodeInfoService nodeInfoService,
         final AllocationDeciders allocationDeciders,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
@@ -73,7 +73,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             ThreadPool.Names.SAME
         );
         this.snapshotsInfoService = snapshotsInfoService;
-        this.memoryAndProcessorInfoService = memoryAndProcessorInfoService;
+        this.nodeInfoService = nodeInfoService;
         this.capacityService = capacityServiceHolder.get(allocationDeciders);
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
@@ -104,7 +104,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
                 clusterService.state(),
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
-                memoryAndProcessorInfoService.snapshot(),
+                nodeInfoService.snapshot(),
                 ensureNotCancelled
             )
         );

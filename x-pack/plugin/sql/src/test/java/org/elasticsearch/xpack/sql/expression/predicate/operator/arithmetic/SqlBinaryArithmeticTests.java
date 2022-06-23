@@ -11,7 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.DateUtils;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;

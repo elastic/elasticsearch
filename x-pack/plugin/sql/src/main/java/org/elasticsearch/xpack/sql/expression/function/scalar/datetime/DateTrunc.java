@@ -29,9 +29,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_DAY;
-import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_HOUR;
-import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_MINUTE;
+import static org.elasticsearch.xpack.qautil.DateUtils.SECONDS_PER_DAY;
+import static org.elasticsearch.xpack.qautil.DateUtils.SECONDS_PER_HOUR;
+import static org.elasticsearch.xpack.qautil.DateUtils.SECONDS_PER_MINUTE;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 

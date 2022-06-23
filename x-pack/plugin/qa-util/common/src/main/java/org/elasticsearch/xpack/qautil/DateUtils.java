@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ql.util;
+package org.elasticsearch.xpack.qautil;
 
 import org.elasticsearch.common.time.DateFormatters;
 
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZoneId;
@@ -22,16 +23,14 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
-//FIXME: Taken from sql-proto (StringUtils)
-//Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
-// Maybe a gradle task would fix that...
-public class DateUtils {
-
+public final class DateUtils
+{
     public static final ZoneId UTC = ZoneId.of("Z");
 
     public static final String EMPTY = "";
@@ -47,7 +46,6 @@ public class DateUtils {
         .appendFraction(NANO_OF_SECOND, 3, 9, true)
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
-
     public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
         .appendValue(HOUR_OF_DAY, 2)
         .appendLiteral(':')
@@ -62,7 +60,53 @@ public class DateUtils {
     public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
     public static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
 
-    private DateUtils() {}
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(ISO_LOCAL_TIME)
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withZone(UTC);
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
+        .optionalStart()
+        .appendLiteral(' ')
+        .append(ISO_LOCAL_TIME)
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withZone(UTC);
+
+    /**
+     * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
+     */
+    public static ZonedDateTime asDateTime(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+    }
+
+    /**
+     * Parses the given string into a DateTime using UTC as a default timezone.
+     */
+    public static ZonedDateTime asDateTime(String dateFormat) {
+        int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
+        if (separatorIdx == 0) { // first char = `-` denotes a negative year
+            separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
+        }
+        // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
+        // e.g. 2020-06-01T10:20:30....
+        // ^
+        // +3 = ^
+        separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
+
+        // Avoid index out of bounds - it will lead to DateTimeParseException anyways
+        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
+        } else {
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+        }
+    }
 
     /**
      * Parses the given string into a ZonedDateTime using the provided timezone.

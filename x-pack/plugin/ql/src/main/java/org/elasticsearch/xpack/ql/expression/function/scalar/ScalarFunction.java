@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.DateUtils;
+import org.elasticsearch.xpack.qautil.DateUtils;
 
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;

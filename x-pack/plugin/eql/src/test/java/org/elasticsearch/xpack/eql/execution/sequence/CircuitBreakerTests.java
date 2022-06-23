@@ -231,7 +231,7 @@ public class CircuitBreakerTests extends ESTestCase {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 new String[] { "test" },
-                org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+                org.elasticsearch.xpack.qautil.DateUtils.UTC,
                 "nobody",
                 "cluster",
                 null,

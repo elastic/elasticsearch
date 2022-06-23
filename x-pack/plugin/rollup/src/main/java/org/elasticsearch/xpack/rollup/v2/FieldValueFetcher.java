@@ -31,7 +31,7 @@ import java.util.function.Function;
 class FieldValueFetcher {
 
     private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
+        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class, Boolean.class))
     );
 
     private final String name;

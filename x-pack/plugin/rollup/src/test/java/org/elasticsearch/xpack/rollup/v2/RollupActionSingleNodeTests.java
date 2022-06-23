@@ -186,8 +186,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=keyword",
                 FIELD_LABEL_TEXT,
                 "type=text",
-                // FIELD_LABEL_BOOLEAN,
-                // "type=boolean",
+                FIELD_LABEL_BOOLEAN,
+                "type=boolean",
                 FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
                 "type=double,time_series_metric=counter",
                 FIELD_LABEL_IPv4_ADDRESS,
@@ -221,7 +221,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_INTEGER, labelIntegerValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
                 .field(FIELD_LABEL_TEXT, ts)
-                // .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
                 .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
                 .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
                 .field(FIELD_LABEL_DATE, labelDateValue)

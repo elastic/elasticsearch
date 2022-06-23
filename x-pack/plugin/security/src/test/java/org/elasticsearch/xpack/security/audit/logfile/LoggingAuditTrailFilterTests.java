@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -2808,7 +2809,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 realmName != null ? realmName : randomAlphaOfLengthBetween(3, 10),
                 randomAlphaOfLengthBetween(3, 10),
                 randomAlphaOfLengthBetween(3, 8),
-                randomFrom(AuthenticationTestHelper.randomDomain(randomBoolean()), null)
+                randomFrom(AuthenticationTests.randomDomain(randomBoolean()), null)
             )
         );
         final MockIndicesRequest request = new MockIndicesRequest(

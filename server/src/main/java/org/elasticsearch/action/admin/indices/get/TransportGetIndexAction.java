@@ -87,7 +87,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                 .findDataStreams(concreteIndices)
                 .entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getName()))
         );
         Feature[] features = request.features();
         boolean doneAliases = false;

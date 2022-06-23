@@ -1,0 +1,33 @@
+[[queries]]
+name = "firstQuery"
+query = 'process where serial_event_id == 1'
+expected_event_ids  = [1]
+
+# some random comments
+
+
+# commented query
+# [[queries]]
+# name = "simpleQueryLt"
+# query = 'process where serial_event_id < 4'
+# expected_event_ids  = [
+#     [1, 2, 3],
+#    [4, 5, 6]
+# ]
+
+
+[[queries]]
+name = "secondQuery"
+query = '''
+  sample by bool, host
+    [any where uptime > 0 or bool == false]
+    [any where port > 10000 or bool == false]
+'''
+note = 'this is a note'
+description = 'this is the test description'
+tags = ['foo', 'bar']
+expected_event_ids  = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+join_keys = ["bar", "baz"]

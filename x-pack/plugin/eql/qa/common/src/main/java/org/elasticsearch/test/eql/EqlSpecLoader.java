@@ -87,7 +87,7 @@ public class EqlSpecLoader {
                 String[] tags = new String[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
-                    tags[i] = (String) obj;
+                    tags[i++] = (String) obj;
                 }
                 spec.tags(tags);
             }

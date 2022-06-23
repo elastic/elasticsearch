@@ -20,7 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.vectors.KnnSearchRequestBuilder.KnnSearch;
+import org.elasticsearch.search.vectors.KnnSearchRequestParser.KnnSearch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -40,7 +40,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-public class KnnSearchRequestBuilderTests extends ESTestCase {
+public class KnnSearchRequestParserTests extends ESTestCase {
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
@@ -55,16 +55,16 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
-    public void testBuildSearchRequest() throws IOException {
+    public void testParseSearchRequest() throws IOException {
         // Choose random REST parameters
         Map<String, String> params = new HashMap<>();
         String[] indices = generateRandomStringArray(5, 10, false, true);
-        params.put(KnnSearchRequestBuilder.INDEX_PARAM, String.join(",", indices));
+        params.put(KnnSearchRequestParser.INDEX_PARAM, String.join(",", indices));
 
         String routing = null;
         if (randomBoolean()) {
             routing = randomAlphaOfLengthBetween(3, 10);
-            params.put(KnnSearchRequestBuilder.ROUTING_PARAM, routing);
+            params.put(KnnSearchRequestParser.ROUTING_PARAM, routing);
         }
 
         // Create random request body
@@ -81,13 +81,13 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         XContentBuilder builder = createRequestBody(knnSearch, filterQueries, searchSource);
 
         // Convert the REST request to a search request and check the components
-        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder, params);
+        SearchRequestBuilder searchRequestBuilder = parseSearchRequest(builder, params);
         SearchRequest searchRequest = searchRequestBuilder.request();
 
         assertArrayEquals(indices, searchRequest.indices());
         assertEquals(routing, searchRequest.routing());
 
-        KnnVectorQueryBuilder query = knnSearch.buildQuery();
+        KnnVectorQueryBuilder query = knnSearch.toQueryBuilder();
         if (filterQueries.isEmpty() == false) {
             query.addFilterQueries(filterQueries);
         }
@@ -107,7 +107,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
 
         KnnSearch knnSearch = randomKnnSearch();
         builder.startObject()
-            .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
@@ -118,7 +118,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         builder.endObject();
 
         // Convert the REST request to a search request and check the components
-        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder);
+        SearchRequestBuilder searchRequestBuilder = parseSearchRequest(builder);
         SearchRequest searchRequest = searchRequestBuilder.request();
 
         FetchSourceContext fetchSource = searchRequest.source().fetchSource();
@@ -133,7 +133,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
 
         KnnSearch knnSearch = randomKnnSearch();
         builder.startObject()
-            .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
@@ -144,7 +144,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         builder.endObject();
 
         // Convert the REST request to a search request and check the components
-        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder);
+        SearchRequestBuilder searchRequestBuilder = parseSearchRequest(builder);
         SearchRequest searchRequest = searchRequestBuilder.request();
 
         FetchSourceContext fetchSource = searchRequest.source().fetchSource();
@@ -159,7 +159,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .array(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName(), "field1", "field2")
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("missing required [knn] section in search body"));
     }
 
@@ -167,7 +167,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
             .startObject()
-            .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 80)
@@ -175,7 +175,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
@@ -183,7 +183,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
             .startObject()
-            .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002)
@@ -191,7 +191,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
     }
 
@@ -199,7 +199,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
             .startObject()
-            .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 0)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10)
@@ -207,24 +207,24 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }
 
-    private SearchRequestBuilder buildSearchRequest(XContentBuilder builder) throws IOException {
-        Map<String, String> params = Map.of(KnnSearchRequestBuilder.INDEX_PARAM, "index");
-        return buildSearchRequest(builder, params);
+    private SearchRequestBuilder parseSearchRequest(XContentBuilder builder) throws IOException {
+        Map<String, String> params = Map.of(KnnSearchRequestParser.INDEX_PARAM, "index");
+        return parseSearchRequest(builder, params);
     }
 
-    private SearchRequestBuilder buildSearchRequest(XContentBuilder builder, Map<String, String> params) throws IOException {
-        KnnSearchRequestBuilder knnRequestBuilder = KnnSearchRequestBuilder.parseRestRequest(
+    private SearchRequestBuilder parseSearchRequest(XContentBuilder builder, Map<String, String> params) throws IOException {
+        KnnSearchRequestParser knnRequestBuilder = KnnSearchRequestParser.parseRestRequest(
             new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
                 .withParams(params)
                 .withContent(BytesReference.bytes(builder), builder.contentType())
                 .build()
         );
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(null, SearchAction.INSTANCE);
-        knnRequestBuilder.build(searchRequestBuilder);
+        knnRequestBuilder.toSearchRequest(searchRequestBuilder);
         return searchRequestBuilder;
     }
 
@@ -257,7 +257,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
         builder.startObject();
 
-        builder.startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
+        builder.startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
@@ -265,7 +265,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject();
 
         if (filters.isEmpty() == false) {
-            builder.field(KnnSearchRequestBuilder.FILTER_FIELD.getPreferredName());
+            builder.field(KnnSearchRequestParser.FILTER_FIELD.getPreferredName());
             if (filters.size() > 1) {
                 builder.startArray();
             }

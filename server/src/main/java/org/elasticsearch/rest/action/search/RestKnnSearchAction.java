@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.search.vectors.KnnSearchRequestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchRequestParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,10 +44,10 @@ public class RestKnnSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         // This will allow to cancel the search request if the http channel is closed
         RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-        KnnSearchRequestBuilder request = KnnSearchRequestBuilder.parseRestRequest(restRequest);
+        KnnSearchRequestParser parser = KnnSearchRequestParser.parseRestRequest(restRequest);
 
         SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
-        request.build(searchRequestBuilder);
+        parser.toSearchRequest(searchRequestBuilder);
 
         return channel -> searchRequestBuilder.execute(new RestStatusToXContentListener<>(channel));
     }

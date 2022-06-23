@@ -17,6 +17,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Optional;
+import java.util.Set;
+
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
  */
@@ -75,5 +78,24 @@ public class ResizeAllocationDecider extends AllocationDecider {
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, node, allocation);
+    }
+
+    @Override
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            var targetIndexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            if (allocation.metadata().index(targetIndexMetadata.getResizeSourceIndex()) == null) {
+                return Optional.of(Set.of());// source index not found
+            }
+            var sourceIndexMetadata = allocation.metadata().getIndexSafe(targetIndexMetadata.getResizeSourceIndex());
+            if (targetIndexMetadata.getNumberOfShards() < sourceIndexMetadata.getNumberOfShards()) {
+                return Optional.empty();
+            }
+            ShardId shardId = targetIndexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards()
+                ? IndexMetadata.selectCloneShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards())
+                : IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards());
+            return Optional.ofNullable(allocation.routingNodes().activePrimary(shardId)).map(ShardRouting::currentNodeId).map(Set::of);
+        }
+        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
     }
 }

@@ -515,26 +515,6 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    private static void addLimitedByRoleDescriptors(XContentBuilder builder, Set<RoleDescriptor> userRoles) throws IOException {
-        builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
-            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-        }
-        builder.endObject();
-    }
-
-    private static void addApiKeyHash(XContentBuilder builder, char[] apiKeyHashChars) throws IOException {
-        byte[] utf8Bytes = null;
-        try {
-            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
-            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
-        } finally {
-            if (utf8Bytes != null) {
-                Arrays.fill(utf8Bytes, (byte) 0);
-            }
-        }
-    }
-
     static XContentBuilder mergedDocument(
         ApiKeyDoc currentApiKeyDoc,
         Authentication authentication,
@@ -570,6 +550,26 @@ public class ApiKeyService {
         addCreator(builder, authentication);
 
         return builder.endObject();
+    }
+
+    private static void addLimitedByRoleDescriptors(XContentBuilder builder, Set<RoleDescriptor> userRoles) throws IOException {
+        builder.startObject("limited_by_role_descriptors");
+        for (RoleDescriptor descriptor : userRoles) {
+            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+        }
+        builder.endObject();
+    }
+
+    private static void addApiKeyHash(XContentBuilder builder, char[] apiKeyHashChars) throws IOException {
+        byte[] utf8Bytes = null;
+        try {
+            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
+            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+        } finally {
+            if (utf8Bytes != null) {
+                Arrays.fill(utf8Bytes, (byte) 0);
+            }
+        }
     }
 
     private static void addCreator(XContentBuilder builder, Authentication authentication) throws IOException {

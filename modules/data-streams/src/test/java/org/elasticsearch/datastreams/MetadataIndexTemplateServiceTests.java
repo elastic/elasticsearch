@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -50,12 +49,6 @@ import static org.mockito.Mockito.when;
  * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Settings nodeSettings() {
-        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
-        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
-    }
 
     public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
         var state = ClusterState.EMPTY_STATE;

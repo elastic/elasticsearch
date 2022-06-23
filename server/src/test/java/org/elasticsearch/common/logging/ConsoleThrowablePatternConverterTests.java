@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
-public class ConsoleThrowablePatternConverterTest extends ESTestCase {
+public class ConsoleThrowablePatternConverterTests extends ESTestCase {
     static final ConsoleThrowablePatternConverter converter = ConsoleThrowablePatternConverter.newInstance(null, null);
 
     String format(Throwable e) {

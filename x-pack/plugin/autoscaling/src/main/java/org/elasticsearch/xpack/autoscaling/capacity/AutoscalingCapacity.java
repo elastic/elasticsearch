@@ -33,7 +33,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         private final ByteSizeValue memory;
         private final Float processors;
 
-        public static final AutoscalingResources ZERO = new AutoscalingResources(new ByteSizeValue(0), new ByteSizeValue(0), 0.0f);
+        public static final AutoscalingResources ZERO = new AutoscalingResources(ByteSizeValue.ZERO, ByteSizeValue.ZERO, 0.0f);
 
         public AutoscalingResources(ByteSizeValue storage, ByteSizeValue memory, Float processors) {
             assert storage != null || memory != null || processors != null;

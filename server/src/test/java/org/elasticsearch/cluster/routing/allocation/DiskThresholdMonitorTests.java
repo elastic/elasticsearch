@@ -60,6 +60,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
+    private static final DiskThresholdSettings DEFAULT_DISK_THRESHOLD_SETTINGS = new DiskThresholdSettings(
+        Settings.EMPTY,
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+    );
+
     public void testMarkFloodStageIndicesReadOnly() {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
@@ -108,9 +113,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indices = new AtomicReference<>();
         AtomicLong currentTime = new AtomicLong();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             () -> clusterState,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             currentTime::get,
             (reason, priority, listener) -> {
@@ -173,9 +177,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertTrue(anotherFinalClusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
 
         monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             () -> anotherFinalClusterState,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             currentTime::get,
             (reason, priority, listener) -> {
@@ -210,9 +213,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicLong currentTime = new AtomicLong();
         AtomicReference<ActionListener<ClusterState>> listenerReference = new AtomicReference<>();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             () -> clusterState,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             currentTime::get,
             (reason, priority, listener) -> {
@@ -375,9 +377,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
 
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             () -> clusterState,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             () -> 0L,
             (reason, priority, listener) -> {
@@ -431,9 +432,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
         monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             () -> clusterStateWithBlocks,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             () -> 0L,
             (reason, priority, listener) -> {
@@ -556,9 +556,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         currentClusterState.set(clusterState);
 
         final DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             currentClusterState::get,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             () -> 0L,
             (reason, priority, listener) -> {
@@ -707,9 +706,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final AtomicLong relocatingShardSizeRef = new AtomicLong();
 
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-            Settings.EMPTY,
+            DEFAULT_DISK_THRESHOLD_SETTINGS,
             clusterStateRef::get,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
             (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())

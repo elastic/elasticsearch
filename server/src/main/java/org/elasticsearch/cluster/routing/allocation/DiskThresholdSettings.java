@@ -19,10 +19,12 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
@@ -97,6 +99,8 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
     private volatile RelativeByteSizeValue frozenFloodStage;
     private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
+
+    private final Collection<ThresholdChangeListener> thresholdChangeListeners = new CopyOnWriteArrayList<>();
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -283,6 +287,7 @@ public class DiskThresholdSettings {
             lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
         );
+        thresholdChangeListeners.forEach(l -> l.onChange(this));
     }
 
     private void setHighWatermark(String highWatermark) {
@@ -293,6 +298,7 @@ public class DiskThresholdSettings {
             highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
         );
+        thresholdChangeListeners.forEach(l -> l.onChange(this));
     }
 
     private void setFloodStage(String floodStageRaw) {
@@ -302,14 +308,17 @@ public class DiskThresholdSettings {
             floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
         );
+        thresholdChangeListeners.forEach(l -> l.onChange(this));
     }
 
     private void setFrozenFloodStage(RelativeByteSizeValue floodStage) {
         this.frozenFloodStage = floodStage;
+        thresholdChangeListeners.forEach(l -> l.onChange(this));
     }
 
     private void setFrozenFloodStageMaxHeadroom(ByteSizeValue maxHeadroom) {
         this.frozenFloodStageMaxHeadroom = maxHeadroom;
+        thresholdChangeListeners.forEach(l -> l.onChange(this));
     }
 
     /**
@@ -348,6 +357,14 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
+    }
+
+    public RelativeByteSizeValue getFrozenFloodStage() {
+        return frozenFloodStage;
+    }
+
+    public ByteSizeValue getFrozenFloodStageMaxHeadroom() {
+        return frozenFloodStageMaxHeadroom;
     }
 
     public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {
@@ -490,5 +507,13 @@ public class DiskThresholdSettings {
     // means of identifying that a string is not a ratio is quite slow.
     private static boolean definitelyNotPercentage(String value) {
         return value.endsWith("b");
+    }
+
+    public boolean addListener(ThresholdChangeListener thresholdChangeListener) {
+        return this.thresholdChangeListeners.add(thresholdChangeListener);
+    }
+
+    public interface ThresholdChangeListener {
+        void onChange(DiskThresholdSettings diskThresholdSettings);
     }
 }

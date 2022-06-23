@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -98,9 +97,8 @@ public class DiskThresholdMonitor {
     private Set<String> lastNodes = Collections.emptySet();
 
     public DiskThresholdMonitor(
-        Settings settings,
+        DiskThresholdSettings diskThresholdSettings,
         Supplier<ClusterState> clusterStateSupplier,
-        ClusterSettings clusterSettings,
         Client client,
         LongSupplier currentTimeMillisSupplier,
         RerouteService rerouteService
@@ -108,7 +106,7 @@ public class DiskThresholdMonitor {
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
-        this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
+        this.diskThresholdSettings = diskThresholdSettings;
         this.client = client;
     }
 

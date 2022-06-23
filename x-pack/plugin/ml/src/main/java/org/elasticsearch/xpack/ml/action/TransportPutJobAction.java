@@ -100,17 +100,17 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 licenseState,
                 securityContext,
                 threadPool,
-                ActionListener.wrap(
-                    createdDatafeed -> {
-                        // We might need to add the authorization info to the embedded datafeed config in the response
-                        if (createdDatafeed.getResponse().getHeaders().isEmpty()) {
-                            listener.onResponse(jobCreated);
-                        } else {
-                            Job.Builder finalJobBuilder = new Job.Builder(jobCreated.getResponse())
-                                .setDatafeed(new DatafeedConfig.Builder(createdDatafeed.getResponse()));
-                            listener.onResponse(new PutJobAction.Response(finalJobBuilder.build()));
-                        }
-                    },
+                ActionListener.wrap(createdDatafeed -> {
+                    // We might need to add the authorization info to the embedded datafeed config in the response
+                    if (createdDatafeed.getResponse().getHeaders().isEmpty()) {
+                        listener.onResponse(jobCreated);
+                    } else {
+                        Job.Builder finalJobBuilder = new Job.Builder(jobCreated.getResponse()).setDatafeed(
+                            new DatafeedConfig.Builder(createdDatafeed.getResponse())
+                        );
+                        listener.onResponse(new PutJobAction.Response(finalJobBuilder.build()));
+                    }
+                },
                     failed -> jobManager.deleteJob(
                         new DeleteJobAction.Request(request.getJobBuilder().getId()),
                         state,

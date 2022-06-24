@@ -9,7 +9,7 @@ tasks.named('shadowJar').configure {
   exclude 'org/apache/hadoop/util/ShutdownHookManager$*.class'
 }
 
-['jarHell', 'forbiddenApisMain', 'splitPackagesAudit'].each {
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
   tasks.named(it).configure {
     enabled = false
   }

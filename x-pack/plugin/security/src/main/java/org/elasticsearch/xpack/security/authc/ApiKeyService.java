@@ -373,7 +373,7 @@ public class ApiKeyService {
                 throw apiKeyNotFound(apiKeyId);
             }
 
-            validateCurrentApiKeyDocForUpdate(apiKeyId, single(versionedDocs).doc());
+            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(versionedDocs).doc());
 
             doBulkUpdate(
                 buildBulkUpdateRequest(versionedDocs, authentication, request, userRoles),
@@ -383,8 +383,10 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateCurrentApiKeyDocForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
-        // TODO also assert that authentication subject matches creator on apiKeyDoc
+    void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
+        assert authentication.getEffectiveSubject().getUser().principal() == apiKeyDoc.creator.getOrDefault("principal", null);
+        assert authentication.getEffectiveSubject().getRealm().getName() == apiKeyDoc.creator.getOrDefault("realm", null);
+
         if (Version.fromId(apiKeyDoc.version).before(Version.V_8_2_0)) {
             throw new ValidationException().addValidationError(
                 "cannot update legacy api key [" + apiKeyId + "] with version [" + Version.fromId(apiKeyDoc.version) + "]"
@@ -531,6 +533,7 @@ public class ApiKeyService {
         if (keyRoles != null) {
             addRoleDescriptors(builder, keyRoles);
         } else {
+            assert currentApiKeyDoc.roleDescriptorsBytes != null;
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
@@ -555,6 +558,7 @@ public class ApiKeyService {
     }
 
     private static void addLimitedByRoleDescriptors(XContentBuilder builder, Set<RoleDescriptor> userRoles) throws IOException {
+        assert userRoles != null;
         builder.startObject("limited_by_role_descriptors");
         for (RoleDescriptor descriptor : userRoles) {
             builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));

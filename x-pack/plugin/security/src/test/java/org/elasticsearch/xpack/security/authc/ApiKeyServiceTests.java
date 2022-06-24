@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -1652,21 +1651,29 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var apiKeyService = createApiKeyService();
         final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null, Version.V_8_2_0.id);
+        final var auth = Authentication.newRealmAuthentication(
+            new User("test_user", "role"),
+            new Authentication.RealmRef("realm1", "realm_type1", "node")
+        );
+
         var ex = expectThrows(
             ValidationException.class,
-            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithNullName)
+            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithNullName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
         ex = expectThrows(
             ValidationException.class,
-            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithEmptyName)
+            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
 
         final var legacyApiKeyDoc = buildApiKeyDoc(hash, -1, false, "", 0);
-        ex = expectThrows(ValidationException.class, () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, legacyApiKeyDoc));
+        ex = expectThrows(
+            ValidationException.class,
+            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, legacyApiKeyDoc)
+        );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] with version"));
     }
 

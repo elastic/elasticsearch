@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -789,7 +790,7 @@ public class RecoverySourceHandler {
         private final CountDown countDown;
         private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
         private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private final Set<ListenableFuture<Void>> outstandingRequests = Sets.newHashSetWithExpectedSize(maxConcurrentSnapshotFileDownloads);
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {

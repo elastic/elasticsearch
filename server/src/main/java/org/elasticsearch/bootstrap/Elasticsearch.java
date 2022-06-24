@@ -15,8 +15,13 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -28,7 +33,10 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 
+import static org.elasticsearch.bootstrap.Bootstrap.initializeNatives;
+import static org.elasticsearch.bootstrap.Bootstrap.initializeProbes;
 import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
+import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 
 /**
  * This class starts elasticsearch.
@@ -43,15 +51,11 @@ class Elasticsearch {
         PrintStream out = getStdout();
         PrintStream err = getStderr();
         final ServerArgs serverArgs = initPhase1(err);
+        assert serverArgs != null;
 
         try {
-            initPidFile(serverArgs.pidFile());
-            Bootstrap.init(
-                serverArgs.daemonize() == false,
-                new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
-                serverArgs.keystorePassword(),
-                serverArgs.pidFile()
-            );
+            BootstrapState state = initPhase2(serverArgs);
+            Bootstrap.init(serverArgs, state);
 
             err.println(BootstrapInfo.SERVER_READY_MARKER);
             if (serverArgs.daemonize()) {
@@ -160,6 +164,67 @@ class Elasticsearch {
         return args;
     }
 
+    // state needed to pass between phase 2 and 3
+    record BootstrapState(Environment environment, SecureSettings secureSettings, Spawner spawner) {}
+
+    /**
+     * Second phase of process initialization.
+     *
+     * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
+     */
+    private static BootstrapState initPhase2(ServerArgs args) throws IOException {
+        final SecureSettings keystore;
+        try {
+            keystore = KeyStoreWrapper.bootstrap(args.configDir(), args::keystorePassword);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), keystore);
+
+        initPidFile(args.pidFile());
+
+        // install the default uncaught exception handler; must be done before security is
+        // initialized as we do not want to grant the runtime permission
+        // setDefaultUncaughtExceptionHandler
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
+
+        Spawner spawner = new Spawner();
+        spawner.spawnNativeControllers(nodeEnv);
+
+        nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
+        initializeNatives(
+            nodeEnv.tmpFile(),
+            BootstrapSettings.MEMORY_LOCK_SETTING.get(args.nodeSettings()),
+            true, // always install system call filters, not user-configurable since 8.0.0
+            BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
+        );
+
+        // initialize probes before the security manager is installed
+        initializeProbes();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Bootstrap.INSTANCE != null) {
+                Bootstrap.INSTANCE.shutdown();
+            }
+        }));
+
+        // look for jar hell
+        final Logger logger = LogManager.getLogger(JarHell.class);
+        JarHell.checkJarHell(logger::debug);
+
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
+        // install SM after natives, shutdown hooks, etc.
+        org.elasticsearch.bootstrap.Security.configure(
+            nodeEnv,
+            SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
+            args.pidFile()
+        );
+
+        return new BootstrapState(nodeEnv, keystore, spawner);
+    }
+
     /**
      * Prints a message directing the user to look at the logs. A message is only printed if
      * logging has been configured.
@@ -245,5 +310,14 @@ class Elasticsearch {
 
         // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
         Security.setProperty("policy.expandProperties", "true");
+    }
+
+    private static Environment createEnvironment(Path configDir, Settings initialSettings, SecureSettings secureSettings) {
+        Settings.Builder builder = Settings.builder();
+        builder.put(initialSettings);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return new Environment(builder.build(), configDir);
     }
 }

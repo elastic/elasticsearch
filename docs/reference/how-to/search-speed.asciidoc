@@ -29,7 +29,7 @@ You can check the current value in `KiB` using
 Consult the documentation of your distribution on how to alter this value
 (for example with a `udev` rule to persist across reboots, or via
 https://man7.org/linux/man-pages/man8/blockdev.8.html[blockdev --setra]
-as a transient setting). We recommend a value of `128KiB` for `readahead`.
+as a transient setting). We recommend a value of `128KiB` for readahead.
 
 WARNING: `blockdev` expects values in 512 byte sectors whereas `lsblk` reports
 values in `KiB`. As an example, to temporarily set readahead to `128KiB`

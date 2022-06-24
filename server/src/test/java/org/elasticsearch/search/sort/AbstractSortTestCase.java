@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -196,6 +197,13 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup = (
+            fieldType,
+            fieldIndexName,
+            searchLookup) -> {
+            Tuple<Boolean, IndexFieldData.Builder> sfd = fieldType.scriptFielddataBuilder(fieldIndexName, searchLookup);
+            return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), null));
+        };
         NestedLookup nestedLookup = NestedLookup.build(
             List.of(new NestedObjectMapper.Builder("path", Version.CURRENT).build(MapperBuilderContext.ROOT))
         );
@@ -205,6 +213,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
+            scriptIndexFieldDataLookup,
             null,
             null,
             null,

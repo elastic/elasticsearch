@@ -53,6 +53,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
                     fieldDataLookup(),
+                    scriptFieldDataLookup(),
                     mapperService.mappingLookup()::sourcePaths
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -51,6 +52,9 @@ public class LeafDocLookupTests extends ESTestCase {
         docLookup = new LeafDocLookup(
             field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
             fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            fieldType -> fieldType == fieldType1 ? new Tuple<>(true, fieldData1)
+                : fieldType == fieldType2 ? new Tuple<>(true, fieldData2)
+                : null,
             null
         );
     }
@@ -82,6 +86,11 @@ public class LeafDocLookupTests extends ESTestCase {
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
 
+        Function<MappedFieldType, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataSupplier = ft -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
+            return keyedFieldType.key().equals("key1") ? new Tuple<>(true, fieldData1) : new Tuple<>(true, fieldData2);
+        };
+
         LeafDocLookup docLookup = new LeafDocLookup(field -> {
             if (field.equals("flattened.key1")) {
                 return fieldType1;
@@ -90,7 +99,7 @@ public class LeafDocLookupTests extends ESTestCase {
                 return fieldType2;
             }
             return null;
-        }, fieldDataSupplier, null);
+        }, fieldDataSupplier, scriptFieldDataSupplier, null);
 
         assertEquals(docValues1, docLookup.get("flattened.key1"));
         assertEquals(docValues2, docLookup.get("flattened.key2"));

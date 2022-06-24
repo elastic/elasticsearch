@@ -303,6 +303,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             parserConfig(),
             namedWriteableRegistry,
             null,

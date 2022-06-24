@@ -212,6 +212,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
+            null,
             parserConfig(),
             writableRegistry(),
             null,

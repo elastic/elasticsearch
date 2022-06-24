@@ -49,7 +49,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
-    private final SearchLookup lookup = new SearchLookup(null, null, null);
+    private final SearchLookup lookup = new SearchLookup(null, null, null, null);
 
     @Before
     public void initSearcher() throws IOException {

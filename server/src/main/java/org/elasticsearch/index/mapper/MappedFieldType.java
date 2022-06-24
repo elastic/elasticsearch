@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -93,6 +94,26 @@ public abstract class MappedFieldType {
      */
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
+    }
+
+    /**
+     * A specialized version of {@link MappedFieldType#fielddataBuilder(String, Supplier)} for scripting. Allows specific
+     * fields types to customize which data structure(s) values are fetched from for a field such as using
+     * source when doc values are not available or defaulting to source for unparsed value access when
+     * it makes sense to do so.
+     *
+     * @param fullyQualifiedIndexName the name of the index this field-data is build for
+     * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
+     *
+     * @return returns {@code true} if field data was used to generate values otherwise {@code false}, along with the
+     *         {@link IndexFieldData.Builder} as part of a {@link Tuple}. This is required to maintain the original
+     *         behavior of the old-style accessors for scripting like {@code doc['field'].value}
+     */
+    public Tuple<Boolean, IndexFieldData.Builder> scriptFielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
+        return Tuple.tuple(true, fielddataBuilder(fullyQualifiedIndexName, searchLookup));
     }
 
     /**
@@ -175,7 +196,7 @@ public abstract class MappedFieldType {
         try {
             fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
             return true;
-        } catch (UnsupportedOperationException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return false;
         }
     }

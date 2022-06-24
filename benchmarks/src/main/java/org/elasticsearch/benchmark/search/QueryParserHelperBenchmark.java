@@ -26,10 +26,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -143,6 +145,10 @@ public class QueryParserHelperBenchmark {
             null,
             (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, idxName, lookup) -> {
+                Tuple<Boolean, IndexFieldData.Builder> sfd = ft.scriptFielddataBuilder(idxName, lookup);
+                return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()));
+            },
             mapperService,
             mapperService.mappingLookup(),
             similarityService,

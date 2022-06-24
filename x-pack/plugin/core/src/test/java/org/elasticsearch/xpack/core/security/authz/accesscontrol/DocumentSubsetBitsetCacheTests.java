@@ -595,6 +595,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
                 mappingLookup,
                 null,
                 null,

@@ -12,6 +12,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -107,24 +108,45 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     ) {
         final String fieldName = fieldType.name();
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+        IndexFieldDataCache cache = getFieldDataCache(fieldName);
+        return (IFD) builder.build(cache, circuitBreakerService);
+    }
 
-        IndexFieldDataCache cache;
-        synchronized (this) {
-            cache = fieldDataCaches.get(fieldName);
-            if (cache == null) {
-                String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
-                if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-                } else if ("none".equals(cacheType)) {
-                    cache = new IndexFieldDataCache.None();
-                } else {
-                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
-                }
-                fieldDataCaches.put(fieldName, cache);
+    /**
+     * Returns fielddata for the provided script field type, given the provided fully qualified index name,
+     * while also making a {@link SearchLookup} supplier available that is required for runtime fields.
+     */
+    @SuppressWarnings("unchecked")
+    public <IFD extends IndexFieldData<?>> Tuple<Boolean, IFD> getForScriptField(
+        MappedFieldType fieldType,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
+        final String fieldName = fieldType.name();
+        Tuple<Boolean, IndexFieldData.Builder> scriptFielddataBuilder = fieldType.scriptFielddataBuilder(
+            fullyQualifiedIndexName,
+            searchLookup
+        );
+        IndexFieldData.Builder builder = scriptFielddataBuilder.v2();
+        IndexFieldDataCache cache = getFieldDataCache(fieldName);
+        return new Tuple<>(scriptFielddataBuilder.v1(), (IFD) builder.build(cache, circuitBreakerService));
+    }
+
+    private synchronized IndexFieldDataCache getFieldDataCache(String fieldName) {
+        IndexFieldDataCache cache = fieldDataCaches.get(fieldName);
+        if (cache == null) {
+            String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
+            if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
+                cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
+            } else if ("none".equals(cacheType)) {
+                cache = new IndexFieldDataCache.None();
+            } else {
+                throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
             }
+            fieldDataCaches.put(fieldName, cache);
         }
 
-        return (IFD) builder.build(cache, circuitBreakerService);
+        return cache;
     }
 
     /**

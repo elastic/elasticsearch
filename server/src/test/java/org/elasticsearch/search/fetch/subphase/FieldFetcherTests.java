@@ -1255,6 +1255,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             indexSettings,
             null,
             indexFieldDataLookup,
+            null,
             mapperService,
             mapperService.mappingLookup(),
             null,

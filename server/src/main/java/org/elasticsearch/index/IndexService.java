@@ -625,6 +625,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexSettings,
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
+            indexFieldData::getForScriptField,
             mapperService(),
             mapperService().mappingLookup(),
             similarityService(),

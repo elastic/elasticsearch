@@ -47,7 +47,12 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
         }, iw -> {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(), mapperService.mappingLookup()::sourcePaths);
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(),
+                scriptFieldDataLookup(),
+                mapperService.mappingLookup()::sourcePaths
+            );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);

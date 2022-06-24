@@ -17,8 +17,10 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -143,6 +145,13 @@ public final class DocumentParser {
             context.mappingLookup().indexTimeLookup()::get,
             (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, lookup) -> {
+                Tuple<Boolean, IndexFieldData.Builder> sfd = ft.scriptFielddataBuilder(
+                    context.indexSettings().getIndex().getName(),
+                    lookup
+                );
+                return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()));
+            },
             context.mappingLookup()::sourcePaths
         );
         // field scripts can be called both by the loop at the end of this method and via

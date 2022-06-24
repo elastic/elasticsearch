@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -334,6 +335,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
                 (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
+                (mft, lookupSupplier) -> new Tuple<>(true, mft.fielddataBuilder("test", lookupSupplier).build(null, null)),
                 mapperService.mappingLookup()::sourcePaths
             );
 

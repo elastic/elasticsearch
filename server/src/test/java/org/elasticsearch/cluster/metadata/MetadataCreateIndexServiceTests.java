@@ -128,6 +128,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             parserConfig(),
             writableRegistry(),
             null,

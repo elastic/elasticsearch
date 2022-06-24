@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -91,7 +92,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
+    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup;
+    private final TriFunction<
+        MappedFieldType,
+        String,
+        Supplier<SearchLookup>,
+        Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -122,6 +128,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -143,6 +150,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             indexSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
+            scriptIndexFieldDataLookup,
             mapperService,
             mappingLookup,
             similarityService,
@@ -170,7 +178,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardRequestIndex,
             source.indexSettings,
             source.bitsetFilterCache,
-            source.indexFieldDataService,
+            source.indexFieldDataLookup,
+            source.scriptIndexFieldDataLookup,
             source.mapperService,
             source.mappingLookup,
             source.similarityService,
@@ -195,6 +204,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -218,7 +228,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.indexFieldDataService = indexFieldDataLookup;
+        this.indexFieldDataLookup = indexFieldDataLookup;
+        this.scriptIndexFieldDataLookup = scriptIndexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
@@ -279,7 +290,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(
+        return (IFD) indexFieldDataLookup.apply(
             fieldType,
             fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
@@ -478,7 +489,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 this::getFieldType,
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+                (fieldType, searchLookup) -> indexFieldDataLookup.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+                (fieldType, searchLookup) -> scriptIndexFieldDataLookup.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
                 this::sourcePath
             );
         }

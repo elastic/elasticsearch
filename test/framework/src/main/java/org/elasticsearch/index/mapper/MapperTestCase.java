@@ -343,6 +343,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
                     fieldDataLookup(),
+                    scriptFieldDataLookup(),
                     mapperService.mappingLookup()::sourcePaths
                 );
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
@@ -721,6 +722,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
+            (f, s) -> { throw new UnsupportedOperationException(); },
             (f, s) -> { throw new UnsupportedOperationException(); },
             f -> f.equals("field") ? Set.of("field") : null
         );

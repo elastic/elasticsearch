@@ -43,6 +43,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -683,19 +684,31 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
+        }
+
+        @Override
+        public Tuple<Boolean, IndexFieldData.Builder> scriptFielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup
+        ) {
             if (hasDocValues()) {
-                return new SortedSetOrdinalsIndexFieldData.Builder(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-                );
-            } else {
-                return new StringScriptFieldData.Builder(
+                return new Tuple<>(true, fielddataBuilder(fullyQualifiedIndexName, searchLookup));
+            }
+
+            return new Tuple<>(
+                false,
+                new StringScriptFieldData.Builder(
                     name(),
                     StringFieldScript.PARSE_FROM_SOURCE_PATHS.newFactory(name(), Collections.emptyMap(), searchLookup.get()),
                     KeywordDocValuesField::new
-                );
-            }
+                )
+            );
         }
 
         @Override

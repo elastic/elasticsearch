@@ -9,6 +9,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -42,6 +43,7 @@ public class SearchLookup {
     private final SourceLookup sourceLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup;
     private final Function<String, Set<String>> sourcePathsLookup;
 
     /**
@@ -51,12 +53,14 @@ public class SearchLookup {
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup,
         Function<String, Set<String>> sourcePathsLookup
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceLookup = new SourceLookup();
         this.fieldDataLookup = fieldDataLookup;
+        this.scriptFieldDataLookup = scriptFieldDataLookup;
         this.sourcePathsLookup = sourcePathsLookup;
     }
 
@@ -72,6 +76,7 @@ public class SearchLookup {
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.scriptFieldDataLookup = searchLookup.scriptFieldDataLookup;
         this.sourcePathsLookup = searchLookup.sourcePathsLookup;
     }
 
@@ -99,7 +104,7 @@ public class SearchLookup {
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(
             context,
-            new LeafDocLookup(fieldTypeLookup, this::getForField, context),
+            new LeafDocLookup(fieldTypeLookup, this::getForField, this::getForScriptField, context),
             sourceLookup,
             new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor))
         );
@@ -111,6 +116,10 @@ public class SearchLookup {
 
     public IndexFieldData<?> getForField(MappedFieldType fieldType) {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
+    }
+
+    public Tuple<Boolean, IndexFieldData<?>> getForScriptField(MappedFieldType fieldType) {
+        return scriptFieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
     }
 
     public Set<String> sourcePaths(String fieldName) {

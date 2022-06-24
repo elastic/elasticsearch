@@ -870,6 +870,7 @@ setup:
 ---
 "keyword_no_doc_values":
   - do:
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         body:
@@ -878,9 +879,10 @@ setup:
             field:
               script:
                 source: "doc['keyword_no_doc_values'].get(0)"
-  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         body:
@@ -889,7 +891,7 @@ setup:
             field:
               script:
                 source: "doc['keyword_no_doc_values'].value"
-  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
       search:

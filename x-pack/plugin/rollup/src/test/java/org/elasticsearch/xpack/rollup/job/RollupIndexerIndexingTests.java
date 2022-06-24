@@ -105,6 +105,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             null,
             null,
             null,
+            null,
             () -> 0L,
             null,
             null,

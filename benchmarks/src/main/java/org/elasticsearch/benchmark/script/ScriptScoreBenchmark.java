@@ -25,6 +25,8 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -88,6 +90,10 @@ public class ScriptScoreBenchmark {
     private SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
         (mft, lookup) -> mft.fielddataBuilder("test", lookup).build(fieldDataCache, breakerService),
+        (mft, lookup) -> {
+            Tuple<Boolean, IndexFieldData.Builder> sfd = mft.scriptFielddataBuilder("test", lookup);
+            return new Tuple<>(sfd.v1(), sfd.v2().build(fieldDataCache, breakerService));
+        },
         sourcePaths::get
     );
 

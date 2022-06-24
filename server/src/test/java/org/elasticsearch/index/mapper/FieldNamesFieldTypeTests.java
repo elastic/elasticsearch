@@ -43,6 +43,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             mappingLookup,
             null,
             null,

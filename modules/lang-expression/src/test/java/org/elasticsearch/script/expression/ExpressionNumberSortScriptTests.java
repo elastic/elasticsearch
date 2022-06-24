@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.expression;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -54,6 +55,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         lookup = new SearchLookup(
             field -> field.equals("field") ? fieldType : null,
             (ignored, _lookup) -> fieldData,
+            (ignored, _lookup) -> new Tuple<>(true, fieldData),
             field -> field.equals("field") ? Set.of("field") : null
         );
     }

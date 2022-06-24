@@ -457,7 +457,7 @@ The contents of the `path.data` directory must persist across restarts, because
 this is where your data is stored. {es} requires the filesystem to act as if it
 were backed by a local disk, but this means that it will work correctly on
 properly-configured remote block devices (e.g. a SAN) and remote filesystems
-(e.g. NFS) as long the remote storage behaves no differently from local
+(e.g. NFS) as long as the remote storage behaves no differently from local
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
 

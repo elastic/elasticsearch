@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class OperatorHandlerTests extends ESTestCase {
     public void testValidation() {
-        OperatorHandler<ValidRequest> handler = new OperatorHandler<ValidRequest>() {
+        OperatorHandler<ValidRequest> handler = new OperatorHandler<>() {
             @Override
             public String name() {
                 return "handler";
@@ -61,7 +61,7 @@ public class OperatorHandlerTests extends ESTestCase {
                 }
             }""";
 
-        OperatorHandler<ValidRequest> persistentHandler = new OperatorHandler<ValidRequest>() {
+        OperatorHandler<ValidRequest> persistentHandler = new OperatorHandler<>() {
             @Override
             public String name() {
                 return "persistent";
@@ -79,7 +79,7 @@ public class OperatorHandlerTests extends ESTestCase {
             Map<String, ?> internalHandlerMap = Maps.asMap(originalMap.get(persistentHandler.name()));
             assertThat(internalHandlerMap.keySet(), containsInAnyOrder("indices.recovery.max_bytes_per_sec", "cluster"));
             assertEquals(
-                "Unsupported persistent request format",
+                "Unsupported input format",
                 expectThrows(IllegalStateException.class, () -> Maps.asMap(Integer.valueOf(123))).getMessage()
             );
 

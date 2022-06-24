@@ -577,12 +577,15 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         masterClusterService.addHighPriorityApplier(event -> {
-            failedLeader.actionGet();
-            if (dataNodeHasMaster.get() == false) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new AssertionError("unexpected", e);
+            // This is applicable for events related to the cluster disruption
+            if (event.state().nodes().getDataNodes().isEmpty()) {
+                failedLeader.actionGet();
+                if (dataNodeHasMaster.get() == false) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
                 }
             }
         });

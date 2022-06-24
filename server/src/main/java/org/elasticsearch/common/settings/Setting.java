@@ -1409,10 +1409,6 @@ public class Setting<T> implements ToXContentObject {
         return value;
     }
 
-    public static long parseLong(String s, long minValue, String key) {
-        return parseLong(s, minValue, key, false);
-    }
-
     static long parseLong(String s, long minValue, String key, boolean isFiltered) {
         long value = Long.parseLong(s);
         if (value < minValue) {
@@ -1420,14 +1416,6 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException(err);
         }
         return value;
-    }
-
-    public static TimeValue parseTimeValue(String s, TimeValue minValue, String key) {
-        TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
-        if (timeValue.millis() < minValue.millis()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
-        }
-        return timeValue;
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, Property... properties) {
@@ -1440,22 +1428,6 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
-    }
-
-    public static Setting<Boolean> boolSetting(
-        String key,
-        Setting<Boolean> fallbackSetting,
-        Validator<Boolean> validator,
-        Property... properties
-    ) {
-        return new Setting<>(
-            new SimpleKey(key),
-            fallbackSetting,
-            fallbackSetting::getRaw,
-            b -> parseBoolean(b, key, isFiltered(properties)),
-            validator,
-            properties
-        );
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
@@ -1684,25 +1656,6 @@ public class Setting<T> implements ToXContentObject {
         final Property... properties
     ) {
         return listSetting(key, fallbackSetting, singleValueParser, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), properties);
-    }
-
-    public static <T> Setting<List<T>> listSetting(
-        final String key,
-        final Function<String, T> singleValueParser,
-        final Function<Settings, List<String>> defaultStringValue,
-        final Property... properties
-    ) {
-        return listSetting(key, null, singleValueParser, defaultStringValue, properties);
-    }
-
-    public static <T> Setting<List<T>> listSetting(
-        final String key,
-        final Function<String, T> singleValueParser,
-        final Function<Settings, List<String>> defaultStringValue,
-        final Validator<List<T>> validator,
-        final Property... properties
-    ) {
-        return listSetting(key, null, singleValueParser, defaultStringValue, validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1960,6 +1913,15 @@ public class Setting<T> implements ToXContentObject {
             validator,
             properties
         );
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        TimeValue defaultValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), validator, properties);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {

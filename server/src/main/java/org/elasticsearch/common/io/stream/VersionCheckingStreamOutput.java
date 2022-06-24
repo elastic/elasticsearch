@@ -46,11 +46,6 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void reset() throws IOException {
-        // no-op
-    }
-
-    @Override
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         if (namedWriteable instanceof VersionedNamedWriteable vnw) {
             checkVersionCompatibility(vnw);

@@ -17,6 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -1631,22 +1632,28 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader) throws IOException {
-            SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
+            SortedNumericDocValues leaf = dv(reader);
+            if (leaf == null) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING.leaf(reader);
+            }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean empty() {
+                    return false;
                 }
 
                 @Override
-                public boolean hasValue() {
-                    return hasValue;
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
+                    if (false == hasValue) {
+                        return;
+                    }
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
                         loadNextValue(b, leaf.nextValue());
@@ -1662,5 +1669,23 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         protected abstract void loadNextValue(XContentBuilder b, long value) throws IOException;
+
+        /**
+         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+         * an "empty" implementation if there aren't any doc values. We need to be able to
+         * tell if there aren't any and return our empty leaf source loader.
+         */
+        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
     }
 }

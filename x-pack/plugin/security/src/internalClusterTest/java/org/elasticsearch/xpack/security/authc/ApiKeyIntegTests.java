@@ -87,6 +87,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1470,11 +1471,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         expectMetadataForApiKey(request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(), updatedApiKeyDoc);
 
-        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("limited_by_role_descriptors", Set.of(expectedLimitedByRoleDescriptor), updatedApiKeyDoc);
         if (nullRoleDescriptors) {
             // Default role descriptor assigned to api key in `createApiKey`
             final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-            expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+            expectRoleDescriptorForApiKey("role_descriptors", List.of(expectedRoleDescriptor), updatedApiKeyDoc);
 
             // Test authorized because we didn't update key role descriptor
             final var authorizationHeaders = Collections.singletonMap(
@@ -1483,7 +1484,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             );
             assertNotNull(client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get());
         } else {
-            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptor, updatedApiKeyDoc);
+            expectRoleDescriptorForApiKey("role_descriptors", List.of(newRoleDescriptor), updatedApiKeyDoc);
 
             // Test authorized because we updated key role descriptor to cluster priv none
             final var authorizationHeaders = Collections.singletonMap(
@@ -1693,26 +1694,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    // TODO handle multiple role descriptors
     private void expectRoleDescriptorForApiKey(
         String roleDescriptorType,
-        RoleDescriptor expectedRoleDescriptor,
+        Collection<RoleDescriptor> expectedRoleDescriptors,
         Map<String, Object> actualRawApiKeyDoc
     ) throws IOException {
         assertNotNull(actualRawApiKeyDoc);
         assertThat(roleDescriptorType, in(new String[] { "role_descriptors", "limited_by_role_descriptors" }));
         final var rawRoleDescriptor = (Map<String, Object>) actualRawApiKeyDoc.get(roleDescriptorType);
-        assertThat(rawRoleDescriptor.size(), equalTo(1));
-        assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
-
-        final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
-        final var roleDescriptor = RoleDescriptor.parse(
-            expectedRoleDescriptor.getName(),
-            XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
-        assertThat(roleDescriptor, equalTo(expectedRoleDescriptor));
+        assertEquals(expectedRoleDescriptors.size(), rawRoleDescriptor.size());
+        for (RoleDescriptor expectedRoleDescriptor : expectedRoleDescriptors) {
+            assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
+            final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
+            final var roleDescriptor = RoleDescriptor.parse(
+                expectedRoleDescriptor.getName(),
+                XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
+                false,
+                XContentType.JSON
+            );
+            assertEquals(expectedRoleDescriptor, roleDescriptor);
+        }
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {

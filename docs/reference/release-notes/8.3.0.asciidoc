@@ -20,6 +20,7 @@ Aggregations::
 
 Audit::
 * Fix audit logging to consistently include port number in `origin.address` {es-pull}86732[#86732]
+* Support removing ignore filters for audit logging {es-pull}87675[#87675] (issue: {es-issue}68588[#68588])
 
 Authentication::
 * An authorized user can disable a user with same name but different realm {es-pull}86473[#86473]
@@ -152,6 +153,9 @@ Snapshot/Restore::
 * Throw exception on illegal `RepositoryData` updates {es-pull}87654[#87654]
 * Upgrade Azure SDK to 12.16.0 {es-pull}86135[#86135]
 
+Stats::
+* Run `TransportClusterInfoActions` on MANAGEMENT pool {es-pull}87679[#87679]
+
 TSDB::
 * TSDB: fix the time_series in order collect priority {es-pull}85526[#85526]
 * TSDB: fix wrong initial value of tsidOrd in TimeSeriesIndexSearcher {es-pull}85713[#85713] (issue: {es-issue}85711[#85711])
@@ -197,6 +201,9 @@ Cluster Coordination::
 * Reduce resource needs of join validation {es-pull}85380[#85380] (issue: {es-issue}83204[#83204])
 * Report pending joins in `ClusterFormationFailureHelper` {es-pull}85635[#85635]
 * Speed up map diffing (2) {es-pull}86375[#86375]
+
+Discovery-Plugins::
+* Remove redundant jackson dependencies from discovery-azure {es-pull}87898[#87898]
 
 Distributed::
 * Keep track of desired nodes cluster membership {es-pull}84165[#84165]

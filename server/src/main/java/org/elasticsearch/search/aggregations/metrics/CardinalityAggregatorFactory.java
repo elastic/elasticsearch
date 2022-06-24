@@ -36,16 +36,16 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
             if (value == null) {
                 return null;
             }
-            ExecutionMode toReturn = ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
-            if (toReturn != null) {
-                return toReturn;
+            try {
+                return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Invalid execution mode for cardinality aggregation.  Got ["
+                        + value
+                        + "]"
+                        + "expected one of [global_ordinal, segment_ordinal, direct]"
+                );
             }
-            throw new IllegalArgumentException(
-                "Invalid execution mode for cardinality aggregation.  Got ["
-                    + value
-                    + "]"
-                    + "expected one of [global_ordinal, segment_ordinal, direct]"
-            );
         }
     }
 

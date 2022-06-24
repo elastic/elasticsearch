@@ -400,27 +400,6 @@ public class RealmsTests extends ESTestCase {
         );
     }
 
-    public void testReservedRealmIsAlwaysDomainless() throws Exception {
-        int realmId = randomIntBetween(0, randomRealmTypesCount - 1);
-        Settings settings = Settings.builder()
-            .put("xpack.security.authc.realms.type_" + realmId + ".reserved.order", 2)
-            .put("xpack.security.authc.domains.domain_reserved.realms", "reserved")
-            .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".disabled_native.enabled", false)
-            .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".disabled_file.enabled", false)
-            .put("path.home", createTempDir())
-            .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-        Iterator<Realm> iterator = realms.iterator();
-        assertThat(iterator.hasNext(), is(true));
-        Realm realm = iterator.next();
-        assertThat(realm, is(reservedRealm));
-        realm = iterator.next();
-        assertThat(realm.type(), is("type_" + realmId));
-        assertThat(realm.name(), is("reserved"));
-        assertThat(realm.realmRef().getDomain().name(), is("domain_reserved"));
-    }
-
     public void testDomainWithUndefinedRealms() {
         Settings settings = Settings.builder()
             .put("xpack.security.authc.domains.test_domain.realms", "reserved, default_file")

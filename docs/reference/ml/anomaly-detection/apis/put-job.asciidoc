@@ -448,10 +448,11 @@ PUT _ml/anomaly_detectors/test-job1?pretty
   }
 }
 --------------------------------------------------
+// TEST[skip:setup Kibana sample data]
 
 The API returns the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
   "job_id" : "test-job1",

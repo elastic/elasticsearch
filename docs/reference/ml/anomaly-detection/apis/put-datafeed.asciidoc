@@ -157,11 +157,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 [[ml-put-datafeed-example]]
 == {api-examples-title}
 
-Create a {dfeed} for an {anomaly-job} (`test-job2`):
+Create a {dfeed} for an {anomaly-job} (`test-job`):
 
 [source,console]
 --------------------------------------------------
-PUT _ml/datafeeds/datafeed-test-job2?pretty
+PUT _ml/datafeeds/datafeed-test-job?pretty
 {
   "indices": [
     "kibana_sample_data_logs"
@@ -175,7 +175,7 @@ PUT _ml/datafeeds/datafeed-test-job2?pretty
       ]
     }
   },
-  "job_id": "test-job2"
+  "job_id": "test-job"
 }
 --------------------------------------------------
 // TEST[skip:setup ecommerce job]
@@ -185,8 +185,8 @@ When the {dfeed} is created, you receive the following results:
 [source,console-result]
 ----
 {
-  "datafeed_id" : "datafeed-test-job2",
-  "job_id" : "test-job2",
+  "datafeed_id" : "datafeed-test-job",
+  "job_id" : "test-job",
   "authorization" : {
     "roles" : [
       "superuser"

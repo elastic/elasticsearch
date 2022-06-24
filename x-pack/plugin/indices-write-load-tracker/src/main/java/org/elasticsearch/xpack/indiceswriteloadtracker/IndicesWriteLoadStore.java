@@ -39,6 +39,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -97,10 +98,10 @@ class IndicesWriteLoadStore implements Closeable {
             return new SystemDataStreamDescriptor(
                 INDICES_WRITE_LOAD_DATA_STREAM,
                 "Stores indices write load over time",
-                SystemDataStreamDescriptor.Type.EXTERNAL,
+                SystemDataStreamDescriptor.Type.INTERNAL,
                 composableIndexTemplate,
                 Map.of(),
-                List.of("kibana"), // just for testing
+                Collections.emptyList(),
                 ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
             );
         } catch (IOException e) {

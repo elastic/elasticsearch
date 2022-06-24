@@ -384,8 +384,8 @@ public class ApiKeyService {
 
     // package-private for testing
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
-        assert authentication.getEffectiveSubject().getUser().principal() == apiKeyDoc.creator.getOrDefault("principal", null);
-        assert authentication.getEffectiveSubject().getRealm().getName() == apiKeyDoc.creator.getOrDefault("realm", null);
+        assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.getOrDefault("principal", null));
+        assert authentication.getEffectiveSubject().getRealm().getName().equals(apiKeyDoc.creator.getOrDefault("realm", null));
 
         if (Version.fromId(apiKeyDoc.version).before(Version.V_8_2_0)) {
             throw new ValidationException().addValidationError(

@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.snyk
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.http.HttpServerRule
-import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Rule
@@ -39,10 +38,6 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             
             dependencies {
                 implementation 'org.apache.lucene:lucene-monitor:9.2.0'
-            }
-            
-            tasks.named('generateSnykDependencyGraph').configure {
-                configuration = configurations.runtimeClasspath
             }
         """
         when:

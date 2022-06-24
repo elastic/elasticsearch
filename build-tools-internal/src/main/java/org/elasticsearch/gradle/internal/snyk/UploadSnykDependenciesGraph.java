@@ -33,6 +33,10 @@ import javax.inject.Inject;
 public class UploadSnykDependenciesGraph extends DefaultTask {
 
     public static final String GRADLE_GRAPH_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/gradle/graph";
+
+    // This is new `experimental` api endpoint we might want to support in the future. For now it
+    // does not allow grouping projects and adding custom metadata to the graph data. Therefore
+    // we do not support this yet but keep it here for documentation purposes
     public static final String SNYK_DEP_GRAPH_API_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/dep-graph";
 
     private final RegularFileProperty inputFile;

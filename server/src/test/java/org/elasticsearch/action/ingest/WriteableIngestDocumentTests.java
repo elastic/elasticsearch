@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,7 +51,9 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
-        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
+        WriteableIngestDocument ingestDocument = new WriteableIngestDocument(
+            TestIngestDocument.ofSourceAndIngest(sourceAndMetadata, ingestMetadata)
+        );
 
         boolean changed = false;
         Map<String, Object> otherSourceAndMetadata;
@@ -81,7 +84,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         }
 
         WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(
-            new IngestDocument(otherSourceAndMetadata, otherIngestMetadata)
+            TestIngestDocument.ofSourceAndIngest(otherSourceAndMetadata, otherIngestMetadata)
         );
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
@@ -91,7 +94,10 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
             WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
-                new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata))
+                TestIngestDocument.ofSourceAndIngest(
+                    Collections.unmodifiableMap(sourceAndMetadata),
+                    Collections.unmodifiableMap(ingestMetadata)
+                )
             );
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
@@ -111,7 +117,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(
-            new IngestDocument(sourceAndMetadata, ingestMetadata)
+            TestIngestDocument.ofSourceAndIngest(sourceAndMetadata, ingestMetadata)
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -147,7 +153,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             }
         }
 
-        IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
+        // this is testing xcontent parsing so use the wire constructor
+        IngestDocument serializedIngestDocument = IngestDocument.of(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 

@@ -38,6 +38,7 @@ import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgrade
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.indices.SystemIndices.UPGRADED_INDEX_SUFFIX;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -150,6 +151,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
+        final String failedFeatureUpgradedName = failedFeatureName == null ? null : failedFeatureName + UPGRADED_INDEX_SUFFIX;
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
         return feature.getIndexDescriptors()
@@ -161,7 +163,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),
                     indexMetadata.getCreationVersion(),
-                    indexMetadata.getIndex().getName().equals(failedFeatureName) ? exception : null
+                    (indexMetadata.getIndex().getName().equals(failedFeatureName)
+                        || indexMetadata.getIndex().getName().equals(failedFeatureUpgradedName)) ? exception : null
                 )
             )
             .toList();

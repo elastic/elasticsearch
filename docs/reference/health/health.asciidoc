@@ -81,9 +81,12 @@ also optionally provide URLs to troubleshooting documentation.
     components are:
 +
 --
-  `instance_has_master`::
+  `master_is_stable`::
       (Component `cluster_coordination`) Reports health issues regarding
-      connections to the master node.
+      the stability of the node that is seen as the master by the node handling
+      the health request. In case of enough observed master changes in a short period of time
+      this indicator will aim to diagnose and report back useful information
+      regarding the cluster formation issues it detects.
 
   `shards_availability`::
       (Component `data`) Reports health issues regarding shard assignments.
@@ -205,7 +208,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 `details`::
     (Optional, object) An object that contains additional information about the cluster that
     has lead to the current health status result. This data is unstructured, and each
-    indicator may return a unique set of details. Details will not be calculated if the
+    indicator returns <<health-api-response-details, a unique set of details>>. Details will not be calculated if the
     `explain` property is set to false.
 
 `impacts`::
@@ -259,6 +262,123 @@ for health status set `explain` to `false` to disable the more expensive analysi
 ======
 =====
 ====
+
+[role="child_attributes"]
+[[health-api-response-details]]
+==== Indicator Details
+
+Each health indicator in the health api returns a set of details that further explains the state of the system. The
+details have contents and a structure that is unique to each indicator.
+
+[[health-api-response-details-master-is-stable]]
+===== master_is_stable
+
+`current_master`::
+    (object) Information about the currently elected master.
++
+.Properties of `current_master`
+[%collapsible%open]
+====
+`node_id`::
+    (string) The node id of the currently elected master, or null if no master is elected.
+
+`name`::
+    (string) The node name of the currently elected master, or null if no master is elected.
+====
+
+`recent_masters`::
+    (Optional, array) A list of nodes that have been elected or replaced as master in a recent
+    time window. This field is present if the master
+    is changing rapidly enough to cause problems, and also present as additional information
+    when the indicator is `green`.
++
+.Properties of `recent_masters`
+[%collapsible%open]
+====
+`node_id`::
+    (string) The node id of a recently active master node.
+
+`name`::
+    (string) The node name of a recently active master node.
+====
+
+`exception_fetching_history`::
+    (Optional, object) Master history is requested from the most recently elected master node for diagnosis purposes.
+    If fetching this remote history fails, the exception information is returned in this detail field.
++
+.Properties of `exception_fetching_history`
+[%collapsible%open]
+====
+`message`::
+(string) The exception message for the failed history fetch operation.
+
+`stack_trace`::
+(string) The stack trace for the failed history fetch operation.
+====
+
+[[health-api-response-details-shards-availability]]
+===== shards_availability
+
+`unassigned_primaries`::
+    (int) The number of primary shards that are unassigned for reasons other than initialization or relocation.
+
+`initializing_primaries`::
+    (int) The number of primary shards that are initializing or recovering.
+
+`creating_primaries`::
+    (int) The number of primary shards that are unassigned because they have been very recently created.
+
+`restarting_primaries`::
+    (int) The number of primary shards that are relocating because of a node shutdown operation.
+
+`started_primaries`::
+    (int) The number of primary shards that are active and available on the system.
+
+`unassigned_replicas`::
+    (int) The number of replica shards that are unassigned for reasons other than initialization or relocation.
+
+`initializing_replicas`::
+    (int) The number of replica shards that are initializing or recovering.
+
+`restarting_replicas`::
+    (int) The number of replica shards that are relocating because of a node shutdown operation.
+
+`started_replicas`::
+    (int) The number of replica shards that are active and available on the sysetm.
+
+
+[[health-api-response-details-repository-integrity]]
+===== repository_integrity
+
+`total_repositories`::
+    (Optional, int) The number of currently configured repositories on the system. If there are no repositories
+    configured then this detail is omitted.
+
+`corrupted_repositories`::
+    (Optional, int) The number of repositories on the system that have been determined to be corrupted. If there are
+    no corrupted repositories detected, this detail is omitted.
+
+`corrupted`::
+    (Optional, array of strings) If corrupted repositories have been detected in the system, the names of up to ten of
+    them are displayed in this field. If no corrupted repositories are found, this detail is omitted.
+
+[[health-api-response-details-ilm]]
+===== ilm
+
+`ilm_status`::
+    (string) The current status of the Indexing Lifecycle Management feature. Either `STOPPED`, `STOPPING`, or `RUNNING`.
+
+`policies`::
+    (int) The number of index lifecycle policies that the system is managing.
+
+[[health-api-response-details-slm]]
+===== slm
+
+`slm_status`::
+    (string) The current status of the Snapshot Lifecycle Management feature. Either `STOPPED`, `STOPPING`, or `RUNNING`.
+
+`policies`::
+    (int) The number of snapshot policies that the system is managing.
 
 [[health-api-example]]
 ==== {api-examples-title}

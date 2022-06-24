@@ -41,9 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,7 +125,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         }
         List<UserAction> userActions = result.userActions();
         assertThat(userActions.size(), equalTo(1));
-        assertThat(userActions.get(0).definition().message(), containsString("contact Elastic Support"));
+        assertThat(userActions.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
         assertThat(result.helpURL(), equalTo("https://ela.st/fix-master"));
     }
 
@@ -284,7 +284,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(new CoordinationDiagnosticsService(clusterService, masterHistoryService));
+        return new StableMasterHealthIndicatorService(
+            new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService)
+        );
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

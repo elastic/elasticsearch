@@ -1632,22 +1632,23 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            if (docIdsInLeaf.length > 1) {
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (docIdsInLeaf.length > 1 && single != null) {
                 /*
                  * The singleton optimization is mostly about looking up all
                  * values for the field at once. If there's just a single
                  * document then it's just extra overhead.
                  */
-                NumericDocValues single = reader.getNumericDocValues(name);
-                if (single != null) {
-                    return singletonLeaf(single, docIdsInLeaf);
-                }
+                return singletonLeaf(single, docIdsInLeaf);
             }
-            SortedNumericDocValues dv = dv(reader);
-            if (dv == null) {
+            if (single != null) {
+                return new ImmediateLeaf(DocValues.singleton(single));
+            }
+            SortedNumericDocValues sorted = reader.getSortedNumericDocValues(name);
+            if (sorted == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
-            return new ImmediateLeaf(dv);
+            return new ImmediateLeaf(sorted);
         }
 
         private class ImmediateLeaf implements Leaf {
@@ -1737,23 +1738,5 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
-
-        /**
-         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
-         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
-         * an "empty" implementation if there aren't any doc values. We need to be able to
-         * tell if there aren't any and return our empty leaf source loader.
-         */
-        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
-            if (dv != null) {
-                return dv;
-            }
-            NumericDocValues single = reader.getNumericDocValues(name);
-            if (single != null) {
-                return DocValues.singleton(single);
-            }
-            return null;
-        }
     }
 }

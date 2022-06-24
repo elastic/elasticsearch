@@ -1,0 +1,5 @@
+pr: 87396
+summary: Force property expansion for security policy
+area: Infra/Core
+type: enhancement
+issues: []

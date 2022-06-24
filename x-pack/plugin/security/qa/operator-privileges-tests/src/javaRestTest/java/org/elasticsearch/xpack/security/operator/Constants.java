@@ -20,10 +20,6 @@ public class Constants {
         "cluster:admin/component_template/get",
         "cluster:admin/component_template/put",
         "cluster:admin/deprecation/cache/reset",
-        // Desired nodes APIs
-        "cluster:admin/desired_nodes/get",
-        "cluster:admin/desired_nodes/update",
-        "cluster:admin/desired_nodes/delete",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",
         "cluster:admin/ilm/get",
@@ -249,6 +245,7 @@ public class Constants {
         "cluster:internal/xpack/ml/trained_models/deployments/stats/get",
         "cluster:internal/xpack/transform/reset_mode",
         "cluster:internal/master_history/get",
+        "cluster:internal/formation/info",
         "cluster:monitor/allocation/explain",
         "cluster:monitor/async_search/status",
         "cluster:monitor/ccr/follow_info",

@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -169,7 +168,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                     tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
                     ensureOpen();
                     tileBuilder.build().writeTo(bytesOut);
-                    return new BytesRestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
                 }
             }
         });

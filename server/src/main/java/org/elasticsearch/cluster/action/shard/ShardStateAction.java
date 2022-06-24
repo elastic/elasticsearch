@@ -8,10 +8,8 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -35,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,6 +67,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.apache.logging.log4j.Level.DEBUG;
+import static org.apache.logging.log4j.Level.ERROR;
+import static org.elasticsearch.cluster.service.MasterService.isPublishFailureException;
 import static org.elasticsearch.core.Strings.format;
 
 public class ShardStateAction {
@@ -544,8 +544,8 @@ public class ShardStateAction {
         @Override
         public void onFailure(Exception e) {
             logger.log(
-                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR,
-                () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry),
+                isPublishFailureException(e) ? DEBUG : ERROR,
+                () -> format("%s unexpected failure while failing shard [%s]", entry.shardId, entry),
                 e
             );
             listener.onFailure(e);

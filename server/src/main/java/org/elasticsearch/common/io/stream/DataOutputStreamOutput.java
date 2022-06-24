@@ -36,11 +36,6 @@ public class DataOutputStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void reset() throws IOException {
-        // nothing to do there...
-    }
-
-    @Override
     public void close() throws IOException {
         if (out instanceof Closeable) {
             ((Closeable) out).close();

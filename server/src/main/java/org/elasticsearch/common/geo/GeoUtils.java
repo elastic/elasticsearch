@@ -37,12 +37,6 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = "lat";
-    public static final String LONGITUDE = "lon";
-    public static final String GEOHASH = "geohash";
-    public static final String COORDINATES = "coordinates";
-    public static final String TYPE = "type";
-
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -51,9 +45,6 @@ public class GeoUtils {
 
     /** Earth mean radius defined by WGS 84 in meters */
     public static final double EARTH_MEAN_RADIUS = 6371008.7714D;      // meters (WGS 84)
-
-    /** Earth axis ratio defined by WGS 84 (0.996647189335) */
-    public static final double EARTH_AXIS_RATIO = EARTH_SEMI_MINOR_AXIS / EARTH_SEMI_MAJOR_AXIS;
 
     /** Earth ellipsoid equator length in meters */
     public static final double EARTH_EQUATOR = 2 * Math.PI * EARTH_SEMI_MAJOR_AXIS;
@@ -506,14 +497,6 @@ public class GeoUtils {
             throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision + ". Must be between 1 and 12.");
         }
         return precision;
-    }
-
-    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
-    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
-        if (Math.abs(centerLat) == MAX_LAT) {
-            return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
-        }
-        return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
     }
 
     /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */

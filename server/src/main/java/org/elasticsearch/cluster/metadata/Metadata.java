@@ -957,15 +957,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     /**
-     * Returns the {@link OperatorMetadata} for a given namespace.
-     * @param namespace the namespace to lookup operator metadata for
-     * @return {@link OperatorMetadata} or null if not found
-     */
-    public OperatorMetadata operatorMetadata(String namespace) {
-        return this.operatorMetadata.get(namespace);
-    }
-
-    /**
      * The collection of index deletions in the cluster.
      */
     public IndexGraveyard indexGraveyard() {
@@ -1185,7 +1176,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.indices(indices.apply(part.indices));
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
-            builder.put(operatorMetadata.apply(part.operatorMetadata));
+            builder.put(Collections.unmodifiableMap(operatorMetadata.apply(part.operatorMetadata)));
             return builder.build();
         }
     }
@@ -2210,7 +2201,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             builder.startObject("operator");
             for (OperatorMetadata operatorMetadata : metadata.operatorMetadata().values()) {
-                OperatorMetadata.Builder.toXContent(operatorMetadata, builder, params);
+                operatorMetadata.toXContent(builder, params);
             }
             builder.endObject();
 

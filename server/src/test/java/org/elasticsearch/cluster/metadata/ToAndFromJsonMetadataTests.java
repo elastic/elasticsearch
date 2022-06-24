@@ -46,13 +46,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
         IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
 
-        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
-        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata.Builder("two").keys(Set.of("c", "d")).build();
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata("one", Set.of("a", "b"));
+        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata("two", Set.of("c", "d"));
 
-        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
-            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
-            .errors(List.of("Test error 1", "Test error 2"))
-            .build();
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata(
+            1L,
+            OperatorErrorMetadata.ErrorKind.VALIDATION,
+            List.of("Test error 1", "Test error 2")
+        );
 
         OperatorMetadata operatorMetadata = OperatorMetadata.builder("namespace_one")
             .errorMetadata(emOne)
@@ -202,8 +203,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // operator metadata
-        assertEquals(operatorMetadata, parsedMetadata.operatorMetadata(operatorMetadata.namespace()));
-        assertEquals(operatorMetadata1, parsedMetadata.operatorMetadata(operatorMetadata1.namespace()));
+        assertEquals(operatorMetadata, parsedMetadata.operatorMetadata().get(operatorMetadata.namespace()));
+        assertEquals(operatorMetadata1, parsedMetadata.operatorMetadata().get(operatorMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """
@@ -660,19 +661,21 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         Metadata metadata = buildMetadata();
 
-        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata.Builder("one").keys(Set.of("a", "b")).build();
-        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata.Builder("two").keys(Set.of("c", "d")).build();
-        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata.Builder("three").keys(Set.of("e", "f")).build();
+        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata("one", Set.of("a", "b"));
+        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata("two", Set.of("c", "d"));
+        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata("three", Set.of("e", "f"));
 
-        OperatorErrorMetadata emOne = new OperatorErrorMetadata.Builder().version(1L)
-            .errorKind(OperatorErrorMetadata.ErrorKind.VALIDATION)
-            .errors(List.of("Test error 1", "Test error 2"))
-            .build();
+        OperatorErrorMetadata emOne = new OperatorErrorMetadata(
+            1L,
+            OperatorErrorMetadata.ErrorKind.VALIDATION,
+            List.of("Test error 1", "Test error 2")
+        );
 
-        OperatorErrorMetadata emTwo = new OperatorErrorMetadata.Builder().version(2L)
-            .errorKind(OperatorErrorMetadata.ErrorKind.TRANSIENT)
-            .errors(List.of("Test error 3", "Test error 4"))
-            .build();
+        OperatorErrorMetadata emTwo = new OperatorErrorMetadata(
+            2L,
+            OperatorErrorMetadata.ErrorKind.TRANSIENT,
+            List.of("Test error 3", "Test error 4")
+        );
 
         OperatorMetadata omOne = OperatorMetadata.builder("namespace_one").errorMetadata(emOne).putHandler(hmOne).putHandler(hmTwo).build();
 

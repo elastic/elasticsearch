@@ -12,28 +12,35 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A metadata class to hold error information about errors encountered
  * while applying a cluster state update for a given namespace.
  * <p>
  * This information is held by the {@link OperatorMetadata} class.
+ * </p>
  */
-public record OperatorErrorMetadata(
-    Long version,
-    org.elasticsearch.cluster.metadata.OperatorErrorMetadata.ErrorKind errorKind,
-    List<String> errors
-) implements SimpleDiffable<OperatorErrorMetadata>, ToXContentFragment {
+public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
+    implements
+        SimpleDiffable<OperatorErrorMetadata>,
+        ToXContentFragment {
+
+    static final ParseField ERRORS = new ParseField("errors");
+    static final ParseField VERSION = new ParseField("version");
+    static final ParseField ERROR_KIND = new ParseField("error_kind");
+
     /**
-     * Contructs an operator error metadata
+     * Constructs an operator error metadata
      *
      * @param version   the metadata version of the content which failed to apply
      * @param errorKind the kind of error we encountered while processing
@@ -50,146 +57,56 @@ public record OperatorErrorMetadata(
 
     /**
      * Reads an {@link OperatorErrorMetadata} from a {@link StreamInput}
+     *
      * @param in the {@link StreamInput} to read from
      * @return {@link OperatorErrorMetadata}
      * @throws IOException
      */
     public static OperatorErrorMetadata readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder().version(in.readLong())
-            .errorKind(ErrorKind.of(in.readString()))
-            .errors(in.readList(StreamInput::readString));
-        return builder.build();
+        return new OperatorErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder);
+        builder.startObject();
+        builder.field(VERSION.getPreferredName(), version);
+        builder.field(ERROR_KIND.getPreferredName(), errorKind.getKindValue());
+        builder.stringListField(ERRORS.getPreferredName(), errors);
+        builder.endObject();
         return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<OperatorErrorMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        "operator_error_metadata",
+        (a) -> new OperatorErrorMetadata((Long) a[0], ErrorKind.of((String) a[1]), (List<String>) a[2])
+    );
+
+    static {
+        PARSER.declareLong(constructorArg(), VERSION);
+        PARSER.declareString(constructorArg(), ERROR_KIND);
+        PARSER.declareStringArray(constructorArg(), ERRORS);
+    }
+
+    /**
+     * Reads an {@link OperatorErrorMetadata} from xContent
+     *
+     * @param parser {@link XContentParser}
+     * @return {@link OperatorErrorMetadata}
+     */
+    public static OperatorErrorMetadata fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     /**
      * Reads an {@link OperatorErrorMetadata} {@link Diff} from {@link StreamInput}
+     *
      * @param in the {@link StreamInput} to read the diff from
      * @return a {@link Diff} of {@link OperatorErrorMetadata}
      * @throws IOException
      */
     public static Diff<OperatorErrorMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(OperatorErrorMetadata::readFrom, in);
-    }
-
-    /**
-     * Helper method to construct an {@link OperatorErrorMetadata} {@link Builder}
-     * @return {@link Builder}
-     */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /**
-     * Builder class for {@link OperatorErrorMetadata}
-     */
-    public static class Builder {
-        private static final String ERRORS = "errors";
-        private static final String VERSION = "version";
-        private static final String ERROR_KIND = "error_kind";
-
-        private Long version;
-        private List<String> errors;
-        private ErrorKind errorKind;
-
-        /**
-         * Default constructor
-         */
-        public Builder() {
-            this.version = 0L;
-            this.errors = new ArrayList<>();
-        }
-
-        /**
-         * Set the error metadata version
-         * @param version the metadata version of the operator content that failed to apply
-         * @return {@link Builder}
-         */
-        public Builder version(Long version) {
-            this.version = version;
-            return this;
-        }
-
-        /**
-         * Set the list of errors we encountered while processing an operator state content
-         * @param errors a list of all errors
-         * @return {@link Builder}
-         */
-        public Builder errors(List<String> errors) {
-            this.errors = errors;
-            return this;
-        }
-
-        /**
-         * Set the validation error kind
-         * @param errorKind one of {@link ErrorKind}
-         * @return {@link Builder}
-         */
-        public Builder errorKind(ErrorKind errorKind) {
-            this.errorKind = errorKind;
-            return this;
-        }
-
-        /**
-         * Builds the {@link OperatorErrorMetadata}
-         * @return {@link OperatorErrorMetadata}
-         */
-        public OperatorErrorMetadata build() {
-            return new OperatorErrorMetadata(version, errorKind, Collections.unmodifiableList(errors));
-        }
-
-        /**
-         * Serializes an {@link OperatorErrorMetadata} to xContent
-         *
-         * @param metadata {@link OperatorErrorMetadata}
-         * @param builder {@link XContentBuilder}
-         */
-        public static void toXContent(OperatorErrorMetadata metadata, XContentBuilder builder) throws IOException {
-            builder.startObject();
-            builder.field(VERSION, metadata.version);
-            builder.field(ERROR_KIND, metadata.errorKind.getKindValue());
-            builder.stringListField(ERRORS, metadata.errors);
-            builder.endObject();
-        }
-
-        /**
-         * Reads an {@link OperatorErrorMetadata} from xContent
-         *
-         * @param parser {@link XContentParser}
-         * @return {@link OperatorErrorMetadata}
-         * @throws IOException
-         */
-        public static OperatorErrorMetadata fromXContent(XContentParser parser) throws IOException {
-            Builder builder = new Builder();
-
-            String currentFieldName = parser.currentName();
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (ERRORS.equals(currentFieldName)) {
-                        List<String> errors = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            errors.add(parser.text());
-                        }
-                        builder.errors(errors);
-                    }
-                } else if (token.isValue()) {
-                    if (VERSION.equals(currentFieldName)) {
-                        builder.version(parser.longValue());
-                    } else if (ERROR_KIND.equals(currentFieldName)) {
-                        builder.errorKind(ErrorKind.of(parser.text()));
-                    }
-                }
-            }
-            return builder.build();
-        }
     }
 
     /**
@@ -208,6 +125,7 @@ public record OperatorErrorMetadata(
 
         /**
          * Returns the String value for this enum value
+         *
          * @return the String value for the enum
          */
         public String getKindValue() {
@@ -215,8 +133,9 @@ public record OperatorErrorMetadata(
         }
 
         /**
-         * Helper method to construct {@link ErrorKind} from a String. The JDK default implementation
-         * throws incomprehensible error.
+         * Helper method to construct {@link ErrorKind} from a String.
+         *
+         * The JDK default implementation throws incomprehensible error.
          * @param kind String value
          * @return {@link ErrorKind}
          */

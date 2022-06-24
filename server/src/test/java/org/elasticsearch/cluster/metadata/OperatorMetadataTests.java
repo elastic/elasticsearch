@@ -28,23 +28,37 @@ import static org.hamcrest.Matchers.not;
  */
 public class OperatorMetadataTests extends ESTestCase {
 
-    public void testEquals() {
-        final OperatorMetadata meta = createRandom();
+    private void equalsTest(boolean addHandlers, boolean addErrors) {
+        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
         assertThat(meta, equalTo(OperatorMetadata.builder(meta.namespace(), meta).build()));
         final OperatorMetadata.Builder newMeta = OperatorMetadata.builder(meta.namespace(), meta);
         newMeta.putHandler(new OperatorHandlerMetadata("1", Collections.emptySet()));
         assertThat(newMeta.build(), not(meta));
     }
 
-    public void testSerialization() throws IOException {
-        final OperatorMetadata meta = createRandom();
+    public void testEquals() {
+        equalsTest(true, true);
+        equalsTest(true, false);
+        equalsTest(false, true);
+        equalsTest(false, false);
+    }
+
+    private void serializationTest(boolean addHandlers, boolean addErrors) throws IOException {
+        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
         final BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         assertThat(OperatorMetadata.readFrom(out.bytes().streamInput()), equalTo(meta));
     }
 
-    public void testXContent() throws IOException {
-        final OperatorMetadata meta = createRandom();
+    public void testSerialization() throws IOException {
+        serializationTest(true, true);
+        serializationTest(true, false);
+        serializationTest(false, true);
+        serializationTest(false, false);
+    }
+
+    private void xContentTest(boolean addHandlers, boolean addErrors) throws IOException {
+        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         meta.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -54,30 +68,40 @@ public class OperatorMetadataTests extends ESTestCase {
         assertThat(OperatorMetadata.fromXContent(parser), equalTo(meta));
     }
 
-    private static OperatorMetadata createRandom() {
+    public void testXContent() throws IOException {
+        xContentTest(true, true);
+        xContentTest(false, true);
+        xContentTest(true, false);
+        xContentTest(false, false);
+    }
+
+    private static OperatorMetadata createRandom(boolean addHandlers, boolean addErrors) {
         List<OperatorHandlerMetadata> handlers = randomList(
             0,
             10,
-            () -> new OperatorHandlerMetadata.Builder(randomAlphaOfLength(5)).keys(randomSet(1, 5, () -> randomAlphaOfLength(6))).build()
+            () -> new OperatorHandlerMetadata(randomAlphaOfLength(5), randomSet(1, 5, () -> randomAlphaOfLength(6)))
         );
 
         List<OperatorErrorMetadata> errors = randomList(
             0,
             10,
-            () -> new OperatorErrorMetadata.Builder().version(1L)
-                .errorKind(randomFrom(OperatorErrorMetadata.ErrorKind.values()))
-                .errors(randomList(1, 5, () -> randomAlphaOfLength(10)))
-                .build()
+            () -> new OperatorErrorMetadata(
+                1L,
+                randomFrom(OperatorErrorMetadata.ErrorKind.values()),
+                randomList(1, 5, () -> randomAlphaOfLength(10))
+            )
         );
 
         OperatorMetadata.Builder builder = OperatorMetadata.builder(randomAlphaOfLength(7));
-
-        for (var handlerMeta : handlers) {
-            builder.putHandler(handlerMeta);
+        if (addHandlers) {
+            for (var handlerMeta : handlers) {
+                builder.putHandler(handlerMeta);
+            }
         }
-
-        for (var errorMeta : errors) {
-            builder.errorMetadata(errorMeta);
+        if (addErrors) {
+            for (var errorMeta : errors) {
+                builder.errorMetadata(errorMeta);
+            }
         }
 
         return builder.build();

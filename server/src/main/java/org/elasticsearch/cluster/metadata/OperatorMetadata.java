@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,10 +28,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * Metadata class that contains information about cluster settings/entities set
- * in an operator mode. These types of settings are read only through the REST API,
+ * in an operator mode.
+ *
+ * <p>
+ * These types of settings are read only through the REST API,
  * and cannot be modified by the end user.
+ * </p>
  */
 public record OperatorMetadata(
     String namespace,
@@ -39,10 +46,18 @@ public record OperatorMetadata(
     Map<String, OperatorHandlerMetadata> handlers,
     OperatorErrorMetadata errorMetadata
 ) implements SimpleDiffable<OperatorMetadata>, ToXContentFragment {
+
+    private static final ParseField VERSION = new ParseField("version");
+    private static final ParseField HANDLERS = new ParseField("handlers");
+    private static final ParseField ERRORS_METADATA = new ParseField("errors");
+
     /**
      * OperatorMetadata contains information about settings set in operator mode.
+     *
+     * <p>
      * These settings cannot be updated by the end user and are set outside of the
      * REST layer, e.g. through file based settings or by plugin/modules.
+     * </p>
      *
      * @param namespace     The namespace of the setting creator, e.g. file_settings, security plugin, etc.
      * @param version       The update version, must increase with each update
@@ -53,7 +68,10 @@ public record OperatorMetadata(
 
     /**
      * Creates a set intersection between cluster state keys set by a given operator handler and the input set.
+     *
+     * <p>
      * This method is to be used to check if a REST action handler is allowed to modify certain cluster state.
+     * </p>
      *
      * @param handlerName the name of the operator handler we need to check for keys
      * @param modified a set of keys we want to see if we can modify.
@@ -72,6 +90,7 @@ public record OperatorMetadata(
 
     /**
      * Reads an {@link OperatorMetadata} from a {@link StreamInput}
+     *
      * @param in the {@link StreamInput} to read from
      * @return {@link OperatorMetadata}
      * @throws IOException
@@ -99,6 +118,7 @@ public record OperatorMetadata(
 
     /**
      * Reads an {@link OperatorMetadata} {@link Diff} from {@link StreamInput}
+     *
      * @param in the {@link StreamInput} to read the diff from
      * @return a {@link Diff} of {@link OperatorMetadata}
      * @throws IOException
@@ -141,29 +161,54 @@ public record OperatorMetadata(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
+        builder.startObject(namespace());
+        builder.field(VERSION.getPreferredName(), version);
+        builder.startObject(HANDLERS.getPreferredName());
+        var sortedKeys = new TreeSet<>(handlers.keySet());
+        for (var key : sortedKeys) {
+            handlers.get(key).toXContent(builder, params);
+        }
+        builder.endObject();
+        builder.field(ERRORS_METADATA.getPreferredName(), errorMetadata);
+        builder.endObject();
         return builder;
+    }
+
+    private static final ConstructingObjectParser<OperatorMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "operator_metadata",
+        false,
+        (a, namespace) -> {
+            Map<String, OperatorHandlerMetadata> handlers = new HashMap<>();
+            @SuppressWarnings("unchecked")
+            List<OperatorHandlerMetadata> handlersList = (List<OperatorHandlerMetadata>) a[1];
+            handlersList.forEach(h -> handlers.put(h.name(), h));
+
+            return new OperatorMetadata(namespace, (Long) a[0], Map.copyOf(handlers), (OperatorErrorMetadata) a[2]);
+        }
+    );
+
+    static {
+        PARSER.declareLong(constructorArg(), VERSION);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> OperatorHandlerMetadata.fromXContent(p, name), HANDLERS);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> OperatorErrorMetadata.fromXContent(p), null, ERRORS_METADATA);
     }
 
     /**
      * Reads {@link OperatorMetadata} from {@link XContentParser}
+     *
      * @param parser {@link XContentParser}
      * @return {@link OperatorMetadata}
      * @throws IOException
      */
     public static OperatorMetadata fromXContent(final XContentParser parser) throws IOException {
         parser.nextToken();
-        return Builder.fromXContent(parser, parser.currentName());
+        return PARSER.apply(parser, parser.currentName());
     }
 
     /**
      * Builder class for {@link OperatorMetadata}
      */
     public static class Builder {
-        private static final String VERSION = "version";
-        private static final String HANDLERS = "handlers";
-        private static final String ERRORS_METADATA = "errors";
-
         private final String namespace;
         private Long version;
         private Map<String, OperatorHandlerMetadata> handlers;
@@ -197,8 +242,12 @@ public record OperatorMetadata(
         }
 
         /**
-         * Stores the version for the operator metadata. Each new cluster state update in operator
+         * Stores the version for the operator metadata.
+         *
+         * <p>
+         * Each new cluster state update in operator
          * mode requires a version bump. The version increase doesn't have to be monotonic.
+         * </p>
          * @param version the new operator metadata version
          * @return {@link Builder}
          */
@@ -220,9 +269,12 @@ public record OperatorMetadata(
         }
 
         /**
-         * Adds an {@link OperatorHandlerMetadata} for this {@link OperatorMetadata}. The handler
-         * metadata is stored in a map, keyed off the {@link OperatorHandlerMetadata} name. Previously
+         * Adds an {@link OperatorHandlerMetadata} for this {@link OperatorMetadata}.
+         *
+         * <p>
+         * The handler metadata is stored in a map, keyed off the {@link OperatorHandlerMetadata} name. Previously
          * stored {@link OperatorHandlerMetadata} for a given name is overwritten.
+         * </p>
          *
          * @param handler {@link OperatorHandlerMetadata}
          * @return {@link Builder}
@@ -234,78 +286,11 @@ public record OperatorMetadata(
 
         /**
          * Builds an {@link OperatorMetadata} from this builder.
+         *
          * @return {@link OperatorMetadata}
          */
         public OperatorMetadata build() {
             return new OperatorMetadata(namespace, version, Collections.unmodifiableMap(handlers), errorMetadata);
-        }
-
-        /**
-         * Serializes the operator metadata to xContent
-         *
-         * @param operatorMetadata {@link OperatorMetadata}
-         * @param builder {@link XContentBuilder}
-         * @param params {@link org.elasticsearch.xcontent.ToXContent.Params}
-         */
-        public static void toXContent(OperatorMetadata operatorMetadata, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
-            builder.startObject(operatorMetadata.namespace());
-            builder.field(VERSION, operatorMetadata.version());
-            builder.startObject(HANDLERS);
-            var sortedKeys = new TreeSet<>(operatorMetadata.handlers.keySet());
-            for (var key : sortedKeys) {
-                OperatorHandlerMetadata.Builder.toXContent(operatorMetadata.handlers.get(key), builder);
-            }
-            builder.endObject();
-            builder.field(ERRORS_METADATA, operatorMetadata.errorMetadata);
-            builder.endObject();
-        }
-
-        /**
-         * Reads the operator metadata from xContent
-         *
-         * @param parser {@link XContentParser}
-         * @param namespace the operator metadata namespace. See {@link Metadata} operatorMetadata.
-         * @return {@link OperatorMetadata}
-         * @throws IOException
-         */
-        public static OperatorMetadata fromXContent(XContentParser parser, String namespace) throws IOException {
-            OperatorMetadata.Builder builder = new OperatorMetadata.Builder(namespace);
-
-            String currentFieldName = skipNamespace(parser);
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (HANDLERS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.putHandler(OperatorHandlerMetadata.Builder.fromXContent(parser));
-                        }
-                    } else if (ERRORS_METADATA.equals(currentFieldName)) {
-                        builder.errorMetadata(OperatorErrorMetadata.Builder.fromXContent(parser));
-                    } else {
-                        throw new ElasticsearchParseException("unknown key [{}] for operator metadata", currentFieldName);
-                    }
-                } else if (token.isValue()) {
-                    if (VERSION.equals(currentFieldName)) {
-                        builder.version(parser.longValue());
-                    }
-                }
-            }
-            return builder.build();
-        }
-
-        private static String skipNamespace(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                token = parser.nextToken();
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    return parser.currentName();
-                }
-            }
-
-            return null;
         }
     }
 }

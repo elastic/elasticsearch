@@ -385,6 +385,11 @@ public class ApiKeyService {
     // package-private for testing
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, ApiKeyDoc apiKeyDoc) {
         // TODO also assert that authentication subject matches creator on apiKeyDoc
+        if (Version.fromId(apiKeyDoc.version).before(Version.V_8_0_0)) {
+            throw new ValidationException().addValidationError(
+                "cannot update legacy api key [" + apiKeyId + "] with version [" + Version.fromId(apiKeyDoc.version) + "]"
+            );
+        }
         if (isActive(apiKeyDoc) == false) {
             throw new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
         }

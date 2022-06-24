@@ -1651,19 +1651,23 @@ public class ApiKeyServiceTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         final var apiKeyService = createApiKeyService();
-        final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null);
+        final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null, Version.V_8_0_0.id);
         var ex = expectThrows(
             ValidationException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithNullName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
 
-        final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "");
+        final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_0_0.id);
         ex = expectThrows(
             ValidationException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithEmptyName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+
+        final var legacyApiKeyDoc = buildApiKeyDoc(hash, -1, false, "", 0);
+        ex = expectThrows(ValidationException.class, () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, legacyApiKeyDoc));
+        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] with version"));
     }
 
     public void testUpdatedDocument() throws IOException {
@@ -1958,6 +1962,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, String name) throws IOException {
+        return buildApiKeyDoc(hash, expirationTime, invalidated, name, 0);
+    }
+
+    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, String name, int version) throws IOException {
         final BytesReference metadataBytes = XContentTestUtils.convertToXContent(ApiKeyTests.randomMetadata(), XContentType.JSON);
         return new ApiKeyDoc(
             "api_key",
@@ -1966,7 +1974,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             invalidated,
             new String(hash),
             name,
-            0,
+            version,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
             Map.of(

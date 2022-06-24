@@ -20,6 +20,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -32,6 +33,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_REPOSITORY;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -69,6 +71,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
+        List<String> corruptedRepos = List.of("corrupted-repo");
         assertThat(
             service.calculate(true),
             equalTo(
@@ -79,7 +82,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
                     RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
-                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
+                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", corruptedRepos)
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -88,7 +91,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(new UserAction(CORRUPTED_REPOSITORY, corruptedRepos))
                 )
             )
         );

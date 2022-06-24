@@ -144,6 +144,20 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     /**
+     * Fetch the timestamp from the ingestMetadata, if it exists
+     * @return the timestamp for the document or null
+     */
+    public static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
+        if (ingestMetadata == null) {
+            return null;
+        }
+        if (ingestMetadata.get(IngestDocument.TIMESTAMP)instanceof ZonedDateTime timestamp) {
+            return timestamp;
+        }
+        return null;
+    }
+
+    /**
      * get the source map, if externally modified then the guarantees of this class are not enforced
      */
     public Map<String, Object> getSource() {

@@ -95,7 +95,7 @@ public final class IngestDocument {
         this.sourceAndMetadata = new IngestSourceAndMetadata(
             sm.v1(),
             sm.v2(),
-            getTimestamp(ingestMetadata),
+            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
             IngestSourceAndMetadata.VALIDATORS
         );
         this.ingestMetadata = ingestMetadata != null ? ingestMetadata : new HashMap<>();
@@ -752,20 +752,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Fetch the timestamp from the ingestMetadata, if it exists
-     * @return the timestamp for the document or null
-     */
-    public static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
-        if (ingestMetadata == null) {
-            return null;
-        }
-        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime timestamp) {
-            return timestamp;
-        }
-        return null;
     }
 
     @SuppressWarnings("unchecked")

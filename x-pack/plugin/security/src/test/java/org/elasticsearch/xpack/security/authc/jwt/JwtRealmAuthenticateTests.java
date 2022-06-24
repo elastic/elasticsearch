@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -343,7 +344,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 if (filePath == null) {
                     super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    Path of = Path.of(filePath);
+                    final Path of = PathUtils.get(filePath);
                     Files.delete(of);
                     Files.writeString(of, jwtIssuer.encodedJwkSetPkcPublic);
                 }
@@ -361,7 +362,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 if (filePath == null) {
                     super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    Path of = Path.of(filePath);
+                    final Path of = PathUtils.get(filePath);
                     Files.delete(of);
                     Files.writeString(of, jwtIssuer.encodedJwkSetPkcPublic);
                 }
@@ -387,7 +388,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 if (filePath == null) {
                     super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    Path of = Path.of(filePath);
+                    final Path of = PathUtils.get(filePath);
                     Files.delete(of);
                     Files.writeString(of, jwtIssuer.encodedJwkSetPkcPublic);
                 }
@@ -544,7 +545,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 if (filePath == null) {
                     super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    Path of = Path.of(filePath);
+                    final Path of = PathUtils.get(filePath);
                     Files.delete(of);
                     Files.writeString(of, jwtIssuer.encodedJwkSetPkcPublic);
                 }

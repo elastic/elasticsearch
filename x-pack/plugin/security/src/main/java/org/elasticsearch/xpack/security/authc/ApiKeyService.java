@@ -1352,7 +1352,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
+                logger.error(() -> format("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });

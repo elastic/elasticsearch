@@ -31,7 +31,7 @@ Consult the documentation of your distribution on how to alter this value
 https://man7.org/linux/man-pages/man8/blockdev.8.html[blockdev --setra]
 as a transient setting). We recommend a value of `128KiB` for `readahead`.
 
-WARNING: `blockdev` expects values in 512b sectors whereas `lsblk` reports
+WARNING: `blockdev` expects values in 512 byte sectors whereas `lsblk` reports
 values in `KiB`. As an example, to temporarily set readahead to `128KiB`
 for `/dev/nvme0n1`, specify `blockdev --setra 256 /dev/nvme0n1`.
 

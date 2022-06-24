@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
@@ -1645,11 +1644,9 @@ public class NumberFieldMapper extends FieldMapper {
                  */
                 NumericDocValues single = DocValues.unwrapSingleton(dv);
                 if (single != null) {
-                    LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA singleton {}", name);
                     return singletonLeaf(single, docIdsInLeaf);
                 }
             }
-            LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA multi {}", name);
             return new ImmediateLeaf(dv);
         }
 

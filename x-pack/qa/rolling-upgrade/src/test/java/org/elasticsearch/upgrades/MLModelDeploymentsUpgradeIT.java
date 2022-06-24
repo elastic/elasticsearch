@@ -72,7 +72,8 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
-                "logger.org.elasticsearch.xpack.ml.process": "DEBUG"
+                "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
             }
             """);
@@ -86,7 +87,8 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "INFO",
-                "logger.org.elasticsearch.xpack.ml.process": "INFO"
+                "logger.org.elasticsearch.xpack.ml.process": "INFO",
+                "logger.org.elasticsearch.xpack.ml.action": "INFO"
               }
             }
             """);

@@ -473,10 +473,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                             rangeStart,
                             remainderLength < meaningfulProgressBytes ? remainderLength : between(meaningfulProgressBytes, remainderLength)
                         );
-                    exchange.close();
-                    return;
-                }
-                if (randomBoolean()) {
+                } else if (randomBoolean()) {
                     failuresWithoutProgress += 1;
                     exchange.sendResponseHeaders(
                         randomFrom(

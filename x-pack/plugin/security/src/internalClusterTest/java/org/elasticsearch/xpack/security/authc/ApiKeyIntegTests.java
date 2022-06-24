@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -76,6 +75,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -1430,16 +1430,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
-        final boolean nullRoleDescriptors = randomBoolean();
-        final var newRoleDescriptors = List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "none" }, null, null));
+        final var newRoleDescriptors = randomRoleDescriptors();
+        final boolean nullRoleDescriptors = newRoleDescriptors == null;
         final var expectedLimitedByRoleDescriptors = Set.of(
             new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)
         );
-        final var request = new UpdateApiKeyRequest(
-            apiKeyId,
-            nullRoleDescriptors ? null : newRoleDescriptors,
-            ApiKeyTests.randomMetadata()
-        );
+        final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
         final var serviceWithNodeName = getServiceWithNodeName();
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -1463,14 +1459,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
         GetApiKeyResponse getResponse = getListener.get();
         assertEquals(1, getResponse.getApiKeyInfos().length);
+        // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
         assertEquals(expectedMetadata == null ? Map.of() : expectedMetadata, getResponse.getApiKeyInfos()[0].getMetadata());
         assertEquals(ES_TEST_ROOT_USER, getResponse.getApiKeyInfos()[0].getUsername());
         assertEquals("file", getResponse.getApiKeyInfos()[0].getRealm());
 
+        // Test authenticate works with updated API key
+        final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
+        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
+
         // Document updated as expected
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
-        // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
         if (nullRoleDescriptors) {
@@ -1478,31 +1478,39 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
             expectRoleDescriptorForApiKey("role_descriptors", List.of(expectedRoleDescriptor), updatedApiKeyDoc);
 
-            // Test authorized because we didn't update key role descriptor
-            final var authorizationHeaders = Collections.singletonMap(
-                "Authorization",
-                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
-            );
-            assertNotNull(client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get());
-        } else {
-            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
-
-            // Test authorized because we updated key role descriptor to cluster priv none
-            final var authorizationHeaders = Collections.singletonMap(
+            // Create user action unauthorized because we did not update key role; it only has `monitor` cluster priv
+            final Map<String, String> authorizationHeaders = Collections.singletonMap(
                 "Authorization",
                 "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
             );
             ExecutionException e = expectThrows(
                 ExecutionException.class,
-                () -> client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get()
+                () -> createUserWithRunAsRole(authorizationHeaders.get("Authorization"))
             );
             assertThat(e.getMessage(), containsString("unauthorized"));
             assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
+        } else {
+            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
+            // Create user action authorized because we updated key role to `all` cluster priv
+            final var authorizationHeaders = Collections.singletonMap(
+                "Authorization",
+                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
+            );
+            createUserWithRunAsRole(authorizationHeaders.get("Authorization"));
         }
+    }
 
-        // Test authenticate works with updated API key
-        final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
-        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
+    private List<RoleDescriptor> randomRoleDescriptors() {
+        int caseNo = randomIntBetween(0, 2);
+        return switch (caseNo) {
+            case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
+            case 1 -> List.of(
+                new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
+                RoleDescriptorTests.randomRoleDescriptor()
+            );
+            case 2 -> null;
+            default -> throw new IllegalStateException("unexpected case no");
+        };
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
@@ -1938,14 +1946,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
      * This new helper method creates the user in the native realm.
      */
     private void createUserWithRunAsRole() throws ExecutionException, InterruptedException {
+        createUserWithRunAsRole(basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING));
+    }
+
+    private void createUserWithRunAsRole(String authHeaderValue) throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
         putUserRequest.username("user_with_run_as_role");
         putUserRequest.roles("run_as_role");
         putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
-        );
+        final Client client = client().filterWithHeader(Map.of("Authorization", authHeaderValue));
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
         final PutUserResponse putUserResponse = listener.get();
         assertTrue(putUserResponse.created());

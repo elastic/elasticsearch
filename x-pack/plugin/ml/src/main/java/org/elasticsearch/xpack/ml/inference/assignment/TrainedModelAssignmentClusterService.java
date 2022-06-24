@@ -358,6 +358,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
+        logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
@@ -389,10 +390,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             }
 
             submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
+
+                private volatile boolean isUpdated;
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
 
                     if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                        isUpdated = true;
                         return update(currentState, rebalancedMetadata);
                     }
                     rebalanceAssignments(currentState, modelToAdd, reason, listener);
@@ -406,7 +411,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                    if (isUpdated) {
+                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                    }
                 }
             });
         });

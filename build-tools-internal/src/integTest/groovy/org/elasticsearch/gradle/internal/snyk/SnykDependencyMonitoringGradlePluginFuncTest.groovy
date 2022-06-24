@@ -165,7 +165,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
         }""", true)
     }
 
-    def "upload snyk graph fails if new entry could not be created"() {
+    def "upload fails with reasonable error message"() {
         given:
         httpServer.registerHandler("/api/v1/monitor/gradle/graph") { handler ->
             handler.responseBody = "Success!"
@@ -181,9 +181,21 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
             }
         """
         when:
-        def build = gradleRunner("uploadSnykDependencyGraph", '-i').build()
+        def result = gradleRunner("uploadSnykDependencyGraph", '-i').build()
         then:
-        build.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        build.output.contains("Snyk API call response status: \" + statusCode")
+        result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+        result.output.contains("Snyk API call response status: 201")
+
+        when:
+        httpServer.registerHandler("/api/v1/monitor/gradle/graph") { handler ->
+            handler.responseBody = "Internal Error"
+            handler.expectedHttpResponseCode = HttpURLConnection.HTTP_INTERNAL_ERROR
+        }
+
+        result = gradleRunner("uploadSnykDependencyGraph").buildAndFail()
+
+        then:
+        result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.FAILED
+        result.output.contains("Uploading Snyk Graph failed with http code 500: Internal Error")
     }
 }

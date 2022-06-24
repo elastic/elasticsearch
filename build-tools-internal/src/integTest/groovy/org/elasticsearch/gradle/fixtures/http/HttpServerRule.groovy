@@ -8,28 +8,28 @@
 
 package org.elasticsearch.gradle.fixtures.http
 
-import com.sun.net.httpserver.HttpContext
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import org.apache.commons.io.IOUtils
+import org.elasticsearch.gradle.internal.util.ports.AvailablePortAllocator
 import org.junit.rules.ExternalResource
 
-import java.net.InetSocketAddress
-import java.util.ArrayList
-import java.util.List
-import java.util.concurrent.Callable
 import java.util.function.Consumer
 
 class HttpServerRule extends ExternalResource {
-    private static final int PORT = 6991
 
     private HttpServer server
     private List<String> contexts = new ArrayList<>()
+    private int port
 
     @Override
     protected void before() throws Throwable {
-        server = HttpServer.create(new InetSocketAddress(PORT), 0) // localhost:6991
+        // TODO revisit port range allocation
+        def socket = new ServerSocket(0)
+        port = socket.getLocalPort()
+        socket.close()
+        server = HttpServer.create(new InetSocketAddress(port), 0) // localhost:6991
         server.setExecutor(null) // creates a default executor
         server.start()
     }
@@ -45,7 +45,7 @@ class HttpServerRule extends ExternalResource {
         if (path.startsWith("/") == false) {
             path = "/" + path
         }
-        String host = "http://localhost:" + PORT
+        String host = "http://localhost:" + port
         return host + path
     }
 
@@ -66,6 +66,7 @@ class HttpServerRule extends ExternalResource {
         def handler = new SimpleHttpHandler()
         configuration.accept(handler)
         server.createContext(uriToHandle, handler)
+        contexts.add(uriToHandle)
     }
 
     private static class SimpleHttpHandler implements HttpHandler {

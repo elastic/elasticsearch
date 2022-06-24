@@ -98,10 +98,10 @@ class IndicesWriteLoadStore implements Closeable {
             return new SystemDataStreamDescriptor(
                 INDICES_WRITE_LOAD_DATA_STREAM,
                 "Stores indices write load over time",
-                SystemDataStreamDescriptor.Type.INTERNAL,
+                SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),
-                Collections.emptyList(),
+                List.of("kibana", "external"),
                 ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
             );
         } catch (IOException e) {

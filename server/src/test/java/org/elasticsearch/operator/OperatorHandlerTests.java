@@ -10,6 +10,8 @@ package org.elasticsearch.operator;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,14 +76,14 @@ public class OperatorHandlerTests extends ESTestCase {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, someJSON)) {
             Map<String, Object> originalMap = parser.map();
 
-            Map<String, ?> internalHandlerMap = persistentHandler.asMap(originalMap.get(persistentHandler.name()));
+            Map<String, ?> internalHandlerMap = Maps.asMap(originalMap.get(persistentHandler.name()));
             assertThat(internalHandlerMap.keySet(), containsInAnyOrder("indices.recovery.max_bytes_per_sec", "cluster"));
             assertEquals(
                 "Unsupported persistent request format",
-                expectThrows(IllegalStateException.class, () -> persistentHandler.asMap(Integer.valueOf(123))).getMessage()
+                expectThrows(IllegalStateException.class, () -> Maps.asMap(Integer.valueOf(123))).getMessage()
             );
 
-            try (XContentParser newParser = persistentHandler.mapToXContentParser(XContentParserConfiguration.EMPTY, originalMap)) {
+            try (XContentParser newParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, originalMap)) {
                 Map<String, Object> newMap = newParser.map();
 
                 assertThat(newMap.keySet(), containsInAnyOrder("persistent"));

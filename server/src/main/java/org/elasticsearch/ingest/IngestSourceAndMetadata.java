@@ -44,7 +44,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final ZonedDateTime timestamp;
 
     /**
-     * map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value, otherwise return identity
+     * map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value
      */
     static final Map<String, BiConsumer<String, Object>> VALIDATORS = Map.of(
         IngestDocument.Metadata.INDEX.getFieldName(),

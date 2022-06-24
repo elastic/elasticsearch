@@ -263,7 +263,8 @@ public class JwtValidateUtil {
 
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
-                return; // VERIFY SUCCEEDED
+                LOGGER.trace("JWT signature validation succeeded");
+                return;
             }
         }
 

@@ -1682,7 +1682,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
-        final var oldApiKeyDoc = buildApiKeyDoc(hash, -1, false);
+        final var oldApiKeyDoc = buildApiKeyDoc(hash, randomBoolean() ? -1 : Instant.now().toEpochMilli(), false);
 
         final Set<RoleDescriptor> newUserRoles = randomBoolean() ? Set.of() : Set.of(RoleDescriptorTests.randomRoleDescriptor());
 
@@ -1708,6 +1708,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
         assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
         assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
+        assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
 
         final var service = createApiKeyService(Settings.EMPTY);
         final var actualUserRoles = service.parseRoleDescriptorsBytes(

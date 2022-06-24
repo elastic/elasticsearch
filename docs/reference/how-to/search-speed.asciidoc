@@ -15,7 +15,7 @@ index in physical memory.
 Search can cause a lot of randomized read I/O. When the underlying block
 device has a high readahead value, there may be a lot of unnecessary
 read I/O done, especially when files are accessed using memory mapping
-(see <<hybridfs,hybridfs>>).
+(see <<file-system,storage types>>).
 
 Most Linux distributions use a sensible readahead value of `128KiB` for a
 single plain device, however, when using software raid, LVM or dm-crypt the

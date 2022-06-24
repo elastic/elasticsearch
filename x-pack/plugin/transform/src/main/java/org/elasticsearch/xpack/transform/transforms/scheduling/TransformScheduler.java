@@ -102,7 +102,8 @@ public final class TransformScheduler {
             return;
         }
         logger.trace("Processing scheduled tasks started");
-        Instant processingStarted = clock.instant();
+        final boolean isTraceEnabled = logger.isTraceEnabled();
+        Instant processingStarted = isTraceEnabled ? clock.instant() : null;
         final boolean taskWasProcessed;
         try {
             taskWasProcessed = processScheduledTasksInternal();
@@ -111,13 +112,15 @@ public final class TransformScheduler {
             // Otherwise, the processing would be stuck forever.
             isProcessingActive.set(false);
         }
-        Instant processingFinished = clock.instant();
-        logger.trace(
-            () -> Strings.format(
-                "Processing scheduled tasks finished, took {}ms",
-                Duration.between(processingStarted, processingFinished).toMillis()
-            )
-        );
+        if (isTraceEnabled) {
+            Instant processingFinished = clock.instant();
+            logger.trace(
+                Strings.format(
+                    "Processing scheduled tasks finished, took {}ms",
+                    Duration.between(processingStarted, processingFinished).toMillis()
+                )
+            );
+        }
         if (taskWasProcessed == false) {
             return;
         }
@@ -176,7 +179,6 @@ public final class TransformScheduler {
             scheduledFuture.cancel();
             scheduledFuture = null;
         }
-        threadPool.shutdown();
     }
 
     /**

@@ -21,6 +21,7 @@ import javax.inject.Inject;
 
 public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
 
+    public static final String UPLOAD_TASK_NAME = "uploadSnykDependencyGraph";
     private ProjectLayout projectLayout;
     private ProviderFactory providerFactory;
 
@@ -41,7 +42,7 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
                 generateSnykDependencyGraph.getOutputFile().set(projectLayout.getBuildDirectory().file("snyk/dependencies.json"));
             });
 
-        project.getTasks().register("uploadSnykDependencyGraph", UploadSnykDependenciesGraph.class, t -> {
+        project.getTasks().register(UPLOAD_TASK_NAME, UploadSnykDependenciesGraph.class, t -> {
             t.getInputFile().set(generateTaskProvider.get().getOutputFile());
             t.getToken().set(providerFactory.gradleProperty("snykToken"));
             // the elasticsearch snyk project id

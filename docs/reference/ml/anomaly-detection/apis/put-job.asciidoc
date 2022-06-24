@@ -498,7 +498,7 @@ The API returns the following results:
       "hour_of_day" : {
         "type" : "long",
         "script" : {
-          "source" : "emit(doc[timestamp].value.getHour());"
+          "source" : "emit(doc['timestamp'].value.getHour());"
         }
       }
     }

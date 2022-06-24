@@ -114,7 +114,7 @@ public final class RandomSamplingQuery extends Query {
             this.p = p;
             this.distribution = new FastGeometric(rng, p / chunkSize);
             this.chunkSize = chunkSize;
-            this.currentChunkCount = 1;
+            this.currentChunkCount = chunkSize;
         }
 
         private boolean withinChunk() {

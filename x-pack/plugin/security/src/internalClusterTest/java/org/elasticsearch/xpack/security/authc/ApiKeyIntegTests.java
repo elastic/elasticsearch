@@ -1431,11 +1431,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeyId = createdApiKey.v1().getId();
 
         final boolean nullRoleDescriptors = randomBoolean();
-        final var newRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "none" }, null, null);
-        final var expectedLimitedByRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var newRoleDescriptors = List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "none" }, null, null));
+        final var expectedLimitedByRoleDescriptors = Set.of(
+            new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)
+        );
         final var request = new UpdateApiKeyRequest(
             apiKeyId,
-            nullRoleDescriptors ? null : List.of(newRoleDescriptor),
+            nullRoleDescriptors ? null : newRoleDescriptors,
             ApiKeyTests.randomMetadata()
         );
 
@@ -1445,7 +1447,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .updateApiKey(
                 fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
                 request,
-                Set.of(expectedLimitedByRoleDescriptor),
+                expectedLimitedByRoleDescriptors,
                 listener
             );
         final var response = listener.get();
@@ -1453,6 +1455,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
+        // Correct data returned from GET API
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
@@ -1460,18 +1463,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
         GetApiKeyResponse getResponse = getListener.get();
         assertEquals(1, getResponse.getApiKeyInfos().length);
-        assertEquals(
-            request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(),
-            getResponse.getApiKeyInfos()[0].getMetadata()
-        );
+        final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
+        assertEquals(expectedMetadata == null ? Map.of() : expectedMetadata, getResponse.getApiKeyInfos()[0].getMetadata());
         assertEquals(ES_TEST_ROOT_USER, getResponse.getApiKeyInfos()[0].getUsername());
         assertEquals("file", getResponse.getApiKeyInfos()[0].getRealm());
 
+        // Document updated as expected
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
-        expectMetadataForApiKey(request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(), updatedApiKeyDoc);
-
-        expectRoleDescriptorForApiKey("limited_by_role_descriptors", Set.of(expectedLimitedByRoleDescriptor), updatedApiKeyDoc);
+        expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
+        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
         if (nullRoleDescriptors) {
             // Default role descriptor assigned to api key in `createApiKey`
             final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
@@ -1484,7 +1485,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             );
             assertNotNull(client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get());
         } else {
-            expectRoleDescriptorForApiKey("role_descriptors", List.of(newRoleDescriptor), updatedApiKeyDoc);
+            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
 
             // Test authorized because we updated key role descriptor to cluster priv none
             final var authorizationHeaders = Collections.singletonMap(

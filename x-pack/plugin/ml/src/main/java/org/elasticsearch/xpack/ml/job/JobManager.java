@@ -158,7 +158,7 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, null, jobsListener);
     }
 
     /**
@@ -436,16 +436,14 @@ public class JobManager {
                         logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
                 },
-                    e -> {
-                        logger.error(
-                            () -> format(
-                                "[%s] Updating autodetect failed with an exception, job update [%s] ",
-                                jobUpdate.getJobId(),
-                                jobUpdate
-                            ),
-                            e
-                        );
-                    }
+                    e -> logger.error(
+                        () -> format(
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
+                        e
+                    )
                 ));
             }
         } else {
@@ -637,7 +635,7 @@ public class JobManager {
             updateJobProcessNotifier.submitJobUpdate(
                 UpdateParams.scheduledEventsUpdate(jobId),
                 ActionListener.wrap(
-                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
+                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
                     e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
                 )
             );

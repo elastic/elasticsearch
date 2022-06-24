@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,12 +61,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        MasterService masterService = new FakeThreadPoolMasterService(
-            "test_node",
-            "test",
-            mockThreadPool,
-            runnableTasks::add
-        );
+        MasterService masterService = new FakeThreadPoolMasterService("test_node", "test", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);

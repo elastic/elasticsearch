@@ -170,21 +170,22 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         });
 
         long[] actual = extractIds(events);
-        boolean succeeded = false;
         if (eventIds.size() == 1) {
+            long[] expected = eventIds.get(0);
             assertArrayEquals(
                 LoggerMessageFormat.format(
                     null,
                     "unexpected result for spec[{}] [{}] -> {} vs {}",
                     name,
                     query,
-                    Arrays.toString(eventIds.get(0)),
+                    Arrays.toString(expected),
                     Arrays.toString(actual)
                 ),
-                eventIds.get(0),
+                expected,
                 actual
             );
         } else {
+            boolean succeeded = false;
             for (long[] expected : eventIds) {
                 if (Arrays.equals(expected, actual)) {
                     succeeded = true;
@@ -200,9 +201,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                     Arrays.toString(actual),
                     eventIds.stream().map(Arrays::toString).collect(Collectors.joining(", "))
                 );
-
                 fail(msg);
-
             }
         }
 

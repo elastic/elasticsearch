@@ -1,3 +1,28 @@
+# Test syntax:
+#
+# each test starts with a [[queries]] tag and has a set of mandatory attributes:
+#
+# - name: string, the test name, reported in the logs in case of failure
+# - query: string, the query to execute
+# - expected_event_ids: the expected result of the query. Can be one of the following:
+#    - an array of event IDs, (eg [1, 2, 3]): the expected event IDs returned by the query
+#    - an array of arrays of event IDs (eg. [[1, 2, 3], [1, 4, 5]]): each array of IDs is a possible valid result for the query;
+#      this is useful when the query is not deterministic, ie. it can return different valid results based on how the documents are indexed.
+#    - an empty array [], if the query is expected to return no results
+#   If the query returns multiple samples, the expected_event_ids will contain a flattened list of IDs for all the events
+#   in the returned samples, eg. if the query resturns sample1=[event1(id=1), event2(id=2)] and sample2=[event3(id=3), event4(id=4)],
+#   the expected_event_ids will be [1, 2, 3, 4]
+# - join_keys: array, a set of join keys returned in the results. This is flattened sequence of composite join keys for all the events returned
+#   eg. if the test returns two events (e1, e2) with two join keys each (eg. e1 with [joinkey1, joinkey2] and e2 with [joinkey3, joinkey4],
+#   the expected join_keys value will be [joinkey1, joinkey2, joinkey3, joinkey4]
+#
+# in addition, the spec syntax accepts the following optional attributes (currently ignored):
+# - note: string
+# - description: string
+# - tags: array of strings
+#
+# Strings can be delimited by single or double quotes. Triple single quotes can be used for multi-line strings
+
 [[queries]]
 name = "anyRulesWithOneDifferentNameKey"
 query = '''
@@ -8,8 +33,10 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [17, 26, 16, 13, 23, 110],
-    [17, 26, 16, 110, 23, 33]
+    [17, 26, 16,
+     13, 23, 110],
+    [17, 26, 16,
+     110, 23, 33]
 ]
 join_keys = ["doom","redhat",
              "farcry","win10"]
@@ -210,8 +237,12 @@ query = '''
 '''
 # this test is not completely deterministic, it can return any of the following event id combinations
 expected_event_ids  = [
-    [29, 24, 28, 21, 18, 11],
-    [29, 24, 28, 26, 18, 11]
+    [29, 24,
+     28, 21,
+     18, 11],
+    [29, 24,
+     28, 26,
+     18, 11]
 ]
 join_keys = ["GTA","null",
              "doom","null",

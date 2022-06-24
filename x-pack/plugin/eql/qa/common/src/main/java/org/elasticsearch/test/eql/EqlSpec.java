@@ -20,6 +20,11 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
+    /**
+     * this is a set of possible valid results:
+     * - if the query is deterministic, expectedEventIds should contain one single array of IDs representing the expected result
+     * - if the query is non-deterministic, expectedEventIds can contain multiple arrays of IDs, one for each possible valid result
+     */
     private List<long[]> expectedEventIds;
     private String[] joinKeys;
 

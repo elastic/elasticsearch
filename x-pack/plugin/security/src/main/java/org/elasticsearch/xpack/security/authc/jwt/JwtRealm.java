@@ -220,7 +220,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
                     hmacKeyContents
                 );
-                // TODO hmacKey might be null?
+                assert hmacKey != null : "Null HMAC key should not happen here";
                 jwksHmac = List.of(hmacKey);
                 hmacStringContent = hmacKeyContents.toString();
             }
@@ -497,8 +497,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     );
                 }
                 // Validate all else before signature, because these checks are more helpful diagnostics than rejected signatures.
-                final boolean isJwtSignatureAlgHmac =
-                    JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwtHeader.getAlgorithm().getName());
+                final boolean isJwtSignatureAlgHmac = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(
+                    jwtHeader.getAlgorithm().getName()
+                );
                 JwtValidateUtil.validateType(jwt);
                 JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
                 JwtValidateUtil.validateAudiences(jwt, allowedAudiences);

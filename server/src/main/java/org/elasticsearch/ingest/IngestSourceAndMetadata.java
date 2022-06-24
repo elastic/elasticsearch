@@ -535,7 +535,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     /**
      * Version must be non-null and representable as a long without loss of precision
      */
-    protected static Long versionValidator(String key, Object value) {
+    protected static void versionValidator(String key, Object value) {
         if (value == null) {
             throw new IllegalArgumentException(key + " cannot be null");
         }

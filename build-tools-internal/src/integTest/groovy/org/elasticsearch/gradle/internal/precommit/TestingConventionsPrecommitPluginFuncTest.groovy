@@ -18,8 +18,6 @@ import spock.lang.IgnoreIf
 import spock.lang.Shared
 import spock.lang.Unroll
 
-// see https://github.com/elastic/elasticsearch/issues/87913
-@IgnoreIf({ os.windows })
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class

@@ -157,12 +157,6 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 
 subprojects { proj ->
   apply plugin: 'elasticsearch.base'
-
-  plugins.withType(JavaPlugin) {
-    if(proj.name != 'qa' && proj.getPath().contains(":qa:") == false) {
-      project.apply plugin: 'elasticsearch.snyk-dependency-monitoring'
-    }
-  }
 }
 
 allprojects {
@@ -233,9 +227,6 @@ allprojects {
       it.enabled = false
     }
     maybeConfigure(project.tasks, 'dependenciesInfo') {
-      it.enabled = false
-    }
-    maybeConfigure(project.tasks, 'dependenciesGraph') {
       it.enabled = false
     }
   }

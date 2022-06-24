@@ -8,24 +8,22 @@
 
 package org.elasticsearch.gradle.internal.snyk
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.http.HttpServerRule
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
+import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Rule
 import org.skyscreamer.jsonassert.JSONAssert
 
-class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTest {
+class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     @Rule
-    public HttpServerRule httpServer = new HttpServerRule();
+    public HttpServerRule httpServer = new HttpServerRule()
+
+    Class<? extends Plugin> pluginClassUnderTest = SnykDependencyMonitoringGradlePlugin.class
 
     def setup() {
-        buildFile << """
-        plugins {
-            id 'elasticsearch.snyk-dependency-monitoring'
-        }
-        version = "1.0-SNAPSHOT"
-        """
         configurationCacheCompatible = false // configuration is not cc compliant
     }
 
@@ -33,7 +31,8 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
         given:
         buildFile << """
             apply plugin:'java'
-            
+            version = "1.0-SNAPSHOT"
+
             repositories {
                 mavenCentral() 
             }

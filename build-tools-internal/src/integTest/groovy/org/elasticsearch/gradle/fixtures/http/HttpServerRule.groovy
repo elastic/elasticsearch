@@ -12,7 +12,6 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import org.apache.commons.io.IOUtils
-import org.elasticsearch.gradle.internal.util.ports.AvailablePortAllocator
 import org.junit.rules.ExternalResource
 
 import java.util.function.Consumer
@@ -70,8 +69,8 @@ class HttpServerRule extends ExternalResource {
     }
 
     private static class SimpleHttpHandler implements HttpHandler {
-        private String responseBody = "";
-        private String contentType = "text/plain";
+        private String responseBody = ""
+        private String contentType = "text/plain"
         private int expectedHttpResponseCode
 
         @Override

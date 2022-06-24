@@ -684,9 +684,7 @@ public class ApiKeyService {
         }), client::get);
     }
 
-    public
-        List<RoleDescriptor>
-        parseRoleDescriptors(
+    public List<RoleDescriptor> parseRoleDescriptors(
         final String apiKeyId,
         final Map<String, Object> roleDescriptorsMap,
         RoleReference.ApiKeyRoleType roleType

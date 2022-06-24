@@ -9,10 +9,15 @@
 package org.elasticsearch.gradle.internal.snyk
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.http.HttpServerRule
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
 import org.skyscreamer.jsonassert.JSONAssert
 
 class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTest {
+
+    @Rule
+    public HttpServerRule httpServer = new HttpServerRule();
 
     def setup() {
         buildFile << """
@@ -26,7 +31,6 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
 
     def "can calculate snyk dependency graph"() {
         given:
-"".indent(3)
         buildFile << """
             apply plugin:'java'
             
@@ -159,5 +163,27 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleFuncTes
                 "branch": "unknown"
             }
         }""", true)
+    }
+
+    def "upload snyk graph fails if new entry could not be created"() {
+        given:
+        httpServer.registerHandler("/api/v1/monitor/gradle/graph") { handler ->
+            handler.responseBody = "Success!"
+            handler.expectedHttpResponseCode = HttpURLConnection.HTTP_CREATED
+        }
+
+        buildFile << """
+            apply plugin:'java'
+            
+            tasks.named('uploadSnykDependencyGraph').configure {
+                getUrl().set("${httpServer.getUriFor('/api/v1/monitor/gradle/graph')}")
+                getToken().set("myToken")
+            }
+        """
+        when:
+        def build = gradleRunner("uploadSnykDependencyGraph", '-i').build()
+        then:
+        build.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+        build.output.contains("Snyk API call response status: \" + statusCode")
     }
 }

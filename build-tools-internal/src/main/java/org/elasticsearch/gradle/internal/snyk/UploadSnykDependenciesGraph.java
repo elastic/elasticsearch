@@ -25,6 +25,9 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+
 import javax.inject.Inject;
 
 public class UploadSnykDependenciesGraph extends DefaultTask {
@@ -48,21 +51,22 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
     @TaskAction
     void upload() {
         String endpoint = calculateEffectiveEndpoint();
+        CloseableHttpResponse response;
         try (CloseableHttpClient client = HttpClients.createDefault()) {
             String content = FileUtils.readFileToString(inputFile.getAsFile().get());
             HttpPut putRequest = new HttpPut(endpoint);
             putRequest.addHeader("Authorization", "token " + token.get());
             putRequest.addHeader("Content-Type", "application/json");
             putRequest.setEntity(new StringEntity(content));
-            CloseableHttpResponse response = client.execute(putRequest);
+            response = client.execute(putRequest);
             int statusCode = response.getStatusLine().getStatusCode();
-            getLogger().info("API call response status: " + statusCode);
             String responseString = EntityUtils.toString(response.getEntity());
-            getLogger().info(responseString);
-            if (statusCode != 201) {
-                throw new GradleException("Uploading Snyk Graph failed with http code " + statusCode + ":" + responseString);
+            getLogger().info("Snyk API call response status: " + statusCode);
+            if (statusCode != HttpURLConnection.HTTP_CREATED) {
+                throw new GradleException("Uploading Snyk Graph failed with http code " + statusCode + ": " + responseString);
             }
-        } catch (Exception e) {
+            getLogger().info(responseString);
+        } catch (IOException e) {
             throw new GradleException("Failed to call API endpoint to submit updated dependency graph", e);
         }
     }

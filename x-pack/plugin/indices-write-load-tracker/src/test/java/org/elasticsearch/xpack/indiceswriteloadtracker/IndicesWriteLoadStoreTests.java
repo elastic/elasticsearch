@@ -303,7 +303,7 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
                         "expected message",
                         IndicesWriteLoadStore.class.getCanonicalName(),
                         Level.WARN,
-                        "Failed to index some indices write load distributions: *"
+                        "Failed to index some indices write load histograms: *"
                     )
                 );
                 Loggers.addAppender(indicesWriteLoadStoreLogger, mockLogAppender);

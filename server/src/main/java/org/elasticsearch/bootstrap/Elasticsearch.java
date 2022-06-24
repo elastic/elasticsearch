@@ -241,7 +241,8 @@ class Elasticsearch {
      * @throws IOException if a problem with filesystem or network occurs
      * @throws NodeValidationException if the node cannot start due to a node configuration issue
      */
-    private static void initPhase3(ServerArgs args, BootstrapState state, PrintStream err, PrintStream out) throws IOException, NodeValidationException {
+    private static void initPhase3(ServerArgs args, BootstrapState state, PrintStream err, PrintStream out) throws IOException,
+        NodeValidationException {
         checkLucene();
 
         Node node = new Node(state.environment()) {

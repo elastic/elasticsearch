@@ -157,24 +157,42 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 [[ml-put-datafeed-example]]
 == {api-examples-title}
 
+Create a {dfeed} for an {anomaly-job} (`test-job2`):
+
 [source,console]
 --------------------------------------------------
-PUT _ml/datafeeds/datafeed-total-requests
+PUT _ml/datafeeds/datafeed-test-job2?pretty
 {
-  "job_id": "total-requests",
-  "indices": ["server-metrics"]
+  "indices": [
+    "kibana_sample_data_logs"
+  ],
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match_all": {}
+        }
+      ]
+    }
+  },
+  "job_id": "test-job2"
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_job]
+// TEST[skip:setup ecommerce job]
 
 When the {dfeed} is created, you receive the following results:
 
 [source,console-result]
 ----
 {
-  "datafeed_id" : "datafeed-total-requests",
-  "job_id" : "total-requests",
-  "query_delay" : "83474ms",
+  "datafeed_id" : "datafeed-test-job2",
+  "job_id" : "test-job2",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "query_delay" : "91820ms",
   "chunking_config" : {
     "mode" : "auto"
   },
@@ -187,10 +205,16 @@ When the {dfeed} is created, you receive the following results:
     "ignore_throttled" : true
   },
   "query" : {
-    "match_all" : { }
+    "bool" : {
+      "must" : [
+        {
+          "match_all" : { }
+        }
+      ]
+    }
   },
   "indices" : [
-    "server-metrics"
+    "kibana_sample_data_logs"
   ],
   "scroll_size" : 1000,
   "delayed_data_check_config" : {
@@ -198,5 +222,5 @@ When the {dfeed} is created, you receive the following results:
   }
 }
 ----
-// TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
+// TESTRESPONSE[s/"query_delay": "91820ms"/"query_delay": $body.query_delay/]
 

@@ -76,7 +76,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
-import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.CB_SAMPLE_SIZE_PRECISION;
 import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.CB_STACK_SIZE_PRECISION;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
@@ -85,22 +84,6 @@ import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERH
 public class CircuitBreakerTests extends ESTestCase {
 
     private static final TestCircuitBreaker CIRCUIT_BREAKER = new TestCircuitBreaker();
-
-    public void testCircuitBreakerOnAddSample() {
-        SampleIterator iterator = new SampleIterator(new QueryClient() {
-            @Override
-            public void query(QueryRequest r, ActionListener<SearchResponse> l) {}
-
-            @Override
-            public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {}
-        }, mockCriteria(), randomIntBetween(10, 500), CIRCUIT_BREAKER);
-
-        CIRCUIT_BREAKER.startBreaking();
-        for (int i = 0; i < CB_SAMPLE_SIZE_PRECISION - 1; i++) {
-            iterator.addSample(mockSample());
-        }
-        expectThrows(CircuitBreakingException.class, () -> iterator.addSample(mockSample()));
-    }
 
     public void testCircuitBreakerOnStackPush() {
         SampleIterator iterator = new SampleIterator(new QueryClient() {
@@ -180,8 +163,6 @@ public class CircuitBreakerTests extends ESTestCase {
                 eqlCircuitBreaker
             );
 
-            int injectedSamples = CB_SAMPLE_SIZE_PRECISION * 2;
-
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession) {
                 @Override
                 public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
@@ -189,27 +170,27 @@ public class CircuitBreakerTests extends ESTestCase {
                         throw new IllegalStateException("Let the request fail");
                     }
                     List<List<SearchHit>> result = new ArrayList<>();
-                    for (int i = 0; i < injectedSamples; i++) {
-                        result.add(emptyList());
-                    }
+                    result.add(emptyList());
                     listener.onResponse(result);
                 }
             };
 
             SampleIterator iterator = new SampleIterator(eqlClient, mockCriteria(), randomIntBetween(10, 500), eqlCircuitBreaker);
 
-            // simulate add of results to load the circuit breaker first
-            // (unfortunately, mocking an actual result set it extremely complicated)
-            for (int i = 0; i < injectedSamples; i++) {
-                iterator.addSample(mockSample());
-            }
+            // unfortunately, mocking an actual result set it extremely complicated
+            // so we have to simulate some execution steps manually
+            // - add a sample manually to force the iterator to use the QueryClient
+            iterator.samples.add(mockSample());
+            // - and force the circuit breaker to run
+            iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION + 1));
+            iterator.stack.clear();
+
             assertNotEquals(0, eqlCircuitBreaker.getUsed());
 
             iterator.execute(wrap(p -> {
                 if (fail) {
                     fail();
                 }
-                assertEquals(injectedSamples, p.values().size());
             }, ex -> {
                 if (fail == false) {
                     fail();

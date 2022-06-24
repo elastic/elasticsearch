@@ -51,18 +51,15 @@ public class SampleIterator implements Executable {
 
     private final QueryClient client;
     private final List<SampleCriterion> criteria;
-    private final Stack<Page> stack = new Stack<>();
+    final Stack<Page> stack = new Stack<>();
     private final int maxCriteria;
-    private final List<Sample> samples;
+    final List<Sample> samples;
     private final int fetchSize;
 
     private long startTime;
 
-    /**
-     * Memory calculation is expensive, so it cannot be done at each sample creation.
-     * It will be calculated every CB_SAMPLE_SIZE_PRECISION samples created.
-     */
-    protected static final int CB_SAMPLE_SIZE_PRECISION = 100;
+    // ---------- CIRCUIT BREAKER -----------
+
     /**
      * Memory consumption will be calculated every CB_STACK_SIZE_PRECISION hits added to the stack
      * ie. the sum of sizes of pages added to the stack
@@ -76,8 +73,15 @@ public class SampleIterator implements Executable {
     private long samplesRamBytesUsed = 0;
     private long stackRamBytesUsed = 0;
     private long totalRamBytesUsed = 0;
-    private long totalItemsAddedToStack = 0;
-    private long lastStackSizeWhenCalculatedMemory = 0;
+    /**
+     * total number of hits (ie. sum of page sizes) added to the stack
+     * (not considering stack.pop(), so different from current stack size)
+     */
+    private long totalPageSize = 0;
+    /**
+     * total number of hits (ie. sum of page sizes) added to the stack when last memory check was executed
+     */
+    private long lastTotalPageSize = 0;
 
     public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, CircuitBreaker circuitBreaker) {
         this.client = client;
@@ -156,10 +160,10 @@ public class SampleIterator implements Executable {
 
     protected void pushToStack(Page nextPage) {
         stack.push(nextPage);
-        totalItemsAddedToStack += nextPage.size;
-        if ((totalItemsAddedToStack - lastStackSizeWhenCalculatedMemory) / CB_STACK_SIZE_PRECISION > 0) {
+        totalPageSize += nextPage.size;
+        if (totalPageSize - lastTotalPageSize >= CB_STACK_SIZE_PRECISION) {
             updateMemoryUsage();
-            lastStackSizeWhenCalculatedMemory = totalItemsAddedToStack;
+            lastTotalPageSize = totalPageSize;
         }
     }
 
@@ -209,7 +213,7 @@ public class SampleIterator implements Executable {
                 if (docGroupsCounter == maxCriteria) {
                     List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
-                        addSample(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                     }
                     docGroupsCounter = 1;
                     sample = new ArrayList<>(maxCriteria);
@@ -225,13 +229,6 @@ public class SampleIterator implements Executable {
             log.trace("Final step... getting next page of the " + (next == page ? "current" : "previous") + " page");
             nextPage(listener, next);
         }, listener::onFailure));
-    }
-
-    protected void addSample(Sample s) {
-        samples.add(s);
-        if (samples.size() % CB_SAMPLE_SIZE_PRECISION == 0) {
-            updateMemoryUsage();
-        }
     }
 
     private void updateMemoryUsage() {
@@ -349,8 +346,8 @@ public class SampleIterator implements Executable {
         stackRamBytesUsed = 0;
         samplesRamBytesUsed = 0;
         totalRamBytesUsed = 0;
-        totalItemsAddedToStack = 0;
-        lastStackSizeWhenCalculatedMemory = 0;
+        totalPageSize = 0;
+        lastTotalPageSize = 0;
     }
 
     private TimeValue timeTook() {

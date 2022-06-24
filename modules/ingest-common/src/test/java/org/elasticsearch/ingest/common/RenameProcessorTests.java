@@ -144,8 +144,7 @@ public class RenameProcessorTests extends ESTestCase {
             if (v != null) {
                 throw new UnsupportedOperationException();
             }
-            return null;
-        }, "list", (k, v) -> v));
+        }, "list", (k, v) -> {}));
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -165,7 +164,6 @@ public class RenameProcessorTests extends ESTestCase {
             if (v == null) {
                 throw new UnsupportedOperationException();
             }
-            return v;
         }));
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {

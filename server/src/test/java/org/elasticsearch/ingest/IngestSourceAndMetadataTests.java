@@ -18,15 +18,12 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestSourceAndMetadataTests extends ESTestCase {
 
     IngestSourceAndMetadata map;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     public void testSettersAndGetters() {
         Map<String, Object> metadata = new HashMap<>();
@@ -38,7 +35,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null);
+        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null);
         assertEquals("myIndex", map.getIndex());
         map.setIndex("myIndex2");
         assertEquals("myIndex2", map.getIndex());
@@ -77,7 +74,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = TestIngestSourceAndMetadata.withoutValidators(source, metadata);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -91,7 +88,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("number", "NaN");
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
         assertEquals(Long.MAX_VALUE, map.getNumber("_version"));
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.getNumber("number"));
         assertEquals("unexpected type for [number] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
@@ -104,7 +101,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null)
+            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -115,7 +112,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(source, source, null)
+            () -> new IngestSourceAndMetadata(source, source, null, null)
         );
         assertEquals("Unexpected metadata key [_version] in source with value [25]", err.getMessage());
     }
@@ -127,7 +124,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null)
+            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -136,7 +133,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
     }
 
     public void testRemove() {
@@ -148,8 +145,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             if (v == null) {
                 throw new IllegalArgumentException(k + " cannot be null or removed");
             }
-            return v;
-        }, canRemove, (k, v) -> v));
+        }, canRemove, (k, v) -> {}));
         String msg = "cannotRemove cannot be null or removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
@@ -204,13 +200,13 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
     public void testEntryAndIterator() {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_routing", "myRouting");
+        metadata.put("_version", 123);
         metadata.put("_version_type", "external");
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = TestIngestSourceAndMetadata.withoutValidators(source, metadata);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {
@@ -239,7 +235,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
         assertNull(map.getVersionType());
         assertFalse(map.containsKey("baz"));
-        assertTrue(map.containsKey("_routing"));
+        assertTrue(map.containsKey("_version"));
         assertTrue(map.containsKey("foo"));
         assertTrue(map.containsKey("noz"));
         assertEquals(3, map.entrySet().size());
@@ -249,10 +245,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        Map<String, Object> sm = new HashMap<>();
-        sm.put("_version", 5678);
-        sm.put("myField", "fieldValue");
-        map = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sm, null);
+        map = new IngestSourceAndMetadata(Map.of("myField", "fieldValue"), Map.of("_version", 5678), null, null);
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));
@@ -287,16 +280,43 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         assertEquals(555, map.getVersion());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", "vt"));
-        assertEquals("_version_type must be a null or one of [internal, external, external_gte]", err.getMessage());
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [vt] with type [java.lang.String]",
+            err.getMessage()
+        );
         assertEquals("external", map.getVersionType());
         map.put("_version_type", "internal");
         assertEquals("internal", map.getVersionType());
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL.toString()));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
+            err.getMessage()
+        );
+        err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type"
+                + " [org.elasticsearch.index.VersionType$2]",
+            err.getMessage()
+        );
+        assertEquals("internal", map.getVersionType());
+        err = expectThrows(IllegalArgumentException.class, () -> map.setVersionType(VersionType.EXTERNAL.toString()));
+        assertEquals(
+            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
+            err.getMessage()
+        );
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_dynamic_templates", "5"));
         assertEquals("_dynamic_templates must be a null or a Map but was [5] with type [java.lang.String]", err.getMessage());
         Map<String, String> dt = Map.of("a", "b");
         map.put("_dynamic_templates", dt);
         assertThat(dt, equalTo(map.getDynamicTemplates()));
+    }
+
+    public void testDefaultValidatorForAllMetadata() {
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            assertThat(IngestSourceAndMetadata.VALIDATORS, hasEntry(equalTo(m.getFieldName()), notNullValue()));
+        }
+        assertEquals(IngestDocument.Metadata.values().length, IngestSourceAndMetadata.VALIDATORS.size());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

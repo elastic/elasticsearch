@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -75,16 +76,29 @@ public final class IngestDocument {
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this.sourceAndMetadata = IngestSourceAndMetadata.copy(other.sourceAndMetadata);
-        this.ingestMetadata = deepCopyMap(other.ingestMetadata);
+        this(
+            new IngestSourceAndMetadata(
+                deepCopyMap(other.sourceAndMetadata.getSource()),
+                deepCopyMap(other.sourceAndMetadata.getMetadata()),
+                other.getIngestSourceAndMetadata().timestamp,
+                other.getIngestSourceAndMetadata().validators
+            ),
+            deepCopyMap(other.ingestMetadata)
+        );
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
-    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sourceAndMetadata, getTimestamp(ingestMetadata));
-        this.ingestMetadata = ingestMetadata;
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            sm.v1(),
+            sm.v2(),
+            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
+            IngestSourceAndMetadata.VALIDATORS
+        );
+        this.ingestMetadata = ingestMetadata != null ? ingestMetadata : new HashMap<>();
     }
 
     /**
@@ -93,20 +107,6 @@ public final class IngestDocument {
     IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
-    }
-
-    /**
-     * Build an IngestDocument from values read via deserialization
-     */
-    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
-    }
-
-    /**
-     * Build an IngestDocument from values read via deserialization
-     */
-    public static IngestDocument of(Map<String, Object> source, Map<String, Object> metadata, Map<String, Object> ingestMetadata) {
-        return new IngestDocument(new IngestSourceAndMetadata(source, metadata, getTimestamp(ingestMetadata)), ingestMetadata);
     }
 
     /**
@@ -752,20 +752,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Fetch the timestamp from the ingestMetadata, if it exists
-     * @return the timestamp for the document or null
-     */
-    public static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
-        if (ingestMetadata == null) {
-            return null;
-        }
-        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime timestamp) {
-            return timestamp;
-        }
-        return null;
     }
 
     @SuppressWarnings("unchecked")

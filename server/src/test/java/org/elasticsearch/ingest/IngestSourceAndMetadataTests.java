@@ -25,11 +25,6 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
     IngestSourceAndMetadata map;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
     public void testSettersAndGetters() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_index", "myIndex");
@@ -150,8 +145,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             if (v == null) {
                 throw new IllegalArgumentException(k + " cannot be null or removed");
             }
-            return v;
-        }, canRemove, (k, v) -> v));
+        }, canRemove, (k, v) -> {}));
         String msg = "cannotRemove cannot be null or removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());

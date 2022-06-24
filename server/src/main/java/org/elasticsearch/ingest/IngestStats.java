@@ -38,18 +38,16 @@ public class IngestStats implements Writeable, ToXContentFragment {
      */
     public IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
         this.totalStats = totalStats;
-        this.pipelineStats = pipelineStats.stream()
-            .sorted((p1, p2) -> {
-                final IngestStats.Stats p2Stats = p2.stats;
-                final IngestStats.Stats p1Stats = p1.stats;
-                final int ingestCountCompare = Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
-                if (ingestCountCompare == 0) {
-                    return Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
-                } else {
-                    return ingestCountCompare;
-                }
-            })
-            .toList();
+        this.pipelineStats = pipelineStats.stream().sorted((p1, p2) -> {
+            final IngestStats.Stats p2Stats = p2.stats;
+            final IngestStats.Stats p1Stats = p1.stats;
+            final int ingestCountCompare = Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
+            if (ingestCountCompare == 0) {
+                return Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
+            } else {
+                return ingestCountCompare;
+            }
+        }).toList();
         this.processorStats = processorStats;
 
     }

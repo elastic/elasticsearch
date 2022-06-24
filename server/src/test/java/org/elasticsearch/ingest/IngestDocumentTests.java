@@ -969,7 +969,8 @@ public class IngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
-        IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+        // this is testing equality so use the wire constructor
+        IngestDocument ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
 
         boolean changed = false;
         Map<String, Object> otherSourceAndMetadata;
@@ -999,7 +1000,7 @@ public class IngestDocumentTests extends ESTestCase {
             otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
         }
 
-        IngestDocument otherIngestDocument = new IngestDocument(otherSourceAndMetadata, otherIngestMetadata);
+        IngestDocument otherIngestDocument = IngestDocument.of(otherSourceAndMetadata, otherIngestMetadata);
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -1007,7 +1008,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(
+            IngestDocument thirdIngestDocument = IngestDocument.of(
                 Collections.unmodifiableMap(sourceAndMetadata),
                 Collections.unmodifiableMap(ingestMetadata)
             );
@@ -1042,7 +1043,7 @@ public class IngestDocumentTests extends ESTestCase {
         sourceAndMetadata.put("beforeClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509237000), timezone));
         sourceAndMetadata.put("afterClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509240600), timezone));
 
-        IngestDocument original = new IngestDocument(sourceAndMetadata, new HashMap<>());
+        IngestDocument original = TestIngestDocument.ofSourceAndMetadata(sourceAndMetadata);
         IngestDocument copy = new IngestDocument(original);
 
         assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
@@ -1069,7 +1070,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        IngestDocument copiedDoc = new IngestDocument(
+        // this is testing copy so use the wire constructor
+        IngestDocument copiedDoc = IngestDocument.of(
             IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
             IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
         );

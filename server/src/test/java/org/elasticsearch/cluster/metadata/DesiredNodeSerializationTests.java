@@ -16,8 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomProcessorRange;
-
 public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
     @Override
     protected DesiredNode doParseInstance(XContentParser parser) throws IOException {
@@ -52,15 +50,14 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
             );
             case 1 -> new DesiredNode(
                 instance.settings(),
-                randomFloat() + randomIntBetween(1, 128),
+                randomValueOtherThan(instance.processors(), () -> randomFloat() + randomIntBetween(1, 128)),
                 instance.memory(),
                 instance.storage(),
                 instance.version()
             );
-
             case 2 -> new DesiredNode(
                 instance.settings(),
-                randomProcessorRange(),
+                randomValueOtherThan(instance.processorsRange(), DesiredNodesTestCase::randomProcessorRange),
                 instance.memory(),
                 instance.storage(),
                 instance.version()
@@ -69,7 +66,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
                 instance.settings(),
                 instance.processors(),
                 instance.processorsRange(),
-                ByteSizeValue.ofGb(randomIntBetween(1, 128)),
+                ByteSizeValue.ofGb(randomValueOtherThan(instance.memory().getGb(), () -> (long) randomIntBetween(1, 128))),
                 instance.storage(),
                 instance.version()
             );
@@ -78,7 +75,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
                 instance.processors(),
                 instance.processorsRange(),
                 instance.memory(),
-                ByteSizeValue.ofGb(randomIntBetween(1, 128)),
+                ByteSizeValue.ofGb(randomValueOtherThan(instance.storage().getGb(), () -> (long) randomIntBetween(1, 128))),
                 instance.version()
             );
             case 5 -> new DesiredNode(

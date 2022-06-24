@@ -81,7 +81,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(IlmHealthIndicatorService.ILM_NOT_RUNNING)
                 )
             )
         );

@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestSecurityClient;
@@ -69,6 +70,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -1648,9 +1651,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
+        boolean includeDomain = randomBoolean();
+        final var realmName = "file";
+        final var realmType = FileRealmSettings.TYPE;
         return Authentication.newRealmAuthentication(
             new User(userName, roleName),
-            new Authentication.RealmRef("file", FileRealmSettings.TYPE, nodeName)
+            new Authentication.RealmRef(
+                realmName,
+                realmType,
+                nodeName,
+                includeDomain
+                    ? new RealmDomain(
+                        ESTestCase.randomAlphaOfLengthBetween(3, 8),
+                        Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
+                    )
+                    : null
+            )
         );
     }
 

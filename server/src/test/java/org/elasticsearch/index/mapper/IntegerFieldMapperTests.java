@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +16,6 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.List;
 
-@Repeat(iterations = 100)
 public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override

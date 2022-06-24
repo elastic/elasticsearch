@@ -1689,7 +1689,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Load all values for all docs up front. This should be much more
          * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
-         * the values in order.
+         * the values all at once, keeping the disk .
          */
         private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
             long[] values = new long[docIdsInLeaf.length];

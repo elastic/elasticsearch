@@ -37,7 +37,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagnosticsAction.Response> {
 
     public static final CoordinationDiagnosticsAction INSTANCE = new CoordinationDiagnosticsAction();
-    public static final String NAME = "cluster:internal/stable_master/get";
+    public static final String NAME = "cluster:internal/coordination_diagnostics/info";
 
     private CoordinationDiagnosticsAction() {
         super(NAME, CoordinationDiagnosticsAction.Response::new);

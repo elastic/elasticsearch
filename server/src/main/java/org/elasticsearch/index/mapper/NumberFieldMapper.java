@@ -39,6 +39,7 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -1633,21 +1634,24 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             NumericDocValues single = reader.getNumericDocValues(name);
-            if (docIdsInLeaf.length > 1 && single != null) {
-                /*
-                 * The singleton optimization is mostly about looking up all
-                 * values for the field at once. If there's just a single
-                 * document then it's just extra overhead.
-                 */
-                return singletonLeaf(single, docIdsInLeaf);
-            }
             if (single != null) {
+                if (docIdsInLeaf.length > 1) {
+                    /*
+                     * The singleton optimization is mostly about looking up all
+                     * values for the field at once. If there's just a single
+                     * document then it's just extra overhead.
+                     */
+                    LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA singleton {}", name);
+                    return singletonLeaf(single, docIdsInLeaf);
+                }
+                LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA singleton one doc {}", name);
                 return new ImmediateLeaf(DocValues.singleton(single));
             }
             SortedNumericDocValues sorted = reader.getSortedNumericDocValues(name);
             if (sorted == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
+            LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA multi {}", name);
             return new ImmediateLeaf(sorted);
         }
 

@@ -48,55 +48,6 @@ public class JwtValidateUtil {
         null
     );
 
-    /**
-     * Validate a SignedJWT. Use iss/aud/alg filters for those claims, JWKSet for signature, and skew seconds for time claims.
-     * @param jwt Signed JWT to be validated.
-     * @param allowedIssuer Filter for the "iss" claim.
-     * @param allowedAudiences Filter for the "aud" claim.
-     * @param allowedClockSkewSeconds Skew tolerance for the "auth_time", "iat", "nbf", and "exp" claims.
-     * @param allowedSignatureAlgorithms Filter for the "aud" header.
-     * @param jwks JWKs of HMAC secret keys or RSA/EC public keys.
-     * @throws Exception Error for the first validation to fail.
-     */
-    public static void validate(
-        final SignedJWT jwt,
-        final String allowedIssuer,
-        final List<String> allowedAudiences,
-        final long allowedClockSkewSeconds,
-        final List<String> allowedSignatureAlgorithms,
-        final List<JWK> jwks
-    ) throws Exception {
-        final Date now = new Date();
-
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(
-                "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], typ [{}],"
-                    + " auth_time [{}], iat [{}], nbf [{}], exp [{}], kid [{}], jti [{}]",
-                now,
-                jwt.getHeader().getAlgorithm(),
-                jwt.getJWTClaimsSet().getIssuer(),
-                jwt.getJWTClaimsSet().getAudience(),
-                jwt.getHeader().getType(),
-                jwt.getJWTClaimsSet().getDateClaim("auth_time"),
-                jwt.getJWTClaimsSet().getIssueTime(),
-                jwt.getJWTClaimsSet().getNotBeforeTime(),
-                jwt.getJWTClaimsSet().getExpirationTime(),
-                jwt.getHeader().getKeyID(),
-                jwt.getJWTClaimsSet().getJWTID()
-            );
-        }
-        // validate claims before signature, because log messages about rejected claims can be more helpful than rejected signatures
-        JwtValidateUtil.validateType(jwt);
-        JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
-        JwtValidateUtil.validateAudiences(jwt, allowedAudiences);
-        JwtValidateUtil.validateSignatureAlgorithm(jwt, allowedSignatureAlgorithms);
-        JwtValidateUtil.validateAuthTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateIssuedAtTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateNotBeforeTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateExpiredTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateSignature(jwt, jwks);
-    }
-
     public static void validateType(final SignedJWT jwt) throws Exception {
         final JOSEObjectType jwtHeaderType = jwt.getHeader().getType();
         try {
@@ -305,16 +256,19 @@ public class JwtValidateUtil {
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
         LOGGER.debug("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
 
+        // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
+        if (jwksStrength.isEmpty()) {
+            throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        }
+
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
                 return; // VERIFY SUCCEEDED
             }
         }
 
-        // Either jwksStrength is empty because the given JWT does not match possible algorithms and KID combinations
-        // which could be that the given JWKSet has rotated. Or no jkwsStrength matches with give JWT token.
-        // Which could also be explained by a rotated JWKSet.
-        throw new JWKSetValidationError("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        // At least one JWK passed the kid, alg, and strength checks, but none successfully verified the JWT signature
+        throw new AllVerifiesFailedException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -376,8 +330,8 @@ public class JwtValidateUtil {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public static class JWKSetValidationError extends Exception {
-        public JWKSetValidationError(String errorMessage) {
+    public static class AllVerifiesFailedException extends Exception {
+        public AllVerifiesFailedException(String errorMessage) {
             super(errorMessage);
         }
     }

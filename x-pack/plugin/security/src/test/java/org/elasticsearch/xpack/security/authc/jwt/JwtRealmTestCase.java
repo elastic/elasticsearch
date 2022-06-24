@@ -191,9 +191,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return this.jwtIssuerAndRealms;
     }
 
-    protected void rotateInvalidJWKsJwtIssuer(
-        final JwtIssuer jwtIssuer
-    ) throws Exception {
+    protected void rotateInvalidJWKsJwtIssuer(final JwtIssuer jwtIssuer) throws Exception {
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
         final Set<String> allAlgs = new HashSet<>() {
         };
@@ -224,9 +222,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         jwtIssuer.rotate(algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc);
     }
 
-    protected void rotateJWKsJwtIssuer(
-        final JwtIssuer jwtIssuer
-    ) throws Exception {
+    protected void rotateJWKsJwtIssuer(final JwtIssuer jwtIssuer) throws Exception {
         final String issuer = jwtIssuer.issuerClaimValue;
 
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
@@ -546,9 +542,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + ", realm.aud="
                 + jwtRealm.allowedAudiences
                 + ", HMAC alg="
-                + jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().algs()
+                + jwtRealm.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs()
                 + ", PKC alg="
-                + jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().algs()
+                + jwtRealm.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs()
                 + ", client=["
                 + jwtRealm.clientAuthenticationType
                 + "], meta=["
@@ -726,7 +722,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return user;
     }
 
-    protected SecureString generateJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user, JwtIssuer.AlgJwkPair algJwkPair) throws Exception {
+    protected SecureString generateJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user, JwtIssuer.AlgJwkPair algJwkPair)
+        throws Exception {
         LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -754,7 +751,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user, Set<String> algs) throws Exception {
-        final List<JwtIssuer.AlgJwkPair> algJwkPairs = jwtIssuerAndRealm.issuer.algAndJwksAll.stream().filter(p -> algs.contains(p.alg())).toList();
+        final List<JwtIssuer.AlgJwkPair> algJwkPairs = jwtIssuerAndRealm.issuer.algAndJwksAll.stream()
+            .filter(p -> algs.contains(p.alg()))
+            .toList();
         final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(algJwkPairs);
         return generateJwt(jwtIssuerAndRealm, user, algJwkPair);
     }

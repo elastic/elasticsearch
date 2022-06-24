@@ -185,7 +185,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 3, 1, 1, 1, createHttpsServer, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(
+            0,
+            principalClaimName,
+            3,
+            1,
+            1,
+            1,
+            createHttpsServer,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC
+        );
         final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
@@ -269,8 +278,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false,
-            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(
+            0,
+            principalClaimName,
+            12,
+            1,
+            1,
+            1,
+            false,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC
+        );
         final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         final String realmName = "realm_" + jwtIssuer.issuerClaimValue;
         try {
@@ -292,10 +309,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
             if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
                 filePath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
-                authcSettings.put(
-                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                    filePath
-                );
+                authcSettings.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH), filePath);
             }
             // JWT authc realm secure settings
             final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -402,8 +416,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
         final int algsCount = randomIntBetween(6, 12);
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, algsCount, 1, 1, 1,
-            createHttpsServer, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(
+            0,
+            principalClaimName,
+            algsCount,
+            1,
+            1,
+            1,
+            createHttpsServer,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC
+        );
         final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
@@ -454,8 +476,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false,
-            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(
+            0,
+            principalClaimName,
+            12,
+            1,
+            1,
+            1,
+            false,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC
+        );
         final Set<String> pkcAlgorithms = new HashSet<>(jwtIssuer.algorithmsAll);
         final String realmName = "realm_" + jwtIssuer.issuerClaimValue;
         try {
@@ -477,10 +507,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
             if (Strings.hasText(jwtIssuer.encodedJwkSetPkcPublic)) {
                 filePath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
-                authcSettings.put(
-                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                    filePath
-                );
+                authcSettings.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH), filePath);
             }
             // JWT authc realm secure settings
             final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -622,16 +649,18 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
             final String mixupAlg; // Check if there are any algorithms available in the realm for attempting a flip test
             if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(validHeader.getAlgorithm().getName())) {
-                if (jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip HMAC to PKC (no PKC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs()); // flip HMAC
+                                                                                                                              // to PKC
                 }
             } else {
-                if (jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip PKC to HMAC (no HMAC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs()); // flip HMAC
+                                                                                                                               // to PKC
                 }
             }
             // This check can only be executed if there is a flip algorithm available in the realm

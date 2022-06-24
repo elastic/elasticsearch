@@ -92,7 +92,7 @@ public class JwkValidateUtilTests extends JwtTestCase {
         final List<JWK> jwksAll = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::jwk).toList();
 
         // verify no filtering
-        final JwtRealm.JwksAlgs nonFiltered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algsRandom);
+        final JwtRealm.FilteredJwksAlgs nonFiltered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algsRandom);
         assertThat(jwks.size(), equalTo(nonFiltered.jwks().size()));
         assertThat(algsRandom.size(), equalTo(nonFiltered.algs().size()));
     }

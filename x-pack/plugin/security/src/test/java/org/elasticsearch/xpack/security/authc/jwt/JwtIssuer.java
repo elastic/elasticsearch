@@ -102,11 +102,7 @@ public class JwtIssuer implements Closeable {
         this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
     }
 
-    public void rotate(
-        final List<AlgJwkPair> algAndJwksPkc,
-        final List<AlgJwkPair> algAndJwksHmac,
-        final AlgJwkPair algAndJwkHmacOidc
-    ) {
+    public void rotate(final List<AlgJwkPair> algAndJwksPkc, final List<AlgJwkPair> algAndJwksHmac, final AlgJwkPair algAndJwkHmacOidc) {
         this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
         if (this.httpsServer != null) {
             final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);

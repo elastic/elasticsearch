@@ -1,0 +1,6 @@
+pr: 88005
+summary: "Execute `_refresh` separately from DBQ, with system permissions"
+area: Transform
+type: bug
+issues:
+ - 88001

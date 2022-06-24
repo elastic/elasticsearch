@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -184,6 +186,16 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
                 assertThat(dataStream, is(in(collectedDataStreams)));
             }
         });
+
+        final var getDataStreamRequest = new GetDataStreamAction.Request(new String[] { INDICES_WRITE_LOAD_DATA_STREAM });
+        final var getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams(), hasSize(1));
+        final var indicesWriteLoadDataStream = getDataStreamResponse.getDataStreams().get(0);
+
+        // Ensure that the data stream was create with the expected index template and ILM policy
+        assertThat(indicesWriteLoadDataStream.getDataStream().getName(), is(equalTo(INDICES_WRITE_LOAD_DATA_STREAM)));
+        assertThat(indicesWriteLoadDataStream.getIndexTemplate(), is(equalTo(INDICES_WRITE_LOAD_DATA_STREAM)));
+        assertThat(indicesWriteLoadDataStream.getIlmPolicy(), is(equalTo(IndicesWriteLoadTemplateRegistry.ILM_POLICY_NAME)));
     }
 
     public void testSamplesAreNotCollectedAfterDeletingADataStream() throws Exception {

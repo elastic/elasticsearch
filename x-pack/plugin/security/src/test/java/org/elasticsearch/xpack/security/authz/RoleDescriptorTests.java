@@ -626,7 +626,7 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    private RoleDescriptor randomRoleDescriptor() {
+    public static RoleDescriptor randomRoleDescriptor() {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()

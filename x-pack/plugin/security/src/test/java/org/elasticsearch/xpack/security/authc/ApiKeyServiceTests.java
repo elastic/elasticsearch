@@ -59,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -83,6 +85,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
+import org.elasticsearch.xpack.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -103,6 +106,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1660,6 +1664,76 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, apiKeyDocWithEmptyName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+    }
+
+    public void testUpdatedDocument() throws IOException {
+        final var apiKey = randomAlphaOfLength(16);
+        final var hasher = getFastStoredHashAlgoForTests();
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+
+        final var oldApiKeyDoc = buildApiKeyDoc(hash, -1, false);
+
+        final Set<RoleDescriptor> newUserRoles = randomBoolean() ? Set.of() : Set.of(RoleDescriptorTests.randomRoleDescriptor());
+
+        final boolean nullKeyRoles = randomBoolean();
+        final List<RoleDescriptor> newKeyRoles;
+        if (nullKeyRoles) {
+            newKeyRoles = null;
+        } else {
+            newKeyRoles = List.of(RoleDescriptorTests.randomRoleDescriptor());
+        }
+
+        final var metadata = ApiKeyTests.randomMetadata();
+        final var version = Version.CURRENT;
+        final var keyDocSource = ApiKeyService.updatedDocument(
+            oldApiKeyDoc,
+            Authentication.newRealmAuthentication(
+                new User("user", "role"),
+                new Authentication.RealmRef("file", FileRealmSettings.TYPE, "node")
+            ),
+            newUserRoles,
+            newKeyRoles,
+            version,
+            metadata
+        );
+        final var updatedApiKeyDoc = ApiKeyDoc.fromXContent(
+            XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(keyDocSource), XContentType.JSON)
+        );
+
+        assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
+        assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
+        assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
+        assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
+        assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
+
+        final var service = createApiKeyService(Settings.EMPTY);
+        final var actualUserRoles = service.parseRoleDescriptorsBytes(
+            "",
+            updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.LIMITED_BY
+        );
+        assertEquals(newUserRoles.size(), actualUserRoles.size());
+        assertEquals(new HashSet<>(newUserRoles), new HashSet<>(actualUserRoles));
+
+        final var actualKeyRoles = service.parseRoleDescriptorsBytes(
+            "",
+            updatedApiKeyDoc.roleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED
+        );
+        if (nullKeyRoles) {
+            assertEquals(
+                service.parseRoleDescriptorsBytes("", oldApiKeyDoc.roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+                actualKeyRoles
+            );
+        } else {
+            assertEquals(newKeyRoles.size(), actualKeyRoles.size());
+            assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
+        }
+        if (metadata == null) {
+            assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
+        } else {
+            assertEquals(metadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
+        }
     }
 
     public void testApiKeyDocDeserializationWithNullValues() throws IOException {

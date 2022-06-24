@@ -457,7 +457,7 @@ public class ApiKeyService {
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
             .setSource(
-                mergedDocument(
+                updatedDocument(
                     currentVersionedDoc.doc(),
                     authentication,
                     userRoles,
@@ -509,7 +509,7 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    static XContentBuilder mergedDocument(
+    static XContentBuilder updatedDocument(
         ApiKeyDoc currentApiKeyDoc,
         Authentication authentication,
         Set<RoleDescriptor> userRoles,
@@ -521,6 +521,7 @@ public class ApiKeyService {
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", currentApiKeyDoc.creationTime)
+            // TODO double-check
             .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
             .field("api_key_invalidated", false);
 
@@ -543,7 +544,7 @@ public class ApiKeyService {
             builder.rawField(
                 "metadata_flattened",
                 currentApiKeyDoc.metadataFlattened == null
-                    ? InputStream.nullInputStream()
+                    ? ApiKeyDoc.NULL_BYTES.streamInput()
                     : currentApiKeyDoc.metadataFlattened.streamInput(),
                 XContentType.JSON
             );
@@ -683,7 +684,9 @@ public class ApiKeyService {
         }), client::get);
     }
 
-    public List<RoleDescriptor> parseRoleDescriptors(
+    public
+        List<RoleDescriptor>
+        parseRoleDescriptors(
         final String apiKeyId,
         final Map<String, Object> roleDescriptorsMap,
         RoleReference.ApiKeyRoleType roleType

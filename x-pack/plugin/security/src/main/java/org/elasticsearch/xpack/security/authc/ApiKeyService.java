@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -373,8 +372,6 @@ public class ApiKeyService {
             if (versionedDocs.isEmpty()) {
                 throw apiKeyNotFound(apiKeyId);
             }
-
-            // TODO could make idempotency check here
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, single(versionedDocs).doc());
 
@@ -1352,8 +1349,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                // TODO
-                logger.error("unable to clear API key cache", e);
+                logger.error("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName(), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });

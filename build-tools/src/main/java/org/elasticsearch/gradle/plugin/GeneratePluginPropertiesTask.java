@@ -20,7 +20,6 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -63,7 +62,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @Input
     public abstract Property<String> getJavaVersion();
 
-    @Optional
     @Input
     public abstract Property<String> getClassname();
 
@@ -77,12 +75,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getRequiresKeystore();
 
     @Input
-    public abstract Property<PluginType> getPluginType();
-
-    @Input
-    public abstract Property<String> getJavaOpts();
-
-    @Input
     public abstract Property<Boolean> getIsLicensed();
 
     @InputFiles
@@ -93,9 +85,8 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        PluginType pluginType = getPluginType().get();
         String classname = getClassname().getOrElse("");
-        if (pluginType.equals(PluginType.BOOTSTRAP) == false && classname.isEmpty()) {
+        if (classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
         }
 
@@ -109,8 +100,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());
-        props.put("type", pluginType.toString());
-        props.put("javaOpts", getJavaOpts().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
 

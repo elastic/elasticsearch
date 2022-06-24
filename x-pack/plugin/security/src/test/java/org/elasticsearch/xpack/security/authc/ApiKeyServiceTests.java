@@ -1689,17 +1689,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var metadata = ApiKeyTests.randomMetadata();
         final var version = Version.CURRENT;
-        final var keyDocSource = ApiKeyService.updatedDocument(
-            oldApiKeyDoc,
-            Authentication.newRealmAuthentication(
-                new User("user", "role"),
-                new Authentication.RealmRef("file", FileRealmSettings.TYPE, "node")
-            ),
-            newUserRoles,
-            newKeyRoles,
-            version,
-            metadata
-        );
+        final var authentication = AuthenticationTestHelper.builder().user(new User("user", "role")).build(false);
+
+        final var keyDocSource = ApiKeyService.updatedDocument(oldApiKeyDoc, authentication, newUserRoles, newKeyRoles, version, metadata);
         final var updatedApiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(keyDocSource), XContentType.JSON)
         );
@@ -1737,6 +1729,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
         } else {
             assertEquals(metadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
+        }
+
+        assertEquals(authentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.getOrDefault("principal", null));
+        assertEquals(authentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.getOrDefault("fullName", null));
+        assertEquals(authentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.getOrDefault("email", null));
+        assertEquals(authentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.getOrDefault("metadata", null));
+        RealmRef realm = authentication.getEffectiveSubject().getRealm();
+        assertEquals(realm.getName(), updatedApiKeyDoc.creator.getOrDefault("realm", null));
+        assertEquals(realm.getType(), updatedApiKeyDoc.creator.getOrDefault("realm_type", null));
+        if (realm.getDomain() != null) {
+            assertEquals(realm.getDomain(), updatedApiKeyDoc.creator.getOrDefault("realm_domain", null));
+        } else {
+            assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
         }
     }
 

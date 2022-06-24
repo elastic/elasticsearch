@@ -1463,6 +1463,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(),
             getResponse.getApiKeyInfos()[0].getMetadata()
         );
+        assertEquals(ES_TEST_ROOT_USER, getResponse.getApiKeyInfos()[0].getUsername());
+        assertEquals("file", getResponse.getApiKeyInfos()[0].getRealm());
 
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
@@ -1663,7 +1665,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals(serviceForDoc2AuthCacheCount, serviceForDoc2.getApiKeyAuthCache().count());
     }
 
-    private Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
+    private static Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
         boolean includeDomain = randomBoolean();
         final var realmName = "file";
         final var realmType = FileRealmSettings.TYPE;

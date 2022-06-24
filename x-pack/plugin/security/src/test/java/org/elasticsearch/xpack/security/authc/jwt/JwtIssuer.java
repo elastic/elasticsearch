@@ -45,8 +45,8 @@ public class JwtIssuer implements Closeable {
     // Computed values
     List<AlgJwkPair> algAndJwksAll;
     Set<String> algorithmsAll;
-    String encodedJwkSetPkcPrivate;
-    String encodedJwkSetPkcPublic;
+    String encodedJwkSetPkcPublicPrivate;
+    String encodedJwkSetPkcPublicOnly;
     String encodedJwkSetHmac;
     String encodedKeyHmacOidc;
     final JwtIssuerHttpsServer httpsServer;
@@ -65,15 +65,32 @@ public class JwtIssuer implements Closeable {
         this.audiencesClaimValue = audiencesClaimValue;
         this.principalClaimName = principalClaimName;
         this.principals = principals;
+        this.httpsServer = this.initializeJwksAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc, createHttpsServer);
+    }
 
+    private JwtIssuerHttpsServer initializeJwksAlgs(
+        final List<AlgJwkPair> algAndJwksPkc,
+        final List<AlgJwkPair> algAndJwksHmac,
+        final AlgJwkPair algAndJwkHmacOidc,
+        final boolean createHttpsServer
+    ) throws Exception {
         this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
-
-        if ((Strings.hasText(this.encodedJwkSetPkcPublic) == false) || (createHttpsServer == false)) {
-            this.httpsServer = null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
-        } else {
-            final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
-            this.httpsServer = new JwtIssuerHttpsServer(encodedJwkSetPkcPublicBytes);
+        if ((Strings.hasText(this.encodedJwkSetPkcPublicOnly) == false) || (createHttpsServer == false)) {
+            return null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
         }
+        return new JwtIssuerHttpsServer(this.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public void updateJwksAlgs(
+        final List<AlgJwkPair> algAndJwksPkc,
+        final List<AlgJwkPair> algAndJwksHmac,
+        final AlgJwkPair algAndJwkHmacOidc
+    ) {
+        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
+        if (this.httpsServer != null) {
+            this.httpsServer.updateJwkSetPkcContents(this.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
+        }
+
     }
 
     private void setJwksAndAlgs(
@@ -96,19 +113,10 @@ public class JwtIssuer implements Closeable {
         final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
         final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
 
-        this.encodedJwkSetPkcPrivate = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, false);
-        this.encodedJwkSetPkcPublic = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
+        this.encodedJwkSetPkcPublicPrivate = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, false);
+        this.encodedJwkSetPkcPublicOnly = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
         this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
         this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
-    }
-
-    public void rotate(final List<AlgJwkPair> algAndJwksPkc, final List<AlgJwkPair> algAndJwksHmac, final AlgJwkPair algAndJwkHmacOidc) {
-        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
-        if (this.httpsServer != null) {
-            final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
-            this.httpsServer.rotate(encodedJwkSetPkcPublicBytes);
-        }
-
     }
 
     @Override

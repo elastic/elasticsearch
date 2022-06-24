@@ -66,11 +66,16 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "80%")
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final IllegalArgumentException e = expectThrows(
+        final IllegalArgumentException cause = expectThrows(
             IllegalArgumentException.class,
             () -> new DiskThresholdSettings(settings, clusterSettings)
         );
-        assertThat(e, hasToString(containsString("low disk watermark [90%] more than high disk watermark [80%]")));
+        final String expectedCause = String.format(
+            "setting [%s=90%%] cannot be greater than [%s=80%%]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testInvalidLowHighPercentageUpdate() {
@@ -88,7 +93,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("low disk watermark [90%] more than high disk watermark [80%]")));
+        final String expectedCause = String.format(
+            "setting [%s=90%%] cannot be greater than [%s=80%%]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testInvalidHighFloodPercentageUpdate() {
@@ -107,7 +117,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("high disk watermark [60%] more than flood stage disk watermark [55%]")));
+        final String expectedCause = String.format(
+            "setting [%s=60%%] cannot be greater than [%s=55%%]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testInvalidLowHighBytesUpdate() {
@@ -126,7 +141,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("low disk watermark [500m] less than high disk watermark [1000m]")));
+        final String expectedCause = String.format(
+            "setting [%s=500m] cannot be less than [%s=1000m]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testInvalidHighFloodBytesUpdate() {
@@ -145,7 +165,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("low disk watermark [500m] less than high disk watermark [1000m]")));
+        final String expectedCause = String.format(
+            "setting [%s=500m] cannot be less than [%s=1000m]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testIncompatibleThresholdUpdate() {
@@ -166,7 +191,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         final String incompatibleExpected = String.format(
             Locale.ROOT,
-            "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
+            "unable to consistently parse [%s=%s], [%s=%s], [%s=%s] as percentage or bytes",
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
             "90%",
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
@@ -192,7 +217,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
+        final String expectedCause = String.format(
+            "setting [%s=85%%] cannot be greater than [%s=75%%]",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+        );
+        assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
     public void testSequenceOfUpdates() {

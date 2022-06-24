@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,21 +35,24 @@ import java.util.Objects;
  */
 public class HealthMetadataService {
 
-    // Visible for testing
-    static final Logger logger = LogManager.getLogger(HealthMetadataService.class);
+    private static final Logger logger = LogManager.getLogger(HealthMetadataService.class);
+
     private static final int MAX_RETRIES = 5;
 
     private final ClusterService clusterService;
-    private final DiskThresholdSettings diskThresholdSettings;
+    private final DiskThresholdSettings allocationDiskThresholdSettings;
+    private final HealthDiskThresholdSettings healthDiskThresholdSettings;
 
     private volatile boolean publishedAfterElection = false;
     private final ClusterStateTaskExecutor<UpdateHealthMetadataTask> taskExecutor = new UpdateHealthMetadataTask.Executor();
 
-    public HealthMetadataService(DiskThresholdSettings diskThresholdSettings, ClusterService clusterService) {
+    public HealthMetadataService(DiskThresholdSettings allocationDiskThresholdSettings, ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
-        this.diskThresholdSettings = diskThresholdSettings;
+        this.allocationDiskThresholdSettings = allocationDiskThresholdSettings;
+        this.healthDiskThresholdSettings = new HealthDiskThresholdSettings(settings, clusterService.getClusterSettings());
         this.clusterService.addListener(this::updateHealthMetadataIfNecessary);
-        this.diskThresholdSettings.addListener(this::updateHealthMetadataIfNecessary);
+        this.allocationDiskThresholdSettings.addListener(this::updateHealthMetadataIfNecessary);
+        this.healthDiskThresholdSettings.addListener(this::updateHealthMetadataIfNecessary);
     }
 
     private void updateHealthMetadataIfNecessary(ClusterChangedEvent event) {
@@ -62,7 +66,7 @@ public class HealthMetadataService {
         }
     }
 
-    private void updateHealthMetadataIfNecessary(DiskThresholdSettings ignored) {
+    private void updateHealthMetadataIfNecessary() {
         ClusterState clusterState = clusterService.state();
         if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)
             && clusterState.nodes().isLocalNodeElectedMaster()) {
@@ -84,7 +88,7 @@ public class HealthMetadataService {
     }
 
     private HealthMetadata createHealthMetadata() {
-        return new HealthMetadata(HealthMetadata.DiskHealthThresholds.from(diskThresholdSettings));
+        return new HealthMetadata(HealthMetadata.DiskHealthThresholds.from(allocationDiskThresholdSettings, healthDiskThresholdSettings));
     }
 
     private void submitHealthMetadata(String source) {

@@ -913,7 +913,7 @@ public class Node implements Closeable {
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
-                ? new HealthMetadataService(diskThresholdSettings, clusterService)
+                ? new HealthMetadataService(diskThresholdSettings, clusterService, settings)
                 : null;
 
             modules.add(b -> {

@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -188,19 +190,31 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             );
         }
 
-        static DiskHealthThresholds from(DiskThresholdSettings settings) {
-            RelativeByteSizeValue frozenFloodStage = settings.getFrozenFloodStage();
+        static DiskHealthThresholds from(
+            DiskThresholdSettings allocationDiskThresholdSettings,
+            HealthDiskThresholdSettings healthDiskThresholdSettings
+        ) {
+            RelativeByteSizeValue frozenFloodStage = allocationDiskThresholdSettings.getFrozenFloodStage();
             return new DiskHealthThresholds(
-                new Threshold(100.0 - settings.getFreeDiskThresholdLow(), settings.getFreeBytesThresholdLow()),
-                new Threshold(100.0 - settings.getFreeDiskThresholdHigh(), settings.getFreeBytesThresholdHigh()),
-                new Threshold(100.0 - settings.getFreeDiskThresholdFloodStage(), settings.getFreeBytesThresholdFloodStage()),
+                new Threshold(
+                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdLow(),
+                    allocationDiskThresholdSettings.getFreeBytesThresholdLow()
+                ),
+                new Threshold(
+                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdHigh(),
+                    allocationDiskThresholdSettings.getFreeBytesThresholdHigh()
+                ),
+                new Threshold(
+                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdFloodStage(),
+                    allocationDiskThresholdSettings.getFreeBytesThresholdFloodStage()
+                ),
                 new Threshold(
                     frozenFloodStage.getRatio() == null ? 0.0 : frozenFloodStage.getRatio().getAsPercent(),
                     frozenFloodStage.isAbsolute() ? frozenFloodStage.getAbsolute() : ByteSizeValue.ZERO
                 ),
-                settings.getFrozenFloodStageMaxHeadroom(),
-                new Threshold(100.0, ByteSizeValue.ZERO),
-                new Threshold(100.0, ByteSizeValue.ZERO)
+                allocationDiskThresholdSettings.getFrozenFloodStageMaxHeadroom(),
+                healthDiskThresholdSettings.getYellowThreshold(),
+                healthDiskThresholdSettings.getRedThreshold()
             );
         }
 
@@ -257,13 +271,13 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
                 "threshold",
                 true,
                 (args) -> new Threshold(
-                    (double) args[0],
+                    RatioValue.parseRatioValue((String) args[0]).getAsPercent(),
                     ByteSizeValue.parseBytesSizeValue((String) args[1], MIN_FREE_BYTES.getPreferredName())
                 )
             );
 
             static {
-                PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MAX_PERCENTAGE_USED_FIELD);
+                PARSER.declareString(ConstructingObjectParser.constructorArg(), MAX_PERCENTAGE_USED_FIELD);
                 PARSER.declareString(ConstructingObjectParser.constructorArg(), MIN_FREE_BYTES);
             }
 
@@ -277,15 +291,19 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field(MAX_PERCENTAGE_USED_FIELD.getPreferredName(), maxPercentageUsed);
+                builder.field(MAX_PERCENTAGE_USED_FIELD.getPreferredName(), Strings.format1Decimals(maxPercentageUsed, "%"));
                 builder.field(MIN_FREE_BYTES.getPreferredName(), minFreeBytes);
-                return null;
+                return builder;
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeDouble(maxPercentageUsed);
                 minFreeBytes.writeTo(out);
+            }
+
+            public String describe() {
+                return minFreeBytes.equals(ByteSizeValue.ZERO) ? Strings.format1Decimals(maxPercentageUsed, "%") : minFreeBytes.toString();
             }
         }
     }

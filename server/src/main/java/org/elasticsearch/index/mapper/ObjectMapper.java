@@ -554,53 +554,51 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
-        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
-            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
-            if (subLoader != null) {
-                fields.add(subLoader);
-            }
-        });
+        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
+            .stream()
+            .sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != null)
+            .toList();
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public Leaf leaf(LeafReader reader) throws IOException {
-                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    leaves.add(field.leaf(reader));
+                    Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                    if (false == leaf.empty()) {
+                        l.add(leaf);
+                    }
                 }
+                SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
                     @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.advanceToDoc(docId);
-                        }
+                    public boolean empty() {
+                        return leaves.length == 0;
                     }
 
                     @Override
-                    public boolean hasValue() {
+                    public boolean advanceToDoc(int docId) throws IOException {
+                        hasValue = false;
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                return true;
-                            }
+                            boolean leafHasValue = leaf.advanceToDoc(docId);
+                            hasValue |= leafHasValue;
                         }
-                        return false;
+                        return hasValue;
                     }
 
                     @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        boolean started = false;
+                    public void write(XContentBuilder b) throws IOException {
+                        if (hasValue == false) {
+                            return;
+                        }
+                        startSyntheticField(b);
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                if (false == started) {
-                                    started = true;
-                                    startSyntheticField(b);
-                                }
-                                leaf.load(b);
-                            }
+                            leaf.write(b);
                         }
-                        if (started) {
-                            b.endObject();
-                        }
+                        b.endObject();
                     }
                 };
             }

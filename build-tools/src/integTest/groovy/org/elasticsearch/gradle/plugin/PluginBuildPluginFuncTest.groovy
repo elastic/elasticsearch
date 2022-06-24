@@ -115,12 +115,11 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("description") == "test plugin"
         props.get("classname") == "com.acme.plugin.TestPlugin"
         props.get("modulename") == ""
-        props.get("type") == "isolated"
         props.get("java.version") == Integer.toString(Runtime.version().feature())
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
         props.get("extended.plugins") == ""
         props.get("has.native.controller") == "false"
-        props.size() == 10
+        props.size() == 9
     }
 
     def "module name is inferred by plugin properties"() {

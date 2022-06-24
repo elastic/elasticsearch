@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -1424,10 +1425,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
-        // TODO randomize more
-        final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+
+        final boolean nullRoleDescriptors = randomBoolean();
+        final var newRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "none" }, null, null);
         final var expectedLimitedByRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
+        final var request = new UpdateApiKeyRequest(
+            apiKeyId,
+            nullRoleDescriptors ? null : List.of(newRoleDescriptor),
+            ApiKeyTests.randomMetadata()
+        );
 
         final var serviceWithNodeName = getServiceWithNodeName();
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -1445,8 +1451,34 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         expectMetadataForApiKey(request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2(), updatedApiKeyDoc);
-        expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+
         expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
+        if (nullRoleDescriptors) {
+            // Default role descriptor assigned to api key in `createApiKey`
+            final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+            expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
+
+            // Test authorized because we didn't update key role descriptor
+            final var authorizationHeaders = Collections.singletonMap(
+                "Authorization",
+                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
+            );
+            assertNotNull(client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get());
+        } else {
+            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptor, updatedApiKeyDoc);
+
+            // Test authorized because we updated key role descriptor to cluster priv none
+            final var authorizationHeaders = Collections.singletonMap(
+                "Authorization",
+                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
+            );
+            ExecutionException e = expectThrows(
+                ExecutionException.class,
+                () -> client().filterWithHeader(authorizationHeaders).admin().cluster().health(new ClusterHealthRequest()).get()
+            );
+            assertThat(e.getMessage(), containsString("unauthorized"));
+            assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
+        }
 
         // Test authenticate works with updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
@@ -1552,33 +1584,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("api key [" + request.getId() + "] not found"));
-    }
-
-    public void testUpdateApiKeyRequestWithNullRoleDescriptorsDoesNotOverwriteExistingRoleDescriptors() throws ExecutionException,
-        InterruptedException, IOException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
-        final var apiKeyId = createdApiKey.v1().getId();
-
-        final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-        final var expectedLimitedByRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, null, ApiKeyTests.randomMetadata());
-
-        final var serviceWithNodeName = getServiceWithNodeName();
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                request,
-                Set.of(expectedLimitedByRoleDescriptor),
-                listener
-            );
-        final var response = listener.get();
-
-        assertNotNull(response);
-        assertTrue(response.isUpdated());
-        final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
-        expectRoleDescriptorForApiKey("role_descriptors", expectedRoleDescriptor, updatedApiKeyDoc);
-        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptor, updatedApiKeyDoc);
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {

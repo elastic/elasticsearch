@@ -60,6 +60,18 @@ a StackOverflowError. There are some side effects also:
 slowdown for pipelines without scripts.
 
 [discrete]
+[[question_answering_nlp_task]]
+=== {es-pull}85958[Question answering NLP task]
+We introduce a new question answering NLP task in 8.3. This task extracts
+the relevant section that answers a specific question from a larger context.
+This is especially suited to search requests against large documents. You
+can see an example of extracting an answer from a larger wiki article about
+Tower Bridge below.
+
+[role="screenshot"]
+image::../images/nlp-qa-rh.png[A screenshot of a question answering NLP task in {kib}]
+
+[discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]
 === {es-pull}86166[Add support for dots in field names for metrics usecases]
 Metrics data can often be made of several fields with dots in their names,
@@ -110,6 +122,13 @@ The archive functionality provides slower read-only access to older data,
 for compliance or regulatory reasons, the occasional lookback or investigation,
 or to rehydrate parts of it. Access to the data is expected to be infrequent,
 and can therefore happen with limited performance and query capabilities.
+
+[discrete]
+[[transforms_support_range_aggregation]]
+=== {es-pull}86501[Transforms support range aggregation]
+Now it is possible to use the range aggregations in {transforms}.
+{transforms-cap} didn’t support multi-bucket aggregations, but this
+limitation no longer exists.
 
 [discrete]
 [[new_geo_grid_query]]

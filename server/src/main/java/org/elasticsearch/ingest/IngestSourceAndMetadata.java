@@ -522,10 +522,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * Allow a String or null
      */
     protected static void stringValidator(String key, Object value) {
-        if (value == null) {
-            return;
-        }
-        if (value instanceof String) {
+        if (value == null || value instanceof String) {
             return;
         }
         throw new IllegalArgumentException(
@@ -542,15 +539,13 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         }
         if (value instanceof Number number) {
             long version = number.longValue();
-            if (number.doubleValue() != version) {
-                // did we round?
-                throw new IllegalArgumentException(
-                    key + " may only be set to an int or a long but was [" + number + "] with type [" + value.getClass().getName() + "]"
-                );
+            // did we round?
+            if (number.doubleValue() == version) {
+                return;
             }
         }
         throw new IllegalArgumentException(
-            "_version may only be set to an int or a long but was [" + value + "] with type [" + value.getClass().getName() + "]"
+            key + " may only be set to an int or a long but was [" + value + "] with type [" + value.getClass().getName() + "]"
         );
     }
 
@@ -583,10 +578,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      * Allow maps
      */
     protected static void mapValidator(String key, Object value) {
-        if (value == null) {
-            return;
-        }
-        if (value instanceof Map<?, ?>) {
+        if (value == null || value instanceof Map<?, ?>) {
             return;
         }
         throw new IllegalArgumentException(

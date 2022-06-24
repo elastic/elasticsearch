@@ -489,7 +489,7 @@ public class ApiKeyService {
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        final var builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", created.toEpochMilli())
@@ -514,11 +514,10 @@ public class ApiKeyService {
         Version version,
         Map<String, Object> metadata
     ) throws IOException {
-        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        final var builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", currentApiKeyDoc.creationTime)
-            // TODO double-check
             .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
             .field("api_key_invalidated", false);
 
@@ -527,7 +526,6 @@ public class ApiKeyService {
         if (keyRoles != null) {
             addRoleDescriptors(builder, keyRoles);
         } else {
-            // TODO can this be null?
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
@@ -537,7 +535,6 @@ public class ApiKeyService {
         if (metadata != null) {
             builder.field("metadata_flattened", metadata);
         } else {
-            // TODO revisit this
             builder.rawField(
                 "metadata_flattened",
                 currentApiKeyDoc.metadataFlattened == null

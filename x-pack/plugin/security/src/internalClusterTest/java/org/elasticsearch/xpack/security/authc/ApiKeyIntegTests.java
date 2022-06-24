@@ -1438,7 +1438,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 Set.of(expectedLimitedByRoleDescriptor),
                 listener
             );
-        UpdateApiKeyResponse response = listener.get();
+        final var response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1469,7 +1469,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 Set.of(expectedRoleDescriptor),
                 listener
             );
-        UpdateApiKeyResponse response = listener.get();
+        final var response = listener.get();
+
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1571,7 +1572,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 Set.of(expectedLimitedByRoleDescriptor),
                 listener
             );
-        UpdateApiKeyResponse response = listener.get();
+        final var response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());

@@ -42,21 +42,21 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
-            Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(5);
-            metadata.put(Metadata.INDEX.getFieldName(), a[0]);
-            metadata.put(Metadata.ID.getFieldName(), a[1]);
+            Map<String, Object> sourceAndMetadata = Maps.newHashMapWithExpectedSize(5);
+            sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
+            sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
             if (a[2] != null) {
-                metadata.put(Metadata.ROUTING.getFieldName(), a[2]);
+                sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), a[2]);
             }
             if (a[3] != null) {
-                metadata.put(Metadata.VERSION.getFieldName(), a[3]);
+                sourceAndMetadata.put(Metadata.VERSION.getFieldName(), a[3]);
             }
             if (a[4] != null) {
-                metadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
+                sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
-            Map<String, Object> source = (Map<String, Object>) a[5];
+            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
             Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
-            return new WriteableIngestDocument(IngestDocument.of(source, metadata, ingestMetadata));
+            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
         }
     );
     static {
@@ -90,7 +90,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        this.ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
+        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     @Override

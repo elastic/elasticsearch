@@ -35,7 +35,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null);
+        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null);
         assertEquals("myIndex", map.getIndex());
         map.setIndex("myIndex2");
         assertEquals("myIndex2", map.getIndex());
@@ -74,7 +74,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -88,7 +88,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("number", "NaN");
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
         assertEquals(Long.MAX_VALUE, map.getNumber("_version"));
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.getNumber("number"));
         assertEquals("unexpected type for [number] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
@@ -101,7 +101,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null)
+            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -112,7 +112,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(source, source, null)
+            () -> new IngestSourceAndMetadata(source, source, null, null)
         );
         assertEquals("Unexpected metadata key [_version] in source with value [25]", err.getMessage());
     }
@@ -124,7 +124,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null)
+            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -133,7 +133,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
     }
 
     public void testRemove() {
@@ -206,7 +206,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestSourceAndMetadata(source, metadata, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, null);
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {
@@ -245,10 +245,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        Map<String, Object> sm = new HashMap<>();
-        sm.put("_version", 5678);
-        sm.put("myField", "fieldValue");
-        map = IngestSourceAndMetadata.ofMixedSourceAndMetadata(sm, null);
+        map = new IngestSourceAndMetadata(Map.of("myField", "fieldValue"), Map.of("_version", 5678), null, null);
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));

@@ -72,6 +72,9 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     protected final Map<String, BiConsumer<String, Object>> validators;
     private EntrySet entrySet; // cache to avoid recreation
 
+    /**
+     * Create an IngestSourceAndMetadata with the given metadata, source and default validators
+     */
     IngestSourceAndMetadata(
         String index,
         String id,
@@ -85,22 +88,13 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     /**
-     * Creates an {@code IngestSourceAndMetadata} from the given source, metadata and timestamp
-     * @param source the source document map
-     * @param metadata the metadata map
-     * @param timestamp the time of ingestion
-     */
-    IngestSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, ZonedDateTime timestamp) {
-        this(source, metadata, timestamp, VALIDATORS);
-    }
-
-    /**
      * Create IngestSourceAndMetadata with custom validators.
      *
      * @param source the source document map
      * @param metadata the metadata map
      * @param timestamp the time of ingestion
-     * @param validators validators to run on metadata map, if a key is in this map, the value is stored in metadata
+     * @param validators validators to run on metadata map, if a key is in this map, the value is stored in metadata.
+     *                   if null, use the default validators from {@link #VALIDATORS}
      */
     IngestSourceAndMetadata(
         Map<String, Object> source,
@@ -111,33 +105,8 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         this.source = source != null ? source : new HashMap<>();
         this.metadata = metadata != null ? metadata : new HashMap<>();
         this.timestamp = timestamp;
-        this.validators = validators;
+        this.validators = validators != null ? validators : VALIDATORS;
         validateMetadata();
-    }
-
-    /**
-     * Create a IngestSourceAndMetadata using the underlying map and set of validators.  The validators are applied to the map to ensure
-     * the incoming map matches the invariants enforced by the validators.
-     * @param sourceAndMetadata the wrapped map.  Should not be externally modified after creation.  This map is modified to remove
-     *                          metadata values and will become source
-     * @param timestamp the timestamp of ingestion
-     * @throws IllegalArgumentException if a validator fails for a given key
-     */
-    public static IngestSourceAndMetadata ofMixedSourceAndMetadata(Map<String, Object> sourceAndMetadata, ZonedDateTime timestamp) {
-        Tuple<Map<String, Object>, Map<String, Object>> split = splitSourceAndMetadata(sourceAndMetadata);
-        return new IngestSourceAndMetadata(split.v1(), split.v2(), timestamp, VALIDATORS);
-    }
-
-    /**
-     * Copy constructor
-     */
-    public static IngestSourceAndMetadata copy(IngestSourceAndMetadata ingestSourceAndMetadata) {
-        return new IngestSourceAndMetadata(
-            IngestDocument.deepCopyMap(ingestSourceAndMetadata.source),
-            IngestDocument.deepCopyMap(ingestSourceAndMetadata.metadata),
-            ingestSourceAndMetadata.timestamp,
-            ingestSourceAndMetadata.validators
-        );
     }
 
     /**

@@ -17,21 +17,19 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.JOB_COMMS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,12 +50,12 @@ public class DeploymentManagerTests extends ESTestCase {
                 "xpack.ml.utility_thread_pool"
             ),
             new ScalingExecutorBuilder(
-                JOB_COMMS_THREAD_POOL_NAME,
+                NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
                 1,
                 4,
                 TimeValue.timeValueMinutes(10),
                 false,
-                "xpack.ml.job_comms_thread_pool"
+                "xpack.ml.native_inference_comms_thread_pool"
             )
         );
     }
@@ -72,6 +70,7 @@ public class DeploymentManagerTests extends ESTestCase {
         Long taskId = 1L;
         when(task.getId()).thenReturn(taskId);
         when(task.isStopped()).thenReturn(Boolean.FALSE);
+        when(task.getModelId()).thenReturn("test-rejected");
 
         DeploymentManager deploymentManager = new DeploymentManager(
             mock(Client.class),
@@ -80,8 +79,12 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(PyTorchProcessFactory.class)
         );
 
-        ExecutorService executorService = mock(ExecutorService.class);
-        doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService).execute(any(Runnable.class));
+        PriorityProcessWorkerExecutorService executorService = new PriorityProcessWorkerExecutorService(
+            tp.getThreadContext(),
+            "test reject",
+            10
+        );
+        executorService.shutdown();
 
         AtomicInteger rejectedCount = new AtomicInteger();
 
@@ -96,6 +99,7 @@ public class DeploymentManagerTests extends ESTestCase {
             task,
             mock(InferenceConfig.class),
             Map.of(),
+            false,
             TimeValue.timeValueMinutes(1),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );

@@ -178,7 +178,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data_tier", "hot")
                     .build()
-            )
+            ).setWaitForActiveShards(ActiveShardCount.NONE)
         );
 
         // the tier preference will have defaulted to data_content, set it back to null

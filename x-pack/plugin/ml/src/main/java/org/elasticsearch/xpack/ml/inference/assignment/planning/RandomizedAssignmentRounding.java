@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -67,7 +66,7 @@ class RandomizedAssignmentRounding {
         List<Tuple<Model, Node>> softAssignmentQueue = assignmentHolder.createSoftAssignmentQueue();
 
         if (softAssignmentQueue.isEmpty() == false) {
-            logger.debug(() -> new ParameterizedMessage("Random assignment rounding across [{}] rounds", rounds));
+            logger.debug(() -> "Random assignment rounding across [" + rounds + "] rounds");
             for (int i = 0; i < rounds; i++) {
                 AssignmentHolder randomizedAssignments = new AssignmentHolder(assignmentHolder);
                 randomizedAssignments.doRandomizedRounding(softAssignmentQueue);
@@ -169,7 +168,7 @@ class RandomizedAssignmentRounding {
             for (Model m : models) {
                 Tuple<Model, Node> index = Tuple.tuple(m, n);
                 if (allocations.get(index) > 0) {
-                    quality += (1 + (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * allocations.get(index) * m
+                    quality += (1 + (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * allocations.get(index) * m
                         .threadsPerAllocation();
                 }
             }
@@ -206,7 +205,7 @@ class RandomizedAssignmentRounding {
         }
 
         private double remainingModelOrder(Model m) {
-            return (m.currentAllocationByNodeId().isEmpty() ? 1 : 2) * -m.memoryBytes();
+            return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -m.memoryBytes();
         }
 
         private boolean hasSoftAssignments(Node n) {
@@ -371,7 +370,7 @@ class RandomizedAssignmentRounding {
             long remainingNodeMemory,
             int remainingModelAllocations
         ) {
-            return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (remainingNodeCores <= remainingModelAllocations * m
+            return (m.currentAllocationsByNodeId().containsKey(n.id()) ? 0 : 1) + (remainingNodeCores <= remainingModelAllocations * m
                 .threadsPerAllocation() ? 0 : 0.5) + (0.01 * distance(
                     remainingNodeCores,
                     remainingModelAllocations * m.threadsPerAllocation()
@@ -404,7 +403,7 @@ class RandomizedAssignmentRounding {
 
             for (Model m : models) {
                 for (Node n : nodes) {
-                    if (m.currentAllocationByNodeId().containsKey(n.id())) {
+                    if (m.currentAllocationsByNodeId().containsKey(n.id())) {
                         assignments.add(Tuple.tuple(m, n));
                     }
                 }

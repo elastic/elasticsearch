@@ -14,6 +14,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -37,6 +38,12 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "slm";
 
+    public static final String HELP_URL = "https://ela.st/fix-slm";
+    public static final UserAction SLM_NOT_RUNNING = new UserAction(
+        new UserAction.Definition("slm-not-running", "Start SLM using [POST /_slm/start].", HELP_URL),
+        null
+    );
+
     private final ClusterService clusterService;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
@@ -54,12 +61,17 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
     public HealthIndicatorResult calculate(boolean explain) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No SLM policies configured",
                 createDetails(explain, slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -68,12 +80,11 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Scheduled snapshots are not running. There might not be backups of the data that could be used to restore if data is"
-                        + " lost in the future.",
+                    "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
                 )
             );
-            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, Collections.emptyList());
+            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, List.of(SLM_NOT_RUNNING));
         } else {
             return createIndicator(
                 GREEN,

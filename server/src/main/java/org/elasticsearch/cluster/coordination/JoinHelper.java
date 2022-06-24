@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -50,6 +49,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class JoinHelper {
@@ -177,11 +177,7 @@ public class JoinHelper {
         }
 
         void logNow() {
-            logger.log(
-                getLogLevel(exception),
-                () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
-                exception
-            );
+            logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
         static Level getLogLevel(TransportException e) {
@@ -195,8 +191,8 @@ public class JoinHelper {
 
         void logWarnWithTimestamp() {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "last failed join attempt was {} ago, failed to join {} with {}",
+                () -> format(
+                    "last failed join attempt was %s ago, failed to join %s with %s",
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest
@@ -325,7 +321,7 @@ public class JoinHelper {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
+                logger.debug(() -> format("failure in response to %s from %s", startJoinRequest, destination), exp);
             }
         });
     }

@@ -151,7 +151,7 @@ include::redirects.asciidoc[tag=gcs-repo-migration]
 
 // tag::ingest-attachment-migration[]
 The Ingest Attachment plugin is now included in {es}.
-See the {ref}/ingest-attachment.html[Ingest Attachment] processor.
+See the {ref}/attachment.html[Ingest Attachment] processor.
 // end::ingest-attachment-migration[]
 
 [role="exclude",id="ingest"]

@@ -1633,26 +1633,24 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            NumericDocValues single = reader.getNumericDocValues(name);
-            if (single != null) {
-                if (docIdsInLeaf.length > 1) {
-                    /*
-                     * The singleton optimization is mostly about looking up all
-                     * values for the field at once. If there's just a single
-                     * document then it's just extra overhead.
-                     */
+            SortedNumericDocValues dv = dv(reader);
+            if (dv == null) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            if (docIdsInLeaf.length > 1) {
+                /*
+                 * The singleton optimization is mostly about looking up all
+                 * values for the field at once. If there's just a single
+                 * document then it's just extra overhead.
+                 */
+                NumericDocValues single = DocValues.unwrapSingleton(dv);
+                if (single != null) {
                     LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA singleton {}", name);
                     return singletonLeaf(single, docIdsInLeaf);
                 }
-                LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA singleton one doc {}", name);
-                return new ImmediateLeaf(DocValues.singleton(single));
-            }
-            SortedNumericDocValues sorted = reader.getSortedNumericDocValues(name);
-            if (sorted == null) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
             LogManager.getLogger(NumberFieldMapper.class).error("ADFDSAFDAFAFA multi {}", name);
-            return new ImmediateLeaf(sorted);
+            return new ImmediateLeaf(dv);
         }
 
         private class ImmediateLeaf implements Leaf {
@@ -1739,6 +1737,24 @@ public class NumberFieldMapper extends FieldMapper {
                     writeValue(b, values[idx]);
                 }
             };
+        }
+
+        /**
+          * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+          * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+          * an "empty" implementation if there aren't any doc values. We need to be able to
+          * tell if there aren't any and return our empty leaf source loader.
+         */
+        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
         }
 
         protected abstract void writeValue(XContentBuilder b, long value) throws IOException;

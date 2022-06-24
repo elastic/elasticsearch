@@ -201,6 +201,12 @@ Sets how long the master node waits for each cluster state update to be
 completely published to all nodes, unless `discovery.type` is set to
 `single-node`. The default value is `30s`. See <<cluster-state-publishing>>.
 
+`cluster.single_node_cluster_seed_hosts_check_interval`::
+(<<static-cluster-setting,Static>>)
+Sets the interval of the check that warns that seed hosts (see
+`discovery.seed_providers` and `discovery.seed_hosts`) have been defined for a
+fully-formed single-node cluster. The default value is `30s`.
+
 `cluster.join_validation.cache_timeout`::
 (<<static-cluster-setting,Static>>)
 When a node requests to join the cluster, the elected master node sends it a

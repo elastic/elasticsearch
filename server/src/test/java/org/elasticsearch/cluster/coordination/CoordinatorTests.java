@@ -2110,6 +2110,60 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     @TestLogging(
+        reason = "testing warning of a single-node cluster having discovery seed hosts",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN"
+    )
+    public void testLogsWarningPeriodicallyIfSingleNodeClusterHasSeedHosts() throws IllegalAccessException {
+        final long warningDelayMillis;
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.EMPTY;
+            warningDelayMillis = Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings).millis();
+        } else {
+            warningDelayMillis = randomLongBetween(1, 100000);
+            settings = Settings.builder()
+                .put(ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.getKey(), warningDelayMillis + "ms")
+                .build();
+        }
+        logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
+
+        try (Cluster cluster = new Cluster(1, true, settings)) {
+            cluster.setSeedHostsList(List.of(buildNewFakeTransportAddress()));
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
+                final MockLogAppender mockLogAppender = new MockLogAppender();
+                try {
+                    mockLogAppender.start();
+                    Loggers.addAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                        String loggedClusterUuid;
+
+                        @Override
+                        public void match(LogEvent event) {
+                            final String message = event.getMessage().getFormattedMessage();
+                            assertThat(message, startsWith("This node is a fully-formed single-node cluster with cluster UUID"));
+                            loggedClusterUuid = (String) event.getMessage().getParameters()[0];
+                        }
+
+                        @Override
+                        public void assertMatched() {
+                            final String clusterUuid = cluster.getAnyNode().getLastAppliedClusterState().metadata().clusterUUID();
+                            assertThat(loggedClusterUuid + " vs " + clusterUuid, clusterUuid, equalTo(clusterUuid));
+                        }
+                    });
+                    cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
+                    mockLogAppender.assertAllExpectationsMatched();
+                } finally {
+                    Loggers.removeAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.stop();
+                }
+            }
+        }
+    }
+
+    @TestLogging(
         reason = "testing LagDetector and CoordinatorPublication logging",
         value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"
             + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"

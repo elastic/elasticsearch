@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
@@ -69,8 +70,8 @@ public class MockTransport extends StubbableTransport {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            connectionManager
+            connectionManager,
+            new TaskManager(settings, threadPool, taskHeaders)
         );
     }
 

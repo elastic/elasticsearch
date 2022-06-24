@@ -111,13 +111,15 @@ public class MasterServiceTests extends ESTestCase {
 
     private MasterService createMasterService(boolean makeMaster) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
         final MasterService masterService = new MasterService(
-            Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                .build(),
+            settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new TaskManager(settings, threadPool, emptySet())
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -132,7 +134,6 @@ public class MasterServiceTests extends ESTestCase {
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
         masterService.start();
         return masterService;
     }
@@ -1064,18 +1065,18 @@ public class MasterServiceTests extends ESTestCase {
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
         try (
             MasterService masterService = new MasterService(
-                Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                    .build(),
+                settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                new TaskManager(settings, threadPool, emptySet())
             )
         ) {
-            masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
-
             final DiscoveryNode localNode = new DiscoveryNode(
                 "node1",
                 buildNewFakeTransportAddress(),
@@ -1246,14 +1247,16 @@ public class MasterServiceTests extends ESTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
         try (
             MasterService masterService = new MasterService(
-                Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                    .build(),
+                settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                new TaskManager(settings, threadPool, emptySet())
             )
         ) {
 
@@ -1267,7 +1270,6 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.get().publish(e, pl, al);
             });
             masterService.setClusterStateSupplier(() -> initialClusterState);
-            masterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, emptySet()));
             masterService.start();
 
             class LatchAckListener implements ClusterStateAckListener {

@@ -66,7 +66,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                null
             );
             TransportFieldCapabilitiesAction action = new TransportFieldCapabilitiesAction(
                 transportService,

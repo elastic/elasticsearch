@@ -90,14 +90,14 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
-    private volatile TaskManager taskManager;
+    private final TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -106,9 +106,6 @@ public class MasterService extends AbstractLifecycleComponent {
         this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
-    }
-
-    public void setTaskManager(TaskManager taskManager) {
         this.taskManager = taskManager;
     }
 

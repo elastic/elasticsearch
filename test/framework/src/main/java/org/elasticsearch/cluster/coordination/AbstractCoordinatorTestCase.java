@@ -1212,7 +1212,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool,
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable))
                 );
-                masterService.setTaskManager(transportService.getTaskManager());
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplierService = new DisruptableClusterApplierService(
                     localNode.getId(),

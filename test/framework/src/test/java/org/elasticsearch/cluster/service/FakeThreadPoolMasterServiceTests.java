@@ -62,7 +62,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
+        MasterService masterService = new FakeThreadPoolMasterService(
             "test_node",
             "test",
             mockThreadPool,
@@ -74,7 +74,6 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             lastClusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishingCallback.set(publishListener);
         });
-        masterService.setTaskManager(new TaskManager(Settings.EMPTY, mockThreadPool, Collections.emptySet()));
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();

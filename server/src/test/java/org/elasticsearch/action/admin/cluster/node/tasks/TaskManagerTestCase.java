@@ -178,6 +178,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
                 return discoveryNode.get();
             };
+            TaskManager taskManager;
+            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+                taskManager = new MockTaskManager(settings, threadPool, emptySet());
+            } else {
+                taskManager = new TaskManager(settings, threadPool, emptySet());
+            }
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(
@@ -194,18 +200,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                Collections.emptySet()
-            ) {
-                @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                        return new MockTaskManager(settings, threadPool, taskHeaders);
-                    } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
-                    }
-                }
-            };
-            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+                taskManager
+            );
+            taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());

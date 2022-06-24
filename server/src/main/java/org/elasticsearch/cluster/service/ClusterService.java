@@ -56,11 +56,11 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private RerouteService rerouteService;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(
             settings,
             clusterSettings,
-            new MasterService(settings, clusterSettings, threadPool),
+            new MasterService(settings, clusterSettings, threadPool, taskManager),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -262,9 +262,5 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterStateTaskExecutor<T> executor
     ) {
         masterService.submitStateUpdateTask(source, task, config, executor);
-    }
-
-    public void setTaskManager(TaskManager taskManager) {
-        masterService.setTaskManager(taskManager);
     }
 }

@@ -163,7 +163,12 @@ public class ClusterStateChanges {
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
 
-        final var masterService = new MasterService(SETTINGS, clusterSettings, threadPool) {
+        final var masterService = new MasterService(
+            SETTINGS,
+            clusterSettings,
+            threadPool,
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+        ) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
@@ -192,7 +197,6 @@ public class ClusterStateChanges {
         };
         // mocks
         clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, null);
-        clusterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()));
         resetMasterService();
         masterService.start();
 

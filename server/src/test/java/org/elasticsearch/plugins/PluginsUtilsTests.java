@@ -57,8 +57,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("foo"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info, pluginDir);
@@ -79,8 +77,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Arrays.asList("bar", "other"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         bundles.add(new PluginBundle(info, pluginDir));
@@ -94,8 +90,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("baz"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         bundles.add(new PluginBundle(info2, pluginDir));
@@ -109,8 +103,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("foo"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         bundles.add(new PluginBundle(info3, pluginDir));
@@ -124,8 +116,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         bundles.add(new PluginBundle(info4, pluginDir));
@@ -146,8 +136,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info, pluginDir);
@@ -168,8 +156,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
@@ -184,8 +170,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle2 = new PluginBundle(info2, pluginDir);
@@ -200,8 +184,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle3 = new PluginBundle(info3, pluginDir);
@@ -222,8 +204,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dne"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info, pluginDir);
@@ -247,8 +227,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
@@ -263,8 +241,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("common"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle2 = new PluginBundle(info2, pluginDir);
@@ -279,8 +255,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("common"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle3 = new PluginBundle(info3, pluginDir);
@@ -295,8 +269,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("grandparent"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle4 = new PluginBundle(info4, pluginDir);
@@ -318,8 +290,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle1 = new PluginBundle(info1, pluginDir);
@@ -334,8 +304,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dep"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle2 = new PluginBundle(info2, pluginDir);
@@ -405,8 +373,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dep"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -438,8 +404,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Arrays.asList("dep1", "dep2"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -468,8 +432,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -499,8 +461,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Arrays.asList("extendedPlugin"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
 
@@ -535,8 +495,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dep"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -572,8 +530,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Arrays.asList("dep1", "dep2"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -609,8 +565,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Arrays.asList("dep1", "dep2"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -643,8 +597,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dep"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -676,8 +628,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.singletonList("dep"),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
@@ -701,8 +651,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
@@ -720,8 +668,6 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.verifyCompatibility(info));

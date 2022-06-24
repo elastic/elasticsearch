@@ -17,6 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -378,7 +379,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
                     }
                 };
@@ -513,7 +514,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableIntToFloat((int) value));
                     }
                 };
@@ -626,7 +627,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableLongToDouble(value));
                     }
                 };
@@ -1269,7 +1270,7 @@ public class NumberFieldMapper extends FieldMapper {
         private static SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(String fieldName, String fieldSimpleName) {
             return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                 @Override
-                protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(value);
                 }
             };
@@ -1630,37 +1631,61 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
-            SortedNumericDocValues leaf = DocValues.getSortedNumeric(reader, name);
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SortedNumericDocValues leaf = dv(reader);
+            if (leaf == null) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean empty() {
+                    return false;
                 }
 
                 @Override
-                public boolean hasValue() {
-                    return hasValue;
+                public boolean advanceToDoc(int docId) throws IOException {
+                    return hasValue = leaf.advanceExact(docId);
                 }
 
                 @Override
-                public void load(XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
+                    if (false == hasValue) {
+                        return;
+                    }
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
-                        loadNextValue(b, leaf.nextValue());
+                        writeValue(b, leaf.nextValue());
                         return;
                     }
                     b.startArray(simpleName);
                     for (int i = 0; i < leaf.docValueCount(); i++) {
-                        loadNextValue(b, leaf.nextValue());
+                        writeValue(b, leaf.nextValue());
                     }
                     b.endArray();
                 }
             };
         }
 
-        protected abstract void loadNextValue(XContentBuilder b, long value) throws IOException;
+        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
+
+        /**
+         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+         * an "empty" implementation if there aren't any doc values. We need to be able to
+         * tell if there aren't any and return our empty leaf source loader.
+         */
+        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(name);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
     }
 }

@@ -258,7 +258,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any());
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {

@@ -1194,7 +1194,7 @@ public class ApiKeyService {
             false,
             false,
             listener,
-            ApiKeyService::convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm
+            ApiKeyService::convertSearchHitToVersionedApiKeyDoc
         );
     }
 
@@ -1519,7 +1519,7 @@ public class ApiKeyService {
         );
     }
 
-    private static VersionedApiKeyDoc convertSearchHitToApiKeyDocWithSeqNoAndPrimaryTerm(SearchHit hit) {
+    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
         ) {

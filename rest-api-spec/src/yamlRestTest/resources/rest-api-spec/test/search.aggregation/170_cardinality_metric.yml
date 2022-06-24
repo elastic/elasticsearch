@@ -300,7 +300,7 @@ setup:
             distinct_string:
               cardinality:
                 field: string_field
-                execution_hint: global_ordinal
+                execution_hint: global_ordinals
   - match: { aggregations.distinct_string.value: 1 }
   - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
   - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
@@ -322,7 +322,7 @@ setup:
             distinct_string:
               cardinality:
                 field: string_field
-                execution_hint: segment_ordinal
+                execution_hint: segment_ordinals
   - match: { aggregations.distinct_string.value: 1 }
   - match: { profile.shards.0.aggregations.0.type: "CardinalityAggregator" }
   - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }

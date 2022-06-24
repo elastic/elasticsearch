@@ -28,8 +28,8 @@ import java.util.Map;
 public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
-        GLOBAL_ORDINAL,
-        SEGMENT_ORDINAL,
+        GLOBAL_ORDINALS,
+        SEGMENT_ORDINALS,
         DIRECT;
 
         public static ExecutionMode fromString(String value) {
@@ -108,7 +108,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
     ) throws IOException {
         // Respect the execution hint, if we got one
         if (executionMode != null) {
-            return executionMode.equals(ExecutionMode.GLOBAL_ORDINAL);
+            return executionMode.equals(ExecutionMode.GLOBAL_ORDINALS);
         }
 
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();

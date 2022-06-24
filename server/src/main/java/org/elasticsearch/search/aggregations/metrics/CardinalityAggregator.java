@@ -112,7 +112,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     return new OrdinalsCollector(counts, ordinalValues, bigArrays());
                 }
                 ordinalsCollectorsOverheadTooHigh++;
-            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.SEGMENT_ORDINAL) {
+            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.SEGMENT_ORDINALS) {
                 ordinalsCollectorsUsed++;
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }

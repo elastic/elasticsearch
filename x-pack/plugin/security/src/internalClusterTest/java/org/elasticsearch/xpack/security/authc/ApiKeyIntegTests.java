@@ -1483,10 +1483,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "Authorization",
                 "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
             );
-            ExecutionException e = expectThrows(
-                ExecutionException.class,
-                () -> createUserWithRunAsRole(authorizationHeaders.get("Authorization"))
-            );
+            ExecutionException e = expectThrows(ExecutionException.class, () -> createUserWithRunAsRole(authorizationHeaders));
             assertThat(e.getMessage(), containsString("unauthorized"));
             assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
         } else {
@@ -1496,7 +1493,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "Authorization",
                 "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
             );
-            createUserWithRunAsRole(authorizationHeaders.get("Authorization"));
+            createUserWithRunAsRole(authorizationHeaders);
         }
     }
 
@@ -1946,16 +1943,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
      * This new helper method creates the user in the native realm.
      */
     private void createUserWithRunAsRole() throws ExecutionException, InterruptedException {
-        createUserWithRunAsRole(basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING));
+        createUserWithRunAsRole(Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING)));
     }
 
-    private void createUserWithRunAsRole(String authHeaderValue) throws ExecutionException, InterruptedException {
+    private void createUserWithRunAsRole(Map<String, String> authHeaders) throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
         putUserRequest.username("user_with_run_as_role");
         putUserRequest.roles("run_as_role");
         putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(Map.of("Authorization", authHeaderValue));
+        final Client client = client().filterWithHeader(authHeaders);
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
         final PutUserResponse putUserResponse = listener.get();
         assertTrue(putUserResponse.created());

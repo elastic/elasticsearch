@@ -1747,7 +1747,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(realm.getName(), updatedApiKeyDoc.creator.getOrDefault("realm", null));
         assertEquals(realm.getType(), updatedApiKeyDoc.creator.getOrDefault("realm_type", null));
         if (realm.getDomain() != null) {
-            assertEquals(realm.getDomain(), updatedApiKeyDoc.creator.getOrDefault("realm_domain", null));
+            @SuppressWarnings("unchecked")
+            final var actualDomain = (Map<String, Object>) updatedApiKeyDoc.creator.getOrDefault("realm_domain", null);
+            assertEquals(realm.getDomain().name(), actualDomain.get("name"));
         } else {
             assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
         }

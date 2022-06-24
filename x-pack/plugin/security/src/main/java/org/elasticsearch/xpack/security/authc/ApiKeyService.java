@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1351,7 +1352,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName(), e);
+                logger.error(new ParameterizedMessage("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });

@@ -195,7 +195,23 @@ public class DesiredBalanceReconciler {
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
                 var isThrottled = false;
                 if (assignment != null) {
-                    for (final var desiredNodeId : assignment.nodeIds()) {
+                    final Set<String> assignmentNodeIds;
+
+                    final var forcedNodeIds = allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation);
+                    if (forcedNodeIds.isEmpty()) {
+                        assignmentNodeIds = assignment.nodeIds();
+                    } else {
+                        assignmentNodeIds = forcedNodeIds.get();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace(
+                                "Shard assignment is ignored as shard [{}] initial allocation forced to {}",
+                                shard.shardId(),
+                                assignment
+                            );
+                        }
+                    }
+
+                    for (final var desiredNodeId : assignmentNodeIds) {
                         final var routingNode = routingNodes.node(desiredNodeId);
                         if (routingNode == null) {
                             // desired node no longer exists

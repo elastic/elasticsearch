@@ -398,7 +398,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     }
 
     /**
-     * Check the that given realmName is not yet used by the given list of realms.
+     * Check that the given realmName is not yet used by the given list of realms.
      */
     private void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
         assert realms.size() == realms.stream().map(Realm::name).collect(Collectors.toUnmodifiableSet()).size()

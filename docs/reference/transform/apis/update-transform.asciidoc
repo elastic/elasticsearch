@@ -232,7 +232,7 @@ delays.
 
 [source,console]
 --------------------------------------------------
-POST _transform/ecommerce_transform1/_update
+POST _transform/simple-kibana-ecomm-pivot/_update
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",

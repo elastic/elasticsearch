@@ -405,6 +405,7 @@ public class SSLServiceTests extends ESTestCase {
         final SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
         assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
     }
+
     public void testSecurityHttpDefaults() {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         {
@@ -454,6 +455,7 @@ public class SSLServiceTests extends ESTestCase {
             assertThat(httpConfig.verificationMode(), is(SslVerificationMode.NONE));
         }
     }
+
     public void testSecurityHttpDeprecations() {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         {
@@ -488,6 +490,7 @@ public class SSLServiceTests extends ESTestCase {
             );
         }
     }
+
     public void testThatTruststorePasswordIsRequired() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();

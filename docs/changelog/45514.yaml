@@ -6,9 +6,11 @@ issues: []
 deprecation:
   title: Deprecations for inconsistent `xpack.security.http.ssl`
   area: Cluster and node setting
-  details: It is deprecated to set `client_authentication` to `none` and `verification_mode` to `certificate` or `full`.
-  It is also deprecated to set `verification_mode` to `none` and `client_authentication` to `optional` or `required`.
-  The above deprecated configurations are nonsensical and never worked correctly.
-  impact: If `client_authentication` is `none` then `verification_mode` must be set to `none` as well.
-  If `client_authentication` is `optional` or `required` then `verification_mode` must be set to `certificate` or `full`.
-  Any other combinations will generate deprecation logs.
+  details: -|
+    It is deprecated to set `client_authentication` to `none` and `verification_mode` to `certificate` or `full`.
+    It is also deprecated to set `verification_mode` to `none` and `client_authentication` to `optional` or `required`.
+    The above deprecated configurations are nonsensical and never worked correctly.
+  impact: -|
+    If `client_authentication` is `none` then `verification_mode` must be set to `none` as well.
+    If `client_authentication` is `optional` or `required` then `verification_mode` must be set to `certificate` or `full`.
+    Any other combinations will generate deprecation logs.

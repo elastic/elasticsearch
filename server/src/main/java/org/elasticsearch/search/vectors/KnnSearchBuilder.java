@@ -58,12 +58,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment {
         return PARSER.parse(parser, null);
     }
 
-    // visible for testing
-    final String field;
-    final float[] queryVector;
-    final int k;
-    final int numCands;
-    float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+    private final String field;
+    private final float[] queryVector;
+    private final int k;
+    private final int numCands;
+    private float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
     /**
      * Defines a kNN search.
@@ -88,19 +87,16 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment {
         this.boost = in.readFloat();
     }
 
+    public int k() {
+        return k;
+    }
+
     /**
-     * An optional boost to apply to the kNN search scores.
+     * Set a boost to apply to the kNN search scores.
      */
     public KnnSearchBuilder boost(float boost) {
         this.boost = boost;
         return this;
-    }
-
-    /**
-     * The number of nearest neighbors to return as top hits.
-     */
-    public int k() {
-        return k;
     }
 
     public KnnVectorQueryBuilder toQueryBuilder() {
@@ -126,14 +122,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment {
         return k == that.k
             && numCands == that.numCands
             && Objects.equals(field, that.field)
-            && Arrays.equals(queryVector, that.queryVector);
+            && Arrays.equals(queryVector, that.queryVector)
+            && boost == that.boost;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, k, numCands);
-        result = 31 * result + Arrays.hashCode(queryVector);
-        return result;
+        return Objects.hash(field, k, numCands, Arrays.hashCode(queryVector), boost);
     }
 
     @Override

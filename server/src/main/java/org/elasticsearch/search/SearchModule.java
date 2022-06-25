@@ -1171,7 +1171,7 @@ public class SearchModule {
                 KnnVectorQueryBuilder.NAME,
                 KnnVectorQueryBuilder::new,
                 parser -> {
-                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
+                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
                 }
             )
         );

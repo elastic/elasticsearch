@@ -9,6 +9,8 @@
 package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -44,13 +46,21 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
     }
 
     public void testToQueryBuilder() {
-        KnnSearchBuilder builder = createTestInstance();
-        KnnVectorQueryBuilder query = builder.toQueryBuilder();
+        String field = randomAlphaOfLength(6);
+        float[] vector = randomVector(randomIntBetween(2, 30));
+        int k = randomIntBetween(1, 100);
+        int numCands = randomIntBetween(k, 1000);
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
 
-        assertEquals(query.getFieldName(), builder.field);
-        assertEquals(query.queryVector(), builder.queryVector);
-        assertEquals(query.numCands(), builder.numCands);
-        assertEquals(query.boost(), builder.boost, 1e-5);
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        if (randomBoolean()) {
+            boost = randomFloat();
+            builder.boost(boost);
+        }
+
+        KnnVectorQueryBuilder query = builder.toQueryBuilder();
+        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands).boost(boost);
+        assertEquals(expected, query);
     }
 
     public void testNumCandsLessThanK() {

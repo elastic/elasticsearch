@@ -8,18 +8,47 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 
 public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearchBuilder> {
+    private NamedWriteableRegistry namedWriteableRegistry;
+    private NamedXContentRegistry namedXContentRegistry;
+
+    @Before
+    public void registerNamedXContents() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
 
     @Override
     protected KnnSearchBuilder doParseInstance(XContentParser parser) throws IOException {
@@ -43,12 +72,19 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
         if (randomBoolean()) {
             builder.boost(randomFloat());
         }
+
+        int numFilters = randomIntBetween(0, 3);
+        for (int i = 0; i < numFilters; i++) {
+            builder.addFilterQuery(QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        }
+
         return builder;
     }
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) throws IOException {
-        switch (random().nextInt(5)) {
+        switch (random().nextInt(6)) {
+
             case 0:
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
                 return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands + 3).boost(instance.boost);
@@ -60,8 +96,14 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
             case 3:
                 return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3).boost(instance.boost);
             case 4:
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands).addFilterQueries(
+                    instance.filterQueries
+                ).addFilterQuery(QueryBuilders.termQuery("new_field", "new-value")).boost(instance.boost);
+            case 5:
                 float newBoost = randomValueOtherThan(instance.boost, ESTestCase::randomFloat);
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3).boost(newBoost);
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands).addFilterQueries(
+                    instance.filterQueries
+                ).boost(newBoost);
             default:
                 throw new IllegalStateException();
         }
@@ -80,26 +122,39 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
             builder.boost(boost);
         }
 
-        KnnVectorQueryBuilder query = builder.toQueryBuilder();
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands).boost(boost);
-        assertEquals(expected, query);
+        int numFilters = random().nextInt(3);
+        List<QueryBuilder> filterQueries = new ArrayList<>();
+        for (int i = 0; i < numFilters; i++) {
+            QueryBuilder filter = QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            filterQueries.add(filter);
+            builder.addFilterQuery(filter);
+        }
+
+        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands).addFilterQueries(filterQueries).boost(boost);
+        assertEquals(expected, builder.toQueryBuilder());
     }
 
     public void testNumCandsLessThanK() {
-        KnnSearchBuilder builder = new KnnSearchBuilder("field", randomVector(3), 50, 10);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::toQueryBuilder);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnSearchBuilder("field", randomVector(3), 50, 10)
+        );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
     public void testNumCandsExceedsLimit() {
-        KnnSearchBuilder builder = new KnnSearchBuilder("field", randomVector(3), 100, 10002);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::toQueryBuilder);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnSearchBuilder("field", randomVector(3), 100, 10002)
+        );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
     }
 
     public void testInvalidK() {
-        KnnSearchBuilder builder = new KnnSearchBuilder("field", randomVector(3), 0, 100);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::toQueryBuilder);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnSearchBuilder("field", randomVector(3), 0, 100)
+        );
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }
 

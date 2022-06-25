@@ -11,7 +11,9 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigException;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
@@ -259,6 +261,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private void checkMissingResource(String fileType, String configKey, BiConsumer<String, Settings.Builder> configure) {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", true);
+        settings.put(
+            prefix + ".client_authentication",
+            randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL)
+        );
+        settings.put(prefix + ".verification_mode", randomFrom(SslVerificationMode.CERTIFICATE, SslVerificationMode.FULL));
         configure.accept(prefix, settings);
 
         final String fileName = missingFile();
@@ -287,6 +295,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     ) throws Exception {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", true);
+        settings.put(
+            prefix + ".client_authentication",
+            randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL)
+        );
+        settings.put(prefix + ".verification_mode", randomFrom(SslVerificationMode.CERTIFICATE, SslVerificationMode.FULL));
         configure.accept(prefix, settings);
 
         final String fileName = unreadableFile(fromResource);
@@ -317,6 +331,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
         configure.accept(prefix, settings);
+        settings.put(prefix + ".enabled", true);
+        settings.put(
+            prefix + ".client_authentication",
+            randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL)
+        );
+        settings.put(prefix + ".verification_mode", randomFrom(SslVerificationMode.CERTIFICATE, SslVerificationMode.FULL));
 
         final String fileName = blockedFile();
         final String key = prefix + "." + configKey;
@@ -456,12 +476,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     private String randomSslPrefix() {
         return randomFrom(
-            //"xpack.security.transport.ssl",
-            "xpack.security.http.ssl"
-            //"xpack.http.ssl",
-            //"xpack.security.authc.realms.ldap.ldap1.ssl",
-            //"xpack.security.authc.realms.saml.saml1.ssl",
-            //"xpack.monitoring.exporters.http.ssl"
+            "xpack.security.transport.ssl",
+            "xpack.security.http.ssl",
+            "xpack.http.ssl",
+            "xpack.security.authc.realms.ldap.ldap1.ssl",
+            "xpack.security.authc.realms.saml.saml1.ssl",
+            "xpack.monitoring.exporters.http.ssl"
         );
     }
 }

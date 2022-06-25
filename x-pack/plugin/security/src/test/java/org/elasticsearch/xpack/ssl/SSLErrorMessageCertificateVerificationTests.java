@@ -40,7 +40,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.regex.Pattern;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
@@ -62,7 +61,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             HTTP_SERVER_SSL,
             "not-this-host.crt",
             "not-this-host.key",
-            SslClientAuthenticationMode.NONE,
+            randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL),
             SslVerificationMode.FULL,
             null
         ).putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt")).build();
@@ -85,7 +84,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             HTTP_SERVER_SSL,
             "not-this-host.crt",
             "not-this-host.key",
-            SslClientAuthenticationMode.NONE,
+            randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL),
             SslVerificationMode.FULL,
             null
         )
@@ -112,7 +111,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             HTTP_SERVER_SSL,
             "not-this-host.crt",
             "not-this-host.key",
-            SslClientAuthenticationMode.NONE,
+            randomFrom(SslClientAuthenticationMode.OPTIONAL, SslClientAuthenticationMode.REQUIRED),
             SslVerificationMode.FULL,
             null
         ).putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt")).build();

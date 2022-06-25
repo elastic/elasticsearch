@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
@@ -63,6 +64,8 @@ public class CommandLineHttpClientTests extends ESTestCase {
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
         Settings settings = getHttpSslSettings().put("xpack.security.http.ssl.certificate_authorities", caCertPath.toString())
+            .put("xpack.security.http.ssl.client_authentication", randomFrom(SslClientAuthenticationMode.OPTIONAL,
+                SslClientAuthenticationMode.REQUIRED))
             .put("xpack.security.http.ssl.verification_mode", SslVerificationMode.CERTIFICATE)
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));

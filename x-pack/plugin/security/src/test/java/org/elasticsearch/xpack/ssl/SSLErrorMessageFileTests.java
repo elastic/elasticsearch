@@ -456,12 +456,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     private String randomSslPrefix() {
         return randomFrom(
-            "xpack.security.transport.ssl",
-            "xpack.security.http.ssl",
-            "xpack.http.ssl",
-            "xpack.security.authc.realms.ldap.ldap1.ssl",
-            "xpack.security.authc.realms.saml.saml1.ssl",
-            "xpack.monitoring.exporters.http.ssl"
+            //"xpack.security.transport.ssl",
+            "xpack.security.http.ssl"
+            //"xpack.http.ssl",
+            //"xpack.security.authc.realms.ldap.ldap1.ssl",
+            //"xpack.security.authc.realms.saml.saml1.ssl",
+            //"xpack.monitoring.exporters.http.ssl"
         );
     }
 }

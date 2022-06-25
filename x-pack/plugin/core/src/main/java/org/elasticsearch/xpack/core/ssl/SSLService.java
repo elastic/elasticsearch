@@ -17,16 +17,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -87,6 +91,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTO
 public class SSLService {
 
     private static final Logger logger = LogManager.getLogger(SSLService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
     /**
      * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
      * secure to least secure. The names in this map are taken from the
@@ -600,6 +605,9 @@ public class SSLService {
         final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
+                if (isConfigForServerModeOnly(key)) {
+                    validateClientVerificationForServerMode(sslConfiguration, key, deprecationLogger);
+                }
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
             } catch (SslConfigException e) {
                 throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
@@ -613,6 +621,48 @@ public class SSLService {
         }
 
         return Collections.unmodifiableMap(sslContextHolders);
+    }
+
+    /**
+     * Call only if the {@code SSLConfiguration} instance is to be used exclusively for an {@code SSLEngine} in server mode.
+     * This will log deprecation warnings if client_authentication and verification_mode are inconsistent.
+     */
+    private void validateClientVerificationForServerMode(
+        SslConfiguration sslConfiguration,
+        String namespacePrefix,
+        DeprecationLogger deprecationLogger
+    ) {
+        if (sslConfiguration.verificationMode() == SslVerificationMode.NONE) {
+            if (sslConfiguration.clientAuth().enabled()) {
+                deprecationLogger.warn(
+                    DeprecationCategory.SETTINGS,
+                    namespacePrefix,
+                    "For ["
+                        + namespacePrefix
+                        + "] client authentication does not work correctly when verification mode is disabled. "
+                        + "Either disable client authentication or enable verification mode."
+                );
+            }
+        } else {
+            if (false == sslConfiguration.clientAuth().enabled()) {
+                deprecationLogger.warn(
+                    DeprecationCategory.SETTINGS,
+                    namespacePrefix,
+                    "For ["
+                        + namespacePrefix
+                        + "] verification mode does not work correctly when client authentication is disabled. "
+                        + "Either disable verification mode or enable client authentication."
+                );
+            }
+        }
+    }
+
+    private boolean isConfigForServerModeOnly(String configKey) {
+        return stripTrailingDot(configKey).equals(stripTrailingDot(XPackSettings.HTTP_SSL_PREFIX));
+    }
+
+    private String stripTrailingDot(String value) {
+        return value.endsWith(".") ? value.substring(0, value.length() - 1) : value;
     }
 
     private void validateServerConfiguration(String prefix) {
@@ -871,8 +921,14 @@ public class SSLService {
         }
 
         Settings.Builder builder = Settings.builder().put(httpSSLSettings);
+        // separate default for "client authentication" for HTTP
         if (builder.get("client_authentication") == null) {
             builder.put("client_authentication", XPackSettings.HTTP_CLIENT_AUTH_DEFAULT);
+        }
+        // separate default for "verification mode" when client authentication is "none"
+        if (builder.get("verification_mode") == null
+            && SslClientAuthenticationMode.parse(builder.get("client_authentication")).equals(SslClientAuthenticationMode.NONE)) {
+            builder.put("verification_mode", SslVerificationMode.NONE);
         }
         return builder.build();
     }

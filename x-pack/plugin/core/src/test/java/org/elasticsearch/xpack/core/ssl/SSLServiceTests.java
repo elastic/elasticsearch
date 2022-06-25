@@ -406,6 +406,89 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
+    public void testSecurityHttpDefaults() {
+        {
+            SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL);
+            Settings globalSettings = httpsEnabledSettings().put("xpack.security.http.ssl.client_authentication", clientAuth.name())
+                .build();
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettings));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(clientAuth));
+            assertThat(httpConfig.verificationMode(), is(SslVerificationMode.FULL));
+        }
+        {
+            Settings.Builder globalSettingsBuilder = httpsEnabledSettings();
+            if (randomBoolean()) {
+                globalSettingsBuilder.put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.NONE);
+            }
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettingsBuilder.build()));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
+            assertThat(httpConfig.verificationMode(), is(SslVerificationMode.NONE));
+        }
+        {
+            SslVerificationMode verificationMode = randomFrom(SslVerificationMode.CERTIFICATE, SslVerificationMode.FULL);
+            Settings globalSettings = httpsEnabledSettings().put("xpack.security.http.ssl.verification_mode", verificationMode.name())
+                .build();
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettings));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
+            assertThat(httpConfig.verificationMode(), is(verificationMode));
+            assertCriticalWarnings(
+                "For [xpack.security.http.ssl] verification mode does not work correctly when client authentication is disabled. "
+                    + "Either disable verification mode or enable client authentication."
+            );
+        }
+        {
+            Settings.Builder globalSettingsBuilder = httpsEnabledSettings();
+            if (randomBoolean()) {
+                globalSettingsBuilder.put("xpack.security.http.ssl.verification_mode", SslVerificationMode.NONE);
+            }
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettingsBuilder.build()));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
+            assertThat(httpConfig.verificationMode(), is(SslVerificationMode.NONE));
+        }
+    }
+
+    public void testSecurityHttpDeprecations() {
+        {
+            SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.REQUIRED, SslClientAuthenticationMode.OPTIONAL);
+            Settings globalSettings = httpsEnabledSettings().put("xpack.security.http.ssl.client_authentication", clientAuth.name())
+                .put("xpack.security.http.ssl.verification_mode", SslVerificationMode.NONE)
+                .build();
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettings));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(clientAuth));
+            assertThat(httpConfig.verificationMode(), is(SslVerificationMode.NONE));
+            assertCriticalWarnings(
+                "For [xpack.security.http.ssl] client authentication does not work correctly when verification mode is disabled. "
+                    + "Either disable client authentication or enable verification mode."
+            );
+        }
+        {
+            SslVerificationMode verificationMode = randomFrom(SslVerificationMode.CERTIFICATE, SslVerificationMode.FULL);
+            Settings globalSettings = httpsEnabledSettings().put(
+                "xpack.security.http.ssl.client_authentication",
+                SslClientAuthenticationMode.NONE
+            ).put("xpack.security.http.ssl.verification_mode", verificationMode).build();
+            Environment environment = TestEnvironment.newEnvironment(buildEnvSettings(globalSettings));
+            SSLService sslService = new SSLService(environment);
+            SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
+            assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
+            assertThat(httpConfig.verificationMode(), is(verificationMode));
+            assertCriticalWarnings(
+                "For [xpack.security.http.ssl] verification mode does not work correctly when client authentication is disabled. "
+                    + "Either disable verification mode or enable client authentication."
+            );
+        }
+    }
+
     public void testThatTruststorePasswordIsRequired() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -974,6 +1057,16 @@ public class SSLServiceTests extends ESTestCase {
         final X509ExtendedTrustManager baseTrustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
+    }
+
+    public Settings.Builder httpsEnabledSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
+        return Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.http.ssl.keystore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings);
     }
 
     class AssertionCallback implements FutureCallback<HttpResponse> {

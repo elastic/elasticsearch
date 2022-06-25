@@ -1,0 +1,11 @@
+pr: 45514
+summary: Deprecations for inconsistent `xpack.security.http.ssl`
+area: TLS
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecations for inconsistent `xpack.security.http.ssl`
+  area: TLS
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

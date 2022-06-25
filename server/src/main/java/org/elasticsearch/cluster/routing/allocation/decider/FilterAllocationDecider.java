@@ -90,15 +90,13 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.unassigned()) {
+        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // only for unassigned - we filter allocation right after the index creation (for shard shrinking) to ensure
             // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
             // this is a setting that can only be set within the system!
-            IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-            DiscoveryNodeFilters initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMd.getInitialRecoveryFilters());
-            if (initialRecoveryFilters != null
-                && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                && initialRecoveryFilters.match(node.node()) == false) {
+            IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            DiscoveryNodeFilters initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
+            if (initialRecoveryFilters != null && initialRecoveryFilters.match(node.node()) == false) {
                 String explanation =
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index";
                 return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);

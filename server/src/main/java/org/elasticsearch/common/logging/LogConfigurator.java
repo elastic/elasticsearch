@@ -124,7 +124,7 @@ public class LogConfigurator {
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
     }
 
-    private static void configureESLogging() {
+    public static void configureESLogging() {
         LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 

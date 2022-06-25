@@ -1,0 +1,54 @@
+[[migrating-8.4]]
+== Migrating to 8.4
+++++
+<titleabbrev>8.4</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 8.4.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking-changes-8.4]]
+=== Breaking changes
+
+There are no breaking changes in {es} 8.4.
+
+// end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-8.4]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 8.4
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 8.4.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[deprecations_84_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[inconsistent_settings_for_security_http_ssl_are_deprecated]]
+.Inconsistent client verification configurations for `xpack.security.http.ssl` are deprecated
+[%collapsible]
+====
+*Details* +
+It is deprecated to set `client_authentication: none` and `verification_mode` to `certificate` or `full`.
+It is also deprecated to set `verification_mode: none` and `client_authentication` to `optional` or `required`.
+The above deprecated configurations are nonsensical and never worked correctly.
+
+*Impact* +
+If `client_authentication` is `none` then `verification_mode` must be set to `none` as well.
+if `client_authentication` is `optional` or `required` then `verification_mode` must be set to
+`certificate` or `full`.
+Any other combinations will generate deprecation logs.
+====

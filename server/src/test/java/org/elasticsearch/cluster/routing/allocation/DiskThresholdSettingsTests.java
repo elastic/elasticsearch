@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Locale;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -70,11 +68,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new DiskThresholdSettings(settings, clusterSettings)
         );
-        final String expectedCause = String.format(
-            "setting [%s=90%%] cannot be greater than [%s=80%%]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=90%] cannot be greater than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=80%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -93,11 +91,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=90%%] cannot be greater than [%s=80%%]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=90%] cannot be greater than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=80%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -117,11 +115,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=60%%] cannot be greater than [%s=55%%]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=60%] cannot be greater than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
+            + "=55%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -141,11 +139,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=500m] cannot be less than [%s=1000m]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=500m] cannot be less than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=1000m]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -165,11 +163,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=500m] cannot be less than [%s=1000m]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=500m] cannot be less than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=1000m]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -189,16 +187,13 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String incompatibleExpected = String.format(
-            Locale.ROOT,
-            "unable to consistently parse [%s=%s], [%s=%s], [%s=%s] as percentage or bytes",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            "90%",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-            "1000m",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
-            "95%"
-        );
+        final String incompatibleExpected = "unable to consistently parse ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=90%], ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=1000m], ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
+            + "=95%] as percentage or bytes";
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
 
@@ -217,11 +212,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=85%%] cannot be greater than [%s=75%%]",
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            + "=85%] cannot be greater than ["
+            + DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            + "=75%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 

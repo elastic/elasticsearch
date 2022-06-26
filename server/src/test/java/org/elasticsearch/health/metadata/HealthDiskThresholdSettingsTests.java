@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Locale;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -59,11 +57,11 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new HealthDiskThresholdSettings(settings, clusterSettings)
         );
-        final String expectedCause = String.format(
-            "setting [%s=90%%] cannot be greater than [%s=80%%]",
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(),
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
+            + "=90%] cannot be greater than ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
+            + "=80%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -82,11 +80,11 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=90%%] cannot be greater than [%s=80%%]",
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(),
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
+            + "=90%] cannot be greater than ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
+            + "=80%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -105,11 +103,11 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expectedCause = String.format(
-            "setting [%s=500m] cannot be less than [%s=1000m]",
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(),
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
-        );
+        final String expectedCause = "setting ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
+            + "=500m] cannot be less than ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
+            + "=1000m]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -128,14 +126,11 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String incompatibleExpected = String.format(
-            Locale.ROOT,
-            "unable to consistently parse [%s=%s], [%s=%s] as percentage or bytes",
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(),
-            "90%",
-            HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(),
-            "1000m"
-        );
+        final String incompatibleExpected = "unable to consistently parse ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
+            + "=90%], ["
+            + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
+            + "=1000m] as percentage or bytes";
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
 

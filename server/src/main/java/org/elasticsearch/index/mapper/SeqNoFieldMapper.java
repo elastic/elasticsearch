@@ -45,6 +45,7 @@ import java.util.function.Supplier;
  */
 public class SeqNoFieldMapper extends MetadataFieldMapper {
 
+
     /**
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
@@ -80,19 +81,15 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
          * to the specified value. Called in the engine long after parsing.
          */
         public void set(long seqNo, long primaryTerm) {
-            this.seqNo.setLongValue(seqNo);
+            this.seqNo.setLongValue(seqNo >> 12);
             this.seqNoDocValue.setLongValue(seqNo);
             this.primaryTerm.setLongValue(primaryTerm);
         }
 
-        /**
-         * Build and empty sequence ID who's values can be assigned later by
-         * calling {@link #set}.
-         */
         public static SequenceIDFields emptySeqID() {
             return new SequenceIDFields(
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new NumericDocValuesField(DOC_VALUE_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
                 null
             );
@@ -101,7 +98,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         public static SequenceIDFields tombstone() {
             return new SequenceIDFields(
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new NumericDocValuesField(DOC_VALUE_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
                 new NumericDocValuesField(TOMBSTONE_NAME, 1)
             );
@@ -112,6 +109,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_seq_no";
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
+    private static final String DOC_VALUE_NAME = "_seq_no_dv";
 
     public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
@@ -160,12 +158,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
+            // NOCOMMIT recheck the doc values
             return LongPoint.newExactQuery(name(), v);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
+            // NOCOMMIT recheck the doc values
             return LongPoint.newSetQuery(name(), v);
         }
 
@@ -197,13 +197,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
+            // NOCOMMIT recheck the doc values
             return LongPoint.newRangeQuery(name(), l, u);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(DOC_VALUE_NAME, NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 

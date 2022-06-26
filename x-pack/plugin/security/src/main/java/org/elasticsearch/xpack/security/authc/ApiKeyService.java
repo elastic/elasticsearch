@@ -375,8 +375,8 @@ public class ApiKeyService {
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(versionedDocs).doc());
 
-            doBulkUpdate(
-                buildBulkUpdateRequest(versionedDocs, authentication, request, userRoles),
+            executeBulkIndexRequest(
+                buildBulkIndexRequestForUpdate(versionedDocs, authentication, request, userRoles),
                 ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
             );
         }, listener::onFailure));
@@ -435,7 +435,7 @@ public class ApiKeyService {
         return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
     }
 
-    private BulkRequest buildBulkUpdateRequest(
+    private BulkRequest buildBulkIndexRequestForUpdate(
         Collection<VersionedApiKeyDoc> currentVersionedDocs,
         Authentication authentication,
         UpdateApiKeyRequest request,
@@ -475,7 +475,7 @@ public class ApiKeyService {
             .request();
     }
 
-    private void doBulkUpdate(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    private void executeBulkIndexRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)

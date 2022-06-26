@@ -99,7 +99,7 @@ public class HealthMetadataService {
     void submitHealthMetadata(String source, int attempt) {
         if (attempt < MAX_RETRIES) {
             HealthMetadata localHealthMedata = createHealthMetadata();
-            String message = attempt == 0 ? source : String.format("retry[%d]-%s", attempt, source);
+            String message = attempt == 0 ? source : "retry[" + attempt + "]-" + source;
             var task = new UpdateHealthMetadataTask(localHealthMedata, () -> submitHealthMetadata(source, attempt + 1));
             var config = ClusterStateTaskConfig.build(Priority.NORMAL);
             clusterService.submitStateUpdateTask(message, task, config, taskExecutor);

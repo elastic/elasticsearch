@@ -34,7 +34,7 @@ public class DiskThresholdParser {
     public record ThresholdSetting(String name, String value) {
         @Override
         public String toString() {
-            return String.format("[%s=%s]", name, value);
+            return "[" + name + "=" + value + "]";
         }
     }
 

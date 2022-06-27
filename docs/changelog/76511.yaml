@@ -1,0 +1,5 @@
+pr: 76511
+summary: Add `data_stream_router` processor
+area: Ingest Node
+type: enhancement
+issues: []

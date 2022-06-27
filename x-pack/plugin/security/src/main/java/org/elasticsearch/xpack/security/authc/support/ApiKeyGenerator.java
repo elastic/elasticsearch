@@ -64,7 +64,6 @@ public class ApiKeyGenerator {
         rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
             assert roleDescriptorsList.size() == 1;
             roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-
         }, roleDescriptorsListener::onFailure));
     }
 }

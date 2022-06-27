@@ -61,6 +61,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final var apiKeyId = request.param("id");
 
+        // TODO check if fields are present or absent
         final var payload = PARSER.parse(request.contentParser(), null);
 
         final var updateApiKeyRequest = new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata);

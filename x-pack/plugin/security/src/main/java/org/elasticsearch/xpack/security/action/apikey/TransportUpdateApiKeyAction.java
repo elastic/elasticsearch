@@ -49,13 +49,15 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
     @Override
     protected void doExecute(Task task, UpdateApiKeyRequest request, ActionListener<UpdateApiKeyResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-
-        // TODO none of this belongs here
-        if (effectiveSubject.getType() == Subject.Type.API_KEY) {
-            listener.onFailure(new IllegalStateException("api key cannot update api key"));
+        if (authentication == null) {
+            listener.onFailure(new IllegalStateException("authentication is required"));
+            return;
+        } else if (authentication.isApiKey()) {
+            listener.onFailure(new IllegalArgumentException("cannot use an api key as a credential to update api keys"));
             return;
         }
+
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
 
         final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(
             roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),

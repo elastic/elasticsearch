@@ -260,13 +260,14 @@ Machine Learning::
 * Adds start and end params to `_preview` and excludes cold/frozen tiers from unbounded previews {es-pull}86989[#86989]
 * Adjust automatic JVM heap sizing for dedicated ML nodes {es-pull}86399[#86399]
 * Replace the implementation of the `categorize_text` aggregation {es-pull}85872[#85872]
-* Upgrade PyTorch to version 1.11 {ml-pull}2233[#2233], {ml-pull}2235[#2235],{ml-pull}2238[#2238]
+* Upgrade PyTorch to version 1.11 {ml-pull}2233[#2233], {ml-pull}2235[#2235], {ml-pull}2238[#2238]
 * Upgrade zlib to version 1.2.12 on Windows {ml-pull}2253[#2253]
 * Upgrade libxml2 to version 2.9.14 on Linux and Windows {ml-pull}2287[#2287]
 * Improve time series model stability and anomaly scoring consistency for data
   for which many buckets are empty {ml-pull}2267[#2267]
 * Address root cause for actual equals typical equals zero anomalies {ml-pull}2270[#2270]
 * Better handling of outliers in update immediately after detecting changes in time series {ml-pull}2280[#2280]
+* Improve normalization of anomaly detection results for short bucket lengths. This corrects bias which could cause our scoring to be too low for these jobs {ml-pull}2285[#2285] (issue: {ml-issue}2276[#2276])
 
 Mapping::
 * Intern field names in Mappers {es-pull}86301[#86301]

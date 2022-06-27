@@ -18,7 +18,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
-import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -36,13 +35,8 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -122,10 +116,8 @@ final class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        try {
-                            Bootstrap.stop();
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to stop node", e);
+                        if (Bootstrap.INSTANCE != null) {
+                            Bootstrap.INSTANCE.shutdown();
                         }
                         return true;
                     }
@@ -160,7 +152,7 @@ final class Bootstrap {
         HotThreads.initializeRuntimeMonitoring();
     }
 
-    private void setup(boolean addShutdownHook, Environment environment, Path pidFile) throws BootstrapException {
+    private void setup(Environment environment, Path pidFile) throws BootstrapException {
         Settings settings = environment.settings();
 
         try {
@@ -184,34 +176,13 @@ final class Bootstrap {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        if (addShutdownHook) {
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        IOUtils.close(node, spawner);
-                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                        Configurator.shutdown(context);
-                        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                            throw new IllegalStateException(
-                                "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
-                            );
-                        }
-                    } catch (IOException ex) {
-                        throw new ElasticsearchException("failed to stop node", ex);
-                    } catch (InterruptedException e) {
-                        LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            });
-        }
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
         try {
             // look for jar hell
             final Logger logger = LogManager.getLogger(JarHell.class);
             JarHell.checkJarHell(logger::debug);
-        } catch (IOException | URISyntaxException e) {
+        } catch (IOException e) {
             throw new BootstrapException(e);
         }
 
@@ -221,7 +192,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         try {
             Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings), pidFile);
-        } catch (IOException | NoSuchAlgorithmException e) {
+        } catch (IOException e) {
             throw new BootstrapException(e);
         }
 
@@ -263,97 +234,55 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    static void stop() throws IOException {
+    private void shutdown() {
         try {
-            IOUtils.close(INSTANCE.node, INSTANCE.spawner);
-            if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
+            IOUtils.close(node, spawner);
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+            if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException(
+                    "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
+                );
             }
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to stop node", ex);
         } catch (InterruptedException e) {
             LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();
         } finally {
-            INSTANCE.keepAliveLatch.countDown();
+            keepAliveLatch.countDown();
         }
     }
 
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-        final boolean foreground,
-        final boolean quiet,
-        final Environment initialEnv,
-        SecureString keystorePassword,
-        Path pidFile
-    ) throws BootstrapException, NodeValidationException, UserException {
-        // force the class initializer for BootstrapInfo to run before
-        // the security manager is installed
-        BootstrapInfo.init();
+    static void init(final boolean foreground, final Environment initialEnv, SecureString keystorePassword, Path pidFile)
+        throws BootstrapException, NodeValidationException, IOException, UserException {
 
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv, keystorePassword);
         final Environment environment = createEnvironment(keystore, initialEnv.settings(), initialEnv.configFile());
 
-        BootstrapInfo.setConsole(getConsole(environment));
+        // fail if somebody replaced the lucene jars
+        checkLucene();
 
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
-        try {
-            LogConfigurator.configure(environment, quiet == false);
-        } catch (IOException e) {
-            throw new BootstrapException(e);
+        // install the default uncaught exception handler; must be done before security is
+        // initialized as we do not want to grant the runtime permission
+        // setDefaultUncaughtExceptionHandler
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
+
+        INSTANCE.setup(environment, pidFile);
+
+        // any secure settings must be read during node construction
+        IOUtils.close(keystore);
+
+        INSTANCE.start();
+
+        if (foreground == false) {
+            LogConfigurator.removeConsoleAppender();
         }
-
-        try {
-            // fail if somebody replaced the lucene jars
-            checkLucene();
-
-            // install the default uncaught exception handler; must be done before security is
-            // initialized as we do not want to grant the runtime permission
-            // setDefaultUncaughtExceptionHandler
-            Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
-
-            INSTANCE.setup(true, environment, pidFile);
-
-            try {
-                // any secure settings must be read during node construction
-                IOUtils.close(keystore);
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
-
-            INSTANCE.start();
-
-            if (foreground == false) {
-                LogConfigurator.removeConsoleAppender();
-            }
-
-        } catch (NodeValidationException | RuntimeException e) {
-            // disable console logging, so user does not see the exception twice (jvm will show it already)
-            LogConfigurator.logWithoutConsole(Bootstrap.class, logger -> {
-                // HACK, it sucks to do this, but we will run users out of disk space otherwise
-                if (e instanceof CreationException) {
-                    // guice: log the shortened exc to the log file
-                    ByteArrayOutputStream os = new ByteArrayOutputStream();
-                    PrintStream ps = new PrintStream(os, false, StandardCharsets.UTF_8);
-                    new StartupException(e).printStackTrace(ps);
-                    ps.flush();
-                    logger.error("Guice Exception: {}", os.toString(StandardCharsets.UTF_8));
-                } else if (e instanceof NodeValidationException) {
-                    logger.error("node validation exception\n{}", e.getMessage());
-                } else {
-                    // full exception
-                    logger.error("Exception", e);
-                }
-            });
-
-            throw e;
-        }
-    }
-
-    private static ConsoleLoader.Console getConsole(Environment environment) {
-        return ConsoleLoader.loadConsole(environment);
     }
 
     private static void checkLucene() {

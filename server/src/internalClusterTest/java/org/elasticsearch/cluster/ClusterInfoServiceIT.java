@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -164,8 +163,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotNull("info should not be null", info);
         Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
         Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
+        Map<String, Long> shardSizes = info.shardSizes;
+        Map<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertNotNull(shardDataSetSizes);

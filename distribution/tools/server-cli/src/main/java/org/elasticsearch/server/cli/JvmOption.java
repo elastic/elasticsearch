@@ -97,7 +97,7 @@ class JvmOption {
             Stream.of(java),
             userDefinedJvmOptions.stream(),
             Stream.of("-XX:+PrintFlagsFinal", "-version")
-        ).flatMap(Function.identity()).toList();
+        ).flatMap(Function.identity()).filter(o -> o.contains("agentlib") == false).toList();
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());

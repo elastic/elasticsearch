@@ -17,7 +17,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -120,7 +119,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                         Strings.spaceify(3, node.getHotThreads(), sb);
                         sb.append('\n');
                     }
-                    return new BytesRestResponse(RestStatus.OK, sb.toString());
+                    return new RestResponse(RestStatus.OK, sb.toString());
                 }
             });
     }

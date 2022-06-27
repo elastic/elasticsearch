@@ -27,6 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -71,22 +73,26 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
-        this.executor = (currentState, taskContexts) -> {
-            ClusterState state = currentState;
-            for (final var taskContext : taskContexts) {
-                try {
-                    final var task = taskContext.getTask();
-                    state = task.execute(state);
-                    taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
+        this.executor = new ClusterStateTaskExecutor<AckedClusterStateUpdateTask>() {
+            @Override
+            @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
+            public ClusterState execute(ClusterState currentState, List<TaskContext<AckedClusterStateUpdateTask>> taskContexts) {
+                ClusterState state = currentState;
+                for (final var taskContext : taskContexts) {
+                    try {
+                        final var task = taskContext.getTask();
+                        state = task.execute(state);
+                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
                 }
+                if (state != currentState) {
+                    // reroute in case things change that require it (like number of replicas)
+                    state = allocationService.reroute(state, "settings update");
+                }
+                return state;
             }
-            if (state != currentState) {
-                // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
-            }
-            return state;
         };
     }
 

@@ -19,7 +19,9 @@ dependencies {
   api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
   api "org.locationtech.jts:jts-core:${versions.jts}"
+  implementation "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "io.sgr:s2-geometry-library-java:1.0.1"
   testImplementation project(":test:framework")
 }
 
@@ -45,13 +47,18 @@ tasks.named("thirdPartyAudit").configure {
     'com.fasterxml.jackson.databind.module.SimpleModule',
     'com.fasterxml.jackson.databind.node.ObjectNode',
 
-    // from lucene-spatial
-    'com.google.common.geometry.S2Cell',
-    'com.google.common.geometry.S2CellId',
-    'com.google.common.geometry.S2Projections',
-    'com.google.common.geometry.S2Point',
-    'com.google.common.geometry.S2$Metric',
-    'com.google.common.geometry.S2LatLng'
+    // from com.google.common.geometry.S2PolygonBuilder
+    'com.google.common.base.Objects',
+    'com.google.common.base.Preconditions',
+    'com.google.common.collect.ForwardingMultimap',
+    'com.google.common.collect.HashMultimap',
+    'com.google.common.collect.HashMultiset',
+    'com.google.common.collect.Lists',
+    'com.google.common.collect.Maps',
+    'com.google.common.collect.Multimap',
+    'com.google.common.collect.Multiset',
+    'com.google.common.collect.Sets',
+    'com.google.common.collect.TreeMultimap',
   )
 }
 

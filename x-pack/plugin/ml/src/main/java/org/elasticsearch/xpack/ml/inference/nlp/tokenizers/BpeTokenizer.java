@@ -378,7 +378,7 @@ public class BpeTokenizer extends Tokenizer {
         }
     }
 
-    private static record CharTrie(Map<Character, CharTrie> children) {
+    private record CharTrie(Map<Character, CharTrie> children) {
         boolean isLeaf() {
             return children.isEmpty();
         }

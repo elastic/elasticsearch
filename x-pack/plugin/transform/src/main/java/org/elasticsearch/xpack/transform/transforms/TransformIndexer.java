@@ -55,6 +55,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -947,10 +948,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+        int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
+            .orElse(context.getNumFailureRetries());
+        if (numFailureRetries != -1 && context.getAndIncrementFailureCount() > numFailureRetries) {
             failIndexer(
                 "task encountered more than "
-                    + context.getNumFailureRetries()
+                    + numFailureRetries
                     + " failures; latest failure: "
                     + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
             );

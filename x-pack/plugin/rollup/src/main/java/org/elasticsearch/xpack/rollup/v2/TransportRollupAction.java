@@ -205,7 +205,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             final TaskId fieldCapsTask = new TaskId(clusterService.localNode().getId(), task.getId());
             fieldCapsRequest.setParentTask(fieldCapsTask);
             client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
-                final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
+                final List<String> dimensionFields = new ArrayList<>();
                 final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
                 final List<String> labelFields = new ArrayList<>();
                 for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
@@ -222,7 +222,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     }
                     FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
                     if (fieldCaps.isDimension()) {
-                        dimensionFieldCaps.put(field, fieldCaps);
+                        dimensionFields.add(field);
                     } else {
                         TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
                         if (metricType != null) {
@@ -237,7 +237,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
-                if (dimensionFieldCaps.isEmpty()) {
+                if (dimensionFields.isEmpty()) {
                     validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
                 }
                 if (metricFieldCaps.isEmpty()) {
@@ -253,7 +253,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 try {
                     mapping = createRollupIndexMapping(
                         request.getRollupConfig(),
-                        dimensionFieldCaps,
+                        dimensionFields,
                         metricFieldCaps,
                         labelFields,
                         sourceIndexMappings
@@ -269,7 +269,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         // 4. Rollup index created. Run rollup indexer
                         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
                             request,
-                            dimensionFieldCaps.keySet().toArray(new String[0]),
+                            dimensionFields.toArray(new String[0]),
                             metricFieldCaps.keySet().toArray(new String[0]),
                             labelFields.toArray(new String[0])
                         );
@@ -419,7 +419,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     public static String createRollupIndexMapping(
         final RollupActionConfig config,
-        final Map<String, FieldCapabilities> dimensionFieldCaps,
+        final List<String> dimensionFields,
         final Map<String, FieldCapabilities> metricFieldCaps,
         final List<String> labelFields,
         Map<String, Object> sourceIndexMappingProperties
@@ -442,11 +442,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject()
             .endObject();
 
-        for (Map.Entry<String, FieldCapabilities> e : dimensionFieldCaps.entrySet()) {
-            builder.startObject(e.getKey())
-                .field("type", e.getValue().getType())
-                .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
-                .endObject();
+        for (final String dimensionField : dimensionFields) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, String> fieldProperties = (Map<String, String>) properties.get(dimensionField);
+            if (fieldProperties.isEmpty() == false) {
+                builder.startObject(dimensionField);
+                for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
+                    builder.field(fieldProperty.getKey(), fieldProperty.getValue());
+                }
+                builder.endObject();
+            }
         }
 
         for (Map.Entry<String, FieldCapabilities> e : metricFieldCaps.entrySet()) {
@@ -478,7 +485,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             Map<String, String> fieldProperties = (Map<String, String>) properties.get(field);
             if (fieldProperties.isEmpty() == false) {
                 builder.startObject(field);
-                for (Map.Entry<String, String> fieldProperty : fieldProperties.entrySet()) {
+                for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
                     builder.field(fieldProperty.getKey(), fieldProperty.getValue());
                 }
                 builder.endObject();

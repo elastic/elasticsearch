@@ -677,25 +677,45 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected void rotateJwks(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
         List<JwtIssuer.AlgJwkPair> algAndJwksPkc = jwtIssuerAndRealm.issuer.algAndJwksPkc;
-        if (algAndJwksPkc != null) {
-            algAndJwksPkc = JwtTestCase.randomJwks(algAndJwksPkc.stream().map(e -> e.alg()).toList());
+        if ((algAndJwksPkc != null) && (algAndJwksPkc.isEmpty() == false)) {
+            final List<String> signatureAlgorithms = algAndJwksPkc.stream().map(JwtIssuer.AlgJwkPair::alg).toList();
+            LOGGER.info("Generating new JwtIssuer PKC JWKs for algorithms [{}]", String.join(",", signatureAlgorithms));
+            algAndJwksPkc = JwtTestCase.randomJwks(signatureAlgorithms);
         }
         List<JwtIssuer.AlgJwkPair> algAndJwksHmac = jwtIssuerAndRealm.issuer.algAndJwksHmac;
-        if (jwtIssuerAndRealm.issuer.algAndJwksHmac != null) {
-            algAndJwksHmac = JwtTestCase.randomJwks(algAndJwksHmac.stream().map(e -> e.alg()).toList());
+        if ((algAndJwksHmac != null) && (algAndJwksHmac.isEmpty() == false)) {
+            final List<String> signatureAlgorithms = algAndJwksHmac.stream().map(JwtIssuer.AlgJwkPair::alg).toList();
+            LOGGER.info("Generating new JwtIssuer HMAC JWKs for algorithms [{}]", String.join(",", signatureAlgorithms));
+            algAndJwksHmac = JwtTestCase.randomJwks(signatureAlgorithms);
         }
         JwtIssuer.AlgJwkPair algAndJwkHmacOidc = jwtIssuerAndRealm.issuer.algAndJwkHmacOidc;
         if (algAndJwkHmacOidc != null) {
-            algAndJwkHmacOidc = new JwtIssuer.AlgJwkPair(algAndJwkHmacOidc.alg(), JwtTestCase.randomJwk(algAndJwkHmacOidc.alg()));
+            final String signatureAlgorithm = algAndJwkHmacOidc.alg();
+            LOGGER.info("Generating new JwtIssuer HMAC OIDC JWK for algorithm [{}]", signatureAlgorithm);
+            algAndJwkHmacOidc = new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm));
         }
-        // If HTTPS Server is enabled, JwtIssuer will update its contents
+
+        // For PKC public JWKSet, if HTTPS Server is enabled then the JwtIssuer must update its HTTPS contents
+        LOGGER.info("Replacing all JwtIssuer JWKs and Algs for PKC JWKSet, HMAC JWKSet, and HMAC OIDC JWK");
         jwtIssuerAndRealm.issuer.updateJwksAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
-        // If HTTPS Server is disabled, and PKC JWKSet path is set, Elasticsearch operator must manually update the local file contents
-        if (jwtIssuerAndRealm.issuer.httpsServer == null) {
-            if (jwtIssuerAndRealm.realm.jwkSetPath != null) {
-                final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
-                Files.write(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
-            }
+
+        // For PKC public JWKSet, if HTTPS Server is disabled then the Elasticsearch operator must update the JwtRealm local file contents
+        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.httpClient == null)) {
+            LOGGER.info("Updating PKC public JWKSet local file contents because the JwtIssuer replaced it");
+            final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
+            Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublicOnly);
+        }
+
+        // For HMAC public JWKSet, then the Elasticsearch operator must update the Elasticsearch keystore entry contents
+        if (jwtIssuerAndRealm.realm.isConfiguredJwkSetHmac) {
+            LOGGER.info("Updating HMAC secret JWKSet local keystore entry contents because the JwtIssuer replaced it");
+            // TODO How to update and reload Elasticsearch Keystore entries?
+        }
+
+        // For HMAC public JWKSet, then the Elasticsearch operator must update the Elasticsearch keystore entry contents
+        if (jwtIssuerAndRealm.realm.isConfiguredJwkOidcHmac) {
+            LOGGER.info("Updating HMAC secret OIDC JWK local keystore entry contents because the JwtIssuer replaced it");
+            // TODO How to update and reload Elasticsearch Keystore entries?
         }
     }
 

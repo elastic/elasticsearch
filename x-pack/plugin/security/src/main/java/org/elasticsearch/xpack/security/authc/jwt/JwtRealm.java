@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -104,6 +105,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final String allowedIssuer;
     final List<String> allowedAudiences;
     final String jwkSetPath;
+    final boolean isConfiguredJwkSetPkc;
+    final boolean isConfiguredJwkSetHmac;
+    final boolean isConfiguredJwkOidcHmac;
     final CloseableHttpAsyncClient httpClient;
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
@@ -155,9 +159,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.clientAuthenticationSharedSecret
         );
 
-        if (config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
-            && config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
-            && config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+        if (super.config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
+            && super.config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
+            && super.config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
             throw new SettingsException(
                 "At least one of ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
@@ -171,8 +175,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
+        this.isConfiguredJwkSetPkc = Strings.hasText(this.jwkSetPath);
+        this.isConfiguredJwkSetHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_JWKSET));
+        this.isConfiguredJwkOidcHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_KEY));
 
-        if (Strings.hasText(this.jwkSetPath)) {
+        if (this.isConfiguredJwkSetPkc) {
             final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
             if (jwkSetPathPkcUri == null) {
                 this.httpClient = null; // local file means no HTTP client
@@ -182,6 +189,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         } else {
             this.httpClient = null; // no setting means no HTTP client
         }
+
+        // Split configured signature algorithms by PKC and HMAC. Useful during validation, error logging, and JWK vs Alg filtering.
+        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+        this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
 
         // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
         try {
@@ -243,10 +255,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 jwksHmac = List.of(hmacKey);
                 hmacStringContent = hmacKeyContents.toString();
             }
+
             // Filter HMAC JWK(s) vs Algs. Only keep JWKs with a matching Alg. Only keep Algs with a matching JWK.
             // Zero HMAC JWKs and Algs after filtering is valid use case, as long as PKC has non-zero JWKs and Algs.
-            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
             filteredJwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, this.allowedJwksAlgsHmac);
         }
         LOGGER.debug(
@@ -260,7 +271,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private ContentAndFilteredJwksAlgs loadContentAndFilterJwksAlgsPkc() {
         final FilteredJwksAlgs filteredJwksAlgsPkc;
         String jwkSetContentsPkc = null;
-        if (Strings.hasText(this.jwkSetPath) == false) {
+        if (this.isConfiguredJwkSetPkc == false) {
             filteredJwksAlgsPkc = new FilteredJwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
             // PKC JWKSet get contents from local file or remote HTTPS URL
@@ -289,8 +300,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Filter PKC JWK(s) vs Algs. Only keep JWKs with a matching Alg. Only keep Algs with a matching JWK.
             // Zero PKC JWKs and Algs after filtering is valid use case, as long as HMAC has non-zero JWKs and Algs.
-            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
             filteredJwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, this.allowedJwksAlgsPkc);
         }
         LOGGER.debug(
@@ -533,22 +542,27 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 JwtValidateUtil.validateExpiredTime(jwt, now, this.allowedClockSkew.seconds());
 
                 // Validate signature last, so expensive JWK reloads only happen after all other checks passed.
-                final boolean reloadBefore = this.contentAndFilteredJwksAlgsHmac.isEmpty() && this.contentAndFilteredJwksAlgsPkc.isEmpty();
-                final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
-                    ? this.contentAndFilteredJwksAlgsHmac
-                    : this.contentAndFilteredJwksAlgsPkc;
                 try {
-                    if ((reloadBefore) && (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false)) {
-                        return; // Reload required before. Reload failed, or succeeded but no changes. Helper populates listener response.
+                    if (this.contentAndFilteredJwksAlgsHmac.isEmpty() && this.contentAndFilteredJwksAlgsPkc.isEmpty()) {
+                        LOGGER.debug("Realm [" + super.name() + "] has no JWKs and Algs to verify JWT for token=[" + tokenPrincipal + "].");
+                        if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
+                            return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
+                        }
                     }
-                    // Throws AllVerifiesFailedException (some JWKs after filtering, all failed) or Exception (no JWKs after filtering)
+                    // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
+                    final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
+                        ? this.contentAndFilteredJwksAlgsHmac
+                        : this.contentAndFilteredJwksAlgsPkc;
                     JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
                     // Fall through means success, exception will be caught by inner or outer catch
                 } catch (JwtValidateUtil.AllVerifiesFailedException e) {
-                    if ((reloadBefore == false) && (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false)) {
-                        return; // Reload required after. Reload failed, or succeeded but no changes. Helper populates listener response.
+                    if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
+                        return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
                     }
-                    // Throws AllVerifiesFailedException (some JWKs after filtering, all failed) or Exception (no JWKs after filtering)
+                    // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
+                    final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
+                        ? this.contentAndFilteredJwksAlgsHmac
+                        : this.contentAndFilteredJwksAlgsPkc;
                     JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
                     // Fall through means success, exception will be caught by outer catch
                 }
@@ -661,7 +675,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private boolean reloadJwksHelper(ActionListener<AuthenticationResult<User>> listener, String tokenPrincipal, boolean isJwtAlgHmac) {
         try {
-            LOGGER.debug("Realm [" + super.name() + "] has no JWKs and Algs to verify JWT for token=[" + tokenPrincipal + "].");
             if (this.reloadJwks(isJwtAlgHmac) == false) {
                 // Reload failed, or no JWK content changes found, so realm still has no JWKs and Algs to verify JWT
                 final String msg = "Realm [" + super.name() + "] has no old JWKs to verify JWT for token=[" + tokenPrincipal + "].";
@@ -669,12 +682,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return false;
             }
-            LOGGER.trace("Realm [" + super.name() + "] loaded new JWKs to verify JWT for token=[" + tokenPrincipal + "].");
+            LOGGER.info("Realm [" + super.name() + "] loaded new JWKs to verify JWT for token=[" + tokenPrincipal + "].");
             return true;
         } catch (Exception e) {
             // Reload succeeded, but no JWKs and Algs remain
             final String msg = "Realm [" + super.name() + "] has no new JWKs to verify JWT for token=[" + tokenPrincipal + "].";
-            LOGGER.debug(msg, e);
+            LOGGER.error(msg, e);
             listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
             return false;
         }
@@ -712,10 +725,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             LOGGER.error(msg, t);
             return false;
         }
-        // TODO Do we need empty checks
-        if ((Strings.hasText(oldContentAndFilteredJwksAlgs.jwksContent) == false)
-            && (Strings.hasText(newContentAndFilteredJwksAlgs.jwksContent) == false)
-            && (oldContentAndFilteredJwksAlgs.jwksContent.equals(newContentAndFilteredJwksAlgs.jwksContent))) {
+        if (Objects.equals(oldContentAndFilteredJwksAlgs.jwksContent, newContentAndFilteredJwksAlgs.jwksContent)) {
             LOGGER.debug("Reload JWKs succeeded but content did not change, doHmac: {}", doHmac);
             return false;
         }

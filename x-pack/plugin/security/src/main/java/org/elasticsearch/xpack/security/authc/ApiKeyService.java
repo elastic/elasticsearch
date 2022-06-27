@@ -478,7 +478,7 @@ public class ApiKeyService {
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        final var builder = XContentFactory.jsonBuilder();
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", created.toEpochMilli())
@@ -503,7 +503,7 @@ public class ApiKeyService {
         Version version,
         Map<String, Object> metadata
     ) throws IOException {
-        final var builder = XContentFactory.jsonBuilder();
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", currentApiKeyDoc.creationTime)

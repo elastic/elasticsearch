@@ -61,8 +61,8 @@ dependencies {
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
-  api "org.apache.logging.log4j:log4j-api:${versions.log4japi}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4jcore}"
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 

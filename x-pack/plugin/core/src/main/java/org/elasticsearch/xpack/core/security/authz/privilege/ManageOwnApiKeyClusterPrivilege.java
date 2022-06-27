@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -93,6 +94,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
+            } else if (request instanceof UpdateApiKeyRequest) {
+                return true;
             } else if (request instanceof GrantApiKeyRequest) {
                 return false;
             }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -128,13 +127,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> "unexpected failure during [" + source + "]", e);
                     listener.onFailure(e);
                 }
             }.submit(clusterService.getMasterService(), source);
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -160,28 +159,24 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void onNoLongerMaster() {
-                    logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
-                    // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                    listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                }
-
-                @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ProcessClusterEventTimeoutException) {
                         listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
                     } else {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        final Level level = e instanceof NotMasterException ? Level.TRACE : Level.ERROR;
+                        assert e instanceof NotMasterException : e; // task cannot fail, nor will it trigger a publication which fails
+                        logger.log(level, () -> "unexpected failure during [" + source + "]", e);
+                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
                         listener.onFailure(e);
                     }
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void executeHealth(

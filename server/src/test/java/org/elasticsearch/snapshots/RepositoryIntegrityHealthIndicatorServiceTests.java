@@ -16,8 +16,11 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -30,6 +33,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_REPOSITORY;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -49,8 +53,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No corrupted repositories.",
+                    RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -65,6 +71,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
+        List<String> corruptedRepos = List.of("corrupted-repo");
         assertThat(
             service.calculate(true),
             equalTo(
@@ -72,11 +79,19 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     RED,
-                    "Detected [1] corrupted repositories: [corrupted-repo].",
+                    "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
+                    RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
-                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
+                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", corruptedRepos)
                     ),
-                    Collections.emptyList()
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    List.of(new UserAction(CORRUPTED_REPOSITORY, corruptedRepos))
                 )
             )
         );
@@ -93,8 +108,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No repositories configured.",
+                    RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
+                    null,
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

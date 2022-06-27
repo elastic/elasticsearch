@@ -9,7 +9,6 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
@@ -260,8 +260,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception notificationException) {
                     notificationException.addSuppressed(originalException);
                     logger.warn(
-                        new ParameterizedMessage(
-                            "notification for task [{}] with id [{}] failed",
+                        () -> format(
+                            "notification for task [%s] with id [%s] failed",
                             taskInProgress.getTaskName(),
                             taskInProgress.getAllocationId()
                         ),
@@ -296,8 +296,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to cancel task [{}] with id [{}] and allocation id [{}]",
+                        () -> format(
+                            "failed to cancel task [%s] with id [%s] and allocation id [%s]",
                             task.getAction(),
                             task.getPersistentTaskId(),
                             task.getAllocationId()

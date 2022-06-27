@@ -16,7 +16,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -58,6 +58,15 @@ public class JsonXContentParser extends AbstractXContentParser {
             return convertToken(parser.nextToken());
         } catch (JsonEOFException e) {
             throw new XContentEOFException(e);
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
+    }
+
+    @Override
+    public String nextFieldName() throws IOException {
+        try {
+            return parser.nextFieldName();
         } catch (JsonParseException e) {
             throw newXContentParseException(e);
         }

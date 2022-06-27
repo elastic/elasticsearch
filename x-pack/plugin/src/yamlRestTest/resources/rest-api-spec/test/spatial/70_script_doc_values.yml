@@ -48,6 +48,19 @@ setup:
   - match: { hits.hits.0.fields.bbox.0.bottom_right.lon: 24.048749981448054 }
 
 ---
+"label position":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            label_position:
+              script:
+                source: "doc['geo_shape'].getLabelPosition()"
+  - match: { hits.hits.0.fields.label_position.0.lat: 59.942043484188616 }
+  - match: { hits.hits.0.fields.label_position.0.lon: 24.047588920220733 }
+
+---
 "bounding box points":
   - do:
       search:

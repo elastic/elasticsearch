@@ -128,24 +128,25 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     ) {
         if (assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
             if (isMemoryTrackerRecentlyRefreshed) {
-                Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
+                Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.currentCapacityAndMaxFreeMemory(
                     maxMachineMemoryPercent,
                     useAutoMemoryPercentage,
                     maxOpenJobs
                 );
                 Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
-                if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {
+                Long currentFreeMemory = capacityAndFreeMemory.v2();
+                if (currentFreeMemory.equals(previouslyAuditedFreeMemory) == false) {
                     auditor.info(
                         jobId,
                         Messages.getMessage(
                             JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
                             ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTierMlNativeMemoryRequirement()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNodeMlNativeMemoryRequirement())
+                            ByteSizeValue.ofBytes(currentFreeMemory),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTierMlNativeMemoryRequirementExcludingOverhead()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNodeMlNativeMemoryRequirementExcludingOverhead())
                         )
                     );
-                    auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());
+                    auditedJobCapacity.put(getUniqueId(jobId), currentFreeMemory);
                 }
             }
         } else {

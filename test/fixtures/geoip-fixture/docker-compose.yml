@@ -11,3 +11,14 @@ services:
       - ./testfixtures_shared/shared:/fixture/shared
     ports:
       - "80"
+  geoip-fixture-restart:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.geoip.GeoIpHttpFixture
+        port: 80
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"

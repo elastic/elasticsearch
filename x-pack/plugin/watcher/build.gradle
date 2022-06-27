@@ -80,4 +80,4 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

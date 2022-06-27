@@ -9,13 +9,17 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -34,6 +38,12 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "slm";
 
+    public static final String HELP_URL = "https://ela.st/fix-slm";
+    public static final UserAction SLM_NOT_RUNNING = new UserAction(
+        new UserAction.Definition("slm-not-running", "Start SLM using [POST /_slm/start].", HELP_URL),
+        null
+    );
+
     private final ClusterService clusterService;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
@@ -51,19 +61,43 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
+    public HealthIndicatorResult calculate(boolean explain) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "No SLM policies configured",
+                createDetails(explain, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            List<HealthIndicatorImpact> impacts = Collections.singletonList(
+                new HealthIndicatorImpact(
+                    3,
+                    "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
+                    List.of(ImpactArea.BACKUP)
+                )
+            );
+            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, List.of(SLM_NOT_RUNNING));
         } else {
-            return createIndicator(GREEN, "SLM is running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "SLM is running",
+                createDetails(explain, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean includeDetails, SnapshotLifecycleMetadata metadata) {
-        if (includeDetails) {
+    private static HealthIndicatorDetails createDetails(boolean explain, SnapshotLifecycleMetadata metadata) {
+        if (explain) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
             );

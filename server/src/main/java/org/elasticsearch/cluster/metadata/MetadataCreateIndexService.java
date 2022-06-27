@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -24,7 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -286,7 +284,7 @@ public class MetadataCreateIndexService {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
@@ -298,20 +296,19 @@ public class MetadataCreateIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.trace(() -> "[" + request.index() + "] failed to create", e);
                     } else {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.debug(() -> "[" + request.index() + "] failed to create", e);
                     }
                     super.onFailure(e);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
@@ -534,6 +531,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(templates),
+            mappings == null ? List.of() : List.of(mappings),
             null,
             settings,
             indexScopedSettings,
@@ -600,6 +598,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(currentState.metadata(), templateName),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -656,6 +655,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(template, componentTemplates),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -750,6 +750,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             Settings.EMPTY,
+            null,
             sourceMetadata,
             settings,
             indexScopedSettings,
@@ -834,6 +835,7 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         Settings combinedTemplateSettings,
+        List<CompressedXContent> combinedTemplateMappings,
         @Nullable IndexMetadata sourceMetadata,
         Settings settings,
         IndexScopedSettings indexScopedSettings,
@@ -841,6 +843,7 @@ public class MetadataCreateIndexService {
         Set<IndexSettingProvider> indexSettingProviders
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
+        final var metadata = currentState.getMetadata();
 
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -853,11 +856,10 @@ public class MetadataCreateIndexService {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
-            final IndexMode matchingIndexMode = Optional.of(request)
+            final boolean timeSeriesTemplate = Optional.of(request)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(ComposableIndexTemplate::getDataStreamTemplate)
-                .map(ComposableIndexTemplate.DataStreamTemplate::getIndexMode)
-                .orElse(null);
+                .map(metadata::isTimeSeriesTemplate)
+                .orElse(false);
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -867,10 +869,11 @@ public class MetadataCreateIndexService {
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
-                        matchingIndexMode,
+                        timeSeriesTemplate,
                         currentState.getMetadata(),
                         resolvedAt,
-                        templateAndRequestSettings
+                        templateAndRequestSettings,
+                        combinedTemplateMappings
                     )
                 );
             }

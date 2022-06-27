@@ -16,15 +16,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -39,8 +37,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,6 +71,12 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
 
     public void testLegacyNoopUpdate() throws IOException {
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -245,7 +247,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
-        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
         String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();
@@ -2005,57 +2007,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
     }
 
-    public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
-        ClusterState state = ClusterState.EMPTY_STATE;
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList("logs-*-*"),
-            null,
-            null,
-            100L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
-            null
-        );
-        state = service.addIndexTemplateV2(state, false, "logs", template);
-
-        Instant now = Instant.now();
-        Metadata.Builder mBuilder = new Metadata.Builder(state.getMetadata());
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "unreferenced",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "logs-mysql-default",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        ClusterState stateWithDS = ClusterState.builder(state).metadata(mBuilder).build();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                null,
-                null,
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? null : IndexMode.STANDARD),
-                null
-            );
-            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
-        });
-
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "would cause tsdb data streams [logs-mysql-default] to no longer match a data stream template with a time_series index_mode"
-            )
-        );
-    }
-
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
@@ -2084,9 +2035,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
 
             }
 
@@ -2103,9 +2054,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();
             }
 

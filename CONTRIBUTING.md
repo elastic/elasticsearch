@@ -450,14 +450,15 @@ causes and their causes, as well as any suppressed exceptions and so on:
     logger.debug("operation failed", exception);
 
 If you wish to use placeholders and an exception at the same time, construct a
-`ParameterizedMessage`:
+`Supplier<String>` and use `org.elasticsearch.core.Strings.format`
+- note java.util.Formatter syntax
 
-    logger.debug(new ParameterizedMessage("failed at offset [{}]", offset), exception);
+    logger.debug(() -> Strings.format("failed at offset [%s]", offset), exception);
 
-You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
+You can also use a `java.util.Supplier<String>` to avoid constructing
 expensive messages that will usually be discarded:
 
-    logger.debug(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
+    logger.debug(() -> "rarely seen output [" + expensiveMethod() + "]");
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
@@ -650,7 +651,7 @@ which it will not recover. For instance, the `FsHealthService` uses `ERROR`
 logs to record that the data path failed some basic health checks and hence the
 node cannot continue to operate as a member of the cluster:
 
-    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+    logger.error(() -> "health check of [" + path + "] failed", ex);
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 

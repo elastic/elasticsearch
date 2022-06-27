@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +42,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 2,
-                        "routing_path": ["metricset", "time_series_dimension"]
+                        "mode": "time_series"
                     }
                 },
                 "mappings":{
@@ -86,7 +86,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 }
             },
             "data_stream": {
-                "index_mode": "time_series"
             }
         }""";
 
@@ -164,19 +163,19 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             {"create": {}}
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}
             {"create": {}}
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "tiger", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea10", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "lion", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876e11", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
     public void testTsdbDataStreams() throws Exception {
@@ -188,10 +187,13 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
         bulkRequest.addParameter("refresh", "true");
-        assertOK(client().performRequest(bulkRequest));
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
 
         var getDataStreamsRequest = new Request("GET", "/_data_stream");
-        var response = client().performRequest(getDataStreamsRequest);
+        response = client().performRequest(getDataStreamsRequest);
         assertOK(response);
         var dataStreams = entityAsMap(response);
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
@@ -254,10 +256,13 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now())));
         bulkRequest.addParameter("refresh", "true");
-        assertOK(client().performRequest(bulkRequest));
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
 
         var getDataStreamsRequest = new Request("GET", "/_data_stream");
-        var response = client().performRequest(getDataStreamsRequest);
+        response = client().performRequest(getDataStreamsRequest);
         assertOK(response);
         var dataStreams = entityAsMap(response);
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
@@ -328,7 +333,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
         assertThat(
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
-            contains("metricset", "time_series_dimension")
+            containsInAnyOrder("metricset", "k8s.pod.uid")
         );
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
@@ -463,7 +468,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 e.getMessage(),
                 containsString(
                     "composable template [1] with index patterns [k8s*], priority [null],"
-                        + " index_mode [null] would cause tsdb data streams [k8s] to no longer match a data stream template"
+                        + " index.routing_path [] would cause tsdb data streams [k8s] to no longer match a data stream template"
                         + " with a time_series index_mode"
                 )
             );

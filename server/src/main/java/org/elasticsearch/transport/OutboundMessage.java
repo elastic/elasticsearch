@@ -13,12 +13,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
 
@@ -94,7 +94,9 @@ abstract class OutboundMessage extends NetworkMessage {
     // resources and write EOS marker bytes but must not yet release the bytes themselves
     private StreamOutput wrapCompressed(RecyclerBytesStreamOutput bytesStream) throws IOException {
         if (compressionScheme == Compression.Scheme.DEFLATE) {
-            return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+            return new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(org.elasticsearch.core.Streams.noCloseStream(bytesStream))
+            );
         } else if (compressionScheme == Compression.Scheme.LZ4) {
             return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {

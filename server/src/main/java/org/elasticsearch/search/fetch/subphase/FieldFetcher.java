@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
- * Then given a specific document, it can retrieve the corresponding fields from the document's source.
+ * Then given a specific document, it can retrieve the corresponding fields through their corresponding {@link ValueFetcher}s.
  */
 public class FieldFetcher {
 

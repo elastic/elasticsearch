@@ -63,6 +63,27 @@ public final class BootstrapInfo {
      */
     public static final String UNTRUSTED_CODEBASE = "/untrusted";
 
+    /**
+     * A non-printable character denoting a UserException has occurred.
+     *
+     * This is sent over stderr to the controlling CLI process.
+     */
+    public static final char USER_EXCEPTION_MARKER = '\u0015';
+
+    /**
+     * A non-printable character denoting the server is ready to process requests.
+     *
+     * This is sent over stderr to the controlling CLI process.
+     */
+    public static final char SERVER_READY_MARKER = '\u0018';
+
+    /**
+     * A non-printable character denoting the server should shut itself down.
+     *
+     * This is sent over stdin from the controlling CLI process.
+     */
+    public static final char SERVER_SHUTDOWN_MARKER = '\u001B';
+
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because
     // some test methods still change properties, so whitelisted changes must

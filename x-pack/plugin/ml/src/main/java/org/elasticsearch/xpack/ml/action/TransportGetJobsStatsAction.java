@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
-import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -63,6 +63,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
     private final AutodetectProcessManager processManager;
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportGetJobsStatsAction(
@@ -71,7 +72,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         ClusterService clusterService,
         AutodetectProcessManager processManager,
         JobResultsProvider jobResultsProvider,
-        JobConfigProvider jobConfigProvider
+        JobConfigProvider jobConfigProvider,
+        ThreadPool threadPool
     ) {
         super(
             GetJobsStatsAction.NAME,
@@ -87,6 +89,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         this.processManager = processManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -140,7 +143,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
-            gatherForecastStats(jobId, forecastStats -> {
+            jobResultsProvider.getForecastStats(jobId, forecastStats -> {
                 JobStats jobStats = new JobStats(
                     jobId,
                     dataCounts,
@@ -186,55 +189,60 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         };
 
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        for (int i = 0; i < closedJobIds.size(); i++) {
-            int slot = i;
-            String jobId = closedJobIds.get(i);
-            gatherForecastStats(jobId, forecastStats -> {
-                jobResultsProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
-                    JobState jobState = MlTasks.getJobState(jobId, tasks);
-                    PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
-                    String assignmentExplanation = null;
-                    if (pTask != null) {
-                        assignmentExplanation = pTask.getAssignment().getExplanation();
-                    }
-                    jobStats.set(
-                        slot,
-                        new JobStats(
-                            jobId,
-                            dataCounts,
-                            modelSizeStats,
-                            forecastStats,
-                            jobState,
-                            null,
-                            assignmentExplanation,
-                            null,
-                            timingStats
-                        )
-                    );
-                    if (counter.decrementAndGet() == 0) {
-                        if (searchException.get() != null) {
-                            // there was an error
-                            listener.onFailure(searchException.get());
-                            return;
-                        }
-                        List<JobStats> results = response.getResponse().results();
-                        results.addAll(jobStats.asList());
-                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
-                        listener.onResponse(
-                            new GetJobsStatsAction.Response(
-                                response.getTaskFailures(),
-                                response.getNodeFailures(),
-                                new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            for (int i = 0; i < closedJobIds.size(); i++) {
+                int slot = i;
+                String jobId = closedJobIds.get(i);
+                jobResultsProvider.getForecastStats(jobId, forecastStats -> {
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(
+                            () -> jobResultsProvider.getDataCountsModelSizeAndTimingStats(
+                                jobId,
+                                (dataCounts, modelSizeStats, timingStats) -> {
+                                    JobState jobState = MlTasks.getJobState(jobId, tasks);
+                                    PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+                                    String assignmentExplanation = null;
+                                    if (pTask != null) {
+                                        assignmentExplanation = pTask.getAssignment().getExplanation();
+                                    }
+                                    jobStats.set(
+                                        slot,
+                                        new JobStats(
+                                            jobId,
+                                            dataCounts,
+                                            modelSizeStats,
+                                            forecastStats,
+                                            jobState,
+                                            null,
+                                            assignmentExplanation,
+                                            null,
+                                            timingStats
+                                        )
+                                    );
+                                    if (counter.decrementAndGet() == 0) {
+                                        if (searchException.get() != null) {
+                                            // there was an error
+                                            listener.onFailure(searchException.get());
+                                            return;
+                                        }
+                                        List<JobStats> results = response.getResponse().results();
+                                        results.addAll(jobStats.asList());
+                                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
+                                        listener.onResponse(
+                                            new GetJobsStatsAction.Response(
+                                                response.getTaskFailures(),
+                                                response.getNodeFailures(),
+                                                new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)
+                                            )
+                                        );
+                                    }
+                                },
+                                errorHandler
                             )
                         );
-                    }
                 }, errorHandler);
-            }, errorHandler);
-        }
-    }
-
-    void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
-        jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
+            }
+        });
     }
 
     static TimeValue durationToTimeValue(Optional<Duration> duration) {

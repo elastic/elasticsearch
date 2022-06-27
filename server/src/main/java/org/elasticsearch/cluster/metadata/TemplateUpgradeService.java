@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -64,7 +62,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     final AtomicInteger upgradesInProgress = new AtomicInteger();
 
-    private ImmutableOpenMap<String, IndexTemplateMetadata> lastTemplateMetadata;
+    private Map<String, IndexTemplateMetadata> lastTemplateMetadata;
 
     public TemplateUpgradeService(
         Client client,
@@ -104,7 +102,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
+        Map<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
 
         if (templates == lastTemplateMetadata) {
             // we already checked these sets of templates - no reason to check it again
@@ -152,7 +150,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 @Override
                 public void onFailure(Exception e) {
                     anyUpgradeFailed.set(true);
-                    logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
+                    logger.warn(() -> "Error updating template [" + change.getKey() + "]", e);
                     tryFinishUpgrade(anyUpgradeFailed);
                 }
             });
@@ -177,7 +175,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
-                        logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
+                        logger.warn(() -> "Error deleting template [" + template + "]", e);
                     }
                     tryFinishUpgrade(anyUpgradeFailed);
                 }
@@ -198,9 +196,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something
                 // else tinkering with the templates during the upgrade.
-                final ImmutableOpenMap<String, IndexTemplateMetadata> upgradedTemplates = clusterService.state()
-                    .getMetadata()
-                    .getTemplates();
+                final Map<String, IndexTemplateMetadata> upgradedTemplates = clusterService.state().getMetadata().getTemplates();
                 final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
                 if (changesRequired) {
                     logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
@@ -212,9 +208,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
         }
     }
 
-    Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates
-    ) {
+    Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(Map<String, IndexTemplateMetadata> templates) {
         // collect current templates
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
         for (Map.Entry<String, IndexTemplateMetadata> customCursor : templates.entrySet()) {

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -80,7 +79,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-        clusterService.submitStateUpdateTask("block master service", new ClusterStateUpdateTask() {
+        // notify test that we are blocked
+        // wait to be unblocked by test
+        clusterService.submitUnbatchedStateUpdateTask("block master service", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 cyclicBarrier.await(); // notify test that we are blocked
@@ -92,7 +93,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError("block master service", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         cyclicBarrier.await(); // wait for master thread to be blocked
 
@@ -134,7 +135,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 }
                 final String source = "other task " + i + " at " + priority;
                 actions.add(() -> {
-                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
+                    // else this task might be submitted too late to precede the reroute
+                    // may run either before or after reroute
+                    clusterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) {
@@ -167,7 +170,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             tasksCompletedCountDown.countDown();
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();
                     }

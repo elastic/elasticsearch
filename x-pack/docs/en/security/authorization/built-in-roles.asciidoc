@@ -85,7 +85,7 @@ This role does not have access to editing tools in {kib}.
 Grants access necessary for the {kib} system user to read from and write to the
 {kib} indices, manage index templates and tokens, and check the availability of
 the {es} cluster. It also permits
-<<security-user-profile-apis,activating, searching, and retrieving user profiles>>,
+activating, searching, and retrieving user profiles,
 as well as updating user profile data for the `kibana-*` namespace.
 This role grants read access to the `.monitoring-*` indices and read and write
 access to the `.reporting-*` indices. For more information,

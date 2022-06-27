@@ -13,9 +13,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,10 +53,10 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));
         }
         if (randomBoolean()) {
-            request.setInferenceThreads(randomIntBetween(1, 8));
+            request.setThreadsPerAllocation(randomIntBetween(1, 8));
         }
         if (randomBoolean()) {
-            request.setModelThreads(randomIntBetween(1, 8));
+            request.setNumberOfAllocations(randomIntBetween(1, 8));
         }
         if (randomBoolean()) {
             request.setQueueCapacity(randomIntBetween(1, 10000));
@@ -60,44 +64,70 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         return request;
     }
 
-    public void testValidate_GivenInferenceThreadsIsZero() {
+    public void testValidate_GivenThreadsPerAllocationIsZero() {
         Request request = createRandom();
-        request.setInferenceThreads(0);
+        request.setThreadsPerAllocation(0);
 
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[inference_threads] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("[threads_per_allocation] must be a positive integer"));
     }
 
-    public void testValidate_GivenInferenceThreadsIsNegative() {
+    public void testValidate_GivenThreadsPerAllocationIsNegative() {
         Request request = createRandom();
-        request.setInferenceThreads(randomIntBetween(-100, -1));
+        request.setThreadsPerAllocation(randomIntBetween(-100, -1));
 
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[inference_threads] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("[threads_per_allocation] must be a positive integer"));
     }
 
-    public void testValidate_GivenModelThreadsIsZero() {
-        Request request = createRandom();
-        request.setModelThreads(0);
+    public void testValidate_GivenThreadsPerAllocationIsNotPowerOf2() {
+        Set<Integer> powersOf2 = IntStream.range(0, 10).map(n -> (int) Math.pow(2, n)).boxed().collect(Collectors.toSet());
+        List<Integer> input = IntStream.range(1, 33).filter(n -> powersOf2.contains(n) == false).boxed().toList();
 
-        ActionRequestValidationException e = request.validate();
+        for (int n : input) {
+            Request request = createRandom();
+            request.setThreadsPerAllocation(n);
 
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[model_threads] must be a positive integer"));
+            ActionRequestValidationException e = request.validate();
+
+            assertThat(e, is(not(nullValue())));
+            assertThat(e.getMessage(), containsString("[threads_per_allocation] must be a power of 2 less than or equal to 32"));
+        }
     }
 
-    public void testValidate_GivenModelThreadsIsNegative() {
+    public void testValidate_GivenThreadsPerAllocationIsValid() {
+        for (int n : List.of(1, 2, 4, 8, 16, 32)) {
+            Request request = createRandom();
+            request.setThreadsPerAllocation(n);
+
+            ActionRequestValidationException e = request.validate();
+
+            assertThat(e, is(nullValue()));
+        }
+    }
+
+    public void testValidate_GivenNumberOfAllocationsIsZero() {
         Request request = createRandom();
-        request.setModelThreads(randomIntBetween(-100, -1));
+        request.setNumberOfAllocations(0);
 
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[model_threads] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("[number_of_allocations] must be a positive integer"));
+    }
+
+    public void testValidate_GivenNumberOfAllocationsIsNegative() {
+        Request request = createRandom();
+        request.setNumberOfAllocations(randomIntBetween(-100, -1));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[number_of_allocations] must be a positive integer"));
     }
 
     public void testValidate_GivenQueueCapacityIsZero() {
@@ -124,8 +154,8 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         Request request = new Request(randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(20)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
-        assertThat(request.getInferenceThreads(), equalTo(1));
-        assertThat(request.getModelThreads(), equalTo(1));
+        assertThat(request.getNumberOfAllocations(), equalTo(1));
+        assertThat(request.getThreadsPerAllocation(), equalTo(1));
         assertThat(request.getQueueCapacity(), equalTo(1024));
     }
 }

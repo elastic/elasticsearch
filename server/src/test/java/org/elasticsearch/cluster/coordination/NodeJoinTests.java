@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -65,6 +64,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -93,8 +93,14 @@ public class NodeJoinTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        super.tearDown();
+        masterService.stop();
+        coordinator.stop();
+        if (deterministicTaskQueue != null) {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         masterService.close();
+        coordinator.close();
+        super.tearDown();
     }
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {
@@ -182,11 +188,12 @@ public class NodeJoinTests extends ESTestCase {
                             initialState.getClusterName()
                         )
                     );
-                } else if (action.equals(JoinHelper.JOIN_VALIDATE_ACTION_NAME) || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportResponse.Empty());
-                } else {
-                    super.onSendRequest(requestId, action, request, destination);
-                }
+                } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
+                    || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
+                        handleResponse(requestId, new TransportResponse.Empty());
+                    } else {
+                        super.onSendRequest(requestId, action, request, destination);
+                    }
             }
         };
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -276,14 +283,14 @@ public class NodeJoinTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+                    logger.error(() -> format("unexpected error for %s", future), e);
                     future.markAsFailed(e);
                 }
             };
 
             joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+            logger.error(() -> format("unexpected error for %s", future), e);
             future.markAsFailed(e);
         }
         return future;

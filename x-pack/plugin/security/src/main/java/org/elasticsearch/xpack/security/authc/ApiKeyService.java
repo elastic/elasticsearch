@@ -372,7 +372,7 @@ public class ApiKeyService {
             final var apiKeyId = request.getId();
 
             if (versionedDocs.isEmpty()) {
-                throw new ResourceNotFoundException("api key with id [" + apiKeyId + "] owned by requesting user not found");
+                throw new ResourceNotFoundException("no api key owned by requesting user has requested id [" + apiKeyId + "]");
             }
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(versionedDocs).doc());

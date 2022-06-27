@@ -1,0 +1,133 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              features:
+                type: keyword
+              error_message:
+                type: keyword
+              timestamp:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "features": ["turbocharger", "electric mirror", "heated steering wheel", "matrix led", "gps", "sunroof", "autopilot", "air condition"], "error_message": "compressor low pressure", "timestamp": 1020229654000 }
+          { "index": {} }
+          { "features": ["pink wheels", "turbocharger", "lane assist", "matrix led", "coming home", "heated seats", "blind spot monitoring", "air condition"], "error_message": "engine overheated", "timestamp": 1020316054000 }
+          { "index": {} }
+          { "features": ["awd", "tow-bar", "matrix led", "gps", "sunroof", "air condition"], "error_message": "compressor low pressure", "timestamp": 1022742044000 }
+          { "index": {} }
+          { "features": ["rwd", "tow-bar", "turbocharger", "lane assist", "pink wheels"], "error_message": "engine overheated", "timestamp": 1021532444000 }
+          { "index": {} }
+          { "features": ["pink wheels", "sunroof", "air condition"], "error_message": "compressor low pressure", "timestamp": 1020575254000 }
+          { "index": {} }
+          { "features": ["turbocharger", "pink wheels", "air condition" ], "error_message": "engine overheated", "timestamp": 1020322844000 }
+          { "index": {} }
+          { "features": ["awd", "heated steering wheel", "sunroof", "air condition"], "error_message": "compressor low pressure", "timestamp": 1020748054000 }
+          { "index": {} }
+          { "features": ["turbocharger", "sunroof", "autopilot", "air condition" ], "error_message": "compressor low pressure", "timestamp": 1020229654000 }
+          { "index": {} }
+          { "features": ["rwd", "turbocharger", "autopilot", "pink wheels"], "error_message": "engine overheated", "timestamp": 1022137244000 }
+          { "index": {} }
+          { "features": ["fwd", "tow-bar", "turbocharger", "pink wheels", "electric mirror", "heated steering wheel", "lane assist", "sunroof", "autopilot", "air condition" ], "error_message": "low tire pressure", "timestamp": 1020920854000 }
+
+
+---
+"Test frequent items array fields":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 4 }
+  - match: { aggregations.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.fi.buckets.0.support: 0.5 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - match: { aggregations.fi.buckets.1.doc_count: 4 }
+  - match: { aggregations.fi.buckets.1.support: 0.4 }
+  - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }
+
+---
+"Test frequent items date format":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "timestamp", "format": "EEE"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 3 }
+  - match: { aggregations.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.fi.buckets.0.support: 0.5 }
+  - match: { aggregations.fi.buckets.0.key.timestamp: ["Thu"] }
+
+
+---
+"Test frequent items":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 2,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "error_message"},
+                    {"field": "timestamp", "format": "EEE"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 1 }
+  - match: { aggregations.fi.buckets.0.doc_count: 4 }
+  - match: { aggregations.fi.buckets.0.support: 0.4 }
+  - match: { aggregations.fi.buckets.0.key.timestamp: ["Thu"] }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["engine overheated"] }

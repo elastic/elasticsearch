@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -71,6 +72,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        TaskId taskId = new TaskId(clusterService.getNodeName(), task.getId());
         final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
@@ -78,7 +80,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             .orElse(null);
         if (assignment == null) {
             // If there is no assignment, verify the model even exists so that we can provide a nicer error message
-            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
+            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), taskId, ActionListener.wrap(config -> {
                 if (config.getModelType() != TrainedModelType.PYTORCH) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(

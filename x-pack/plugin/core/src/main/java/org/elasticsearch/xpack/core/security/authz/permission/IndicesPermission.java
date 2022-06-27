@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -650,7 +651,7 @@ public final class IndicesPermission {
         private void addAll(Set<BytesReference> query) {
             if (allowAll == false) {
                 if (queries == null) {
-                    queries = new HashSet<>(query.size());
+                    queries = Sets.newHashSetWithExpectedSize(query.size());
                 }
                 queries.addAll(query);
             }

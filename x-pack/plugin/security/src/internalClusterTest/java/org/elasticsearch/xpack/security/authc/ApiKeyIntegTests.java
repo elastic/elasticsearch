@@ -1481,7 +1481,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // Create user action unauthorized because we did not update key role; it only has `monitor` cluster priv
             final Map<String, String> authorizationHeaders = Collections.singletonMap(
                 "Authorization",
-                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
+                "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
             );
             ExecutionException e = expectThrows(ExecutionException.class, () -> createUserWithRunAsRole(authorizationHeaders));
             assertThat(e.getMessage(), containsString("unauthorized"));
@@ -1491,7 +1491,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // Create user action authorized because we updated key role to `all` cluster priv
             final var authorizationHeaders = Collections.singletonMap(
                 "Authorization",
-                "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), createdApiKey.v1().getKey())
+                "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
             );
             createUserWithRunAsRole(authorizationHeaders);
         }
@@ -1608,7 +1608,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("api key [" + request.getId() + "] not found"));
+        assertThat(ex.getMessage(), containsString("api key with id [" + request.getId() + "] owned by requesting user not found"));
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {

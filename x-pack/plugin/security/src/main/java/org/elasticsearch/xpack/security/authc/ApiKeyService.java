@@ -426,43 +426,35 @@ public class ApiKeyService {
     }
 
     private BulkRequest buildBulkIndexRequestForUpdate(
-        Collection<VersionedApiKeyDoc> currentVersionedDocs,
-        Authentication authentication,
-        UpdateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles
+        final Collection<VersionedApiKeyDoc> currentVersionedDocs,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles
     ) throws IOException {
         assert currentVersionedDocs.isEmpty() == false;
         final var version = clusterService.state().nodes().getMinNodeVersion();
         final var bulkRequestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc apiKeyDoc : currentVersionedDocs) {
-            bulkRequestBuilder.add(buildIndexRequestForUpdate(apiKeyDoc, authentication, request, userRoles, version));
+            bulkRequestBuilder.add(
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                    .setId(request.getId())
+                    .setSource(
+                        buildUpdatedDocument(
+                            apiKeyDoc.doc(),
+                            authentication,
+                            userRoles,
+                            request.getRoleDescriptors(),
+                            version,
+                            request.getMetadata()
+                        )
+                    )
+                    .setIfSeqNo(apiKeyDoc.seqNo())
+                    .setIfPrimaryTerm(apiKeyDoc.primaryTerm())
+                    .request()
+            );
         }
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder.request();
-    }
-
-    private IndexRequest buildIndexRequestForUpdate(
-        VersionedApiKeyDoc currentVersionedDoc,
-        Authentication authentication,
-        UpdateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles,
-        Version version
-    ) throws IOException {
-        return client.prepareIndex(SECURITY_MAIN_ALIAS)
-            .setId(request.getId())
-            .setSource(
-                buildUpdatedDocument(
-                    currentVersionedDoc.doc(),
-                    authentication,
-                    userRoles,
-                    request.getRoleDescriptors(),
-                    version,
-                    request.getMetadata()
-                )
-            )
-            .setIfSeqNo(currentVersionedDoc.seqNo())
-            .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
-            .request();
     }
 
     private void executeBulkIndexRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
@@ -533,6 +525,10 @@ public class ApiKeyService {
         if (metadata != null) {
             builder.field("metadata_flattened", metadata);
         } else {
+            assert currentApiKeyDoc.metadataFlattened == null
+                || MetadataUtils.containsReservedMetadata(
+                    XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
+                ) == false;
             builder.rawField(
                 "metadata_flattened",
                 currentApiKeyDoc.metadataFlattened == null

@@ -205,20 +205,15 @@ public abstract class PackagingTestCase extends Assert {
         // messages in logs during test
         if (installation != null && failed == false) {
 
+            // give extra information to explain the failure
+            dumpDebug();
+
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
                 if (Files.exists(logFile)) {
                     Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
-                    try {
-                        FileUtils.mv(logFile, newFile);
-                    } catch (Exception e) {
-                        // There was a problem cleaning up log files. This usually means Windows wackiness
-                        // where something still has the file open. Here we dump what we can of the log files to see
-                        // if ES is still running.
-                        dumpDebug();
-                        throw e;
-                    }
+                    FileUtils.mv(logFile, newFile);
                 }
                 for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
                     Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());

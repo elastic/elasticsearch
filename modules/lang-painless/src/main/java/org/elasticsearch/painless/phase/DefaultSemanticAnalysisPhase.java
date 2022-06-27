@@ -1115,7 +1115,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userUnaryNode, Write.class)) {
             throw userUnaryNode.createError(
                 new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1123,7 +1123,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userUnaryNode, Read.class) == false) {
             throw userUnaryNode.createError(
                 new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "not a statement: result not used from " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1209,7 +1209,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userBinaryNode, Write.class)) {
             throw userBinaryNode.createError(
                 new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1217,7 +1217,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userBinaryNode, Read.class) == false) {
             throw userBinaryNode.createError(
                 new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "not a statement: result not used from " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1330,7 +1330,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userBooleanCompNode, Write.class)) {
             throw userBooleanCompNode.createError(
                 new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1338,7 +1338,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userBooleanCompNode, Read.class) == false) {
             throw userBooleanCompNode.createError(
                 new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "not a statement: result not used from " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1369,7 +1369,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userCompNode, Write.class)) {
             throw userCompNode.createError(
                 new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -1377,7 +1377,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (semanticScope.getCondition(userCompNode, Read.class) == false) {
             throw userCompNode.createError(
                 new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                    "not a statement: result not used from " + operation.name + " operation [" + operation.symbol + "]"
                 )
             );
         }
@@ -2364,7 +2364,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (interfaceMethod == null) {
                 throw userLambdaNode.createError(
                     new IllegalArgumentException(
-                        "Cannot pass lambda to " + "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"
+                        "Cannot pass lambda to [" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"
                     )
                 );
             }
@@ -2746,7 +2746,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (prefixValueType != null) {
                 throw userDotNode.createError(
                     new IllegalArgumentException(
-                        "value required: instead found unexpected type " + "[" + prefixValueType.getValueCanonicalTypeName() + "]"
+                        "value required: instead found unexpected type [" + prefixValueType.getValueCanonicalTypeName() + "]"
                     )
                 );
             }
@@ -2754,7 +2754,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (prefixStaticType != null) {
                 throw userDotNode.createError(
                     new IllegalArgumentException(
-                        "value required: instead found unexpected type " + "[" + prefixStaticType.staticType() + "]"
+                        "value required: instead found unexpected type [" + prefixStaticType.staticType() + "]"
                     )
                 );
             }
@@ -3220,7 +3220,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         } else {
             throw userBraceNode.createError(
                 new IllegalArgumentException(
-                    "Illegal array access on type " + "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."
+                    "Illegal array access on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."
                 )
             );
         }

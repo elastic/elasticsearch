@@ -574,7 +574,7 @@ public final class Def {
             return LIST_INDEX_NORMALIZE;
         }
         throw new IllegalArgumentException(
-            "Attempting to address a non-array-like type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+            "Attempting to address a non-array-like type [" + receiverClass.getCanonicalName() + "] as an array."
         );
     }
 
@@ -594,7 +594,7 @@ public final class Def {
             return LIST_SET;
         }
         throw new IllegalArgumentException(
-            "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+            "Attempting to address a non-array type [" + receiverClass.getCanonicalName() + "] as an array."
         );
     }
 
@@ -614,7 +614,7 @@ public final class Def {
             return LIST_GET;
         }
         throw new IllegalArgumentException(
-            "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+            "Attempting to address a non-array type [" + receiverClass.getCanonicalName() + "] as an array."
         );
     }
 

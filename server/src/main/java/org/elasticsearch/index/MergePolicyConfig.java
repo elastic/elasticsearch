@@ -276,7 +276,7 @@ public final class MergePolicyConfig {
                 return value;
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException(
-                    "Expected a boolean or a value in the interval [0..1] but was: " + "[" + noCFSRatio + "]",
+                    "Expected a boolean or a value in the interval [0..1] but was: [" + noCFSRatio + "]",
                     ex
                 );
             }

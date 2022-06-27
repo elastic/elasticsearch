@@ -757,7 +757,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             if (definition == null && modelType == null) {
                 validationException = addValidationError(
-                    "[" + MODEL_TYPE.getPreferredName() + "] must be set if " + "[" + DEFINITION.getPreferredName() + "] is not defined.",
+                    "[" + MODEL_TYPE.getPreferredName() + "] must be set if [" + DEFINITION.getPreferredName() + "] is not defined.",
                     validationException
                 );
             }

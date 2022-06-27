@@ -276,7 +276,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             throw new UnsupportedOperationException(
-                "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+                "[fuzzy] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields."
             );
         }
 
@@ -290,7 +290,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             throw new UnsupportedOperationException(
-                "[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+                "[regexp] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields."
             );
         }
 
@@ -302,7 +302,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             throw new UnsupportedOperationException(
-                "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+                "[wildcard] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields."
             );
         }
 

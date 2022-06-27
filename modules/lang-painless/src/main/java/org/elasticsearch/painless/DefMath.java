@@ -64,7 +64,7 @@ public class DefMath {
             return ~(Byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [~] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [~] operation to type [" + unary.getClass().getCanonicalName() + "].");
     }
 
     // unary negation and plus: applicable to all numeric types
@@ -106,7 +106,7 @@ public class DefMath {
             return -(byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [-] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [-] operation to type [" + unary.getClass().getCanonicalName() + "].");
     }
 
     private static int plus(int v) {
@@ -146,7 +146,7 @@ public class DefMath {
             return +(byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [+] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [+] operation to type [" + unary.getClass().getCanonicalName() + "].");
     }
 
     // multiplication/division/remainder/subtraction: applicable to all integer types

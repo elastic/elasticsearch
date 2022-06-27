@@ -2753,9 +2753,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             if (prefixStaticType != null) {
                 throw userDotNode.createError(
-                    new IllegalArgumentException(
-                        "value required: instead found unexpected type [" + prefixStaticType.staticType() + "]"
-                    )
+                    new IllegalArgumentException("value required: instead found unexpected type [" + prefixStaticType.staticType() + "]")
                 );
             }
 

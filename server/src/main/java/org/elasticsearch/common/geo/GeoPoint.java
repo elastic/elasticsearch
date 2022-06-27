@@ -116,9 +116,7 @@ public class GeoPoint implements ToXContentFragment {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }
         if (geometry.type() != ShapeType.POINT) {
-            throw new ElasticsearchParseException(
-                "[geo_point] supports only POINT among WKT primitives, but found " + geometry.type()
-            );
+            throw new ElasticsearchParseException("[geo_point] supports only POINT among WKT primitives, but found " + geometry.type());
         }
         Point point = (Point) geometry;
         return reset(point.getY(), point.getX());

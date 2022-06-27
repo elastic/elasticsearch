@@ -498,9 +498,7 @@ class Elasticsearch {
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
             Configurator.shutdown(context);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException(
-                    "Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed."
-                );
+                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
             }
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to stop node", ex);

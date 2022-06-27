@@ -275,9 +275,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
-                "[fuzzy] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields."
-            );
+            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -289,9 +287,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
-                "[regexp] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields."
-            );
+            throw new UnsupportedOperationException("[regexp] queries are not currently supported on keyed [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override

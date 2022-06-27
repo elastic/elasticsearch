@@ -1,0 +1,5 @@
+pr: 88007
+summary: Warn about impact of large readahead on search
+area: Performance
+type: enhancement
+issues: []

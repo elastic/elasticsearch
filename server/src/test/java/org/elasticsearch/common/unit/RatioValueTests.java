@@ -48,6 +48,7 @@ public class RatioValueTests extends ESTestCase {
         assertThat(RatioValue.formatPercentNoTrailingZeros(.000000), is("0%"));
         assertThat(RatioValue.formatPercentNoTrailingZeros(0.000000), is("0%"));
         assertThat(RatioValue.formatPercentNoTrailingZeros(-0), is("0%"));
+        assertThat(RatioValue.formatPercentNoTrailingZeros(0), is("0%"));
         assertThat(RatioValue.formatPercentNoTrailingZeros(15.1), is("15.1%"));
         assertThat(RatioValue.formatPercentNoTrailingZeros(0.1000000), is("0.1%"));
         assertThat(RatioValue.formatPercentNoTrailingZeros(1.1234567890), is("1.123456789%"));

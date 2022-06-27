@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.common.util.DiskThresholdParser;
+import org.elasticsearch.common.util.DiskThresholdSettingParser;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -29,7 +29,7 @@ public class HealthDiskThresholdSettings {
     public static final Setting<String> CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING = new Setting<>(
         "cluster.health.disk.threshold.yellow",
         "85%",
-        (s) -> DiskThresholdParser.validThresholdSetting(s, "cluster.health.disk.threshold.yellow"),
+        (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.health.disk.threshold.yellow"),
         new YellowThresholdValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -37,7 +37,7 @@ public class HealthDiskThresholdSettings {
     public static final Setting<String> CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING = new Setting<>(
         "cluster.health.disk.threshold.red",
         "90%",
-        (s) -> DiskThresholdParser.validThresholdSetting(s, "cluster.health.disk.threshold.red"),
+        (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.health.disk.threshold.red"),
         new RedThresholdValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -88,11 +88,11 @@ public class HealthDiskThresholdSettings {
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String redThreshold = (String) settings.get(CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING);
-            DiskThresholdParser.doValidate(
+            DiskThresholdSettingParser.doValidate(
                 value,
                 List.of(
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), value),
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), redThreshold)
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), value),
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), redThreshold)
                 )
             );
         }
@@ -115,11 +115,11 @@ public class HealthDiskThresholdSettings {
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String yellowThreshold = (String) settings.get(CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING);
-            DiskThresholdParser.doValidate(
+            DiskThresholdSettingParser.doValidate(
                 value,
                 List.of(
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), yellowThreshold),
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), value)
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), yellowThreshold),
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), value)
                 )
             );
         }

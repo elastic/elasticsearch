@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * - allocation watermarks low represents lower disk usage than high and flood stage.
  * This parser provides helper functions to handle all the above cases.
  */
-public class DiskThresholdParser {
+public class DiskThresholdSettingParser {
 
     /**
      * Helper class to pair setting name and raw value.

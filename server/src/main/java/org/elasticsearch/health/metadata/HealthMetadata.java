@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.common.util.DiskThresholdParser;
+import org.elasticsearch.common.util.DiskThresholdSettingParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -239,19 +239,19 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             return builder;
         }
 
-        public static class DiskThreshold implements Writeable {
+        public record DiskThreshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
 
-            private final double maxUsedPercent;
-            private final ByteSizeValue minFreeBytes;
+            public DiskThreshold {
+                assert maxUsedPercent == 100.0 || minFreeBytes.getBytes() == 0
+                    : "only one of the values in a disk threshold can be set, the other one needs to have the default value";
+            }
 
             public DiskThreshold(double maxUsedPercent) {
-                this.maxUsedPercent = maxUsedPercent;
-                this.minFreeBytes = ByteSizeValue.ZERO;
+                this(maxUsedPercent, ByteSizeValue.ZERO);
             }
 
             public DiskThreshold(ByteSizeValue minFreeBytes) {
-                this.minFreeBytes = minFreeBytes;
-                this.maxUsedPercent = 100.0;
+                this(100.0, minFreeBytes);
             }
 
             public static DiskThreshold readFrom(StreamInput in) throws IOException {
@@ -260,11 +260,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             }
 
             static DiskThreshold parse(String description, String setting) {
-                ByteSizeValue minFreeBytes = DiskThresholdParser.parseThresholdBytes(description, setting);
+                ByteSizeValue minFreeBytes = DiskThresholdSettingParser.parseThresholdBytes(description, setting);
                 if (minFreeBytes.getBytes() > 0) {
                     return new DiskThreshold(minFreeBytes);
                 } else {
-                    return new DiskThreshold(DiskThresholdParser.parseThresholdPercentage(description));
+                    return new DiskThreshold(DiskThresholdSettingParser.parseThresholdPercentage(description));
                 }
             }
 
@@ -293,19 +293,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(this.toStringRep());
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                DiskThreshold that = (DiskThreshold) o;
-                return Double.compare(that.maxUsedPercent, maxUsedPercent) == 0 && Objects.equals(minFreeBytes, that.minFreeBytes);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(maxUsedPercent, minFreeBytes);
             }
         }
     }

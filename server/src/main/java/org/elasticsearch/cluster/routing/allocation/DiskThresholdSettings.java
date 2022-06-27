@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.common.util.DiskThresholdParser;
+import org.elasticsearch.common.util.DiskThresholdSettingParser;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Collection;
@@ -37,7 +37,7 @@ public class DiskThresholdSettings {
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.low",
         "85%",
-        (s) -> DiskThresholdParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.low"),
+        (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.low"),
         new LowDiskWatermarkValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -45,7 +45,7 @@ public class DiskThresholdSettings {
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.high",
         "90%",
-        (s) -> DiskThresholdParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.high"),
+        (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.high"),
         new HighDiskWatermarkValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -53,7 +53,7 @@ public class DiskThresholdSettings {
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.flood_stage",
         "95%",
-        (s) -> DiskThresholdParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
+        (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
         new FloodStageValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -143,15 +143,15 @@ public class DiskThresholdSettings {
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
             final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
-            DiskThresholdParser.doValidate(
+            DiskThresholdSettingParser.doValidate(
                 value,
                 List.of(
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), value),
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), value),
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                         highWatermarkRaw
                     ),
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                         floodStageRaw
                     )
@@ -181,15 +181,15 @@ public class DiskThresholdSettings {
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
             final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
-            DiskThresholdParser.doValidate(
+            DiskThresholdSettingParser.doValidate(
                 value,
                 List.of(
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                         lowWatermarkRaw
                     ),
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), value),
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), value),
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                         floodStageRaw
                     )
@@ -219,18 +219,21 @@ public class DiskThresholdSettings {
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
             final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
             final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            DiskThresholdParser.doValidate(
+            DiskThresholdSettingParser.doValidate(
                 value,
                 List.of(
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                         lowWatermarkRaw
                     ),
-                    new DiskThresholdParser.ThresholdSetting(
+                    new DiskThresholdSettingParser.ThresholdSetting(
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                         highWatermarkRaw
                     ),
-                    new DiskThresholdParser.ThresholdSetting(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), value)
+                    new DiskThresholdSettingParser.ThresholdSetting(
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+                        value
+                    )
                 )
             );
         }
@@ -257,8 +260,8 @@ public class DiskThresholdSettings {
     private void setLowWatermark(String lowWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.lowWatermarkRaw = lowWatermark;
-        this.freeDiskThresholdLow = 100.0 - DiskThresholdParser.parseThresholdPercentage(lowWatermark);
-        this.freeBytesThresholdLow = DiskThresholdParser.parseThresholdBytes(
+        this.freeDiskThresholdLow = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(lowWatermark);
+        this.freeBytesThresholdLow = DiskThresholdSettingParser.parseThresholdBytes(
             lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
         );
@@ -268,8 +271,8 @@ public class DiskThresholdSettings {
     private void setHighWatermark(String highWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.highWatermarkRaw = highWatermark;
-        this.freeDiskThresholdHigh = 100.0 - DiskThresholdParser.parseThresholdPercentage(highWatermark);
-        this.freeBytesThresholdHigh = DiskThresholdParser.parseThresholdBytes(
+        this.freeDiskThresholdHigh = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(highWatermark);
+        this.freeBytesThresholdHigh = DiskThresholdSettingParser.parseThresholdBytes(
             highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
         );
@@ -278,8 +281,8 @@ public class DiskThresholdSettings {
 
     private void setFloodStage(String floodStageRaw) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.freeDiskThresholdFloodStage = 100.0 - DiskThresholdParser.parseThresholdPercentage(floodStageRaw);
-        this.freeBytesThresholdFloodStage = DiskThresholdParser.parseThresholdBytes(
+        this.freeDiskThresholdFloodStage = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(floodStageRaw);
+        this.freeBytesThresholdFloodStage = DiskThresholdSettingParser.parseThresholdBytes(
             floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
         );

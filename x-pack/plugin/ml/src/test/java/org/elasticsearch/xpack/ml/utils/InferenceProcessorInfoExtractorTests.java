@@ -150,7 +150,8 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             }
 
         }
-        for (int i = 0; i < randomInt(5); i++) {
+        int numPipelinesWithoutModel = randomInt(5);
+        for (int i = 0; i < numPipelinesWithoutModel; i++) {
             configurations.put("pipeline_without_model_" + i, newConfigurationWithOutInferenceProcessor(i));
         }
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);

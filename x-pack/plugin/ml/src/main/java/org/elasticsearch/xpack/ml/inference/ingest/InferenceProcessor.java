@@ -209,6 +209,7 @@ public class InferenceProcessor extends AbstractProcessor {
             try {
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {
+                // We cannot throw any exception here. It might break other pipelines.
                 logger.debug("failed gathering processors for pipelines", ex);
             }
         }

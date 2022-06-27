@@ -132,3 +132,92 @@ gap_policy=keep_value:
   - match: { hits.total.value: 3 }
   - length: { aggregations.@timestamp.buckets: 4 }
   - match: { aggregations.d.value: 1.0 }
+
+---
+dotted name:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@time.stamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              min_bucket:
+                buckets_path: "@time.stamp>v"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@time\.stamp.buckets: 3 }
+  - match: { aggregations.d.value: 1.0 }
+
+---
+dotted value:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  percentiles:
+                    field: v
+                    percents: [ 50, 99.9 ]
+            d:
+              min_bucket:
+                buckets_path: "@timestamp>v[99.9]"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.value: 1.0 }
+
+---
+no results:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not_found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              min_bucket:
+                buckets_path: "@timestamp>v"
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.@timestamp.buckets: 0 }
+  - is_false: aggregations.d.value
+
+---
+bad path:
+  - do:
+      catch: '/Validation Failed: 1: No aggregation \[v\] found for path \[@timestamp>v\];/'
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not_found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+            d:
+              min_bucket:
+                buckets_path: "@timestamp>v"

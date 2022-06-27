@@ -49,7 +49,7 @@ setting:
 GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference?flat_settings
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -101,7 +101,7 @@ GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference
 // TEST[continued]
 
 
-The reponse will look like this:
+The response will look like this:
 
 [source,console-result]
 ----

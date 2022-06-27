@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * Note: dates are currently written as long (epoch_ms) into the transform dest index.
  */
-@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/88063")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TermsOnDateGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-on-date-pivot-test";

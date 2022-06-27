@@ -278,83 +278,90 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                 UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
                                 updateSettingsReq.setParentTask(parentTask);
                                 client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                                        if (updateSettingsResponse.isAcknowledged()) {
-                                            // 5. Refresh rollup index
-                                            refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
-                                                    if (refreshIndexResponse.getFailedShards() == 0) {
-                                                        // 6. Mark rollup index as "completed successfully"
-                                                        updateRollupMetadata(sourceIndexName, rollupIndexName, request, ActionListener.wrap(resp -> {
-                                                                if (resp.isAcknowledged()) {
-                                                                    // 7. Force-merge the rollup index to a single segment
-                                                                    forceMergeIndex(
-                                                                        rollupIndexName,
-                                                                        parentTask,
-                                                                        ActionListener.wrap(
-                                                                            mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                                                            e -> {
-                                                                                /*
-                                                                                 * At this point rollup has been created successfully even if force-merge
-                                                                                 * fails. So, we should not fail the rollup operation.
-                                                                                 */
-                                                                                logger.error(
-                                                                                    "Failed to force-merge rollup index [" + rollupIndexName + "]",
-                                                                                    e
-                                                                                );
-                                                                                listener.onResponse(AcknowledgedResponse.TRUE);
-                                                                            }
-                                                                        )
-                                                                    );
-                                                                } else {
-                                                                    deleteRollupIndex(
-                                                                        sourceIndexName,
-                                                                        rollupIndexName,
-                                                                        parentTask,
-                                                                        listener,
-                                                                        new ElasticsearchException(
-                                                                            "Failed to publish new cluster state with rollup metadata"
-                                                                        )
-                                                                    );
-                                                                }
-                                                            },
-                                                            e -> deleteRollupIndex(
+                                    if (updateSettingsResponse.isAcknowledged()) {
+                                        // 5. Refresh rollup index
+                                        refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
+                                            if (refreshIndexResponse.getFailedShards() == 0) {
+                                                // 6. Mark rollup index as "completed successfully"
+                                                updateRollupMetadata(
+                                                    sourceIndexName,
+                                                    rollupIndexName,
+                                                    request,
+                                                    ActionListener.wrap(resp -> {
+                                                        if (resp.isAcknowledged()) {
+                                                            // 7. Force-merge the rollup index to a single segment
+                                                            forceMergeIndex(
+                                                                rollupIndexName,
+                                                                parentTask,
+                                                                ActionListener.wrap(
+                                                                    mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
+                                                                    e -> {
+                                                                        /*
+                                                                         * At this point rollup has been created successfully even if force-merge
+                                                                         * fails. So, we should not fail the rollup operation.
+                                                                         */
+                                                                        logger.error(
+                                                                            "Failed to force-merge rollup index [" + rollupIndexName + "]",
+                                                                            e
+                                                                        );
+                                                                        listener.onResponse(AcknowledgedResponse.TRUE);
+                                                                    }
+                                                                )
+                                                            );
+                                                        } else {
+                                                            deleteRollupIndex(
                                                                 sourceIndexName,
                                                                 rollupIndexName,
                                                                 parentTask,
                                                                 listener,
                                                                 new ElasticsearchException(
-                                                                    "Failed to publish new cluster state with rollup metadata",
-                                                                    e
+                                                                    "Failed to publish new cluster state with rollup metadata"
                                                                 )
-                                                            )
-                                                        ));
-                                                    } else {
-                                                        deleteRollupIndex(
+                                                            );
+                                                        }
+                                                    },
+                                                        e -> deleteRollupIndex(
                                                             sourceIndexName,
                                                             rollupIndexName,
                                                             parentTask,
                                                             listener,
-                                                            new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
-                                                        );
-                                                    }
-                                                },
-                                                e -> deleteRollupIndex(
+                                                            new ElasticsearchException(
+                                                                "Failed to publish new cluster state with rollup metadata",
+                                                                e
+                                                            )
+                                                        )
+                                                    )
+                                                );
+                                            } else {
+                                                deleteRollupIndex(
                                                     sourceIndexName,
                                                     rollupIndexName,
                                                     parentTask,
                                                     listener,
-                                                    new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
-                                                )
-                                            ));
-                                        } else {
-                                            deleteRollupIndex(
+                                                    new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
+                                                );
+                                            }
+                                        },
+                                            e -> deleteRollupIndex(
                                                 sourceIndexName,
                                                 rollupIndexName,
                                                 parentTask,
                                                 listener,
-                                                new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
-                                            );
-                                        }
-                                    },
+                                                new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
+                                            )
+                                        ));
+                                    } else {
+                                        deleteRollupIndex(
+                                            sourceIndexName,
+                                            rollupIndexName,
+                                            parentTask,
+                                            listener,
+                                            new ElasticsearchException(
+                                                "Unable to update settings of rollup index [" + rollupIndexName + "]"
+                                            )
+                                        );
+                                    }
+                                },
                                     e -> deleteRollupIndex(
                                         sourceIndexName,
                                         rollupIndexName,

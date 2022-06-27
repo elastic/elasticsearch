@@ -701,7 +701,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         return topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.startObject("properties");
             buildFields.accept(b);
             b.endObject();

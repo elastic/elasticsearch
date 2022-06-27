@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.security.action.apikey;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Set;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
@@ -32,42 +31,50 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
 
     private final CompositeRolesStore rolesStore;
 
+    private final NamedXContentRegistry xContentRegistry;
+
     @Inject
     public TransportUpdateApiKeyAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ApiKeyService apiKeyService,
-        SecurityContext context,
-        CompositeRolesStore rolesStore
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final ApiKeyService apiKeyService,
+        final SecurityContext context,
+        final CompositeRolesStore rolesStore,
+        final NamedXContentRegistry xContentRegistry
     ) {
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
         this.rolesStore = rolesStore;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
     protected void doExecute(Task task, UpdateApiKeyRequest request, ActionListener<UpdateApiKeyResponse> listener) {
-        final Authentication authentication = securityContext.getAuthentication();
+        final var authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("cannot use an api key as a credential to update api keys"));
+            listener.onFailure(new IllegalArgumentException("authentication through an api key is not supported for updating api keys"));
             return;
         }
 
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
+        apiKeyService.ensureEnabled();
 
-        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(
-            roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),
-            listener::onFailure
-        );
-
-        rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
+        rolesStore.getRoleDescriptorsList(authentication.getEffectiveSubject(), ActionListener.wrap(roleDescriptorsList -> {
+            // TODO duplicated code from ApiKeyGenerator
             assert roleDescriptorsList.size() == 1;
-            roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-        }, roleDescriptorsListener::onFailure));
+            final var roleDescriptors = roleDescriptorsList.iterator().next();
+            for (final RoleDescriptor rd : roleDescriptors) {
+                try {
+                    DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                } catch (ElasticsearchException | IllegalArgumentException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener);
+        }, listener::onFailure));
     }
-
 }

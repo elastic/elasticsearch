@@ -162,7 +162,7 @@ public interface RuntimeField extends ToXContentFragment {
                     runtimeFields.put(fieldName, null);
                 } else {
                     throw new MapperParsingException(
-                        "Runtime field [" + fieldName + "] was set to null but its removal is not supported " + "in this context"
+                        "Runtime field [" + fieldName + "] was set to null but its removal is not supported in this context"
                     );
                 }
             } else if (entry.getValue() instanceof Map) {

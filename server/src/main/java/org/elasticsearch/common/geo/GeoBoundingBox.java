@@ -231,7 +231,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                 || Double.isNaN(left) == false
                 || Double.isNaN(right) == false) {
                 throw new ElasticsearchParseException(
-                    "failed to parse bounding box. Conflicting definition found " + "using well-known text and explicit corners."
+                    "failed to parse bounding box. Conflicting definition found using well-known text and explicit corners."
                 );
             }
             GeoPoint topLeft = new GeoPoint(envelope.getMaxLat(), envelope.getMinLon());

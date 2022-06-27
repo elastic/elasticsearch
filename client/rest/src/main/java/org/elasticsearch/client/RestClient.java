@@ -514,7 +514,7 @@ public class RestClient implements Closeable {
             }
         }
         throw new IOException(
-            "NodeSelector [" + nodeSelector + "] rejected all nodes, " + "living " + livingNodes + " and dead " + deadNodes
+            "NodeSelector [" + nodeSelector + "] rejected all nodes, living " + livingNodes + " and dead " + deadNodes
         );
     }
 

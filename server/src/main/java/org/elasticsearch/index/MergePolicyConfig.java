@@ -246,7 +246,7 @@ public final class MergePolicyConfig {
                 newMaxMergeAtOnce = 2;
             }
             logger.debug(
-                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or " + "equal to it",
+                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it",
                 maxMergeAtOnce,
                 newMaxMergeAtOnce,
                 segmentsPerTier

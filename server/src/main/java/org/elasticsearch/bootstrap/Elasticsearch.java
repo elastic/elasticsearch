@@ -499,7 +499,7 @@ class Elasticsearch {
             Configurator.shutdown(context);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException(
-                    "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
+                    "Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed."
                 );
             }
         } catch (IOException ex) {

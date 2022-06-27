@@ -162,7 +162,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     private static final Decision YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS = Decision.single(
         Decision.Type.YES,
         NAME,
-        "the node " + "is above the low watermark, but less than the high watermark, and this primary shard has never been allocated before"
+        "the node is above the low watermark, but less than the high watermark, and this primary shard has never been allocated before"
     );
 
     private static final Decision YES_DISK_WATERMARKS_IGNORED = Decision.single(

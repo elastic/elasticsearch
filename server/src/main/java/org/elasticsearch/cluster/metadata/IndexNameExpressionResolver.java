@@ -530,7 +530,7 @@ public class IndexNameExpressionResolver {
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
         return new IllegalArgumentException(
-            "The provided expression [" + expression + "] matches an " + "alias, specify the corresponding concrete indices instead."
+            "The provided expression [" + expression + "] matches an alias, specify the corresponding concrete indices instead."
         );
     }
 

@@ -1326,7 +1326,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (Exception e) {
                 logger.warn(
                     () -> format(
-                        "[%s] index %s is no longer part of any snapshot in the repository, " + "but failed to clean up its index folder",
+                        "[%s] index %s is no longer part of any snapshot in the repository, but failed to clean up its index folder",
                         metadata.name(),
                         indexSnId
                     ),
@@ -1885,7 +1885,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
                 if (genToLoad > generation) {
                     logger.info(
-                        "Determined repository generation [{}] from repository contents but correct generation must be at " + "least [{}]",
+                        "Determined repository generation [{}] from repository contents but correct generation must be at least [{}]",
                         generation,
                         genToLoad
                     );

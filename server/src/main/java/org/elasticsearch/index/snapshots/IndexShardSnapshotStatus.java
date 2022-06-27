@@ -109,7 +109,7 @@ public class IndexShardSnapshotStatus {
         } else {
             assert false : "Should not try to move stage [" + stage.get() + "] to [STARTED]";
             throw new IllegalStateException(
-                "Unable to move the shard snapshot status to [STARTED]: " + "expecting [INIT] but got [" + stage.get() + "]"
+                "Unable to move the shard snapshot status to [STARTED]: expecting [INIT] but got [" + stage.get() + "]"
             );
         }
         return asCopy();
@@ -123,7 +123,7 @@ public class IndexShardSnapshotStatus {
         } else {
             assert false : "Should not try to move stage [" + stage.get() + "] to [FINALIZE]";
             throw new IllegalStateException(
-                "Unable to move the shard snapshot status to [FINALIZE]: " + "expecting [STARTED] but got [" + stage.get() + "]"
+                "Unable to move the shard snapshot status to [FINALIZE]: expecting [STARTED] but got [" + stage.get() + "]"
             );
         }
         return asCopy();
@@ -139,7 +139,7 @@ public class IndexShardSnapshotStatus {
         } else {
             assert false : "Should not try to move stage [" + stage.get() + "] to [DONE]";
             throw new IllegalStateException(
-                "Unable to move the shard snapshot status to [DONE]: " + "expecting [FINALIZE] but got [" + stage.get() + "]"
+                "Unable to move the shard snapshot status to [DONE]: expecting [FINALIZE] but got [" + stage.get() + "]"
             );
         }
     }

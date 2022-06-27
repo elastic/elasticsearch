@@ -824,7 +824,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // TODO we should check the checksum in lucene if we hit an exception
                     logger.warn(
                         () -> format(
-                            "failed to build store metadata. checking segment info integrity " + "(with commit [%s])",
+                            "failed to build store metadata. checking segment info integrity (with commit [%s])",
                             commit == null ? "no" : "yes"
                         ),
                         ex

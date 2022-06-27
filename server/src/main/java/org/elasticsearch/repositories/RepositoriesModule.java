@@ -79,7 +79,7 @@ public final class RepositoriesModule {
                 }
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException(
-                        "Internal repository type [" + entry.getKey() + "] is already registered as a " + "non-internal repository"
+                        "Internal repository type [" + entry.getKey() + "] is already registered as a non-internal repository"
                     );
                 }
             }

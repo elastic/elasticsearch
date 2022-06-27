@@ -3105,7 +3105,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             if (changedCount > 0) {
                 logger.trace(
-                    "changed cluster state triggered by [{}] snapshot state updates and resulted in starting " + "[{}] shard snapshots",
+                    "changed cluster state triggered by [{}] snapshot state updates and resulted in starting [{}] shard snapshots",
                     changedCount,
                     startedCount
                 );

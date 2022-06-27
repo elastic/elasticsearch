@@ -265,7 +265,7 @@ public class MetadataCreateIndexService {
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for " + "enough shards to be started.",
+                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
                                 request.index()
                             );
                         } else {
@@ -742,7 +742,7 @@ public class MetadataCreateIndexService {
         final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
         if (mappings.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "mappings are not allowed when creating an index from a source index, " + "all mappings are copied from the source index"
+                "mappings are not allowed when creating an index from a source index, all mappings are copied from the source index"
             );
         }
 

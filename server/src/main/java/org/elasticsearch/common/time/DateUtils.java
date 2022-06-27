@@ -193,12 +193,12 @@ public class DateUtils {
     public static long toLong(Instant instant) {
         if (instant.isBefore(Instant.EPOCH)) {
             throw new IllegalArgumentException(
-                "date[" + instant + "] is before the epoch in 1970 and cannot be " + "stored in nanosecond resolution"
+                "date[" + instant + "] is before the epoch in 1970 and cannot be stored in nanosecond resolution"
             );
         }
         if (instant.isAfter(MAX_NANOSECOND_INSTANT)) {
             throw new IllegalArgumentException(
-                "date[" + instant + "] is after 2262-04-11T23:47:16.854775807 and cannot be " + "stored in nanosecond resolution"
+                "date[" + instant + "] is after 2262-04-11T23:47:16.854775807 and cannot be stored in nanosecond resolution"
             );
         }
         return instant.getEpochSecond() * 1_000_000_000 + instant.getNano();
@@ -258,7 +258,7 @@ public class DateUtils {
     public static long toNanoSeconds(long milliSecondsSinceEpoch) {
         if (milliSecondsSinceEpoch < 0) {
             throw new IllegalArgumentException(
-                "milliSeconds [" + milliSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " + "be converted to nanoseconds"
+                "milliSeconds [" + milliSecondsSinceEpoch + "] are before the epoch in 1970 and cannot be converted to nanoseconds"
             );
         } else if (milliSecondsSinceEpoch > MAX_NANOSECOND_IN_MILLIS) {
             throw new IllegalArgumentException(
@@ -281,7 +281,7 @@ public class DateUtils {
     public static long toMilliSeconds(long nanoSecondsSinceEpoch) {
         if (nanoSecondsSinceEpoch < 0) {
             throw new IllegalArgumentException(
-                "nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " + "be converted to milliseconds"
+                "nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot be converted to milliseconds"
             );
         }
 

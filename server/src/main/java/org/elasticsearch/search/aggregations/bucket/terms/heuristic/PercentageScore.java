@@ -46,7 +46,7 @@ public class PercentageScore extends SignificanceHeuristic {
         // move to the closing bracket
         if (parser.nextToken().equals(XContentParser.Token.END_OBJECT) == false) {
             throw new ElasticsearchParseException(
-                "failed to parse [percentage] significance heuristic. expected an empty object, " + "but got [{}] instead",
+                "failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead",
                 parser.currentToken()
             );
         }

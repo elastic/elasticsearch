@@ -1708,7 +1708,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
             return new Leaf() {
-                private int idx;
+                private int idx = -1;
 
                 @Override
                 public boolean empty() {
@@ -1717,10 +1717,10 @@ public class NumberFieldMapper extends FieldMapper {
 
                 @Override
                 public boolean advanceToDoc(int docId) throws IOException {
-                    idx = Arrays.binarySearch(docIdsInLeaf, docId);
-                    if (idx < 0) {
-                        throw new IllegalStateException(
-                            "received unexpected docId [" + docId + "]. Expected " + Arrays.toString(docIdsInLeaf)
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
                         );
                     }
                     return hasValue[idx];

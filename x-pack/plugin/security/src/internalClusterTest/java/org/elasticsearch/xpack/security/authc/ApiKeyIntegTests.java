@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -1558,7 +1559,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    public void testUpdateInactiveApiKeyScenarios() throws ExecutionException, InterruptedException {
+    public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
         final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
@@ -1584,7 +1585,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
 
         final var serviceWithNodeName = getServiceWithNodeName();
-        final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
+        PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         serviceWithNodeName.service()
             .updateApiKey(
                 fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
@@ -1596,6 +1597,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(ex.getMessage(), containsString("cannot update inactive api key [" + apiKeyId + "]"));
+
+        updateListener = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(AuthenticationTestHelper.builder().apiKey().build(false), request, Set.of(roleDescriptor), updateListener);
+        final var apiKeysNotAllowedEx = expectThrows(ExecutionException.class, updateListener::get);
+
+        assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(apiKeysNotAllowedEx.getMessage(), containsString("cannot use an api key to update api keys"));
     }
 
     private void testUpdateApiKeyNotFound(

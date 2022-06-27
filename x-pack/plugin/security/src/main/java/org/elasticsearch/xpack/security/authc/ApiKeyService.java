@@ -364,7 +364,7 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("updating api keys is not supported with api key authentication"));
+            listener.onFailure(new IllegalArgumentException("cannot use an api key to update api keys"));
             return;
         }
 

@@ -108,8 +108,8 @@ public class StringMatcherTests extends ESTestCase {
 
     public void testMultiplePatterns() throws Exception {
         final String prefix1 = randomAlphaOfLengthBetween(3, 5);
-        final String prefix2 = randomAlphaOfLengthBetween(5, 8);
-        final String prefix3 = randomAlphaOfLengthBetween(10, 12);
+        final String prefix2 = randomValueOtherThanMany(s -> s.startsWith(prefix1), () -> randomAlphaOfLengthBetween(5, 8));
+        final String prefix3 = randomValueOtherThanMany(s -> s.startsWith(prefix1), () -> randomAlphaOfLengthBetween(10, 12));
         final String suffix1 = randomAlphaOfLengthBetween(5, 10);
         final String suffix2 = randomAlphaOfLengthBetween(8, 12);
         final String exact1 = randomValueOtherThanMany(

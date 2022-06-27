@@ -258,7 +258,7 @@ public class JwtValidateUtil {
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
-            throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+            throw new Exception("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
         }
 
         for (final JWK jwk : jwksStrength) {

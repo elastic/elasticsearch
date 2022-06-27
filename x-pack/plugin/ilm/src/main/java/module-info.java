@@ -16,4 +16,6 @@ module org.elasticsearch.ilm {
     exports org.elasticsearch.xpack.ilm to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
+
+    provides org.elasticsearch.operator.OperatorHandlerProvider with org.elasticsearch.xpack.ilm.operator.ILMOperatorHandlerProvider;
 }

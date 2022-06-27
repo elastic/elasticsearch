@@ -79,14 +79,11 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'unsigned_long/50_script_values/script_score query',
     'unsigned_long/50_script_values/Script query',
     'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
+    "autoscaling/get_autoscaling_capacity/Test get fixed autoscaling capacity",
   ].join(',')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest(
-    "autoscaling/get_autoscaling_capacity/Test get fixed autoscaling capacity",
-    "behavior changed #87895"
-  )
   task.skipTest(
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"

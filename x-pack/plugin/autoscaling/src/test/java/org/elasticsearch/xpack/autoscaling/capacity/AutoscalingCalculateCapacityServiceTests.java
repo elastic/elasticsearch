@@ -93,10 +93,11 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                         + storage
                         + "] memory ["
                         + memory
+                        + "] processors ["
+                        + processors
                         + "] nodes ["
                         + nodes
                         + "]"
-                        + (processors == null ? "" : " processors [" + processors + "]")
                 )
             );
 

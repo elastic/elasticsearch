@@ -1604,7 +1604,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeysNotAllowedEx = expectThrows(ExecutionException.class, updateListener::get);
 
         assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(apiKeysNotAllowedEx.getMessage(), containsString("cannot use an api key to update api keys"));
+        assertThat(
+            apiKeysNotAllowedEx.getMessage(),
+            containsString("authentication through an api key is not supported for updating api keys")
+        );
     }
 
     private void testUpdateApiKeyNotFound(

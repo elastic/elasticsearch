@@ -381,7 +381,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> listener
     ) {
         // switch the threadpool to generic, because the caller is on the system_read threadpool
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
             // TransformTask#start will fail if the task state is FAILED
             buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
@@ -409,7 +409,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getSchedulerEngine(),
+            transformServices.getScheduler(),
             auditor,
             threadPool,
             headers

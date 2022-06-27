@@ -1557,6 +1557,15 @@ setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'
             }
           }
 '''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
 setups['setup_logdata'] = '''
   - do:
         indices.create:

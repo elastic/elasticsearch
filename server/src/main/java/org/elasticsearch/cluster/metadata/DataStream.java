@@ -23,7 +23,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,13 +34,14 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -111,7 +111,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         IndexMode indexMode
     ) {
         this.name = name;
-        this.indices = Collections.unmodifiableList(indices);
+        this.indices = List.copyOf(indices);
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -121,7 +121,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        assert assertConsistent(this.indices);
+    }
+
+    private static boolean assertConsistent(List<Index> indices) {
         assert indices.size() > 0;
+        final Set<String> indexNames = new HashSet<>();
+        for (Index index : indices) {
+            final boolean added = indexNames.add(index.getName());
+            assert added : "found duplicate index entries in " + indices;
+        }
+        return true;
     }
 
     public String getName() {
@@ -158,14 +168,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
-            if (IndexSettings.MODE.get(im.getSettings()) != IndexMode.TIME_SERIES) {
+            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
                 // Not a tsdb backing index, so skip.
-                // (This can happen is this is a migrated tsdb data stream)
+                // (This can happen if this is a migrated tsdb data stream)
                 continue;
             }
 
-            Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-            Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            Instant start = im.getTimeSeriesStart();
+            Instant end = im.getTimeSeriesEnd();
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -183,16 +193,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public void validate(Function<String, IndexMetadata> imSupplier) {
         if (indexMode == IndexMode.TIME_SERIES) {
             // Get a sorted overview of each backing index with there start and end time range:
-            var startAndEndTimes = indices.stream()
-                .map(index -> imSupplier.apply(index.getName()))
+            var startAndEndTimes = indices.stream().map(index -> {
+                IndexMetadata im = imSupplier.apply(index.getName());
+                if (im == null) {
+                    throw new IllegalStateException("index [" + index.getName() + "] is not found in the index metadata supplier");
+                }
+                return im;
+            })
                 .filter(
                     // Migrated tsdb data streams have non tsdb backing indices:
-                    im -> IndexSettings.TIME_SERIES_START_TIME.exists(im.getSettings())
-                        && IndexSettings.TIME_SERIES_END_TIME.exists(im.getSettings())
+                    im -> im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null
                 )
                 .map(im -> {
-                    Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-                    Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                    Instant start = im.getTimeSeriesStart();
+                    Instant end = im.getTimeSeriesEnd();
                     assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
                     return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
                 })
@@ -263,26 +277,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndex            new write index
-     * @param generation            new generation
-     * @param indexModeFromTemplate the index mode as is defined in the template that created this data stream
+     * @param writeIndex    new write index
+     * @param generation    new generation
+     * @param timeSeries    whether the template that created this data stream is in time series mode
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation, IndexMode indexModeFromTemplate) {
+    public DataStream rollover(Index writeIndex, long generation, boolean timeSeries) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, indexModeFromTemplate);
+        return unsafeRollover(writeIndex, generation, timeSeries);
     }
 
     /**
-     * Like {@link #rollover(Index, long, IndexMode)}, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, IndexMode indexModeFromTemplate) {
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
         IndexMode indexMode = this.indexMode;
         // This allows for migrating a data stream to be a tsdb data stream:
         // (only if index_mode=null|standard then allow it to be set to time_series)
-        if ((indexMode == null || indexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
             indexMode = IndexMode.TIME_SERIES;
         }
 
@@ -293,7 +307,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, IndexMode)}.
+     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean)}.
      *
      * @param clusterMetadata Cluster metadata
      *

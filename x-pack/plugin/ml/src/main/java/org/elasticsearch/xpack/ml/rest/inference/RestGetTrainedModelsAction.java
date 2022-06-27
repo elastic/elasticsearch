@@ -13,10 +13,10 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -100,7 +100,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             );
         }
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
-        return channel -> client.execute(
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetTrainedModelsAction.INSTANCE,
             request,
             new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES)
@@ -126,7 +126,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             Map<String, String> params = new HashMap<>(channel.request().params());
             defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
             response.toXContent(builder, new ToXContent.MapParams(params));
-            return new BytesRestResponse(getStatus(response), builder);
+            return new RestResponse(getStatus(response), builder);
         }
     }
 }

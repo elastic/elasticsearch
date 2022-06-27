@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -347,7 +348,7 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING = Setting.timeSetting(
         "index.translog.retention.age",
-        settings -> TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
@@ -533,15 +534,6 @@ public final class IndexSettings {
                 return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
             }
         },
-        Property.IndexScope,
-        Property.Final
-    );
-
-    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
-        "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
         Property.IndexScope,
         Property.Final
     );
@@ -983,7 +975,9 @@ public final class IndexSettings {
         if (left.equals(right)) {
             return true;
         }
-        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX));
+        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX))
+            && left.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX)
+                .equals(right.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX));
     }
 
     /**

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -123,7 +124,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("kibana"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("kibana"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
         bulkRequests = new ArrayList<>();

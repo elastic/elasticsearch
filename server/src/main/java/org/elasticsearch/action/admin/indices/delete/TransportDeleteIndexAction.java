@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.delete;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -91,10 +90,10 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
+            .indices(concreteIndices.toArray(new Index[0]));
 
         deleteIndexService.deleteIndices(deleteRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), e);
+            logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
             listener.onFailure(e);
         }));
     }

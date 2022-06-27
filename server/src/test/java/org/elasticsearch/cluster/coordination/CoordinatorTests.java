@@ -616,7 +616,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final int newClusterNodes = between(initialClusterSize + 1, 4);
             logger.info("--> adding [{}] new healthy nodes", newClusterNodes);
             final NodeHealthService alwaysHealthy = () -> new StatusInfo(HEALTHY, "healthy-info");
-            final Set<String> newNodeIds = new HashSet<>(newClusterNodes);
+            final Set<String> newNodeIds = Sets.newHashSetWithExpectedSize(newClusterNodes);
             for (int i = 0; i < newClusterNodes; i++) {
                 final ClusterNode node = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, alwaysHealthy);
                 newNodeIds.add(node.getId());
@@ -1477,6 +1477,51 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.getAnyLeader().extraJoinValidators.clear();
             cluster.stabilise();
+        }
+    }
+
+    @TestLogging(
+        reason = "test includes assertions about ClusterBootstrapService logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
+    )
+    public void testClusterUUIDLogging() throws IllegalAccessException {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
+        Loggers.addAppender(serviceLogger, mockAppender);
+
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "fresh node message",
+                ClusterBootstrapService.class.getCanonicalName(),
+                Level.INFO,
+                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+            )
+        );
+
+        try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+
+            final var restartingNode = cluster.getAnyNode();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "restarted node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID ["
+                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                        + "] and will not attempt further cluster bootstrapping"
+                )
+            );
+            restartingNode.close();
+            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
         }
     }
 

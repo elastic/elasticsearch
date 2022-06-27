@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
@@ -61,7 +62,7 @@ public class YearlySchedule extends CronnableSchedule {
 
     static String[] crons(YearTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        Set<String> crons = new HashSet<>(times.length);
+        Set<String> crons = Sets.newHashSetWithExpectedSize(times.length);
         for (YearTimes time : times) {
             crons.addAll(time.crons());
         }

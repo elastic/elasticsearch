@@ -239,15 +239,19 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         builder.endArray();
 
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        if (scoreMode != DEFAULT_SCORE_MODE) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        }
         if (boostMode != null) {
             builder.field(BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));
         }
-        builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        if (maxBoost != FunctionScoreQuery.DEFAULT_MAX_BOOST) {
+            builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        }
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 
@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
 
@@ -69,6 +70,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         }
 
         @Override
+        public String getCancelableTaskDescription() {
+            return format("get_trained_model_stats[%s]", getResourceId());
+        }
+
+        @Override
         public String getResourceIdField() {
             return TrainedModelConfig.MODEL_ID.getPreferredName();
         }
@@ -82,7 +88,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final TrainedModelSizeStats modelSizeStats;
             private final IngestStats ingestStats;
             private final InferenceStats inferenceStats;
-            private final AllocationStats deploymentStats;
+            private final AssignmentStats deploymentStats;
             private final int pipelineCount;
 
             private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
@@ -97,7 +103,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 IngestStats ingestStats,
                 int pipelineCount,
                 InferenceStats inferenceStats,
-                AllocationStats deploymentStats
+                AssignmentStats deploymentStats
             ) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.modelSizeStats = modelSizeStats;
@@ -121,7 +127,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
                 if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                    this.deploymentStats = in.readOptionalWriteable(AllocationStats::new);
+                    this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
                 } else {
                     this.deploymentStats = null;
                 }
@@ -147,7 +153,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return inferenceStats;
             }
 
-            public AllocationStats getDeploymentStats() {
+            public AssignmentStats getDeploymentStats() {
                 return deploymentStats;
             }
 
@@ -232,7 +238,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private Map<String, TrainedModelSizeStats> modelSizeStatsMap;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
-            private Map<String, AllocationStats> allocationStatsMap;
+            private Map<String, AssignmentStats> assignmentStatsMap;
 
             public Builder setTotalModelCount(long totalModelCount) {
                 this.totalModelCount = totalModelCount;
@@ -263,8 +269,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setDeploymentStatsByModelId(Map<String, AllocationStats> allocationStatsByModelId) {
-                this.allocationStatsMap = allocationStatsByModelId;
+            public Builder setDeploymentStatsByModelId(Map<String, AssignmentStats> assignmentStatsMap) {
+                this.assignmentStatsMap = assignmentStatsMap;
                 return this;
             }
 
@@ -274,7 +280,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                     TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(id);
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
-                    AllocationStats allocationStats = allocationStatsMap.get(id);
+                    AssignmentStats assignmentStats = assignmentStatsMap.get(id);
                     trainedModelStats.add(
                         new TrainedModelStats(
                             id,
@@ -282,7 +288,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                             ingestStats,
                             ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
                             inferenceStats,
-                            allocationStats
+                            assignmentStats
                         )
                     );
                 });

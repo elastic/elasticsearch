@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +22,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -98,8 +98,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             false
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
-        Authentication primaryAuthentication = mock(Authentication.class);
-        when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -107,8 +106,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             callback.onResponse(primaryAuthentication);
             return null;
         }).when(authcService).authenticate(eq(request), anyActionListener());
-        Authentication secondaryAuthentication = mock(Authentication.class);
-        when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -121,7 +119,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());
@@ -147,7 +145,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());

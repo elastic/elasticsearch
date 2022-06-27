@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -104,7 +104,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -131,8 +131,8 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -170,7 +170,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -189,7 +189,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
-import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -201,10 +201,11 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.TransportExternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
@@ -267,7 +268,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
@@ -283,6 +284,7 @@ import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilde
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -300,9 +302,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -389,6 +391,7 @@ import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
@@ -459,6 +462,7 @@ public class MachineLearning extends Plugin
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
+    public static final String NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME = NAME + "_native_inference_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
@@ -509,6 +513,7 @@ public class MachineLearning extends Plugin
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
+    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -660,7 +665,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAllocationClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
@@ -698,10 +703,12 @@ public class MachineLearning extends Plugin
         );
     }
 
+    @Override
     public Settings additionalSettings() {
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
 
         if (enabled == false) {
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
@@ -716,10 +723,11 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Integer.toString(getAllocatedProcessors()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, allocatedProcessorsAttrName);
         }
         return additionalSettings.build();
     }
@@ -731,6 +739,10 @@ public class MachineLearning extends Plugin
         } else {
             reportClashingNodeAttribute(attrName);
         }
+    }
+
+    private int getAllocatedProcessors() {
+        return EsExecutors.allocatedProcessors(settings);
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {
@@ -1045,17 +1057,25 @@ public class MachineLearning extends Plugin
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(
+            settings,
+            clusterService.getClusterSettings()
+        );
+        clusterService.addListener(nodeAvailabilityZoneMapper);
+
         // allocation service objects
-        final TrainedModelAllocationService trainedModelAllocationService = new TrainedModelAllocationService(
+        final TrainedModelAssignmentService trainedModelAssignmentService = new TrainedModelAssignmentService(
             client,
             clusterService,
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAllocationClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(settings, clusterService, threadPool, new NodeLoadDetector(memoryTracker))
         );
 
-        mlAutoscalingDeciderService.set(new MlAutoscalingDeciderService(memoryTracker, settings, clusterService));
+        mlAutoscalingDeciderService.set(
+            new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
+        );
 
         return Arrays.asList(
             mlLifeCycleService,
@@ -1083,9 +1103,10 @@ public class MachineLearning extends Plugin
             nativeStorageProvider,
             modelLoadingService,
             trainedModelProvider,
-            trainedModelAllocationService,
+            trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
-            deploymentManager.get()
+            deploymentManager.get(),
+            nodeAvailabilityZoneMapper
         );
     }
 
@@ -1220,6 +1241,7 @@ public class MachineLearning extends Plugin
             new RestInferTrainedModelDeploymentAction(),
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
+            new RestInferTrainedModelAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1297,7 +1319,8 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
             new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
             new ActionHandler<>(ExplainDataFrameAnalyticsAction.INSTANCE, TransportExplainDataFrameAnalyticsAction.class),
-            new ActionHandler<>(InternalInferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+            new ActionHandler<>(InferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+            new ActionHandler<>(InferModelAction.EXTERNAL_INSTANCE, TransportExternalInferModelAction.class),
             new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class),
             new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
             new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
@@ -1315,11 +1338,14 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
             new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
             new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
-            new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
-            new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+            new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class),
+            new ActionHandler<>(DeleteTrainedModelAssignmentAction.INSTANCE, TransportDeleteTrainedModelAssignmentAction.class),
             new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
             new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class),
-            new ActionHandler<>(UpdateTrainedModelAllocationStateAction.INSTANCE, TransportUpdateTrainedModelAllocationStateAction.class),
+            new ActionHandler<>(
+                UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
+                TransportUpdateTrainedModelAssignmentStateAction.class
+            ),
             usageAction,
             infoAction
         );
@@ -1358,6 +1384,21 @@ public class MachineLearning extends Plugin
             "xpack.ml.job_comms_thread_pool"
         );
 
+        // 3 threads per native inference process: for input, c++ logger output, and result processing.
+        // As we cannot assign more models than the number of allocated processors, this thread pool's
+        // size is limited by the number of allocated processors on this node.
+        // Only use this thread pool for the main long-running process associated with a native inference model deployment.
+        // (Using it for some other purpose could mean that an unrelated pytorch model assignment fails to start
+        // or that whatever needed the thread for another purpose has to queue for a very long time.)
+        ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
+            NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
+            3,
+            getAllocatedProcessors() * 3,
+            TimeValue.timeValueMinutes(1),
+            false,
+            "xpack.ml.native_inference_comms_thread_pool"
+        );
+
         // This pool is used by renormalization, data frame analytics memory estimation, plus some other parts
         // of ML that need to kick off non-trivial activities that mustn't block other threads.
         ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
@@ -1378,7 +1419,7 @@ public class MachineLearning extends Plugin
             "xpack.ml.datafeed_thread_pool"
         );
 
-        return List.of(jobComms, utility, datafeed);
+        return List.of(jobComms, pytorchComms, utility, datafeed);
     }
 
     @Override
@@ -1417,16 +1458,7 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
-            // TODO: in the long term only keep one or other of these categorization aggregations
-            new AggregationSpec(
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME,
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder::new,
-                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.PARSER
-            ).addResultReader(org.elasticsearch.xpack.ml.aggs.categorization2.InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(
-                    s -> s.registerUsage(org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME)
-                )
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }
 
@@ -1460,8 +1492,17 @@ public class MachineLearning extends Plugin
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(TrainedModelAllocationMetadata.NAME),
-                TrainedModelAllocationMetadata::fromXContent
+                new ParseField(TrainedModelAssignmentMetadata.NAME),
+                TrainedModelAssignmentMetadata::fromXContent
+            )
+        );
+        // This is so old cluster state can be read on a new node. We are not making it a deprecated parse field as the user
+        // has no control over this. So, simply read it without logging a deprecation warning
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(TrainedModelAssignmentMetadata.DEPRECATED_NAME),
+                TrainedModelAssignmentMetadata::fromXContent
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
@@ -1480,15 +1521,29 @@ public class MachineLearning extends Plugin
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 Metadata.Custom.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::new
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::fromStream
             )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::readDiffFrom
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::readDiffFrom
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Metadata.Custom.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::fromStreamOld
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::readDiffFromOld
             )
         );
 
@@ -1850,7 +1905,7 @@ public class MachineLearning extends Plugin
                 stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAllocations(stopDeploymentsListener);
+            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(stopDeploymentsListener);
         }, unsetResetModeListener::onFailure);
 
         // validate no pipelines are using machine learning models

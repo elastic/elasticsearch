@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -19,10 +18,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -120,7 +121,7 @@ public class ChunkedTrainedModelRestorer {
     ) {
 
         logger.debug("[{}] restoring model", modelId);
-        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize);
+        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize, null);
 
         executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
@@ -161,7 +162,7 @@ public class ChunkedTrainedModelRestorer {
                     }
 
                 } catch (IOException e) {
-                    logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
+                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
                     errorConsumer.accept(e);
                     return;
                 }
@@ -211,8 +212,12 @@ public class ChunkedTrainedModelRestorer {
             );
     }
 
-    public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize) {
-        return buildSearchBuilder(client, modelId, index, searchSize).request();
+    public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize, @Nullable TaskId parentTaskId) {
+        SearchRequest searchRequest = buildSearchBuilder(client, modelId, index, searchSize).request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
+        return searchRequest;
     }
 
     public static TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(
@@ -228,7 +233,7 @@ public class ChunkedTrainedModelRestorer {
         ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model definition", e);
             throw e;
         }
     }

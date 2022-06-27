@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -59,10 +60,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -89,6 +90,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -379,8 +381,8 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), 0);
-        builder.put("http.port", 0);
+        builder.put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange());
+        builder.put("http.port", ESTestCase.getPortRange());
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
@@ -1212,23 +1214,22 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        try {
-            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
-            ClusterServiceUtils.awaitClusterState(
-                logger,
-                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstance(ClusterService.class)
-            );
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                .get()
+                .isTimedOut()
+        );
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
-                    .collect(Collectors.toList());
+                    .toList();
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
                 assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
@@ -1991,6 +1992,33 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * Returns the name of the selected health node in the cluster. If there is no selected health node it returns null.
+     */
+    public String getHealthNodeName() {
+        return getHealthNodeName(null);
+    }
+
+    /**
+     * Returns the name of the selected health node in the cluster and executes the request via the node specified
+     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to send the request to. If
+     * there is no selected health node it returns null.
+     */
+    public String getHealthNodeName(@Nullable String viaNode) {
+        try {
+            Client client = viaNode != null ? client(viaNode) : client();
+            ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).get().getState();
+            PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
+            return task != null && task.isAssigned()
+                ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode()).getName()
+                : null;
+        } catch (Exception e) {
+            logger.warn("Can't fetch cluster state", e);
+            throw new RuntimeException("Can't get the health node " + e.getMessage(), e);
+        }
+    }
+
     synchronized Set<String> allDataNodesButN(int count) {
         final int numNodes = numDataNodes() - count;
         assert size() >= numNodes;
@@ -2443,7 +2471,6 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
-                    false,
                     false,
                     false,
                     false,

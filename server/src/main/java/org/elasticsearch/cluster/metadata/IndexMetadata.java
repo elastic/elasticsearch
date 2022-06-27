@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -34,11 +32,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -59,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -517,7 +519,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final ImmutableOpenMap<String, DiffableStringMap> customData;
 
-    private final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds;
+    private final Map<Integer, Set<String>> inSyncAllocationIds;
 
     private final transient int totalNumberOfShards;
 
@@ -558,6 +560,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean isPartialSearchableSnapshot;
 
+    @Nullable
+    private final IndexMode indexMode;
+    @Nullable
+    private final Instant timeSeriesStart;
+    @Nullable
+    private final Instant timeSeriesEnd;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -572,7 +581,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final MappingMetadata mapping,
         final ImmutableOpenMap<String, AliasMetadata> aliases,
         final ImmutableOpenMap<String, DiffableStringMap> customData,
-        final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
+        final Map<Integer, Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
         final DiscoveryNodeFilters includeFilters,
@@ -595,7 +604,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
-        final boolean isPartialSearchableSnapshot
+        final boolean isPartialSearchableSnapshot,
+        @Nullable final IndexMode indexMode,
+        @Nullable final Instant timeSeriesStart,
+        @Nullable final Instant timeSeriesEnd
     ) {
         this.index = index;
         this.version = version;
@@ -642,6 +654,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
         this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        this.indexMode = indexMode;
+        this.timeSeriesStart = timeSeriesStart;
+        this.timeSeriesEnd = timeSeriesEnd;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -686,7 +701,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
-            this.isPartialSearchableSnapshot
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd
         );
     }
 
@@ -805,7 +823,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return settings;
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> getAliases() {
+    public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
     }
 
@@ -847,6 +865,41 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return the mode this index is in. This determines the behaviour and features it supports.
+     *         If <code>null</code> is returned then this in index is in standard mode.
+     */
+    @Nullable
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     * Together with {@link #getTimeSeriesEnd()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesStart() {
+        return timeSeriesStart;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     * Together with {@link #getTimeSeriesStart()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesEnd() {
+        return timeSeriesEnd;
+    }
+
+    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
@@ -867,6 +920,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
     public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+
+    public static final String INDEX_ROLLUP_STATUS_KEY = "index.rollup.status";
     public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
         INDEX_ROLLUP_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -878,11 +933,29 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.PrivateIndex
     );
 
+    public enum RollupTaskStatus {
+        STARTED,
+        SUCCESS;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
+        RollupTaskStatus.class,
+        INDEX_ROLLUP_STATUS_KEY,
+        RollupTaskStatus.SUCCESS,
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
     // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
 
-    ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
+    Map<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }
 
@@ -890,11 +963,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.customData.get(key);
     }
 
-    public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {
+    public Map<Integer, Set<String>> getInSyncAllocationIds() {
         return inSyncAllocationIds;
     }
 
-    public ImmutableOpenMap<String, RolloverInfo> getRolloverInfos() {
+    public Map<String, RolloverInfo> getRolloverInfos() {
         return rolloverInfos;
     }
 
@@ -1032,7 +1105,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, MappingMetadata>> mappings;
         private final Diff<ImmutableOpenMap<String, AliasMetadata>> aliases;
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
-        private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
+        private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
         private final IndexLongFieldRange timestampRange;
@@ -1096,7 +1169,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
             customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
-            inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(
+            inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
@@ -1154,7 +1227,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ).get(MapperService.SINGLE_MAPPING_NAME);
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
-            builder.inSyncAllocationIds.putAll((Map<Integer, Set<String>>) inSyncAllocationIds.apply(part.inSyncAllocationIds));
+            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
@@ -1248,24 +1321,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
-        out.writeVInt(customData.size());
-        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(inSyncAllocationIds.size());
-        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
-            out.writeVInt(cursor.getKey());
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
-        }
-        out.writeVInt(rolloverInfos.size());
-        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
-            rolloverInfo.writeTo(out);
-        }
+        out.writeCollection(aliases.values());
+        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(
+            inSyncAllocationIds,
+            StreamOutput::writeVInt,
+            (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
+        );
+        out.writeCollection(rolloverInfos.values());
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
@@ -1310,7 +1373,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private MappingMetadata mapping;
         private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
         private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
-        private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
+        private final Map<Integer, Set<String>> inSyncAllocationIds;
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
@@ -1321,7 +1384,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.index = index;
             this.aliases = ImmutableOpenMap.builder();
             this.customMetadata = ImmutableOpenMap.builder();
-            this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
+            this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = ImmutableOpenMap.builder();
             this.isSystem = false;
         }
@@ -1339,7 +1402,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.aliases = ImmutableOpenMap.builder(indexMetadata.aliases);
             this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
-            this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
+            this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
@@ -1467,7 +1530,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
-            inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
+            inSyncAllocationIds.put(shardId, Set.copyOf(allocationIds));
             return this;
         }
 
@@ -1596,13 +1659,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
-            ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            Map.Entry<Integer, Set<String>> denseInSyncAllocationIds[] = new Map.Entry[numberOfShards];
             for (int i = 0; i < numberOfShards; i++) {
-                if (inSyncAllocationIds.containsKey(i)) {
-                    filledInSyncAllocationIds.put(i, Set.copyOf(inSyncAllocationIds.get(i)));
-                } else {
-                    filledInSyncAllocationIds.put(i, Collections.emptySet());
-                }
+                Set<String> allocIds = inSyncAllocationIds.getOrDefault(i, Set.of());
+                denseInSyncAllocationIds[i] = Map.entry(i, allocIds);
             }
             var requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
@@ -1684,6 +1745,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
+                && IndexMode.TIME_SERIES.getName().equals(settings.get(IndexSettings.MODE.getKey()));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1698,7 +1761,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping,
                 aliases.build(),
                 newCustomMetadata,
-                filledInSyncAllocationIds.build(),
+                Map.ofEntries(denseInSyncAllocationIds),
                 requireFilters,
                 initialRecoveryFilters,
                 includeFilters,
@@ -1721,7 +1784,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
-                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
+                isTsdb ? IndexMode.TIME_SERIES : null,
+                isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
+                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null
             );
         }
 
@@ -1841,136 +1907,123 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             Builder builder = new Builder(parser.currentName());
 
-            String currentFieldName = null;
+            String currentFieldName;
             XContentParser.Token token = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             boolean mappingVersion = false;
             boolean settingsVersion = false;
             boolean aliasesVersion = false;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.fromXContent(parser));
-                    } else if (KEY_MAPPINGS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
-                                    .put(mappingType, parser.mapOrdered())
-                                    .map();
-                                builder.putMapping(new MappingMetadata(mappingType, mappingSource));
-                            } else {
-                                throw new IllegalArgumentException("Unexpected token: " + token);
+            while ((currentFieldName = parser.nextFieldName()) != null) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    switch (currentFieldName) {
+                        case KEY_SETTINGS:
+                            builder.settings(Settings.fromXContent(parser));
+                            break;
+                        case KEY_MAPPINGS:
+                            while ((currentFieldName = parser.nextFieldName()) != null) {
+                                token = parser.nextToken();
+                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                                builder.putMapping(new MappingMetadata(currentFieldName, Map.of(currentFieldName, parser.mapOrdered())));
                             }
-                        }
-                    } else if (KEY_ALIASES.equals(currentFieldName)) {
-                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                            builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
-                        }
-                    } else if (KEY_IN_SYNC_ALLOCATIONS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                String shardId = currentFieldName;
+                            break;
+                        case KEY_ALIASES:
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
+                            }
+                            break;
+                        case KEY_IN_SYNC_ALLOCATIONS:
+                            while ((currentFieldName = parser.nextFieldName()) != null) {
+                                token = parser.nextToken();
+                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                                final int shardId = Integer.parseInt(currentFieldName);
                                 Set<String> allocationIds = new HashSet<>();
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                     if (token == XContentParser.Token.VALUE_STRING) {
                                         allocationIds.add(parser.text());
                                     }
                                 }
-                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
-                            } else {
-                                throw new IllegalArgumentException("Unexpected token: " + token);
+                                builder.putInSyncAllocationIds(shardId, allocationIds);
                             }
-                        }
-                    } else if (KEY_ROLLOVER_INFOS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_OBJECT) {
+                            break;
+                        case KEY_ROLLOVER_INFOS:
+                            while ((currentFieldName = parser.nextFieldName()) != null) {
+                                token = parser.nextToken();
+                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                                 builder.putRolloverInfo(RolloverInfo.parse(parser, currentFieldName));
-                            } else {
-                                throw new IllegalArgumentException("Unexpected token: " + token);
                             }
-                        }
-                    } else if ("warmers".equals(currentFieldName)) {
-                        // TODO: do this in 6.0:
-                        // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
-                        // ignore: warmers have been removed in 5.0 and are
-                        // simply ignored when upgrading from 2.x
-                        assert Version.CURRENT.major <= 5;
-                        parser.skipChildren();
-                    } else if (KEY_TIMESTAMP_RANGE.equals(currentFieldName)) {
-                        builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
-                    } else {
-                        // assume it's custom index metadata
-                        builder.putCustom(currentFieldName, parser.mapStrings());
+                            break;
+                        case "warmers":
+                            // TODO: do this in 6.0:
+                            // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
+                            // ignore: warmers have been removed in 5.0 and are
+                            // simply ignored when upgrading from 2.x
+                            assert Version.CURRENT.major <= 5;
+                            parser.skipChildren();
+                            break;
+                        case KEY_TIMESTAMP_RANGE:
+                            builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
+                            break;
+                        default:
+                            // assume it's custom index metadata
+                            builder.putCustom(currentFieldName, parser.mapStrings());
+                            break;
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (KEY_MAPPINGS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
-                            } else {
-                                Map<String, Object> mapping = parser.mapOrdered();
-                                if (mapping.size() == 1) {
-                                    String mappingType = mapping.keySet().iterator().next();
-                                    builder.putMapping(new MappingMetadata(mappingType, mapping));
+                    switch (currentFieldName) {
+                        case KEY_MAPPINGS:
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                    builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
+                                } else {
+                                    Map<String, Object> mapping = parser.mapOrdered();
+                                    if (mapping.size() == 1) {
+                                        String mappingType = mapping.keySet().iterator().next();
+                                        builder.putMapping(new MappingMetadata(mappingType, mapping));
+                                    }
                                 }
                             }
-                        }
-                    } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {
-                        ArrayList<Long> list = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                            list.add(parser.longValue());
-                        }
-                        builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
+                            break;
+                        case KEY_PRIMARY_TERMS:
+                            ArrayList<Long> list = new ArrayList<>();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                                list.add(parser.longValue());
+                            }
+                            builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
                 } else if (token.isValue()) {
-                    if (KEY_STATE.equals(currentFieldName)) {
-                        builder.state(State.fromString(parser.text()));
-                    } else if (KEY_VERSION.equals(currentFieldName)) {
-                        builder.version(parser.longValue());
-                    } else if (KEY_MAPPING_VERSION.equals(currentFieldName)) {
-                        mappingVersion = true;
-                        builder.mappingVersion(parser.longValue());
-                    } else if (KEY_SETTINGS_VERSION.equals(currentFieldName)) {
-                        settingsVersion = true;
-                        builder.settingsVersion(parser.longValue());
-                    } else if (KEY_ALIASES_VERSION.equals(currentFieldName)) {
-                        aliasesVersion = true;
-                        builder.aliasesVersion(parser.longValue());
-                    } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
-                        builder.setRoutingNumShards(parser.intValue());
-                    } else if (KEY_SYSTEM.equals(currentFieldName)) {
-                        builder.system(parser.booleanValue());
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    switch (currentFieldName) {
+                        case KEY_STATE -> builder.state(State.fromString(parser.text()));
+                        case KEY_VERSION -> builder.version(parser.longValue());
+                        case KEY_MAPPING_VERSION -> {
+                            mappingVersion = true;
+                            builder.mappingVersion(parser.longValue());
+                        }
+                        case KEY_SETTINGS_VERSION -> {
+                            settingsVersion = true;
+                            builder.settingsVersion(parser.longValue());
+                        }
+                        case KEY_ALIASES_VERSION -> {
+                            aliasesVersion = true;
+                            builder.aliasesVersion(parser.longValue());
+                        }
+                        case KEY_ROUTING_NUM_SHARDS -> builder.setRoutingNumShards(parser.intValue());
+                        case KEY_SYSTEM -> builder.system(parser.booleanValue());
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            if (Assertions.ENABLED) {
-                assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
-            }
-            if (Assertions.ENABLED) {
-                assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
-            }
-
-            Version indexVersion = indexCreatedVersion(builder.settings);
-            if (Assertions.ENABLED && indexVersion.onOrAfter(Version.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
-            }
+            assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
+            assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
+            assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
+                : "aliases version should be present for indices created on or after 7.2.0";
             return builder.build();
         }
 
@@ -2033,7 +2086,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                         allocationIds.add(parser.text());
                                     }
                                 }
-                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                                builder.putInSyncAllocationIds(Integer.parseInt(shardId), allocationIds);
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
@@ -2285,7 +2338,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
-        Set<ShardId> shards = new HashSet<>(routingFactor);
+        Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
         }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -38,7 +37,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
@@ -66,6 +64,7 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyRunner implements Runnable {
@@ -142,7 +141,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = getIndexResponse.mappings();
+        Map<String, MappingMetadata> mappings = getIndexResponse.mappings();
         MappingMetadata indexMapping = mappings.get(sourceIndexName);
         if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
@@ -268,6 +267,15 @@ public class EnrichPolicyRunner implements Runnable {
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
         if (types.size() == 1) {
             String type = types.iterator().next();
+            if (type == null) {
+                // when no type is defined in a field mapping then it is of type object:
+                throw new ElasticsearchException(
+                    "Field '{}' has type [object] which doesn't appear to be a range type",
+                    enrichPolicy.getMatchField(),
+                    type
+                );
+            }
+
             switch (type) {
                 case "integer_range":
                 case "float_range":
@@ -428,8 +436,8 @@ public class EnrichPolicyRunner implements Runnable {
                     if (logger.isDebugEnabled()) {
                         for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                () -> format(
+                                    "Policy [%s]: bulk index failed for index [%s], id [%s]",
                                     policyName,
                                     failure.getIndex(),
                                     failure.getId()
@@ -448,8 +456,8 @@ public class EnrichPolicyRunner implements Runnable {
                     if (logger.isDebugEnabled()) {
                         for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                () -> format(
+                                    "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",
                                     policyName,
                                     failure.getIndex(),
                                     failure.getShardId(),

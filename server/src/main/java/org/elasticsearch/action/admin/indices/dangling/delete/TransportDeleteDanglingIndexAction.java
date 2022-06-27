@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -105,16 +104,12 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
-                clusterService.submitStateUpdateTask(
-                    taskSource,
-                    new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            return deleteDanglingIndex(currentState, indexToDelete);
-                        }
-                    },
-                    newExecutor()
-                );
+                submitUnbatchedTask(taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    @Override
+                    public ClusterState execute(final ClusterState currentState) {
+                        return deleteDanglingIndex(currentState, indexToDelete);
+                    }
+                });
             }
 
             @Override
@@ -126,8 +121,8 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {

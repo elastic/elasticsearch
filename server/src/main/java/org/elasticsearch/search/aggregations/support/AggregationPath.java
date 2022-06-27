@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A path that can be used to sort/order buckets (in some multi-bucket aggregations, e.g. terms &amp; histogram) based on
@@ -50,12 +51,49 @@ import java.util.Objects;
  *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats,
  *                                  extended_stats, etc...). In this case, the order will be based on the avg value of {@code agg3}.
  *     </li>
+ *     <li>
+ *         {@code agg1["foo"]>agg2>agg3.avg} - where agg1 is multi-bucket, and the path expects a bucket "foo",
+ *                                              agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg
+ *                                              (eg stats, extended_stats, etc...).
+ *                                              In this case, the order will be based on the avg value of {@code agg3}.
+ *     </li>
+ *     <li>
+ *         {@code agg1["foo"]._count} - where agg1 is multi-bucket, and the path expects a bucket "foo".
+ *                                      This would extract the doc_count for that specific bucket.
+ *     </li>
  * </ul>
  *
  */
 public class AggregationPath {
 
     private static final String AGG_DELIM = ">";
+
+    /**
+     * Indicates if the current path element contains a bucket key.
+     *
+     * InternalMultiBucketAggregation#resolvePropertyFromPath supports resolving specific buckets and a bucket is indicated by
+     * wrapping a key element in quotations. Example `agg['foo']` would get the bucket `foo` in the agg.
+     *
+     * @param pathElement The path element to check
+     * @return Does the path element contain a bucket_key or not
+     */
+    public static boolean pathElementContainsBucketKey(AggregationPath.PathElement pathElement) {
+        return pathElement != null && pathElement.key() != null && pathElement.key().startsWith("'") && pathElement.key().endsWith("'");
+    }
+
+    public static List<String> pathElementsAsStringList(List<PathElement> pathElements) {
+        List<String> stringPathElements = new ArrayList<>();
+        for (PathElement pathElement : pathElements) {
+            stringPathElements.add(pathElement.name);
+            if (pathElement.key != null) {
+                stringPathElements.add(pathElement.key);
+            }
+            if (pathElement.metric != null) {
+                stringPathElements.add(pathElement.metric);
+            }
+        }
+        return stringPathElements;
+    }
 
     public static AggregationPath parse(String path) {
         String[] elements = Strings.tokenizeToStringArray(path, AGG_DELIM);
@@ -64,47 +102,65 @@ public class AggregationPath {
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
             if (i == elements.length - 1) {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                int keyIndex = element.lastIndexOf('[');
+                int metricIndex = element.lastIndexOf('.');
+                if (keyIndex >= 0) {
+                    if (keyIndex == 0 || keyIndex > element.length() - 3) {
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
-                    if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                    int endKeyIndex = element.lastIndexOf(']');
+                    if (endKeyIndex < keyIndex) {
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
+                    if (metricIndex < 0 && endKeyIndex != element.length() - 1) {
+                        throw AggregationErrors.invalidPathElement(element, path);
+                    }
+                    tokens.add(
+                        new PathElement(
+                            element,
+                            element.substring(0, keyIndex),
+                            element.substring(keyIndex + 1, endKeyIndex),
+                            // Aggs and metrics can have `.` in the name, so only count as a metric in a bucket if after the brackets
+                            metricIndex < endKeyIndex ? null : element.substring(metricIndex + 1)
+                        )
+                    );
                     continue;
                 }
-                index = element.lastIndexOf('.');
-                if (index < 0) {
-                    tokens.add(new PathElement(element, element, null));
+                if (metricIndex < 0) {
+                    tokens.add(new PathElement(element, element, null, null));
                     continue;
                 }
-                if (index == 0 || index > element.length() - 2) {
-                    throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                if (metricIndex == 0 || metricIndex > element.length() - 2) {
+                    throw AggregationErrors.invalidPathElement(element, path);
                 }
-                tuple = split(element, index, tuple);
-                tokens.add(new PathElement(element, tuple[0], tuple[1]));
-
+                tuple = split(element, metricIndex, tuple);
+                tokens.add(new PathElement(element, tuple[0], null, tuple[1]));
             } else {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                int keyIndex = element.lastIndexOf('[');
+                if (keyIndex >= 0) {
+                    if (keyIndex == 0 || keyIndex > element.length() - 3) {
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
+                    tokens.add(
+                        new PathElement(
+                            element,
+                            element.substring(0, keyIndex),
+                            element.substring(keyIndex + 1, element.length() - 1),
+                            null
+                        )
+                    );
                     continue;
                 }
-                tokens.add(new PathElement(element, element, null));
+                tokens.add(new PathElement(element, element, null, null));
             }
         }
         return new AggregationPath(tokens);
     }
 
-    public record PathElement(String fullName, String name, String key) {
+    public record PathElement(String fullName, String name, String key, String metric) {
 
         @Override
         public boolean equals(Object o) {
@@ -112,13 +168,14 @@ public class AggregationPath {
             if (o == null || getClass() != o.getClass()) return false;
 
             PathElement token = (PathElement) o;
-            return Objects.equals(key, token.key) && Objects.equals(name, token.name);
+            return Objects.equals(key, token.key) && Objects.equals(name, token.name) && Objects.equals(metric, token.metric);
         }
 
         @Override
         public int hashCode() {
             int result = name.hashCode();
             result = 31 * result + (key != null ? key.hashCode() : 0);
+            result = 31 * result + (metric != null ? metric.hashCode() : 0);
             return result;
         }
 
@@ -151,14 +208,7 @@ public class AggregationPath {
     }
 
     public List<String> getPathElementsAsStringList() {
-        List<String> stringPathElements = new ArrayList<>();
-        for (PathElement pathElement : this.pathElements) {
-            stringPathElements.add(pathElement.name);
-            if (pathElement.key != null) {
-                stringPathElements.add(pathElement.key);
-            }
-        }
-        return stringPathElements;
+        return pathElementsAsStringList(this.pathElements);
     }
 
     /**
@@ -198,7 +248,7 @@ public class AggregationPath {
     }
 
     public BucketComparator bucketComparator(Aggregator root, SortOrder order) {
-        return resolveAggregator(root).bucketComparator(lastPathElement().key, order);
+        return resolveAggregator(root).bucketComparator(Optional.ofNullable(lastPathElement().key).orElse(lastPathElement().metric), order);
     }
 
     private static String[] split(String toSplit, int index, String[] result) {

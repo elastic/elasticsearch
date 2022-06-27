@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -44,7 +44,6 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +107,13 @@ public class AllocationService {
     }
 
     /**
+     * @return The allocation deciders that the allocation service has been configured with.
+     */
+    public AllocationDeciders getAllocationDeciders() {
+        return allocationDeciders;
+    }
+
+    /**
      * Applies the started shards. Note, only initializing ShardRouting instances that exist in the routing table should be
      * provided as parameter and no duplicates should be contained.
      * <p>
@@ -146,7 +152,7 @@ public class AllocationService {
     private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
+        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -225,7 +231,7 @@ public class AllocationService {
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
                 final Set<String> failedNodeIds;
                 if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
+                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
                     failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
                     failedNodeIds.add(failedShard.currentNodeId());
                 } else {
@@ -247,7 +253,7 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.failure());
+                logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetadata, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);

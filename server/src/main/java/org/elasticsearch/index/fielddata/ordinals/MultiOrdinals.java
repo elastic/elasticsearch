@@ -190,6 +190,11 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
+        public int docValueCount() {
+            return Math.toIntExact(currentEndOffset - currentOffset);
+        }
+
+        @Override
         public BytesRef lookupOrd(long ord) {
             return values.lookupOrd(ord);
         }

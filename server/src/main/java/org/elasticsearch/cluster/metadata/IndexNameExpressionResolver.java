@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -44,7 +43,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -365,7 +363,7 @@ public class IndexNameExpressionResolver {
         }
 
         boolean excludedDataStreams = false;
-        final Set<Index> concreteIndices = new LinkedHashSet<>(expressions.size());
+        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = indicesLookup.get(expression);
@@ -735,7 +733,7 @@ public class IndexNameExpressionResolver {
                 .map(DataStreamAlias::getName)
                 .toArray(String[]::new);
         } else {
-            final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+            final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;
             if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
                 // faster to iterate indexAliases

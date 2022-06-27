@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.env.Environment;
 
 public class MockRemovePluginCommand extends RemovePluginCommand {
@@ -20,7 +21,7 @@ public class MockRemovePluginCommand extends RemovePluginCommand {
     }
 
     @Override
-    protected Environment createEnv(OptionSet options) {
+    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
         return env;
     }
 }

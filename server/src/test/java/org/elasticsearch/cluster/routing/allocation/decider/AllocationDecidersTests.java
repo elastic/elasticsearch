@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -91,13 +92,18 @@ public class AllocationDecidersTests extends ESTestCase {
         );
         IndexMetadata idx = IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
-        RoutingNode routingNode = new RoutingNode("testNode", null);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);
         verify(deciders.canAllocate(idx, routingNode, allocation), matcher);
         verify(deciders.canAllocate(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(allocation), matcher);
-        verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
+        final Decision canRemainResult = deciders.canRemain(shardRouting, routingNode, allocation);
+        if (allocation.debugDecision()) {
+            verify(canRemainResult, matcher);
+        } else {
+            assertSame(canRemainResult, Decision.YES);
+        }
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
     }
@@ -209,7 +215,7 @@ public class AllocationDecidersTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
         );
-        final RoutingNode routingNode = new RoutingNode("testNode", null);
+        final RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT))

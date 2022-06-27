@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -86,7 +87,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     static Set<ScriptContextInfo> randomInstances() {
         Set<String> names = new HashSet<>();
         int size = randomIntBetween(0, MAX_LENGTH);
-        HashSet<ScriptContextInfo> instances = new HashSet<>(size);
+        Set<ScriptContextInfo> instances = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             names.add(name);

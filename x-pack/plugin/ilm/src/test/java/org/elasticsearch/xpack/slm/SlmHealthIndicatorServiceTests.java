@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,7 +81,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(SLM_NOT_RUNNING)
                 )
             )
         );

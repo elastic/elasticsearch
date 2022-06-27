@@ -38,6 +38,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     public static final String NAME = "master_is_stable";
     private static final String HELP_URL = "https://ela.st/fix-master";
+    public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
+    public static final UserAction CONTACT_SUPPORT_USER_ACTION = new UserAction(
+        new UserAction.Definition(
+            "contact_support",
+            "The Elasticsearch cluster does not have a stable master node. Get help at " + GET_HELP_GUIDE,
+            GET_HELP_GUIDE
+        ),
+        null
+    );
 
     private final CoordinationDiagnosticsService coordinationDiagnosticsService;
 
@@ -45,6 +54,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
     private static final String DETAILS_EXCEPTION_FETCHING_HISTORY = "exception_fetching_history";
+    private static final String CLUSTER_FORMATION = "cluster_formation";
 
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
@@ -156,6 +166,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
             }
+            if (coordinationDiagnosticsDetails.clusterFormationDescription() != null) {
+                builder.object(
+                    CLUSTER_FORMATION,
+                    xContentBuilder -> { builder.field("description", coordinationDiagnosticsDetails.clusterFormationDescription()); }
+                );
+            }
             return builder.endObject();
         };
     }
@@ -167,14 +183,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private List<UserAction> getContactSupportUserActions(boolean explain) {
         if (explain) {
-            UserAction.Definition contactSupport = new UserAction.Definition(
-                "contact_support",
-                "The Elasticsearch cluster does not have a stable master node. Please contact Elastic Support "
-                    + "(https://support.elastic.co) to discuss available options.",
-                null
-            );
-            UserAction userAction = new UserAction(contactSupport, null);
-            return List.of(userAction);
+            return List.of(CONTACT_SUPPORT_USER_ACTION);
         } else {
             return List.of();
         }

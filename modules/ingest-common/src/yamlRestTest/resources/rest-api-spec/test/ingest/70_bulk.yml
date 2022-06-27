@@ -148,8 +148,8 @@ teardown:
 ---
 "Update with pipeline":
   - skip:
-      version: " - 8.3.99"
-      reason: "fixed in 8.4.0"
+      version: " - 7.17.4"
+      reason: "fixed in 7.17.5"
 
   - do:
       ingest.put_pipeline:

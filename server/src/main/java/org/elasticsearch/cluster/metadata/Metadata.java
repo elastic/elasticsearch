@@ -392,7 +392,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
+            oldestIndexVersion,
+            operatorMetadata
         );
     }
 

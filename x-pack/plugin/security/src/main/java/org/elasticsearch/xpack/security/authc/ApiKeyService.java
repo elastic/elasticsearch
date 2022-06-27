@@ -1153,7 +1153,7 @@ public class ApiKeyService {
                 .request();
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, hitParser, new ContextPreservingActionListener<>(supplier, listener))
+                () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), hitParser)
             );
         }
     }

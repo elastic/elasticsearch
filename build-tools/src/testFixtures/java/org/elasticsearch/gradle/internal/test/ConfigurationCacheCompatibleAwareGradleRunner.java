@@ -20,8 +20,6 @@ import java.io.Writer;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A Gradle runner that delegates to another runner, optionally enabling the configuring cache parameter.
@@ -79,7 +77,7 @@ public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner 
     public GradleRunner withArguments(List<String> arguments) {
         List<String> effectiveArgs = arguments;
         if (ccCompatible) {
-            effectiveArgs  = new ArrayList<>(arguments);
+            effectiveArgs = new ArrayList<>(arguments);
             effectiveArgs.add("--configuration-cache");
         }
         delegate.withArguments(effectiveArgs);

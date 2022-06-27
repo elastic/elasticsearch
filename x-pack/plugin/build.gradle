@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -84,6 +83,10 @@ tasks.named("yamlRestTestV7CompatTest").configure {
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest(
+    "autoscaling/get_autoscaling_capacity/Test get fixed autoscaling capacity",
+    "behavior changed #87895"
+  )
   task.skipTest(
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"

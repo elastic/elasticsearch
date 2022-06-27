@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutoscalingNodeInfoServiceTests extends AutoscalingTestCase {
+public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
     private NodeStatsClient client;
     private AutoscalingNodeInfoService service;
@@ -400,7 +400,7 @@ public class AutoscalingNodeInfoServiceTests extends AutoscalingTestCase {
             assertThat(
                 service.snapshot().get(n).get(),
                 equalTo(
-                    new NodeInfo(
+                    new AutoscalingNodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
                         infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getAllocatedProcessors()
                     )

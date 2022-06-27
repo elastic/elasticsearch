@@ -36,7 +36,7 @@
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.memory: 73310 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331 }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10]" }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] processors [null] nodes [10]" }
   - length: { policies.my_autoscaling_policy.current_nodes: 0 }
 
 
@@ -76,7 +76,7 @@
       autoscaling.delete_autoscaling_policy:
         name: my_autoscaling_policy
 ---
-"Test get fixed autoscaling capacity with processors`":
+"Test get fixed autoscaling capacity with processors":
   - do:
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
@@ -113,7 +113,7 @@
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.processors: 2 }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10] processors [2.0]" }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] processors [2.0] nodes [10]" }
   - length: { policies.my_autoscaling_policy.current_nodes: 0 }
 
 

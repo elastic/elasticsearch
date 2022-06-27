@@ -50,11 +50,11 @@ public class AutoscalingNodeInfoService {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private static final NodeInfo FETCHING_SENTINEL = new NodeInfo(Long.MIN_VALUE, Integer.MIN_VALUE);
+    private static final AutoscalingNodeInfo FETCHING_SENTINEL = new AutoscalingNodeInfo(Long.MIN_VALUE, Integer.MIN_VALUE);
 
     private static final Logger logger = LogManager.getLogger(AutoscalingNodeInfoService.class);
 
-    private volatile Map<String, NodeInfo> nodeToMemory = Map.of();
+    private volatile Map<String, AutoscalingNodeInfo> nodeToMemory = Map.of();
     private volatile TimeValue fetchTimeout;
 
     private final Client client;
@@ -139,14 +139,15 @@ public class AutoscalingNodeInfoService {
                                     .toArray(String[]::new)
                             ).clear().addMetric(NodesInfoRequest.Metric.OS.metricName()).timeout(fetchTimeout),
                             ActionListener.wrap(nodesInfoResponse -> {
-                                final Map<String, NodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
+                                final Map<String, AutoscalingNodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
                                     nodesStatsResponse.getNodes().size()
                                 );
                                 nodesStatsResponse.getNodes()
                                     .forEach(
                                         nodeStats -> builderBuilder.put(
                                             nodeStats.getNode().getEphemeralId(),
-                                            NodeInfo.builder().setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
+                                            AutoscalingNodeInfo.builder()
+                                                .setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
                                         )
                                     );
                                 nodesInfoResponse.getNodes().forEach(nodeInfo -> {
@@ -158,7 +159,7 @@ public class AutoscalingNodeInfoService {
                                     );
                                 });
                                 synchronized (mutex) {
-                                    Map<String, NodeInfo> builder = new HashMap<>(nodeToMemory);
+                                    Map<String, AutoscalingNodeInfo> builder = new HashMap<>(nodeToMemory);
                                     // Remove all from the builder that failed getting info and stats
                                     Stream.concat(nodesStatsResponse.failures().stream(), nodesInfoResponse.failures().stream())
                                         .map(FailedNodeException::nodeId)
@@ -218,10 +219,10 @@ public class AutoscalingNodeInfoService {
         }
     }
 
-    public AutoscalingNodeInfo snapshot() {
-        final Map<String, NodeInfo> nodeToMemoryRef = this.nodeToMemory;
+    public AutoscalingNodesInfo snapshot() {
+        final Map<String, AutoscalingNodeInfo> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            NodeInfo result = nodeToMemoryRef.get(node.getEphemeralId());
+            AutoscalingNodeInfo result = nodeToMemoryRef.get(node.getEphemeralId());
             if (result == FETCHING_SENTINEL) {
                 return Optional.empty();
             } else {

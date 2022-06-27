@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 public class FixedAutoscalingDeciderService implements AutoscalingDeciderService {
 
@@ -130,11 +129,11 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             return String.format(
                 Locale.ROOT,
                 // We allow processors to be optional in the output for API backwards compatibility
-                "fixed storage [%s] memory [%s] nodes [%d]%s",
+                "fixed storage [%s] memory [%s] processors [%s] nodes [%d]",
                 storage,
                 memory,
-                nodes,
-                Optional.ofNullable(processors).map(i -> " processors [" + i + "]").orElse("")
+                processors,
+                nodes
             );
         }
 

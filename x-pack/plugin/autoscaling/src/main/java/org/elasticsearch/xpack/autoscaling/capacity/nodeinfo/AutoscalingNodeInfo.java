@@ -7,17 +7,38 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+/**
+ * Record for containing memory and processors for given node
+ * @param memory node total memory
+ * @param processors allocated processors
+ */
+public record AutoscalingNodeInfo(long memory, float processors) {
 
-import java.util.Optional;
+    static Builder builder() {
+        return new Builder();
+    }
 
-public interface AutoscalingNodeInfo {
-    AutoscalingNodeInfo EMPTY = n -> Optional.empty();
+    static class Builder {
+        private Long memory;
+        private Float processors;
 
-    /**
-     * Get the memory and processor use for the indicated node. Returns null if not available (new, fetching or failed).
-     * @param node the node to get info for
-     * @return memory and processor info for node if possible
-     */
-    Optional<NodeInfo> get(DiscoveryNode node);
+        Builder setMemory(long memory) {
+            this.memory = memory;
+            return this;
+        }
+
+        Builder setProcessors(float processors) {
+            this.processors = processors;
+            return this;
+        }
+
+        boolean canBuild() {
+            return memory != null && processors != null;
+        }
+
+        AutoscalingNodeInfo build() {
+            assert memory != null && processors != null : "unexpected null values when building node memory and processors information";
+            return new AutoscalingNodeInfo(memory, processors);
+        }
+    }
 }

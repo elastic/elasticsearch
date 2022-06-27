@@ -92,6 +92,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -759,6 +760,38 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    private void checkSingleNodeCluster() {
+        if (applierState.nodes().size() > 1) {
+            return;
+        }
+
+        List<TransportAddress> lastResolvedAddresses = peerFinder.getLastResolvedAddresses();
+        if (lastResolvedAddresses.isEmpty()) {
+            return;
+        }
+
+        // Ignore default case where the seed hosts are the default seed addresses from settings.
+        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings) == false) {
+            Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
+            if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
+                return;
+            }
+        }
+
+        logger.warn(
+            """
+                This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to discover \
+                other nodes and form a multi-node cluster via [{}]. Fully-formed clusters do not attempt to discover other nodes, \
+                and nodes with different cluster UUIDs cannot belong to the same cluster. The cluster UUID persists across \
+                restarts and can only be changed by deleting the contents of the node's data path(s). Remove the discovery \
+                configuration to suppress this message.""",
+            applierState.metadata().clusterUUID(),
+            DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)
+                ? DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "=" + DISCOVERY_SEED_PROVIDERS_SETTING.get(settings)
+                : DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+        );
+    }
+
     void becomeCandidate(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug(
@@ -828,41 +861,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         if (applierState.nodes().size() > 1) {
             cancelSingleNodeClusterChecker();
         } else if (singleNodeClusterChecker == null) {
-            singleNodeClusterChecker = transportService.getThreadPool().scheduleWithFixedDelay(() -> {
-                if (applierState.nodes().size() > 1) {
-                    return;
-                }
-
-                List<TransportAddress> lastResolvedAddresses = peerFinder.getLastResolvedAddresses();
-                if (lastResolvedAddresses.isEmpty()) {
-                    return;
-                }
-
-                if (lastResolvedAddresses.size() == 1 && lastResolvedAddresses.get(0) == this.getLocalNode().getAddress()) {
-                    return;
-                }
-
-                // Ignore default case where the seed hosts are the default seed addresses from settings.
-                if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings) == false) {
-                    List<String> lastResolvedAddressesAsStrings = lastResolvedAddresses.stream()
-                        .map(Object::toString)
-                        .collect(Collectors.toUnmodifiableList());
-                    List<String> defaultAddresses = transportService.getDefaultSeedAddresses();
-                    if (defaultAddresses.containsAll(lastResolvedAddressesAsStrings)) {
-                        return;
-                    }
-                }
-
-                logger.warn(
-                    "This node is a fully-formed single-node cluster with cluster UUID [{}], but seed hosts "
-                        + "(discovery.seed_hosts and/or discovery.seed_providers settings) have been provided as if to "
-                        + "discover other nodes and form a multi-node cluster. Fully-formed clusters do not attempt to "
-                        + "discover other nodes, and nodes with different cluster UUIDs cannot belong to the same "
-                        + "cluster. The cluster UUID persists across restarts and can only be changed by deleting the "
-                        + "contents of the node's data path(s). Remove the discovery seed hosts to suppress this message.",
-                    applierState.metadata().clusterUUID()
-                );
-            }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
+            singleNodeClusterChecker = transportService.getThreadPool()
+                .scheduleWithFixedDelay(() -> { checkSingleNodeCluster(); }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
         }
     }
 

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.gradle.fixtures
 
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
+import org.gradle.api.Plugin
 
-abstract class AbstractGradlePrecommitPluginFuncTest extends AbstractJavaGradleFuncTest {
+abstract class AbstractGradleInternalPluginFuncTest extends AbstractJavaGradleFuncTest {
 
-    abstract <T extends PrecommitPlugin> Class<T> getPluginClassUnderTest();
+    abstract <T extends Plugin> Class<T> getPluginClassUnderTest();
 
     def setup() {
         buildFile << """

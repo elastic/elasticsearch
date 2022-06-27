@@ -187,26 +187,40 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-  "count": 1,
-  "data_frame_analytics": [
+  "count" : 1,
+  "data_frame_analytics" : [
     {
-      "id": "loganalytics",
-      "source": {
-        "index": "logdata",
-        "query": {
-          "match_all": {}
+      "id" : "loganalytics",
+      "create_time" : 1656364565517,
+      "version" : "8.4.0",
+      "authorization" : {
+        "roles" : [
+          "superuser"
+        ]
+      },
+      "description" : "Outlier detection on log data",
+      "source" : {
+        "index" : [
+          "logdata"
+        ],
+        "query" : {
+          "match_all" : { }
         }
       },
-      "dest": {
-        "index": "logdata_out",
-        "results_field": "ml"
+      "dest" : {
+        "index" : "logdata_out",
+        "results_field" : "ml"
       },
-      "analysis": {
-        "outlier_detection": {}
+      "analysis" : {
+        "outlier_detection" : {
+          "compute_feature_influence" : true,
+          "outlier_fraction" : 0.05,
+          "standardization_enabled" : true
+        }
       },
-      "model_memory_limit": "1gb",
-      "create_time": 1562265491319,
-      "version": "8.0.0"
+      "model_memory_limit" : "1gb",
+      "allow_lazy_start" : false,
+      "max_num_threads" : 1
     }
   ]
 }

@@ -477,15 +477,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
-    private static void copyFieldMappings(List<String> fields, Map<String, Object> sourceIndexMappingProperties, XContentBuilder builder)
-        throws IOException {
+    private static void copyFieldMappings(
+        final List<String> fields,
+        final Map<String, Object> sourceIndexMappingProperties,
+        final XContentBuilder builder
+    ) throws IOException {
+        @SuppressWarnings("unchecked")
+        final Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
         for (final String field : fields) {
-            @SuppressWarnings("unchecked")
-            final Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
             final Map<String, ?> fieldProperties = resolveFieldProperties(properties, Arrays.asList(field.split("\\.")));
             if (fieldProperties.isEmpty() == false) {
                 builder.startObject(field);
-                for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
+                for (final Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
                     builder.field(fieldProperty.getKey(), fieldProperty.getValue());
                 }
                 builder.endObject();
@@ -494,7 +497,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, ?> resolveFieldProperties(Map<String, ?> properties, List<String> fieldPath) {
+    private static Map<String, ?> resolveFieldProperties(final Map<String, ?> properties, final List<String> fieldPath) {
         if (properties == null || properties.isEmpty()) {
             throw new IllegalArgumentException("Empty properties");
         }

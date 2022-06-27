@@ -232,22 +232,28 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
-            for (int i = 0; i < 60; i++) {
+            final int numTicks = 60;
+            for (int i = 0; i < numTicks; i++) {
                 fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                 indexDocs(shard, randomIntBetween(1, 20));
                 shard.refresh("test");
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
+            assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(0L)));
 
             mergePolicy.swapDelegate(new TieredMergePolicy());
 
-            fakeClock.setTickValue(TimeValue.timeValueSeconds(120));
-            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            // Now force-merge every second and every force-merge should take 1 second
+            for (int i = 0; i < numTicks; i++) {
+                fakeClock.setTickValue(TimeValue.timeValueSeconds(1));
+                shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
 
-            indicesWriteLoadStatsCollector.collectWriteLoadStats();
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+                indexDocs(shard, randomIntBetween(1, 10));
+            }
 
-            assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(120).millis())));
+            assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(numTicks).millis())));
 
             final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
@@ -256,7 +262,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
 
-            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(120.0, 0.5)));
+            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.1)));
         }
     }
 

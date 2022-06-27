@@ -155,7 +155,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             long totalMergeTimeInNanosSample = TimeUnit.MILLISECONDS.toNanos(totalMergeTimeInMillisSample);
             long mergeTimeDeltaInNanos = totalMergeTimeInNanosSample - lastTotalMergeTimeSample;
-            lastTotalMergeTimeSample = totalMergeTimeInMillisSample;
+            lastTotalMergeTimeSample = totalMergeTimeInNanosSample;
 
             long refreshTimeDeltaInNanos = totalRefreshTimeInNanos - lastTotalRefreshTimeSample;
             lastTotalRefreshTimeSample = totalRefreshTimeInNanos;

@@ -177,6 +177,9 @@ setup:
 
 ---
 "Direct kNN queries are disallowed":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'error message changed in 8.4'
   - do:
       catch: bad_request
       search:

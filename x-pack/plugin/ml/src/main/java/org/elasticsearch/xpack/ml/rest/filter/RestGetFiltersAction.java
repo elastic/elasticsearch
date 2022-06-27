@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -55,7 +56,11 @@ public class RestGetFiltersAction extends BaseRestHandler {
                 )
             );
         }
-        return channel -> client.execute(GetFiltersAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetFiltersAction.INSTANCE,
+            request,
+            new RestStatusToXContentListener<>(channel)
+        );
     }
 
 }

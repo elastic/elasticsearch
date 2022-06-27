@@ -771,6 +771,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         // Ignore case where the seed hosts are from the default seed addresses
+        // TODO: It may be better to consider this `if` only if DISCOVERY_SEED_HOSTS_SETTING is not set. In order to do that, we should
+        //       ensure that there are no users inputting a single-node address in the unicast_hosts.txt file. #88075
         Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
         if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
             return;

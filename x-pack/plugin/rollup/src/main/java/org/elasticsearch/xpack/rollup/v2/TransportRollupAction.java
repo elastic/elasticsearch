@@ -307,10 +307,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                                                     mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
                                                                     e -> {
                                                                         /*
-                                                                         * At this point rollup has been successful even if force-merge fails.
-                                                                         * Also, we have deleted the source index and there is no way we can
-                                                                         * roll back and restart the operation. So, we should not fail the rollup
-                                                                         * operation.
+                                                                         * At this point rollup has been successful even if force-merge
+                                                                         * fails. Also, we have deleted the source index and there is no
+                                                                         * way we can roll back and restart the operation. So, we should
+                                                                         * not fail the rollup operation.
                                                                          */
                                                                         logger.error(
                                                                             "Failed to force-merge rollup index [" + rollupIndexName + "]",

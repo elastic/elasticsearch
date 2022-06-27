@@ -32,12 +32,13 @@ import javax.inject.Inject;
 
 public class UploadSnykDependenciesGraph extends DefaultTask {
 
-    public static final String GRADLE_GRAPH_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/gradle/graph";
+    public static final String DEFAULT_SERVER = "https://snyk.io";
+    public static final String GRADLE_GRAPH_ENDPOINT = "/api/v1/monitor/gradle/graph";
 
     // This is new `experimental` api endpoint we might want to support in the future. For now it
     // does not allow grouping projects and adding custom metadata to the graph data. Therefore
     // we do not support this yet but keep it here for documentation purposes
-    public static final String SNYK_DEP_GRAPH_API_ENDPOINT_URL = "https://snyk.io/api/v1/monitor/dep-graph";
+    public static final String SNYK_DEP_GRAPH_API_ENDPOINT = "/api/v1/monitor/dep-graph";
 
     private final RegularFileProperty inputFile;
     private final Property<String> token;
@@ -46,7 +47,7 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     @Inject
     public UploadSnykDependenciesGraph(ObjectFactory objectFactory) {
-        url = objectFactory.property(String.class).convention(GRADLE_GRAPH_ENDPOINT_URL);
+        url = objectFactory.property(String.class).convention(DEFAULT_SERVER + GRADLE_GRAPH_ENDPOINT);
         projectId = objectFactory.property(String.class);
         token = objectFactory.property(String.class);
         inputFile = objectFactory.fileProperty();
@@ -77,7 +78,7 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
 
     private String calculateEffectiveEndpoint() {
         String url = this.url.get();
-        return url.equals(GRADLE_GRAPH_ENDPOINT_URL) ? url : projectId.map(id -> url + "?org=" + id).getOrElse(url);
+        return url.endsWith(GRADLE_GRAPH_ENDPOINT) ? url : projectId.map(id -> url + "?org=" + id).getOrElse(url);
     }
 
     @Input

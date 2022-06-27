@@ -9,16 +9,17 @@
 package org.elasticsearch.gradle.internal.snyk
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
-import org.elasticsearch.gradle.fixtures.http.HttpServerRule
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Rule
 import org.skyscreamer.jsonassert.JSONAssert
 
-class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+import static java.net.HttpURLConnection.HTTP_CREATED
+import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR
+import static org.elasticsearch.gradle.fixtures.WiremockFixture.PUT
+import static org.elasticsearch.gradle.fixtures.WiremockFixture.withWireMock
+import static org.elasticsearch.gradle.internal.snyk.UploadSnykDependenciesGraph.GRADLE_GRAPH_ENDPOINT
 
-    @Rule
-    public HttpServerRule httpServer = new HttpServerRule()
+class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = SnykDependencyMonitoringGradlePlugin.class
 
@@ -161,32 +162,32 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
 
     def "upload fails with reasonable error message"() {
         given:
-        httpServer.registerHandler("/api/v1/monitor/gradle/graph") { handler ->
-            handler.responseBody = "Success!"
-            handler.expectedHttpResponseCode = HttpURLConnection.HTTP_CREATED
-        }
-
         buildFile << """
             apply plugin:'java'
-            
-            tasks.named('uploadSnykDependencyGraph').configure {
-                getUrl().set("${httpServer.getUriFor('/api/v1/monitor/gradle/graph')}")
-                getToken().set("myToken")
-            }
         """
         when:
-        def result = gradleRunner("uploadSnykDependencyGraph", '-i').build()
+        def result = withWireMock(PUT, "/api/v1/monitor/gradle/graph", "OK", HTTP_CREATED) { server ->
+            buildFile <<  """
+            tasks.named('uploadSnykDependencyGraph').configure {
+                getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
+                getToken().set("myToken")
+            }
+            """
+            gradleRunner("uploadSnykDependencyGraph", '-i', '--stacktrace').build()
+        }
         then:
         result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
         result.output.contains("Snyk API call response status: 201")
 
         when:
-        httpServer.registerHandler("/api/v1/monitor/gradle/graph") { handler ->
-            handler.responseBody = "Internal Error"
-            handler.expectedHttpResponseCode = HttpURLConnection.HTTP_INTERNAL_ERROR
+        result = withWireMock(PUT, GRADLE_GRAPH_ENDPOINT, "Internal Error", HTTP_INTERNAL_ERROR) { server ->
+            buildFile <<  """
+            tasks.named('uploadSnykDependencyGraph').configure {
+                getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
+            }
+            """
+            gradleRunner("uploadSnykDependencyGraph", '-i').buildAndFail()
         }
-
-        result = gradleRunner("uploadSnykDependencyGraph").buildAndFail()
 
         then:
         result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.FAILED

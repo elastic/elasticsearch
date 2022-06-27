@@ -87,7 +87,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
 
         @Override
         public String toString() {
-            return "Request{nodeId='" + nodeId + '\'' + ", modelId='" + modelId + '\'' + ", update=" + update + '}';
+            return "Request{nodeId='" + nodeId + "', modelId='" + modelId + "', update=" + update + '}';
         }
     }
 

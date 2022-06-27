@@ -104,7 +104,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextFieldInfo{declaring='" + declaring + '\'' + ", name='" + name + '\'' + ", type='" + type + '\'' + '}';
+        return "PainlessContextFieldInfo{declaring='" + declaring + "', name='" + name + "', type='" + type + '\'' + '}';
     }
 
     public String getDeclaring() {

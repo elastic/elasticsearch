@@ -36,6 +36,6 @@ public final class TestNode {
 
     @Override
     public String toString() {
-        return "Node{id='" + id + '\'' + ", version=" + version + '}';
+        return "Node{id='" + id + "', version=" + version + '}';
     }
 }

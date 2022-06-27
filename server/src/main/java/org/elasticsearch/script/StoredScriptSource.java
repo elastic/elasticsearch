@@ -378,6 +378,6 @@ public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, W
 
     @Override
     public String toString() {
-        return "StoredScriptSource{lang='" + lang + '\'' + ", source='" + source + '\'' + ", options=" + options + '}';
+        return "StoredScriptSource{lang='" + lang + "', source='" + source + "', options=" + options + '}';
     }
 }

@@ -116,7 +116,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
 
     @Override
     public String toString() {
-        return shardId + ": name='" + name() + '\'' + ", position=" + position + ", length=" + length();
+        return shardId + ": name='" + name() + "', position=" + position + ", length=" + length();
     }
 
     public StoreFileMetadata metadata() {

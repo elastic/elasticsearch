@@ -104,7 +104,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @Override
     public String toString() {
-        return "PainlessContextConstructorInfo{declaring='" + declaring + '\'' + ", parameters=" + parameters + '}';
+        return "PainlessContextConstructorInfo{declaring='" + declaring + "', parameters=" + parameters + '}';
     }
 
     public String getDeclaring() {

@@ -773,6 +773,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     @Override
     public String toString() {
-        return "ObjectParser{name='" + name + '\'' + ", fields=" + fieldParserMap + '}';
+        return "ObjectParser{name='" + name + "', fields=" + fieldParserMap + '}';
     }
 }

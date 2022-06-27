@@ -199,7 +199,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
         @Override
         public String toString() {
-            return "QueryContext{context='" + context + '\'' + ", boost=" + boost + ", isPrefix=" + isPrefix + '}';
+            return "QueryContext{context='" + context + "', boost=" + boost + ", isPrefix=" + isPrefix + '}';
         }
     }
 }

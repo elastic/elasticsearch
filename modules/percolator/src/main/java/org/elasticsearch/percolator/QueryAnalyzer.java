@@ -563,7 +563,7 @@ final class QueryAnalyzer {
 
         @Override
         public String toString() {
-            return "Range{fieldName='" + fieldName + '\'' + ", interval=" + interval + '}';
+            return "Range{fieldName='" + fieldName + "', interval=" + interval + '}';
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 85932
+summary: Add ability to skip the rest of the processors in a pipeline
+area: Ingest Node
+type: enhancement
+issues: []

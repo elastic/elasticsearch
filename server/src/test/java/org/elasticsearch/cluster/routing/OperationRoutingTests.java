@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -159,7 +160,7 @@ public class OperationRoutingTests extends ESTestCase {
         String sessionKey = randomAlphaOfLength(10);
         for (int i = 0; i < numRepeatedSearches; i++) {
             List<ShardRouting> searchedShards = new ArrayList<>(numShards);
-            Set<String> selectedNodes = new HashSet<>(numShards);
+            Set<String> selectedNodes = Sets.newHashSetWithExpectedSize(numShards);
             final GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
 
             assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));

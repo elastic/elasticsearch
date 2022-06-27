@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,16 +30,15 @@ public class ResizeAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        if (unassignedInfo != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+        if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
             final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-            Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
+            final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
             assert resizeSourceIndex != null;
-            if (allocation.metadata().index(resizeSourceIndex) == null) {
+            final IndexMetadata sourceIndexMetadata = allocation.metadata().index(resizeSourceIndex);
+            if (sourceIndexMetadata == null) {
                 return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
             }
-            IndexMetadata sourceIndexMetadata = allocation.metadata().getIndexSafe(resizeSourceIndex);
             if (indexMetadata.getNumberOfShards() < sourceIndexMetadata.getNumberOfShards()) {
                 // this only handles splits and clone so far.
                 return Decision.ALWAYS;

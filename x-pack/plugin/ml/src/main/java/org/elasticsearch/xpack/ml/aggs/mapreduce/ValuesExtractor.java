@@ -90,7 +90,7 @@ public abstract class ValuesExtractor {
         return new LongValue(new Field(fieldName, id), (Numeric) vs, config.format());
     }
 
-    public static class Keyword extends ValuesExtractor {
+    static class Keyword extends ValuesExtractor {
         private final ValuesSource.Bytes source;
 
         Keyword(Field field, ValuesSource.Bytes source, DocValueFormat format) {
@@ -116,7 +116,7 @@ public abstract class ValuesExtractor {
         }
     }
 
-    public static class LongValue extends ValuesExtractor {
+    static class LongValue extends ValuesExtractor {
         private final ValuesSource.Numeric source;
 
         LongValue(Field field, ValuesSource.Numeric source, DocValueFormat format) {

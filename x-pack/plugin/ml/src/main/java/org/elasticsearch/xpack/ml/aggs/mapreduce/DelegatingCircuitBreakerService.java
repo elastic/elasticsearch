@@ -54,7 +54,7 @@ import java.util.function.Consumer;
  *
  * Further follow up is tracked in gh#TBD
  */
-public class DelegatingCircuitBreakerService extends CircuitBreakerService {
+final class DelegatingCircuitBreakerService extends CircuitBreakerService {
 
     private static class DelegatingCircuitBreaker implements CircuitBreaker {
 

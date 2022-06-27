@@ -88,7 +88,9 @@ public class HealthMetadataService {
     }
 
     private HealthMetadata createHealthMetadata() {
-        return new HealthMetadata(HealthMetadata.DiskHealthThresholds.from(allocationDiskThresholdSettings, healthDiskThresholdSettings));
+        return new HealthMetadata(
+            HealthMetadata.DiskThresholds.createDiskThresholds(allocationDiskThresholdSettings, healthDiskThresholdSettings)
+        );
     }
 
     private void submitHealthMetadata(String source) {

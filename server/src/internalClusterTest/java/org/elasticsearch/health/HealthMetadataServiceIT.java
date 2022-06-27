@@ -51,21 +51,21 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             String electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().lowWatermark();
-                assertThat(lowWatermark.describe(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(lowWatermark.toStringRep(), equalTo(watermarkByNode.get(electedMaster)));
             }
 
-            // Stop the master to ensure another node will be come master with a different watermark
+            // Stop the master to ensure another node will become master with a different watermark
             internalCluster.stopNode(electedMaster);
             ensureStableCluster(numberOfNodes - 1);
             electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().lowWatermark();
-                assertThat(lowWatermark.describe(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(lowWatermark.toStringRep(), equalTo(watermarkByNode.get(electedMaster)));
             }
         }
     }
@@ -86,10 +86,10 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             ensureStableCluster(numberOfNodes);
             {
-                HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().lowWatermark();
-                assertThat(lowWatermark.describe(), equalTo(initialWatermark));
+                assertThat(lowWatermark.toStringRep(), equalTo(initialWatermark));
             }
             internalCluster.client()
                 .admin()
@@ -97,10 +97,10 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(createWatermarkSettings(updatedWatermark)))
                 .actionGet();
             assertBusy(() -> {
-                HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().lowWatermark();
-                assertThat(lowWatermark.describe(), equalTo(updatedWatermark));
+                assertThat(lowWatermark.toStringRep(), equalTo(updatedWatermark));
             });
         }
     }
@@ -115,33 +115,27 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 startNode(internalCluster, initialThreshold);
             }
 
-            String updatedThreshold = percentageMode
+            String updatedYellowThreshold = percentageMode
                 ? randomIntBetween(40, 59) + "%"
                 : new ByteSizeValue(randomIntBetween(101, 200)).toString();
 
             ensureStableCluster(numberOfNodes);
             {
-                HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().lowWatermark();
-                assertThat(lowWatermark.describe(), equalTo(initialThreshold));
+                assertThat(lowWatermark.toStringRep(), equalTo(initialThreshold));
             }
             internalCluster.client()
                 .admin()
                 .cluster()
-                .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
-                        Settings.builder()
-                            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), updatedThreshold)
-                            .build()
-                    )
-                )
+                .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(createThresholdSettings(updatedYellowThreshold)))
                 .actionGet();
             assertBusy(() -> {
-                HealthMetadata.DiskHealthThresholds.Threshold yellowThreshold = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskThresholds.DiskThreshold yellowThreshold = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
                 ).getDiskThresholds().yellowThreshold();
-                assertThat(yellowThreshold.describe(), equalTo(updatedThreshold));
+                assertThat(yellowThreshold.toStringRep(), equalTo(updatedYellowThreshold));
             });
         }
     }
@@ -156,6 +150,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
     }
 
     private Settings createWatermarkSettings(String lowWatermark) {
+        // We define both thresholds to avoid inconsistencies over the type of the thresholds
         return Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), lowWatermark)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), percentageMode ? "90%" : "5b")
@@ -165,6 +160,14 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             )
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.getKey(), percentageMode ? "90%" : "5b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b")
+            .build();
+    }
+
+    private Settings createThresholdSettings(String yellowThreshold) {
+        // We define both thresholds to avoid inconsistencies over the type of the thresholds
+        return Settings.builder()
+            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), yellowThreshold)
+            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), percentageMode ? "90%" : "5b")
             .build();
     }
 }

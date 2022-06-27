@@ -63,4 +63,19 @@ public class RatioValue {
 
         }
     }
+
+    public static String formatPercentNoTrailingZeros(double percent) {
+        String value = String.valueOf(percent);
+        int i = value.length() - 1;
+        while (i >= 0 && value.charAt(i) == '0') {
+            i--;
+        }
+        if (i < 0) {
+            return "0%";
+        } else if (value.charAt(i) == '.') {
+            return value.substring(0, i) + "%";
+        } else {
+            return value.substring(0, Math.min(i + 1, value.length())) + "%";
+        }
+    }
 }

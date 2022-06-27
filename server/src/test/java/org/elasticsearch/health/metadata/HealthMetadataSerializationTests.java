@@ -60,8 +60,8 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
         return new HealthMetadata(randomDiskHealthThresholds());
     }
 
-    private static HealthMetadata.DiskHealthThresholds randomDiskHealthThresholds() {
-        return new HealthMetadata.DiskHealthThresholds(
+    private static HealthMetadata.DiskThresholds randomDiskHealthThresholds() {
+        return new HealthMetadata.DiskThresholds(
             randomDiskThresholdValue(),
             randomDiskThresholdValue(),
             randomDiskThresholdValue(),
@@ -72,18 +72,22 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
         );
     }
 
-    private static HealthMetadata.DiskHealthThresholds.Threshold randomDiskThresholdValue() {
-        return new HealthMetadata.DiskHealthThresholds.Threshold(randomDouble(), ByteSizeValue.ofGb(randomIntBetween(10, 999)));
+    private static HealthMetadata.DiskThresholds.DiskThreshold randomDiskThresholdValue() {
+        if (randomBoolean()) {
+            return new HealthMetadata.DiskThresholds.DiskThreshold(ByteSizeValue.ofGb(randomIntBetween(10, 999)));
+        } else {
+            return new HealthMetadata.DiskThresholds.DiskThreshold(randomDouble());
+        }
     }
 
-    static HealthMetadata.DiskHealthThresholds mutateDiskThresholds(HealthMetadata.DiskHealthThresholds base) {
-        HealthMetadata.DiskHealthThresholds.Threshold lowWatermark = base.lowWatermark();
-        HealthMetadata.DiskHealthThresholds.Threshold highWatermark = base.highWatermark();
-        HealthMetadata.DiskHealthThresholds.Threshold floodStageWatermark = base.floodStageWatermark();
-        HealthMetadata.DiskHealthThresholds.Threshold floodStageWatermarkFrozen = base.floodStageWatermarkFrozen();
-        ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.floodStageWatermarkFrozenMaxHeadroom();
-        HealthMetadata.DiskHealthThresholds.Threshold yellowThreshold = base.yellowThreshold();
-        HealthMetadata.DiskHealthThresholds.Threshold redThreshold = base.redThreshold();
+    static HealthMetadata.DiskThresholds mutateDiskThresholds(HealthMetadata.DiskThresholds base) {
+        HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = base.lowWatermark();
+        HealthMetadata.DiskThresholds.DiskThreshold highWatermark = base.highWatermark();
+        HealthMetadata.DiskThresholds.DiskThreshold floodStageWatermark = base.floodStageWatermark();
+        HealthMetadata.DiskThresholds.DiskThreshold floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
+        ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
+        HealthMetadata.DiskThresholds.DiskThreshold yellowThreshold = base.yellowThreshold();
+        HealthMetadata.DiskThresholds.DiskThreshold redThreshold = base.redThreshold();
         switch (randomInt(6)) {
             case 0 -> lowWatermark = randomDiskThresholdValue();
             case 1 -> highWatermark = randomDiskThresholdValue();
@@ -93,7 +97,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
             case 5 -> yellowThreshold = randomDiskThresholdValue();
             case 6 -> redThreshold = randomDiskThresholdValue();
         }
-        return new HealthMetadata.DiskHealthThresholds(
+        return new HealthMetadata.DiskThresholds(
             lowWatermark,
             highWatermark,
             floodStageWatermark,

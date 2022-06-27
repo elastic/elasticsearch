@@ -11,6 +11,7 @@ package org.elasticsearch.health.metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.DiskThresholdParser;
 
 import java.util.Collection;
@@ -42,8 +43,8 @@ public class HealthDiskThresholdSettings {
         Setting.Property.NodeScope
     );
 
-    private volatile HealthMetadata.DiskHealthThresholds.Threshold yellowThreshold;
-    private volatile HealthMetadata.DiskHealthThresholds.Threshold redThreshold;
+    private volatile RelativeByteSizeValue yellowThreshold;
+    private volatile RelativeByteSizeValue redThreshold;
     private final Collection<Listener> listeners = new CopyOnWriteArrayList<>();
 
     public HealthDiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
@@ -54,26 +55,26 @@ public class HealthDiskThresholdSettings {
     }
 
     private void setYellowThreshold(String yellowThreshold) {
-        this.yellowThreshold = new HealthMetadata.DiskHealthThresholds.Threshold(
-            DiskThresholdParser.thresholdPercentageFromThreshold(yellowThreshold),
-            DiskThresholdParser.thresholdBytesFromThreshold(yellowThreshold, CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey())
+        this.yellowThreshold = RelativeByteSizeValue.parseRelativeByteSizeValue(
+            yellowThreshold,
+            CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
         );
         listeners.forEach(Listener::onChange);
     }
 
     private void setRedThreshold(String redThreshold) {
-        this.redThreshold = new HealthMetadata.DiskHealthThresholds.Threshold(
-            DiskThresholdParser.thresholdPercentageFromThreshold(redThreshold),
-            DiskThresholdParser.thresholdBytesFromThreshold(redThreshold, CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey())
+        this.redThreshold = RelativeByteSizeValue.parseRelativeByteSizeValue(
+            redThreshold,
+            CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
         );
         listeners.forEach(Listener::onChange);
     }
 
-    public HealthMetadata.DiskHealthThresholds.Threshold getYellowThreshold() {
+    public RelativeByteSizeValue getYellowThreshold() {
         return yellowThreshold;
     }
 
-    public HealthMetadata.DiskHealthThresholds.Threshold getRedThreshold() {
+    public RelativeByteSizeValue getRedThreshold() {
         return redThreshold;
     }
 

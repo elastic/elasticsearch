@@ -14,13 +14,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.common.util.DiskThresholdParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -32,7 +32,7 @@ import java.util.EnumSet;
 import java.util.Objects;
 
 /**
- * A cluster state record that contains a list of all the thresholds used to determine if a node is healthy.
+ * A cluster state entry that contains a list of all the thresholds used to determine if a node is healthy.
  */
 public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
@@ -41,23 +41,23 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
     public static final ConstructingObjectParser<HealthMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         true,
-        args -> new HealthMetadata((DiskHealthThresholds) args[0])
+        args -> new HealthMetadata((DiskThresholds) args[0])
     );
 
     private static final ParseField DISK_THRESHOLDS = new ParseField("disk_thresholds");
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DiskHealthThresholds.fromXContent(p), DISK_THRESHOLDS);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DiskThresholds.fromXContent(p), DISK_THRESHOLDS);
     }
 
-    private final DiskHealthThresholds diskThresholds;
+    private final DiskThresholds diskThresholds;
 
-    public HealthMetadata(DiskHealthThresholds diskThresholds) {
+    public HealthMetadata(DiskThresholds diskThresholds) {
         this.diskThresholds = diskThresholds;
     }
 
     public HealthMetadata(StreamInput in) throws IOException {
-        this.diskThresholds = new DiskHealthThresholds(in);
+        this.diskThresholds = new DiskThresholds(in);
     }
 
     @Override
@@ -105,7 +105,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         return Metadata.API_AND_GATEWAY;
     }
 
-    public DiskHealthThresholds getDiskThresholds() {
+    public DiskThresholds getDiskThresholds() {
         return diskThresholds;
     }
 
@@ -126,99 +126,88 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
      * Contains the thresholds necessary to determine the health of the disk space of a node. The thresholds are determined by the elected
      * master.
      */
-    public record DiskHealthThresholds(
-        Threshold lowWatermark,
-        Threshold highWatermark,
-        Threshold floodStageWatermark,
-        Threshold floodStageWatermarkFrozen,
-        ByteSizeValue floodStageWatermarkFrozenMaxHeadroom,
-        Threshold yellowThreshold,
-        Threshold redThreshold
+    public record DiskThresholds(
+        DiskThreshold lowWatermark,
+        DiskThreshold highWatermark,
+        DiskThreshold floodStageWatermark,
+        DiskThreshold frozenFloodStageWatermark,
+        ByteSizeValue frozenFloodStageMaxHeadroom,
+        DiskThreshold yellowThreshold,
+        DiskThreshold redThreshold
     ) implements ToXContentFragment, Writeable {
 
         private static final ParseField LOW_WATERMARK_FIELD = new ParseField("low_watermark");
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField FLOOD_STAGE_WATERMARK_FIELD = new ParseField("flood_stage_watermark");
-        private static final ParseField FLOOD_STAGE_WATERMARK_FROZEN_FIELD = new ParseField("flood_stage_watermark_frozen");
-        private static final ParseField FLOOD_STAGE_WATERMARK_FROZEN_MAX_HEADROOM_FIELD = new ParseField(
-            "flood_stage_watermark_frozen_max_headroom"
-        );
+        private static final ParseField FROZEN_FLOOD_STAGE_WATERMARK_FIELD = new ParseField("frozen_flood_stage_watermark");
+        private static final ParseField FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD = new ParseField("frozen_flood_stage_max_headroom");
         private static final ParseField YELLOW_THRESHOLD_FIELD = new ParseField("yellow_threshold");
         private static final ParseField RED_THRESHOLD_FIELD = new ParseField("red_threshold");
 
-        public static final ConstructingObjectParser<DiskHealthThresholds, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<DiskThresholds, Void> PARSER = new ConstructingObjectParser<>(
             "disk_thresholds",
             true,
-            (args) -> new DiskHealthThresholds(
-                (Threshold) args[0],
-                (Threshold) args[1],
-                (Threshold) args[2],
-                (Threshold) args[3],
-                ByteSizeValue.parseBytesSizeValue((String) args[4], FLOOD_STAGE_WATERMARK_FROZEN_MAX_HEADROOM_FIELD.getPreferredName()),
-                (Threshold) args[5],
-                (Threshold) args[6]
+            (args) -> new DiskThresholds(
+                DiskThreshold.parse((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
+                DiskThreshold.parse((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
+                DiskThreshold.parse((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                DiskThreshold.parse((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                ByteSizeValue.parseBytesSizeValue((String) args[4], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName()),
+                DiskThreshold.parse((String) args[5], YELLOW_THRESHOLD_FIELD.getPreferredName()),
+                DiskThreshold.parse((String) args[6], RED_THRESHOLD_FIELD.getPreferredName())
             )
         );
 
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Threshold.fromXContent(p), LOW_WATERMARK_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Threshold.fromXContent(p), HIGH_WATERMARK_FIELD);
-            PARSER.declareObject(
-                ConstructingObjectParser.constructorArg(),
-                (p, c) -> Threshold.fromXContent(p),
-                FLOOD_STAGE_WATERMARK_FIELD
-            );
-            PARSER.declareObject(
-                ConstructingObjectParser.constructorArg(),
-                (p, c) -> Threshold.fromXContent(p),
-                FLOOD_STAGE_WATERMARK_FROZEN_FIELD
-            );
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_WATERMARK_FROZEN_MAX_HEADROOM_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Threshold.fromXContent(p), YELLOW_THRESHOLD_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Threshold.fromXContent(p), RED_THRESHOLD_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), LOW_WATERMARK_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_WATERMARK_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_WATERMARK_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), YELLOW_THRESHOLD_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), RED_THRESHOLD_FIELD);
         }
 
-        DiskHealthThresholds(StreamInput in) throws IOException {
+        DiskThresholds(StreamInput in) throws IOException {
             this(
-                new Threshold(in),
-                new Threshold(in),
-                new Threshold(in),
-                new Threshold(in),
+                DiskThreshold.readFrom(in),
+                DiskThreshold.readFrom(in),
+                DiskThreshold.readFrom(in),
+                DiskThreshold.readFrom(in),
                 new ByteSizeValue(in),
-                new Threshold(in),
-                new Threshold(in)
+                DiskThreshold.readFrom(in),
+                DiskThreshold.readFrom(in)
             );
         }
 
-        static DiskHealthThresholds from(
+        static DiskThresholds createDiskThresholds(
             DiskThresholdSettings allocationDiskThresholdSettings,
             HealthDiskThresholdSettings healthDiskThresholdSettings
         ) {
             RelativeByteSizeValue frozenFloodStage = allocationDiskThresholdSettings.getFrozenFloodStage();
-            return new DiskHealthThresholds(
-                new Threshold(
-                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdLow(),
+            return new DiskThresholds(
+                DiskThreshold.fromWatermark(
+                    allocationDiskThresholdSettings.getFreeDiskThresholdLow(),
                     allocationDiskThresholdSettings.getFreeBytesThresholdLow()
                 ),
-                new Threshold(
-                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdHigh(),
+                DiskThreshold.fromWatermark(
+                    allocationDiskThresholdSettings.getFreeDiskThresholdHigh(),
                     allocationDiskThresholdSettings.getFreeBytesThresholdHigh()
                 ),
-                new Threshold(
-                    100.0 - allocationDiskThresholdSettings.getFreeDiskThresholdFloodStage(),
+                DiskThreshold.fromWatermark(
+                    allocationDiskThresholdSettings.getFreeDiskThresholdFloodStage(),
                     allocationDiskThresholdSettings.getFreeBytesThresholdFloodStage()
                 ),
-                new Threshold(
-                    frozenFloodStage.getRatio() == null ? 0.0 : frozenFloodStage.getRatio().getAsPercent(),
-                    frozenFloodStage.isAbsolute() ? frozenFloodStage.getAbsolute() : ByteSizeValue.ZERO
-                ),
+                frozenFloodStage.isAbsolute()
+                    ? new DiskThreshold(frozenFloodStage.getAbsolute())
+                    : new DiskThreshold(frozenFloodStage.getRatio().getAsPercent()),
                 allocationDiskThresholdSettings.getFrozenFloodStageMaxHeadroom(),
-                healthDiskThresholdSettings.getYellowThreshold(),
-                healthDiskThresholdSettings.getRedThreshold()
+                DiskThreshold.fromHealthDiskThreshold(healthDiskThresholdSettings.getYellowThreshold()),
+                DiskThreshold.fromHealthDiskThreshold(healthDiskThresholdSettings.getRedThreshold())
             );
         }
 
-        static DiskHealthThresholds fromXContent(XContentParser parser) throws IOException {
+        static DiskThresholds fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
@@ -227,8 +216,8 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             lowWatermark.writeTo(out);
             highWatermark.writeTo(out);
             floodStageWatermark.writeTo(out);
-            floodStageWatermarkFrozen.writeTo(out);
-            floodStageWatermarkFrozenMaxHeadroom.writeTo(out);
+            frozenFloodStageWatermark.writeTo(out);
+            frozenFloodStageMaxHeadroom.writeTo(out);
             yellowThreshold.writeTo(out);
             redThreshold.writeTo(out);
         }
@@ -240,70 +229,83 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(LOW_WATERMARK_FIELD.getPreferredName());
-            lowWatermark.toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(HIGH_WATERMARK_FIELD.getPreferredName());
-            highWatermark.toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName());
-            floodStageWatermark.toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(FLOOD_STAGE_WATERMARK_FROZEN_FIELD.getPreferredName());
-            floodStageWatermarkFrozen.toXContent(builder, params);
-            builder.endObject();
-            builder.field(FLOOD_STAGE_WATERMARK_FROZEN_MAX_HEADROOM_FIELD.getPreferredName(), floodStageWatermarkFrozenMaxHeadroom);
-            builder.startObject(YELLOW_THRESHOLD_FIELD.getPreferredName());
-            yellowThreshold.toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(RED_THRESHOLD_FIELD.getPreferredName());
-            redThreshold.toXContent(builder, params);
-            builder.endObject();
+            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), lowWatermark.toStringRep());
+            builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), highWatermark.toStringRep());
+            builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), floodStageWatermark.toStringRep());
+            builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), frozenFloodStageWatermark.toStringRep());
+            builder.field(FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), frozenFloodStageMaxHeadroom);
+            builder.field(YELLOW_THRESHOLD_FIELD.getPreferredName(), yellowThreshold.toStringRep());
+            builder.field(RED_THRESHOLD_FIELD.getPreferredName(), redThreshold.toStringRep());
             return builder;
         }
 
-        public record Threshold(double maxPercentageUsed, ByteSizeValue minFreeBytes) implements ToXContentFragment, Writeable {
+        public static class DiskThreshold implements Writeable {
 
-            private static final ParseField MAX_PERCENTAGE_USED_FIELD = new ParseField("max_percentage_used");
-            private static final ParseField MIN_FREE_BYTES = new ParseField("min_free_bytes");
+            private final double maxUsedPercent;
+            private final ByteSizeValue minFreeBytes;
 
-            public static final ConstructingObjectParser<Threshold, Void> PARSER = new ConstructingObjectParser<>(
-                "threshold",
-                true,
-                (args) -> new Threshold(
-                    RatioValue.parseRatioValue((String) args[0]).getAsPercent(),
-                    ByteSizeValue.parseBytesSizeValue((String) args[1], MIN_FREE_BYTES.getPreferredName())
-                )
-            );
-
-            static {
-                PARSER.declareString(ConstructingObjectParser.constructorArg(), MAX_PERCENTAGE_USED_FIELD);
-                PARSER.declareString(ConstructingObjectParser.constructorArg(), MIN_FREE_BYTES);
+            public DiskThreshold(double maxUsedPercent) {
+                this.maxUsedPercent = maxUsedPercent;
+                this.minFreeBytes = ByteSizeValue.ZERO;
             }
 
-            Threshold(StreamInput in) throws IOException {
-                this(in.readDouble(), new ByteSizeValue(in));
+            public DiskThreshold(ByteSizeValue minFreeBytes) {
+                this.minFreeBytes = minFreeBytes;
+                this.maxUsedPercent = 100.0;
             }
 
-            static Threshold fromXContent(XContentParser parser) throws IOException {
-                return PARSER.parse(parser, null);
+            public static DiskThreshold readFrom(StreamInput in) throws IOException {
+                String description = in.readString();
+                return parse(description, "");
             }
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field(MAX_PERCENTAGE_USED_FIELD.getPreferredName(), Strings.format1Decimals(maxPercentageUsed, "%"));
-                builder.field(MIN_FREE_BYTES.getPreferredName(), minFreeBytes);
-                return builder;
+            static DiskThreshold parse(String description, String setting) {
+                ByteSizeValue minFreeBytes = DiskThresholdParser.parseThresholdBytes(description, setting);
+                if (minFreeBytes.getBytes() > 0) {
+                    return new DiskThreshold(minFreeBytes);
+                } else {
+                    return new DiskThreshold(DiskThresholdParser.parseThresholdPercentage(description));
+                }
+            }
+
+            static DiskThreshold fromHealthDiskThreshold(RelativeByteSizeValue relativeByteSizeValue) {
+                if (relativeByteSizeValue.isAbsolute()) {
+                    return new DiskThreshold(relativeByteSizeValue.getAbsolute());
+                } else {
+                    return new DiskThreshold(relativeByteSizeValue.getRatio().getAsPercent());
+                }
+            }
+
+            static DiskThreshold fromWatermark(double minFreeDiskSpacePercent, ByteSizeValue minFreeBytes) {
+                if (minFreeBytes.getBytes() > 0) {
+                    return new DiskThreshold(minFreeBytes);
+                } else {
+                    return new DiskThreshold(100.0 - minFreeDiskSpacePercent);
+                }
+            }
+
+            public String toStringRep() {
+                return minFreeBytes.equals(ByteSizeValue.ZERO)
+                    ? RatioValue.formatPercentNoTrailingZeros(maxUsedPercent)
+                    : minFreeBytes.toString();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeDouble(maxPercentageUsed);
-                minFreeBytes.writeTo(out);
+                out.writeString(this.toStringRep());
             }
 
-            public String describe() {
-                return minFreeBytes.equals(ByteSizeValue.ZERO) ? Strings.format1Decimals(maxPercentageUsed, "%") : minFreeBytes.toString();
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                DiskThreshold that = (DiskThreshold) o;
+                return Double.compare(that.maxUsedPercent, maxUsedPercent) == 0 && Objects.equals(minFreeBytes, that.minFreeBytes);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(maxUsedPercent, minFreeBytes);
             }
         }
     }

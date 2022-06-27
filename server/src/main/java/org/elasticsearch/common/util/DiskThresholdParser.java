@@ -42,8 +42,8 @@ public class DiskThresholdParser {
      * Attempts to parse the threshold into a percentage, returning 100.0% if
      * it cannot be parsed.
      */
-    public static double thresholdPercentageFromThreshold(String threshold) {
-        return thresholdPercentageFromThreshold(threshold, true);
+    public static double parseThresholdPercentage(String threshold) {
+        return parseThresholdPercentage(threshold, true);
     }
 
     /**
@@ -55,7 +55,7 @@ public class DiskThresholdParser {
      * @param lenient true if lenient parsing should be applied
      * @return the parsed percentage
      */
-    private static double thresholdPercentageFromThreshold(String threshold, boolean lenient) {
+    private static double parseThresholdPercentage(String threshold, boolean lenient) {
         if (lenient && definitelyNotPercentage(threshold)) {
             // obviously not a percentage so return lenient fallback value like we would below on a parse failure
             return 100.0;
@@ -76,8 +76,8 @@ public class DiskThresholdParser {
      * Attempts to parse the threshold into a {@link ByteSizeValue}, returning
      * a ByteSizeValue of 0 bytes if the value cannot be parsed.
      */
-    public static ByteSizeValue thresholdBytesFromThreshold(String threshold, String settingName) {
-        return thresholdBytesFromThreshold(threshold, settingName, true);
+    public static ByteSizeValue parseThresholdBytes(String threshold, String settingName) {
+        return parseThresholdBytes(threshold, settingName, true);
     }
 
     /**
@@ -90,7 +90,7 @@ public class DiskThresholdParser {
      * @param lenient true if lenient parsing should be applied
      * @return the parsed byte size value
      */
-    private static ByteSizeValue thresholdBytesFromThreshold(String threshold, String settingName, boolean lenient) {
+    private static ByteSizeValue parseThresholdBytes(String threshold, String settingName, boolean lenient) {
         try {
             return ByteSizeValue.parseBytesSizeValue(threshold, settingName);
         } catch (ElasticsearchParseException ex) {
@@ -161,10 +161,7 @@ public class DiskThresholdParser {
         for (int i = 1; i < thresholdsInOrder.size(); i++) {
             ThresholdSetting lowerThreshold = thresholdsInOrder.get(i - 1);
             ThresholdSetting higherThreshold = thresholdsInOrder.get(i);
-            if (thresholdPercentageFromThreshold(lowerThreshold.value, false) > thresholdPercentageFromThreshold(
-                higherThreshold.value,
-                false
-            )) {
+            if (parseThresholdPercentage(lowerThreshold.value, false) > parseThresholdPercentage(higherThreshold.value, false)) {
                 final String message = String.format(Locale.ROOT, "setting %s cannot be greater than %s", lowerThreshold, higherThreshold);
                 throw new IllegalArgumentException(message);
             }
@@ -175,7 +172,7 @@ public class DiskThresholdParser {
         for (int i = 1; i < thresholdsInOrder.size(); i++) {
             ThresholdSetting lowerThreshold = thresholdsInOrder.get(i - 1);
             ThresholdSetting higherThreshold = thresholdsInOrder.get(i);
-            if (thresholdBytesFromThreshold(lowerThreshold.value, lowerThreshold.name, false).getBytes() < thresholdBytesFromThreshold(
+            if (parseThresholdBytes(lowerThreshold.value, lowerThreshold.name, false).getBytes() < parseThresholdBytes(
                 higherThreshold.value,
                 higherThreshold.name,
                 false

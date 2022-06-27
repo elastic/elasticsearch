@@ -25,10 +25,10 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         HealthDiskThresholdSettings healthDiskThresholdSettings = new HealthDiskThresholdSettings(Settings.EMPTY, nss);
 
         ByteSizeValue zeroBytes = ByteSizeValue.parseBytesSizeValue("0b", "test");
-        assertEquals(zeroBytes, healthDiskThresholdSettings.getYellowThreshold().minFreeBytes());
-        assertEquals(85.0D, healthDiskThresholdSettings.getYellowThreshold().maxPercentageUsed(), 0.0D);
-        assertEquals(zeroBytes, healthDiskThresholdSettings.getRedThreshold().minFreeBytes());
-        assertEquals(90.0D, healthDiskThresholdSettings.getRedThreshold().maxPercentageUsed(), 0.0D);
+        assertFalse(healthDiskThresholdSettings.getYellowThreshold().isAbsolute());
+        assertEquals(85.0D, healthDiskThresholdSettings.getYellowThreshold().getRatio().getAsPercent(), 0.0D);
+        assertFalse(healthDiskThresholdSettings.getRedThreshold().isAbsolute());
+        assertEquals(90.0D, healthDiskThresholdSettings.getRedThreshold().getRatio().getAsPercent(), 0.0D);
     }
 
     public void testUpdate() {
@@ -41,10 +41,10 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
             .build();
         nss.applySettings(newSettings);
 
-        assertEquals(ByteSizeValue.parseBytesSizeValue("1000mb", "test"), healthDiskThresholdSettings.getYellowThreshold().minFreeBytes());
-        assertEquals(100.0D, healthDiskThresholdSettings.getYellowThreshold().maxPercentageUsed(), 0.0D);
-        assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), healthDiskThresholdSettings.getRedThreshold().minFreeBytes());
-        assertEquals(100.0D, healthDiskThresholdSettings.getRedThreshold().maxPercentageUsed(), 0.0D);
+        assertEquals(ByteSizeValue.parseBytesSizeValue("1000mb", "test"), healthDiskThresholdSettings.getYellowThreshold().getAbsolute());
+        assertTrue(healthDiskThresholdSettings.getYellowThreshold().isAbsolute());
+        assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), healthDiskThresholdSettings.getRedThreshold().getAbsolute());
+        assertTrue(healthDiskThresholdSettings.getRedThreshold().isAbsolute());
     }
 
     public void testInvalidConstruction() {
@@ -165,8 +165,8 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         HealthDiskThresholdSettings healthDiskThresholdSettings = new HealthDiskThresholdSettings(Settings.EMPTY, clusterSettings);
-        assertThat(healthDiskThresholdSettings.getYellowThreshold().describe(), equalTo("85%"));
-        assertThat(healthDiskThresholdSettings.getRedThreshold().describe(), equalTo("90%"));
+        assertThat(healthDiskThresholdSettings.getYellowThreshold().getStringRep(), equalTo("85.0%"));
+        assertThat(healthDiskThresholdSettings.getRedThreshold().getStringRep(), equalTo("90.0%"));
 
         healthDiskThresholdSettings = new HealthDiskThresholdSettings(
             Settings.builder()
@@ -176,8 +176,8 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
             clusterSettings
         );
 
-        assertThat(healthDiskThresholdSettings.getYellowThreshold().describe(), equalTo("91.2%"));
-        assertThat(healthDiskThresholdSettings.getRedThreshold().describe(), equalTo("91.3%"));
+        assertThat(healthDiskThresholdSettings.getYellowThreshold().getStringRep(), equalTo("91.2%"));
+        assertThat(healthDiskThresholdSettings.getRedThreshold().getStringRep(), equalTo("91.3%"));
 
         healthDiskThresholdSettings = new HealthDiskThresholdSettings(
             Settings.builder()
@@ -187,7 +187,7 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
             clusterSettings
         );
 
-        assertThat(healthDiskThresholdSettings.getYellowThreshold().describe(), equalTo("1gb"));
-        assertThat(healthDiskThresholdSettings.getRedThreshold().describe(), equalTo("10mb"));
+        assertThat(healthDiskThresholdSettings.getYellowThreshold().getStringRep(), equalTo("1gb"));
+        assertThat(healthDiskThresholdSettings.getRedThreshold().getStringRep(), equalTo("10mb"));
     }
 }

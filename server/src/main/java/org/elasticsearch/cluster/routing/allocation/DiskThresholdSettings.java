@@ -257,8 +257,8 @@ public class DiskThresholdSettings {
     private void setLowWatermark(String lowWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.lowWatermarkRaw = lowWatermark;
-        this.freeDiskThresholdLow = 100.0 - DiskThresholdParser.thresholdPercentageFromThreshold(lowWatermark);
-        this.freeBytesThresholdLow = DiskThresholdParser.thresholdBytesFromThreshold(
+        this.freeDiskThresholdLow = 100.0 - DiskThresholdParser.parseThresholdPercentage(lowWatermark);
+        this.freeBytesThresholdLow = DiskThresholdParser.parseThresholdBytes(
             lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
         );
@@ -268,8 +268,8 @@ public class DiskThresholdSettings {
     private void setHighWatermark(String highWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.highWatermarkRaw = highWatermark;
-        this.freeDiskThresholdHigh = 100.0 - DiskThresholdParser.thresholdPercentageFromThreshold(highWatermark);
-        this.freeBytesThresholdHigh = DiskThresholdParser.thresholdBytesFromThreshold(
+        this.freeDiskThresholdHigh = 100.0 - DiskThresholdParser.parseThresholdPercentage(highWatermark);
+        this.freeBytesThresholdHigh = DiskThresholdParser.parseThresholdBytes(
             highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
         );
@@ -278,8 +278,8 @@ public class DiskThresholdSettings {
 
     private void setFloodStage(String floodStageRaw) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.freeDiskThresholdFloodStage = 100.0 - DiskThresholdParser.thresholdPercentageFromThreshold(floodStageRaw);
-        this.freeBytesThresholdFloodStage = DiskThresholdParser.thresholdBytesFromThreshold(
+        this.freeDiskThresholdFloodStage = 100.0 - DiskThresholdParser.parseThresholdPercentage(floodStageRaw);
+        this.freeBytesThresholdFloodStage = DiskThresholdParser.parseThresholdBytes(
             floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
         );

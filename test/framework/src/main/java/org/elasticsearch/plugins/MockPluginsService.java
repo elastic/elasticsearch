@@ -25,7 +25,7 @@ public class MockPluginsService extends PluginsService {
 
     private static final Logger logger = LogManager.getLogger(MockPluginsService.class);
 
-    private final List<LoadedPlugin> classpathPlugins;
+    private List<LoadedPlugin> classpathPlugins;
 
     /**
      * Constructs a new PluginService
@@ -58,7 +58,7 @@ public class MockPluginsService extends PluginsService {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin));
         }
 
         this.classpathPlugins = List.copyOf(pluginsLoaded);
@@ -67,6 +67,10 @@ public class MockPluginsService extends PluginsService {
     @Override
     protected final List<LoadedPlugin> plugins() {
         return this.classpathPlugins;
+    }
+
+    void setLoadedPlugins(List<LoadedPlugin> plugins) {
+        this.classpathPlugins = List.copyOf(plugins);
     }
 
     @Override

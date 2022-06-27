@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -478,19 +479,37 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private static void copyFieldMappings(List<String> fields, Map<String, Object> sourceIndexMappingProperties, XContentBuilder builder)
         throws IOException {
-        for (final String dimensionField : fields) {
+        for (final String field : fields) {
             @SuppressWarnings("unchecked")
-            Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
-            @SuppressWarnings("unchecked")
-            Map<String, String> fieldProperties = (Map<String, String>) properties.get(dimensionField);
+            final Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
+            final Map<String, ?> fieldProperties = resolveFieldProperties(properties, Arrays.asList(field.split("\\.")));
             if (fieldProperties.isEmpty() == false) {
-                builder.startObject(dimensionField);
+                builder.startObject(field);
                 for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
                     builder.field(fieldProperty.getKey(), fieldProperty.getValue());
                 }
                 builder.endObject();
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, ?> resolveFieldProperties(Map<String, ?> properties, List<String> fieldPath) {
+        if (properties == null || properties.isEmpty()) {
+            throw new IllegalArgumentException("Empty properties");
+        }
+        if (fieldPath == null || fieldPath.isEmpty()) {
+            throw new IllegalArgumentException("Empty field path");
+        }
+        if (fieldPath.size() == 1) {
+            return ((Map<String, ?>) properties.get(fieldPath.get(0)));
+        }
+        for (final String field : fieldPath) {
+            final Map<String, ?> fieldMappings = (Map<String, ?>) properties.get(field);
+            return resolveFieldProperties((Map<String, ?>) fieldMappings.get("properties"), fieldPath.subList(1, fieldPath.size()));
+        }
+
+        return Collections.emptyMap();
     }
 
     /**

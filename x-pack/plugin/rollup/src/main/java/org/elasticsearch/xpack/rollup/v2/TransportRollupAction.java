@@ -409,12 +409,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * rollup configuration.
      *
      * @param config the rollup configuration
-     * @param dimensionFieldCaps a map with the field name as key and the fields caps response as value
-     *                  for the dimension fields of the source index
+     * @param dimensionFields a list of fields whose 'time_series_dimension' property is set to true
      * @param metricFieldCaps a map with the field name as key and the fields caps response as value
      *                for the metric fields of the source index
-     *
-     * @param sourceIndexMappingProperties
+     * @param labelFields a list of fields which are not dimensions or metrics
+     * @param sourceIndexMappingProperties a map with the source index mapping
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(

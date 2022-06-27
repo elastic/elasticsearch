@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
@@ -195,7 +197,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 FIELD_LABEL_IPv6_ADDRESS,
                 "type=ip",
                 FIELD_LABEL_DATE,
-                "type=date"
+                "type=date,format=date_optional_time"
             )
             .get();
     }
@@ -656,6 +658,28 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // Assert that source index was removed
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
+
+        GetMappingsResponse indexMappings = client().admin()
+            .indices()
+            .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndexClone))
+            .actionGet();
+        Map<String, String> rollupIndexProperties = (Map<String, String>) indexMappings.mappings()
+            .get(rollupIndex)
+            .sourceAsMap()
+            .get("properties");
+        Map<String, String> sourceIndexCloneProperties = (Map<String, String>) indexMappings.mappings()
+            .get(sourceIndexClone)
+            .sourceAsMap()
+            .get("properties");
+        List<Map.Entry<String, String>> labelFieldRollupIndexCloneProperties = (rollupIndexProperties.entrySet()
+            .stream()
+            .filter(entry -> labelFields.containsKey(entry.getKey()))
+            .toList());
+        List<Map.Entry<String, String>> labelFieldSourceIndexProperties = (sourceIndexCloneProperties.entrySet()
+            .stream()
+            .filter(entry -> labelFields.containsKey(entry.getKey()))
+            .toList());
+        assertEquals(labelFieldRollupIndexCloneProperties, labelFieldSourceIndexProperties);
     }
 
     private Map<String, String> getLabelFields(FieldCapabilitiesResponse fieldCapsResponse) {

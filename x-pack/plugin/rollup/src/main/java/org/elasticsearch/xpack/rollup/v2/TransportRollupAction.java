@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -177,197 +179,221 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
 
         // Rollup will perform the following tasks:
-        // 1. Extract rollup config from source index field caps
-        // 2. Create the rollup index
-        // 3. Run rollup indexer
-        // 4. Make rollup index read-only and set replicas
-        // 5. Refresh rollup index
-        // 6. Add rollup index to data stream and publish rollup metadata
-        // 7. Mark rollup index as "completed successfully"
-        // 8. Delete the source index
-        // 9. Force-merge the rollup index to a single segment
+        // 1. Extract source index mappings
+        // 2. Extract rollup config from source index field caps
+        // 3. Create the rollup index
+        // 4. Run rollup indexer
+        // 5. Make rollup index read-only and set replicas
+        // 6. Refresh rollup index
+        // 7. Add rollup index to data stream and publish rollup metadata
+        // 8. Mark rollup index as "completed successfully"
+        // 9. Delete the source index
+        // 10. Force-merge the rollup index to a single segment
         // At any point if there is an issue, delete the rollup index
 
-        // 1. Extract rollup config from source index field caps
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
-        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
-        fieldCapsRequest.setParentTask(parentTask);
-        client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
-            final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
-            final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
-            final Map<String, FieldCapabilities> labelFieldCaps = new HashMap<>();
-            for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
-                String field = e.getKey();
-                /*
-                 * Rollup runs on a single index, and we do not expect multiple mappings for the same
-                 * field. So, it is safe to select the first and only value of the FieldCapsResponse
-                 * by running: e.getValue().values().iterator().next()
-                 */
-                if (e.getValue().size() != 1) {
-                    throw new IllegalStateException(
-                        "Cannot parse mapping for field [" + field + "] at source index [" + sourceIndexName + "]"
-                    );
-                }
-                FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
-                if (fieldCaps.isDimension()) {
-                    dimensionFieldCaps.put(field, fieldCaps);
-                } else {
-                    TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
-                    if (metricType != null) {
-                        metricFieldCaps.put(field, fieldCaps);
+        // 1. Extract source index mappings
+        client.admin().indices().getMappings(new GetMappingsRequest().indices(sourceIndexName), ActionListener.wrap(getMappingsResponse -> {
+            Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
+                .entrySet()
+                .stream()
+                .filter(entry -> sourceIndexName.equals(entry.getKey()))
+                .findFirst()
+                .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
+                .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
+            // 2. Extract rollup config from source index field caps
+            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
+            final TaskId fieldCapsTask = new TaskId(clusterService.localNode().getId(), task.getId());
+            fieldCapsRequest.setParentTask(fieldCapsTask);
+            client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
+                final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
+                final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
+                final List<String> labelFields = new ArrayList<>();
+                for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
+                    String field = e.getKey();
+                    /*
+                     * Rollup runs on a single index, and we do not expect multiple mappings for the same
+                     * field. So, it is safe to select the first and only value of the FieldCapsResponse
+                     * by running: e.getValue().values().iterator().next()
+                     */
+                    if (e.getValue().size() != 1) {
+                        throw new IllegalStateException(
+                            "Cannot parse mapping for field [" + field + "] at source index [" + sourceIndexName + "]"
+                        );
+                    }
+                    FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
+                    if (fieldCaps.isDimension()) {
+                        dimensionFieldCaps.put(field, fieldCaps);
                     } else {
-                        final String timestampField = request.getRollupConfig().getTimestampField();
-                        if (fieldCaps.isLabel() && timestampField.equals(field) == false) {
-                            labelFieldCaps.put(field, fieldCaps);
+                        TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
+                        if (metricType != null) {
+                            metricFieldCaps.put(field, fieldCaps);
+                        } else {
+                            final String timestampField = request.getRollupConfig().getTimestampField();
+                            if (fieldCaps.isLabel() && timestampField.equals(field) == false) {
+                                labelFields.add(field);
+                            }
                         }
                     }
                 }
-            }
 
-            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
-            if (dimensionFieldCaps.isEmpty()) {
-                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
-            }
-            if (metricFieldCaps.isEmpty()) {
-                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
-            }
+                RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+                if (dimensionFieldCaps.isEmpty()) {
+                    validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
+                }
+                if (metricFieldCaps.isEmpty()) {
+                    validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
+                }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                listener.onFailure(validationException);
-                return;
-            }
+                if (validationException.validationErrors().isEmpty() == false) {
+                    listener.onFailure(validationException);
+                    return;
+                }
 
-            final String mapping;
-            try {
-                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps, labelFieldCaps);
-            } catch (IOException e) {
-                listener.onFailure(e);
-                return;
-            }
-
-            // 2. Create rollup index
-            createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
-                if (createIndexResp.isAcknowledged()) {
-                    // 3. Rollup index created. Run rollup indexer
-                    RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
-                        request,
-                        dimensionFieldCaps.keySet().toArray(new String[0]),
-                        metricFieldCaps.keySet().toArray(new String[0]),
-                        labelFieldCaps.keySet().toArray(new String[0])
+                final String mapping;
+                try {
+                    mapping = createRollupIndexMapping(
+                        request.getRollupConfig(),
+                        dimensionFieldCaps,
+                        metricFieldCaps,
+                        labelFields,
+                        sourceIndexMappings
                     );
-                    rollupIndexerRequest.setParentTask(parentTask);
-                    client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
-                        if (indexerResp.isCreated()) {
-                            // 4. Make rollup index read-only and set the correct number of replicas
-                            final Settings settings = Settings.builder()
-                                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
-                                .build();
-                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
-                            updateSettingsReq.setParentTask(parentTask);
-                            client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                                if (updateSettingsResponse.isAcknowledged()) {
-                                    // 5. Refresh rollup index
-                                    refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
-                                        if (refreshIndexResponse.getFailedShards() == 0) {
-                                            // 6. Add rollup index to data stream and publish rollup metadata
-                                            // 7. Mark rollup index as "completed successfully"
-                                            // 8. Delete the source index
-                                            updateRollupMetadata(sourceIndexName, rollupIndexName, request, ActionListener.wrap(resp -> {
-                                                if (resp.isAcknowledged()) {
-                                                    // 9. Force-merge the rollup index to a single segment
-                                                    forceMergeIndex(
-                                                        rollupIndexName,
-                                                        parentTask,
-                                                        ActionListener.wrap(
-                                                            mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                                            e -> {
-                                                                /*
-                                                                 * At this point rollup has been successful even if force-merge fails.
-                                                                 * Also, we have deleted the source index and there is no way we can
-                                                                 * roll back and restart the operation. So, we should not fail the rollup
-                                                                 * operation.
-                                                                 */
-                                                                logger.error(
-                                                                    "Failed to force-merge rollup index [" + rollupIndexName + "]",
-                                                                    e
-                                                                );
-                                                                listener.onResponse(AcknowledgedResponse.TRUE);
-                                                            }
-                                                        )
-                                                    );
-                                                } else {
-                                                    deleteRollupIndex(
-                                                        sourceIndexName,
-                                                        rollupIndexName,
-                                                        parentTask,
-                                                        listener,
-                                                        new ElasticsearchException(
-                                                            "Failed to publish new cluster state with rollup metadata"
-                                                        )
-                                                    );
-                                                }
-                                            },
-                                                e -> deleteRollupIndex(
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+
+                // 3. Create rollup index
+                createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
+                    if (createIndexResp.isAcknowledged()) {
+                        // 4. Rollup index created. Run rollup indexer
+                        RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                            request,
+                            dimensionFieldCaps.keySet().toArray(new String[0]),
+                            metricFieldCaps.keySet().toArray(new String[0]),
+                            labelFields.toArray(new String[0])
+                        );
+                        rollupIndexerRequest.setParentTask(fieldCapsTask);
+                        client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                            if (indexerResp.isCreated()) {
+                                // 5. Make rollup index read-only and set the correct number of replicas
+                                final Settings settings = Settings.builder()
+                                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                                    .build();
+                                UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
+                                updateSettingsReq.setParentTask(fieldCapsTask);
+                                client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                                    if (updateSettingsResponse.isAcknowledged()) {
+                                        // 6. Refresh rollup index
+                                        refreshIndex(rollupIndexName, fieldCapsTask, ActionListener.wrap(refreshIndexResponse -> {
+                                            if (refreshIndexResponse.getFailedShards() == 0) {
+                                                // 7. Add rollup index to data stream and publish rollup metadata
+                                                // 8. Mark rollup index as "completed successfully"
+                                                // 9. Delete the source index
+                                                updateRollupMetadata(
                                                     sourceIndexName,
                                                     rollupIndexName,
-                                                    parentTask,
-                                                    listener,
-                                                    new ElasticsearchException(
-                                                        "Failed to publish new cluster state with rollup metadata",
-                                                        e
+                                                    request,
+                                                    ActionListener.wrap(resp -> {
+                                                        if (resp.isAcknowledged()) {
+                                                            // 10. Force-merge the rollup index to a single segment
+                                                            forceMergeIndex(
+                                                                rollupIndexName,
+                                                                fieldCapsTask,
+                                                                ActionListener.wrap(
+                                                                    mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
+                                                                    e -> {
+                                                                        /*
+                                                                         * At this point rollup has been successful even if force-merge fails.
+                                                                         * Also, we have deleted the source index and there is no way we can
+                                                                         * roll back and restart the operation. So, we should not fail the rollup
+                                                                         * operation.
+                                                                         */
+                                                                        logger.error(
+                                                                            "Failed to force-merge rollup index [" + rollupIndexName + "]",
+                                                                            e
+                                                                        );
+                                                                        listener.onResponse(AcknowledgedResponse.TRUE);
+                                                                    }
+                                                                )
+                                                            );
+                                                        } else {
+                                                            deleteRollupIndex(
+                                                                sourceIndexName,
+                                                                rollupIndexName,
+                                                                fieldCapsTask,
+                                                                listener,
+                                                                new ElasticsearchException(
+                                                                    "Failed to publish new cluster state with rollup metadata"
+                                                                )
+                                                            );
+                                                        }
+                                                    },
+                                                        e -> deleteRollupIndex(
+                                                            sourceIndexName,
+                                                            rollupIndexName,
+                                                            fieldCapsTask,
+                                                            listener,
+                                                            new ElasticsearchException(
+                                                                "Failed to publish new cluster state with rollup metadata",
+                                                                e
+                                                            )
+                                                        )
                                                     )
-                                                )
-                                            ));
-                                        } else {
-                                            deleteRollupIndex(
+                                                );
+                                            } else {
+                                                deleteRollupIndex(
+                                                    sourceIndexName,
+                                                    rollupIndexName,
+                                                    fieldCapsTask,
+                                                    listener,
+                                                    new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
+                                                );
+                                            }
+                                        },
+                                            e -> deleteRollupIndex(
                                                 sourceIndexName,
                                                 rollupIndexName,
-                                                parentTask,
+                                                fieldCapsTask,
                                                 listener,
-                                                new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
-                                            );
-                                        }
-                                    },
-                                        e -> deleteRollupIndex(
+                                                new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
+                                            )
+                                        ));
+                                    } else {
+                                        deleteRollupIndex(
                                             sourceIndexName,
                                             rollupIndexName,
-                                            parentTask,
+                                            fieldCapsTask,
                                             listener,
-                                            new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
-                                        )
-                                    ));
-                                } else {
-                                    deleteRollupIndex(
+                                            new ElasticsearchException(
+                                                "Unable to update settings of rollup index [" + rollupIndexName + "]"
+                                            )
+                                        );
+                                    }
+                                },
+                                    e -> deleteRollupIndex(
                                         sourceIndexName,
                                         rollupIndexName,
-                                        parentTask,
+                                        fieldCapsTask,
                                         listener,
-                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
-                                    );
-                                }
-                            },
-                                e -> deleteRollupIndex(
+                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]", e)
+                                    )
+                                ));
+                            } else {
+                                deleteRollupIndex(
                                     sourceIndexName,
                                     rollupIndexName,
-                                    parentTask,
+                                    fieldCapsTask,
                                     listener,
-                                    new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]", e)
-                                )
-                            ));
-                        } else {
-                            deleteRollupIndex(
-                                sourceIndexName,
-                                rollupIndexName,
-                                parentTask,
-                                listener,
-                                new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
-                            );
-                        }
-                    }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, parentTask, listener, e)));
-                } else {
-                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
-                }
+                                    new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
+                                );
+                            }
+                        }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, fieldCapsTask, listener, e)));
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
+                    }
+                }, listener::onFailure));
             }, listener::onFailure));
         }, listener::onFailure));
     }
@@ -388,13 +414,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * @param metricFieldCaps a map with the field name as key and the fields caps response as value
      *                for the metric fields of the source index
      *
+     * @param sourceIndexMappingProperties
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(
         final RollupActionConfig config,
         final Map<String, FieldCapabilities> dimensionFieldCaps,
         final Map<String, FieldCapabilities> metricFieldCaps,
-        final Map<String, FieldCapabilities> labelFieldCaps
+        final List<String> labelFields,
+        Map<String, Object> sourceIndexMappingProperties
     ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
@@ -443,8 +471,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
         }
 
-        for (Map.Entry<String, FieldCapabilities> e : labelFieldCaps.entrySet()) {
-            builder.startObject(e.getKey()).field("type", e.getValue().getType()).endObject();
+        for (String field : labelFields) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, String> fieldProperties = (Map<String, String>) properties.get(field);
+            if (fieldProperties.isEmpty() == false) {
+                builder.startObject(field);
+                for (Map.Entry<String, String> fieldProperty : fieldProperties.entrySet()) {
+                    builder.field(fieldProperty.getKey(), fieldProperty.getValue());
+                }
+                builder.endObject();
+            }
         }
 
         builder.endObject();

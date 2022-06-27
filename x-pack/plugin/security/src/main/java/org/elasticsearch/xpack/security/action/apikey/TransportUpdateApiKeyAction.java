@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.Set;
+
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
@@ -65,10 +67,10 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         rolesStore.getRoleDescriptorsList(authentication.getEffectiveSubject(), ActionListener.wrap(roleDescriptorsList -> {
             // TODO duplicated code from ApiKeyGenerator
             assert roleDescriptorsList.size() == 1;
-            final var roleDescriptors = roleDescriptorsList.iterator().next();
-            for (final RoleDescriptor rd : roleDescriptors) {
+            final Set<RoleDescriptor> roleDescriptors = roleDescriptorsList.iterator().next();
+            for (final var roleDescriptor : roleDescriptors) {
                 try {
-                    DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                    DLSRoleQueryValidator.validateQueryField(roleDescriptor.getIndicesPrivileges(), xContentRegistry);
                 } catch (ElasticsearchException | IllegalArgumentException e) {
                     listener.onFailure(e);
                     return;

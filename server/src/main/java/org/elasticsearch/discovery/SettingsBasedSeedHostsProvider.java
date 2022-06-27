@@ -50,7 +50,7 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
             configuredHosts = transportService.getDefaultSeedAddresses();
         }
 
-        logger.debug("using initial hosts {}", configuredHosts);
+        logger.info("using initial hosts {}", configuredHosts);
     }
 
     @Override

@@ -1054,6 +1054,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
+                source.knnSearch(null);
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());

@@ -62,10 +62,10 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
+        // TODO does this not belong here?
         apiKeyService.ensureEnabled();
 
         rolesStore.getRoleDescriptorsList(authentication.getEffectiveSubject(), ActionListener.wrap(roleDescriptorsList -> {
-            // TODO duplicated code from ApiKeyGenerator
             assert roleDescriptorsList.size() == 1;
             final Set<RoleDescriptor> roleDescriptors = roleDescriptorsList.iterator().next();
             for (final var roleDescriptor : roleDescriptors) {

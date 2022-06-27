@@ -458,20 +458,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor(
-                        "extensible",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of(),
-                        false,
-                        PluginType.ISOLATED,
-                        "",
-                        false
-                    ),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
                     extensiblePlugin
                 )
             )
@@ -485,37 +472,11 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor(
-                        "extensible",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of(),
-                        false,
-                        PluginType.ISOLATED,
-                        "",
-                        false
-                    ),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor(
-                        "test",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of("extensible"),
-                        false,
-                        PluginType.ISOLATED,
-                        "",
-                        false
-                    ),
+                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false),
                     testPlugin
                 )
             )

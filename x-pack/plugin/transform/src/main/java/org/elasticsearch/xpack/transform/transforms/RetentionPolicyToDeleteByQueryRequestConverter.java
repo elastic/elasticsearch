@@ -72,13 +72,12 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
         /* other dbq options not set and why:
          * - timeout: we do not timeout for search, so we don't timeout for dbq
          * - batch size: don't use max page size search, dbq should be simple
+         * - refresh: we call refresh separately, after DBQ is executed because refresh should be executed with system permissions
          */
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // this should not happen, but still go over version conflicts and report later
             .setAbortOnVersionConflict(false)
-            // refresh the index, so docs are really gone
-            .setRefresh(true)
             // use transforms retry mechanics instead
             .setMaxRetries(0)
             .indices(destConfig.getIndex());

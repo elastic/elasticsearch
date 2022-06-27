@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -47,7 +48,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             new String[] { "a", "b", "c" },
             aliases,
@@ -107,7 +108,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
             aliases,
@@ -140,7 +141,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .build();
         final String[] concreteIndices = { ".b" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
             aliases,
@@ -170,7 +171,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
             aliases,
@@ -200,7 +201,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
             aliases,
@@ -226,7 +227,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .build();
         final String[] concreteIndices = { "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
             aliases,
@@ -302,11 +303,10 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasesRequest);
 
-        ImmutableOpenMap<String, List<AliasMetadata>> initialAliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
-        ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(
+        Map<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(
             aliasesRequest,
             concreteIndices,
-            initialAliases,
+            Map.of(),
             clusterState,
             SystemIndexAccessLevel.NONE,
             threadContext,

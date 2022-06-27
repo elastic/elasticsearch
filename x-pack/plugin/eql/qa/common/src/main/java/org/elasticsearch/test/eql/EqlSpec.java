@@ -141,7 +141,7 @@ public class EqlSpec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query);
+        return Objects.hash(this.query, size);
     }
 
     private static String appendWithComma(String str, String name, String append) {

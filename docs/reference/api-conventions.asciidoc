@@ -56,7 +56,7 @@ If provided, {es} surfaces the header's `trace-id` value as `trace.id` in the:
 * <<deprecation-logging,Deprecation logs>>
 
 For example, the following `traceparent` value would produce the following
-`trade.id` value in the above logs.
+`trace.id` value in the above logs.
 
 [source,txt]
 ----

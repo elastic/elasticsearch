@@ -303,17 +303,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
      * from plugins/modules.
      *
-     * <p>
+     * <pre>
      * For example:
      *
      * var pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
-     * </p>
+     * </pre>
      * @param service A templated service class to look for providers in plugins
      * @return an immutable {@link List} of discovered providers in the plugins/modules
      */
     public <T> List<? extends T> loadServiceProviders(Class<T> service) {
         List<T> result = new ArrayList<>();
-        getClass().getModule().addUses(service);
 
         for (LoadedPlugin pluginTuple : plugins()) {
             providersIterator(service, pluginTuple.loader()).forEachRemaining(c -> result.add(c));

@@ -12,6 +12,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -44,7 +46,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
@@ -622,10 +623,15 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testLoadServiceProviders() throws ClassNotFoundException {
-        ClassLoader fakeClassLoader = mock(ClassLoader.class);
-        ClassLoader fakeClassLoader1 = mock(ClassLoader.class);
-        FakePlugin fakePlugin = new FakePlugin();
-        FakePlugin fakePlugin1 = new FakePlugin();
+        FakeClassLoader fakeClassLoader = new FakeClassLoader();
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.findClass(FakePlugin.class.getName());
+
+        FakeClassLoader fakeClassLoader1 = new FakeClassLoader();
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.findClass(FakePlugin.class.getName());
+
+        assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
 
         OperatorHandlerProvider provider1 = () -> List.of(new OperatorHandler<Integer>() {
             @Override
@@ -650,23 +656,7 @@ public class PluginsServiceTests extends ESTestCase {
                 return prevState;
             }
         });
-        // Make the service load without plugins, we mock and force set them after
-        PluginsService service = newMockPluginsService(new ArrayList<>());
-        PluginsService.LoadedPlugin plugin1 = new PluginsService.LoadedPlugin(
-            mock(PluginDescriptor.class),
-            fakePlugin,
-            fakeClassLoader,
-            ModuleLayer.boot()
-        );
-        PluginsService.LoadedPlugin plugin2 = new PluginsService.LoadedPlugin(
-            mock(PluginDescriptor.class),
-            fakePlugin1,
-            fakeClassLoader1,
-            ModuleLayer.boot()
-        );
-        ((MockPluginsService) service).setLoadedPlugins(List.of(plugin1, plugin2));
-
-        service = spy(service);
+        PluginsService service = spy(newMockPluginsService(List.of(fakePluginClass, fakePluginClass1)));
 
         doReturn(List.of(provider1).iterator()).when(service).providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader));
         doReturn(List.of(provider2).iterator()).when(service).providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader1));
@@ -689,6 +679,7 @@ public class PluginsServiceTests extends ESTestCase {
             .providersIterator(eq(OperatorHandlerProvider.class), eq(fakeClassLoader1));
 
         assertEquals(0, service.loadServiceProviders(OperatorHandlerProvider.class).size());
+
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
@@ -728,6 +719,25 @@ public class PluginsServiceTests extends ESTestCase {
     public static class ThrowingConstructorExtension implements TestExtensionPoint {
         public ThrowingConstructorExtension() {
             throw new IllegalArgumentException("test constructor failure");
+        }
+    }
+
+    static class FakeClassLoader extends ClassLoader {
+        @Override
+        public Class<?> findClass(String name) throws ClassNotFoundException {
+            byte[] classBytes = fromFile(getClass().getClassLoader(), name);
+            return defineClass(name, classBytes, 0, classBytes.length);
+        }
+
+        private static byte[] fromFile(ClassLoader realLoader, String fileName) {
+            try {
+                InputStream input = realLoader.getResourceAsStream(
+                    Strings.format("%s.class", fileName.replace(".", PathUtils.get(".").getFileSystem().getSeparator()))
+                );
+                return input.readAllBytes();
+            } catch (Exception x) {
+                throw new IllegalStateException("Error loading class", x);
+            }
         }
     }
 }

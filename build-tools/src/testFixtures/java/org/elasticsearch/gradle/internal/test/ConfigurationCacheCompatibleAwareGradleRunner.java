@@ -74,9 +74,11 @@ public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner 
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        List<String> effectiveArgs = ccCompatible
-            ? Stream.concat(arguments.stream(), Stream.of("--configuration-cache")).collect(Collectors.toList())
-            : arguments;
+        List<String> effectiveArgs = arguments;
+        if (ccCompatible) {
+            effectiveArgs  = new ArrayList<>(arguments);
+            effectiveArgs.add("--configuration-cache");
+        }
         delegate.withArguments(effectiveArgs);
         return this;
     }

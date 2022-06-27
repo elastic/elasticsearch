@@ -474,12 +474,12 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
 
             @Override
-            public SyntheticSourceExample example() {
+            public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
                     return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
                 }
-                List<Tuple<Object, GeoPoint>> values = randomList(1, 5, this::generateValue);
+                List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
                 List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;

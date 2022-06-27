@@ -49,10 +49,20 @@ public class AssignmentPlanner {
 
     public AssignmentPlan computePlan() {
         logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
+
+        AssignmentPlan bestPlan;
+        // First solve preserving one allocation per assignment because that is most flexible
         AssignmentPlan planKeepingOneAllocationOnPreviousAssignments = solveKeepingOneAllocationOnPreviousAssignments();
-        AssignmentPlan bestPlan = planKeepingOneAllocationOnPreviousAssignments.satisfiesPreviousAssignments()
-            ? planKeepingOneAllocationOnPreviousAssignments
-            : solvePreservingAllPreviousAssignments();
+        if (planKeepingOneAllocationOnPreviousAssignments.satisfiesPreviousAssignments() == false) {
+            bestPlan = solvePreservingAllPreviousAssignments();
+        } else if (planKeepingOneAllocationOnPreviousAssignments.satisfiesAllModels() == false) {
+            AssignmentPlan planKeepingAllAllocationsOnPreviousAssignments = solvePreservingAllPreviousAssignments();
+            bestPlan = planKeepingAllAllocationsOnPreviousAssignments.compareTo(planKeepingOneAllocationOnPreviousAssignments) >= 0
+                ? planKeepingAllAllocationsOnPreviousAssignments
+                : planKeepingOneAllocationOnPreviousAssignments;
+        } else {
+            bestPlan = planKeepingOneAllocationOnPreviousAssignments;
+        }
         logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
         logger.debug(() -> prettyPrintOverallStats(bestPlan));
         return bestPlan;

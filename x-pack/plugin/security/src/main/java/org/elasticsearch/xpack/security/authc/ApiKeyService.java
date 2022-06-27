@@ -388,7 +388,7 @@ public class ApiKeyService {
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.getOrDefault("principal", null));
 
-        boolean isActive = apiKeyDoc.invalidated == false
+        final boolean isActive = apiKeyDoc.invalidated == false
             && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
         if (isActive == false) {
             throw new IllegalArgumentException("cannot update inactive api key [" + apiKeyId + "]");

@@ -78,6 +78,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
     @Override
     protected void taskOperation(
+        Task transportTask,
         Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener

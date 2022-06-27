@@ -370,6 +370,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task transportTask,
         StopDataFrameAnalyticsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener

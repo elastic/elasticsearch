@@ -83,6 +83,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task transportTask,
         DeleteRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<DeleteRollupJobAction.Response> listener

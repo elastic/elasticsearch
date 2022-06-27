@@ -240,6 +240,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
+        Task transportTask,
         StopTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<StopTrainedModelDeploymentAction.Response> listener

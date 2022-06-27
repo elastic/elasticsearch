@@ -752,6 +752,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void cancelSingleNodeClusterChecker() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         if (singleNodeClusterChecker != null) {
             singleNodeClusterChecker.cancel();
             singleNodeClusterChecker = null;

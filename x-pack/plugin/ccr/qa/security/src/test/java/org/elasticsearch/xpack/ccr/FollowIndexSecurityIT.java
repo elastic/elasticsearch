@@ -16,7 +16,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -78,19 +77,15 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
-            assertBusy(() -> {
-                assertNoPersistentTasks();
-                assertThat(getCcrNodeTasks(), empty());
-            });
+            waitForPendingTasks(adminClient());
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             resumeFollow(allowedIndex);
             assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
-            assertBusy(() -> {
-                assertNoPersistentTasks();
-                assertThat(getCcrNodeTasks(), empty());
-            });
+            waitForPendingTasks(adminClient());
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             closeIndex(allowedIndex);
             unfollow(allowedIndex);
@@ -265,10 +260,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
             deleteIndex(client(), cleanFollower);
             // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
-            assertBusy(() -> {
-                assertNoPersistentTasks();
-                assertThat(getCcrNodeTasks(), empty());
-            });
+            waitForPendingTasks(adminClient());
+            assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
         }
     }
 
@@ -338,11 +331,5 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertOK(adminClient().performRequest(disableMonitoring));
             logger.info("monitoring collection disabled");
         }
-    }
-
-    private static void assertNoPersistentTasks() throws IOException {
-        Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
-        assertThat(tasks, empty());
     }
 }

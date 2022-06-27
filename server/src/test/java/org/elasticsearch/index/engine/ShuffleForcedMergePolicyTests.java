@@ -34,6 +34,7 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMaxFullFlushMergeWaitMillis(0L);
             MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
@@ -53,6 +54,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    // We expect at least three segments since that is a more meaningful setup for
+                    // testing ShuffleForcedMergePolicy (interleaving old and new segments).
                     assertThat(reader.leaves().size(), greaterThan(2));
                     assertSegmentReaders(reader, leaf -> assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf)));
                 }

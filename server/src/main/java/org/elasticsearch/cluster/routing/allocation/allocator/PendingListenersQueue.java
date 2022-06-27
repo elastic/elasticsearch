@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,6 +20,8 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 public class PendingListenersQueue {
+
+    private static final Logger logger = LogManager.getLogger(PendingListenersQueue.class);
 
     private record PendingListener(long index, ActionListener<Void> listener) {}
 
@@ -94,6 +98,7 @@ public class PendingListenersQueue {
             while ((listener = pendingListeners.peek()) != null && listener.index <= maxIndex) {
                 listeners.add(pendingListeners.poll().listener);
             }
+            logger.trace("Polled listeners up to [{}]. Poll {}, remaining {}", maxIndex, listeners, pendingListeners);
         }
         return listeners;
     }

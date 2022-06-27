@@ -5496,9 +5496,7 @@ public class InternalEngineTests extends EngineTestCase {
             final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);
-            document.add(seqID.seqNo);
-            document.add(seqID.seqNoDocValue);
-            document.add(seqID.primaryTerm);
+            seqID.addFields(document);
             final BytesReference source = new BytesArray(new byte[] { 1 });
             final ParsedDocument parsedDocument = new ParsedDocument(
                 versionField,

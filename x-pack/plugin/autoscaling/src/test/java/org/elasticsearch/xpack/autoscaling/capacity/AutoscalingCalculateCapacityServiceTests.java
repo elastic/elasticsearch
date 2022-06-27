@@ -88,17 +88,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes, processors)));
             assertThat(
                 deciderResult.reason().summary(),
-                equalTo(
-                    "fixed storage ["
-                        + storage
-                        + "] memory ["
-                        + memory
-                        + "] processors ["
-                        + processors
-                        + "] nodes ["
-                        + nodes
-                        + "]"
-                )
+                equalTo("fixed storage [" + storage + "] memory [" + memory + "] processors [" + processors + "] nodes [" + nodes + "]")
             );
 
             // there is no nodes in any tier.

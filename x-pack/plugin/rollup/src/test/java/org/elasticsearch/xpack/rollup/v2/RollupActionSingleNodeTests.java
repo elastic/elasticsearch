@@ -622,9 +622,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
         });
 
-        // Assert that source index was removed
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
-
         GetMappingsResponse indexMappings = client().admin()
             .indices()
             .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))

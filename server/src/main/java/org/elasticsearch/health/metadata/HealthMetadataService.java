@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -30,6 +31,8 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
+
 /**
  * Keeps the health metadata in the cluster state up to date. It listens to master elections and changes in the disk thresholds.
  */
@@ -43,16 +46,44 @@ public class HealthMetadataService {
     private final DiskThresholdSettings allocationDiskThresholdSettings;
     private final HealthDiskThresholdSettings healthDiskThresholdSettings;
 
+    private final ClusterStateListener clusterStateListener;
+    private final DiskThresholdSettings.ChangedThresholdListener allocationDiskThresholdListener;
+    private final HealthDiskThresholdSettings.Listener healthDiskThresholdListener;
+
+    private volatile boolean enabled;
+
     private volatile boolean publishedAfterElection = false;
+
     private final ClusterStateTaskExecutor<UpdateHealthMetadataTask> taskExecutor = new UpdateHealthMetadataTask.Executor();
 
     public HealthMetadataService(DiskThresholdSettings allocationDiskThresholdSettings, ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
         this.allocationDiskThresholdSettings = allocationDiskThresholdSettings;
         this.healthDiskThresholdSettings = new HealthDiskThresholdSettings(settings, clusterService.getClusterSettings());
-        this.clusterService.addListener(this::updateHealthMetadataIfNecessary);
-        this.allocationDiskThresholdSettings.addListener(this::updateHealthMetadataIfNecessary);
-        this.healthDiskThresholdSettings.addListener(this::updateHealthMetadataIfNecessary);
+        this.clusterStateListener = this::updateHealthMetadataIfNecessary;
+        this.allocationDiskThresholdListener = this::updateHealthMetadataIfNecessary;
+        this.healthDiskThresholdListener = this::updateHealthMetadataIfNecessary;
+        this.enabled = ENABLED_SETTING.get(settings);
+        if (this.enabled) {
+            this.clusterService.addListener(clusterStateListener);
+            this.allocationDiskThresholdSettings.addListener(allocationDiskThresholdListener);
+            this.healthDiskThresholdSettings.addListener(healthDiskThresholdListener);
+        }
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
+    }
+
+    private void enable(boolean enabled) {
+        this.enabled = enabled;
+        if (this.enabled) {
+            clusterService.addListener(clusterStateListener);
+            allocationDiskThresholdSettings.addListener(allocationDiskThresholdListener);
+            healthDiskThresholdSettings.addListener(healthDiskThresholdListener);
+        } else {
+            clusterService.removeListener(clusterStateListener);
+            allocationDiskThresholdSettings.removeListener(allocationDiskThresholdListener);
+            healthDiskThresholdSettings.removeListener(healthDiskThresholdListener);
+            publishedAfterElection = false;
+        }
     }
 
     private void updateHealthMetadataIfNecessary(ClusterChangedEvent event) {

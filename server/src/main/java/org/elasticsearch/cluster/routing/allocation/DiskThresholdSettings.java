@@ -393,6 +393,10 @@ public class DiskThresholdSettings {
         return this.changedThresholdListeners.add(changedThresholdListener);
     }
 
+    public boolean removeListener(ChangedThresholdListener changedThresholdListener) {
+        return this.changedThresholdListeners.remove(changedThresholdListener);
+    }
+
     /**
      * Listening to changes on the raw values of the watermarks.
      */

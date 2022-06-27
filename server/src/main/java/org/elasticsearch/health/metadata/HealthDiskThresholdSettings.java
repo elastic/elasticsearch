@@ -135,6 +135,10 @@ public class HealthDiskThresholdSettings {
         return this.listeners.add(listener);
     }
 
+    public boolean removeListener(Listener listener) {
+        return this.listeners.remove(listener);
+    }
+
     public interface Listener {
 
         void onChange();

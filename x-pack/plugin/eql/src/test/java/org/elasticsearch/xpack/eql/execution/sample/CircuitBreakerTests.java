@@ -26,20 +26,15 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.eql.action.EqlSearchAction;
-import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
@@ -53,7 +48,6 @@ import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.planner.Planner;
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -77,9 +71,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.CB_STACK_SIZE_PRECISION;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERHEAD;
 
 public class CircuitBreakerTests extends ESTestCase {
 
@@ -95,8 +87,7 @@ public class CircuitBreakerTests extends ESTestCase {
         }, mockCriteria(), randomIntBetween(10, 500), CIRCUIT_BREAKER);
 
         CIRCUIT_BREAKER.startBreaking();
-        iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION / 2));
-        iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - (CB_STACK_SIZE_PRECISION / 2) - 1));
+        iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - 1));
         expectThrows(CircuitBreakingException.class, () -> iterator.pushToStack(new SampleIterator.Page(1)));
     }
 
@@ -105,54 +96,19 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     private void testMemoryCleared(boolean fail) {
-        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
-            new BreakerSettings(
-                CIRCUIT_BREAKER_NAME,
-                CIRCUIT_BREAKER_LIMIT,
-                CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.MEMORY,
-                CircuitBreaker.Durability.TRANSIENT
-            )
-        );
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
                 Settings.EMPTY,
-                eqlBreakerSettings,
+                Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
             ESMockClient esClient = new ESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME));
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
-            EqlConfiguration eqlConfiguration = new EqlConfiguration(
-                new String[] { "test" },
-                org.elasticsearch.xpack.ql.util.DateUtils.UTC,
-                "nobody",
-                "cluster",
-                null,
-                emptyMap(),
-                null,
-                TimeValue.timeValueSeconds(30),
-                null,
-                123,
-                "",
-                new TaskId("test", 123),
-                new EqlSearchTask(
-                    randomLong(),
-                    "transport",
-                    EqlSearchAction.NAME,
-                    "",
-                    null,
-                    emptyMap(),
-                    emptyMap(),
-                    new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
-                    TimeValue.timeValueDays(5)
-                ),
-                x -> emptySet()
-            );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             EqlSession eqlSession = new EqlSession(
                 esClient,
-                eqlConfiguration,
+                EqlTestUtils.randomConfiguration(),
                 indexResolver,
                 new PreAnalyzer(),
                 new PostAnalyzer(),
@@ -206,8 +162,7 @@ public class CircuitBreakerTests extends ESTestCase {
         List<SearchHit> searchHits = new ArrayList<>();
         searchHits.add(new SearchHit(1, String.valueOf(1), null, null));
         searchHits.add(new SearchHit(2, String.valueOf(2), null, null));
-        Sample sample = new Sample(new SequenceKey(randomAlphaOfLength(10)), searchHits);
-        return sample;
+        return new Sample(new SequenceKey(randomAlphaOfLength(10)), searchHits);
     }
 
     private SampleQueryRequest mockQueryRequest() {

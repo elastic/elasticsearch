@@ -81,7 +81,7 @@ public class SampleIterator implements Executable {
     /**
      * total number of hits (ie. sum of page sizes) added to the stack when last memory check was executed
      */
-    private long lastTotalPageSize = 0;
+    private long previousTotalPageSize = 0;
 
     public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, CircuitBreaker circuitBreaker) {
         this.client = client;
@@ -161,9 +161,9 @@ public class SampleIterator implements Executable {
     protected void pushToStack(Page nextPage) {
         stack.push(nextPage);
         totalPageSize += nextPage.size;
-        if (totalPageSize - lastTotalPageSize >= CB_STACK_SIZE_PRECISION) {
+        if (totalPageSize - previousTotalPageSize >= CB_STACK_SIZE_PRECISION) {
             updateMemoryUsage();
-            lastTotalPageSize = totalPageSize;
+            previousTotalPageSize = totalPageSize;
         }
     }
 
@@ -347,7 +347,7 @@ public class SampleIterator implements Executable {
         samplesRamBytesUsed = 0;
         totalRamBytesUsed = 0;
         totalPageSize = 0;
-        lastTotalPageSize = 0;
+        previousTotalPageSize = 0;
     }
 
     private TimeValue timeTook() {

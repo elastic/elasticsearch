@@ -7,6 +7,8 @@ Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 [[enhancement-7.17.5]]
 [float]
 === Enhancements
+
+Machine Learning::
 * Make ML native processes work with glibc 2.35 (required for Ubuntu 22.04) {ml-pull}2272[#2272]
 * Improve normalization of anomaly detection results for short bucket lengths. This
 corrects bias which could cause our scoring to be too low for these jobs

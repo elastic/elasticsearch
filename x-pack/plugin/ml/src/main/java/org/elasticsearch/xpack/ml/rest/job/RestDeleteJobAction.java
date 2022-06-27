@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -14,7 +15,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -55,7 +55,16 @@ public class RestDeleteJobAction extends BaseRestHandler {
         } else {
             deleteJobRequest.setShouldStoreResult(true);
 
-            Task task = client.executeLocally(DeleteJobAction.INSTANCE, deleteJobRequest, nullTaskListener());
+            Task task = client.executeLocally(
+                DeleteJobAction.INSTANCE,
+                deleteJobRequest,
+                /*
+                 * We do not want to log anything due to a delete action. The response or error will be returned to the client when called
+                 * synchronously or it will be stored in the task result when called asynchronously.
+                 */
+                ActionListener.noop()
+            );
+
             // Send task description id instead of waiting for the message
             return channel -> {
                 try (XContentBuilder builder = channel.newBuilder()) {
@@ -66,18 +75,5 @@ public class RestDeleteJobAction extends BaseRestHandler {
                 }
             };
         }
-    }
-
-    // We do not want to log anything due to a delete action
-    // The response or error will be returned to the client when called synchronously
-    // or it will be stored in the task result when called asynchronously
-    private static <T> TaskListener<T> nullTaskListener() {
-        return new TaskListener<T>() {
-            @Override
-            public void onResponse(Task task, T o) {}
-
-            @Override
-            public void onFailure(Task task, Exception e) {}
-        };
     }
 }

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 // TODO implement better diffable logic so that whole diff does not need to be serialized if only one part changes
 /**
@@ -53,7 +55,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         true,
         a -> new TrainedModelAssignment(
             (StartTrainedModelDeploymentAction.TaskParams) a[0],
-            (Map<String, RoutingStateAndReason>) a[1],
+            (Map<String, RoutingInfo>) a[1],
             a[2] == null ? null : AssignmentState.fromString((String) a[2]),
             a[3] == null ? null : AssignmentState.fromString((String) a[3]),
             (String) a[4],
@@ -68,7 +70,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         );
         PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> p.map(LinkedHashMap::new, RoutingStateAndReason::fromXContent),
+            (p, c) -> p.map(LinkedHashMap::new, RoutingInfo::fromXContent),
             ROUTING_TABLE
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ASSIGNMENT_STATE);
@@ -83,7 +85,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     }
 
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
-    private final Map<String, RoutingStateAndReason> nodeRoutingTable;
+    private final Map<String, RoutingInfo> nodeRoutingTable;
     private final AssignmentState assignmentState;
     private final String reason;
     private final Instant startTime;
@@ -94,7 +96,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
     private TrainedModelAssignment(
         StartTrainedModelDeploymentAction.TaskParams taskParams,
-        Map<String, RoutingStateAndReason> nodeRoutingTable,
+        Map<String, RoutingInfo> nodeRoutingTable,
         AssignmentState assignmentState,
         AssignmentState legacyAssignmentState,
         String reason,
@@ -105,7 +107,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
     TrainedModelAssignment(
         StartTrainedModelDeploymentAction.TaskParams taskParams,
-        Map<String, RoutingStateAndReason> nodeRoutingTable,
+        Map<String, RoutingInfo> nodeRoutingTable,
         AssignmentState assignmentState,
         String reason,
         Instant startTime
@@ -119,7 +121,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
     public TrainedModelAssignment(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
-        this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingStateAndReason::new);
+        this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingInfo::new);
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
@@ -129,7 +131,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         return nodeRoutingTable.containsKey(nodeId);
     }
 
-    public Map<String, RoutingStateAndReason> getNodeRoutingTable() {
+    public Map<String, RoutingInfo> getNodeRoutingTable() {
         return Collections.unmodifiableMap(nodeRoutingTable);
     }
 
@@ -153,12 +155,48 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             .toArray(String[]::new);
     }
 
+    public Optional<String> selectRandomStartedNodeWeighedOnAllocations() {
+        List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
+        List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
+        int allocationSum = 0;
+        for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
+            if (RoutingState.STARTED.equals(routingEntry.getValue().getState())) {
+                nodeIds.add(routingEntry.getKey());
+                allocationSum += routingEntry.getValue().getCurrentAllocations();
+                cumulativeAllocations.add(allocationSum);
+            }
+        }
+
+        if (allocationSum == 0) {
+            // If we are in a mixed cluster where there are assignments prior to introducing allocation distribution
+            // we could have a zero-sum of allocations. We fall back to returning a random started node.
+            return nodeIds.isEmpty() ? Optional.empty() : Optional.of(nodeIds.get(Randomness.get().nextInt(nodeIds.size())));
+        }
+
+        int randomInt = Randomness.get().ints(1, 1, allocationSum + 1).iterator().nextInt();
+        int nodeIndex = Collections.binarySearch(cumulativeAllocations, randomInt);
+        if (nodeIndex < 0) {
+            nodeIndex = -nodeIndex - 1;
+        }
+        return Optional.of(nodeIds.get(nodeIndex));
+    }
+
     public Optional<String> getReason() {
         return Optional.ofNullable(reason);
     }
 
     public Instant getStartTime() {
         return startTime;
+    }
+
+    public boolean isSatisfied(Set<String> assignableNodeIds) {
+        int allocations = nodeRoutingTable.entrySet()
+            .stream()
+            .filter(e -> assignableNodeIds.contains(e.getKey()))
+            .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED))
+            .mapToInt(e -> e.getValue().getTargetAllocations())
+            .sum();
+        return allocations >= taskParams.getNumberOfAllocations();
     }
 
     @Override
@@ -201,31 +239,22 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         out.writeInstant(startTime);
     }
 
-    public Optional<AllocationStatus> calculateAllocationStatus(List<DiscoveryNode> allocatableNodes) {
+    public Optional<AllocationStatus> calculateAllocationStatus() {
         if (assignmentState.equals(AssignmentState.STOPPING)) {
             return Optional.empty();
         }
-        int numAllocatableNodes = 0;
-        int numStarted = 0;
-        for (DiscoveryNode node : allocatableNodes) {
-            if (StartTrainedModelDeploymentAction.TaskParams.mayAssignToNode(node)) {
-                RoutingState nodeState = Optional.ofNullable(nodeRoutingTable.get(node.getId()))
-                    .map(RoutingStateAndReason::getState)
-                    .orElse(RoutingState.STOPPED);
-                numAllocatableNodes++;
-                if (nodeState.equals(RoutingState.STARTED)) {
-                    numStarted++;
-                }
-            }
-        }
-        return Optional.of(new AllocationStatus(numStarted, numAllocatableNodes));
+        int numStarted = nodeRoutingTable.values()
+            .stream()
+            .filter(RoutingInfo::isRoutable)
+            .mapToInt(RoutingInfo::getCurrentAllocations)
+            .sum();
+        return Optional.of(new AllocationStatus(numStarted, taskParams.getNumberOfAllocations()));
     }
 
     public static class Builder {
-        private final Map<String, RoutingStateAndReason> nodeRoutingTable;
+        private final Map<String, RoutingInfo> nodeRoutingTable;
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
         private AssignmentState assignmentState;
-        private boolean isChanged;
         private String reason;
         private Instant startTime;
 
@@ -245,7 +274,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         private Builder(
             StartTrainedModelDeploymentAction.TaskParams taskParams,
-            Map<String, RoutingStateAndReason> nodeRoutingTable,
+            Map<String, RoutingInfo> nodeRoutingTable,
             AssignmentState assignmentState,
             String reason,
             Instant startTime
@@ -261,7 +290,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now());
         }
 
-        public Builder addNewRoutingEntry(String nodeId) {
+        public Builder addRoutingEntry(String nodeId, RoutingInfo routingInfo) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
                     "routing entry for node [{}] for model [{}] already exists",
@@ -269,51 +298,28 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                     taskParams.getModelId()
                 );
             }
-            isChanged = true;
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.STARTING, ""));
+            nodeRoutingTable.put(nodeId, routingInfo);
             return this;
         }
 
-        // For testing purposes
-        Builder addRoutingEntry(String nodeId, RoutingState state) {
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(state, ""));
-            return this;
-        }
-
-        public Builder addNewFailedRoutingEntry(String nodeId, String failureReason) {
-            if (nodeRoutingTable.containsKey(nodeId)) {
-                throw new ResourceAlreadyExistsException(
-                    "routing entry for node [{}] for model [{}] already exists",
-                    nodeId,
-                    taskParams.getModelId()
-                );
-            }
-            isChanged = true;
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, failureReason));
-            return this;
-        }
-
-        public Builder updateExistingRoutingEntry(String nodeId, RoutingStateAndReason state) {
-            RoutingStateAndReason stateAndReason = nodeRoutingTable.get(nodeId);
-            if (stateAndReason == null) {
+        public Builder updateExistingRoutingEntry(String nodeId, RoutingInfo routingInfo) {
+            RoutingInfo existingRoutingInfo = nodeRoutingTable.get(nodeId);
+            if (existingRoutingInfo == null) {
                 throw new ResourceNotFoundException(
                     "routing entry for node [{}] for model [{}] does not exist",
                     nodeId,
                     taskParams.getModelId()
                 );
             }
-            if (stateAndReason.equals(state)) {
+            if (existingRoutingInfo.equals(routingInfo)) {
                 return this;
             }
-            nodeRoutingTable.put(nodeId, state);
-            isChanged = true;
+            nodeRoutingTable.put(nodeId, routingInfo);
             return this;
         }
 
         public Builder removeRoutingEntry(String nodeId) {
-            if (nodeRoutingTable.remove(nodeId) != null) {
-                isChanged = true;
-            }
+            nodeRoutingTable.remove(nodeId);
             return this;
         }
 
@@ -321,7 +327,6 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             if (Objects.equals(reason, this.reason)) {
                 return this;
             }
-            isChanged = true;
             this.reason = reason;
             return this;
         }
@@ -330,7 +335,6 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             if (assignmentState.equals(AssignmentState.STOPPING)) {
                 return this;
             }
-            isChanged = true;
             this.reason = stopReason;
             assignmentState = AssignmentState.STOPPING;
             return this;
@@ -357,7 +361,6 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             if (assignmentState.equals(state)) {
                 return this;
             }
-            isChanged = true;
             assignmentState = state;
             return this;
         }
@@ -366,18 +369,12 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             if (this.reason == null) {
                 return this;
             }
-            isChanged = true;
             reason = null;
             return this;
-        }
-
-        public boolean isChanged() {
-            return isChanged;
         }
 
         public TrainedModelAssignment build() {
             return new TrainedModelAssignment(taskParams, nodeRoutingTable, assignmentState, reason, startTime);
         }
     }
-
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -14,10 +16,10 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -32,11 +34,15 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
     InferTrainedModelDeploymentAction.Request,
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     private final TrainedModelProvider provider;
 
@@ -66,6 +72,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        TaskId taskId = new TaskId(clusterService.getNodeName(), task.getId());
         final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
@@ -73,7 +80,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             .orElse(null);
         if (assignment == null) {
             // If there is no assignment, verify the model even exists so that we can provide a nicer error message
-            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
+            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), taskId, ActionListener.wrap(config -> {
                 if (config.getModelType() != TrainedModelType.PYTORCH) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(
@@ -94,16 +101,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        String[] randomRunningNode = assignment.getStartedNodes();
-        if (randomRunningNode.length == 0) {
-            String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-            return;
-        }
-        // TODO Do better routing for inference calls
-        int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
-        request.setNodes(randomRunningNode[nodeIndex]);
-        super.doExecute(task, request, listener);
+        logger.trace(() -> format("[%s] selecting node from routing table: %s", assignment.getModelId(), assignment.getNodeRoutingTable()));
+        assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
+            logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
+            request.setNodes(node);
+            super.doExecute(task, request, listener);
+        }, () -> {
+            logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model [" + deploymentId + "] is not allocated to any nodes")
+            );
+        });
     }
 
     @Override

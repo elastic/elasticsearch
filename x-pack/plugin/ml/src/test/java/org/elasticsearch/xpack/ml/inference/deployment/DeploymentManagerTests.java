@@ -26,7 +26,7 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.JOB_COMMS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,12 +50,12 @@ public class DeploymentManagerTests extends ESTestCase {
                 "xpack.ml.utility_thread_pool"
             ),
             new ScalingExecutorBuilder(
-                JOB_COMMS_THREAD_POOL_NAME,
+                NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
                 1,
                 4,
                 TimeValue.timeValueMinutes(10),
                 false,
-                "xpack.ml.job_comms_thread_pool"
+                "xpack.ml.native_inference_comms_thread_pool"
             )
         );
     }

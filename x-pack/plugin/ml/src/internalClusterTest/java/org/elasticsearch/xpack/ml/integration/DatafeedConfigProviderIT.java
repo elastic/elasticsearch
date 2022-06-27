@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -76,18 +77,19 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     public void testCrud() throws InterruptedException {
         String datafeedId = "df1";
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<Tuple<DatafeedConfig, IndexResponse>> responseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         // Create datafeed config
         DatafeedConfig.Builder config = createDatafeedConfig(datafeedId, "j1");
         blockingCall(
             actionListener -> datafeedConfigProvider.putDatafeedConfig(config.build(), createSecurityHeader(), actionListener),
-            indexResponseHolder,
+            responseHolder,
             exceptionHolder
         );
         assertNull(exceptionHolder.get());
-        assertEquals(RestStatus.CREATED, indexResponseHolder.get().status());
+        assertEquals(RestStatus.CREATED, responseHolder.get().v2().status());
+        assertThat(responseHolder.get().v1().getHeaders(), not(anEmptyMap()));
 
         // Read datafeed config
         AtomicReference<DatafeedConfig.Builder> configBuilderHolder = new AtomicReference<>();
@@ -162,27 +164,27 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     public void testMultipleCreateAndDeletes() throws InterruptedException {
         String datafeedId = "df2";
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<Tuple<DatafeedConfig, IndexResponse>> responseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         // Create datafeed config
         DatafeedConfig.Builder config = createDatafeedConfig(datafeedId, "j1");
         blockingCall(
             actionListener -> datafeedConfigProvider.putDatafeedConfig(config.build(), Collections.emptyMap(), actionListener),
-            indexResponseHolder,
+            responseHolder,
             exceptionHolder
         );
         assertNull(exceptionHolder.get());
-        assertEquals(RestStatus.CREATED, indexResponseHolder.get().status());
+        assertEquals(RestStatus.CREATED, responseHolder.get().v2().status());
 
         // cannot create another with the same id
-        indexResponseHolder.set(null);
+        responseHolder.set(null);
         blockingCall(
             actionListener -> datafeedConfigProvider.putDatafeedConfig(config.build(), Collections.emptyMap(), actionListener),
-            indexResponseHolder,
+            responseHolder,
             exceptionHolder
         );
-        assertNull(indexResponseHolder.get());
+        assertNull(responseHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceAlreadyExistsException.class));
         assertEquals("A datafeed with id [df2] already exists", exceptionHolder.get().getMessage());
 
@@ -567,7 +569,9 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     private DatafeedConfig putDatafeedConfig(DatafeedConfig.Builder builder, Map<String, String> headers) throws Exception {
         builder.setHeaders(headers);
         DatafeedConfig config = builder.build();
-        this.<IndexResponse>blockingCall(actionListener -> datafeedConfigProvider.putDatafeedConfig(config, headers, actionListener));
+        this.<Tuple<DatafeedConfig, IndexResponse>>blockingCall(
+            actionListener -> datafeedConfigProvider.putDatafeedConfig(config, headers, actionListener)
+        );
         return config;
     }
 }

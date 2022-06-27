@@ -774,6 +774,7 @@ The API returns the following result:
 // TESTRESPONSE[s/1656364845151/$body.$_path/]
 // TESTRESPONSE[s/"version": "8.4.0"/"version": $body.version/]
 // TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
+// TESTRESPONSE[s/-3578554885299300212/$body.$_path/]
 
 
 The following example creates a job and specifies a training percent:

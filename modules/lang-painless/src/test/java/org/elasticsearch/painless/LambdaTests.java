@@ -47,25 +47,25 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testPrimitiveLambdas() {
-        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> x + 1).sum();"));
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasWithTypedArgs() {
-        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(int x -> x + 1).sum();"));
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(int x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasDef() {
-        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> x + 1).sum();"));
+        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasWithTypedArgsDef() {
-        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(int x -> x + 1).sum();"));
+        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(int x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasConvertible() {
         assertEquals(
             2,
-            exec("List l = new ArrayList(); l.add((short)1); l.add(1); " + "return l.stream().mapToInt(long x -> (int)1).sum();")
+            exec("List l = new ArrayList(); l.add((short)1); l.add(1); return l.stream().mapToInt(long x -> (int)1).sum();")
         );
     }
 
@@ -135,7 +135,7 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(
             100,
             exec(
-                "int sum = 0; " + "for (int i = 0; i < 100; i++) {" + "  sum += Optional.empty().orElseGet(() -> 1);" + "}" + "return sum;"
+                "int sum = 0; for (int i = 0; i < 100; i++) {  sum += Optional.empty().orElseGet(() -> 1);}return sum;"
             )
         );
     }
@@ -153,7 +153,7 @@ public class LambdaTests extends ScriptTestCase {
             IllegalArgumentException.class,
             () -> {
                 exec(
-                    "List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();"
+                    "List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();"
                 );
             }
         );
@@ -181,12 +181,12 @@ public class LambdaTests extends ScriptTestCase {
     public void testNestedCapture() {
         assertEquals(
             1,
-            exec("boolean x = false; int y = 1;" + "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));")
+            exec("boolean x = false; int y = 1;return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));")
         );
     }
 
     public void testNestedCaptureParams() {
-        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }" + "return foo(x -> foo(y -> x + 1))"));
+        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }return foo(x -> foo(y -> x + 1))"));
     }
 
     public void testWrongArity() {
@@ -210,7 +210,7 @@ public class LambdaTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(
             IllegalArgumentException.class,
             false,
-            () -> { exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();"); }
+            () -> { exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(() -> 5).sum();"); }
         );
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
     }
@@ -218,7 +218,7 @@ public class LambdaTests extends ScriptTestCase {
     public void testWrongArityNotEnoughDef() {
         IllegalArgumentException expected = expectScriptThrows(
             IllegalArgumentException.class,
-            () -> { exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();"); }
+            () -> { exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(() -> 5).sum();"); }
         );
         assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
@@ -258,7 +258,7 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(
             true,
             exec(
-                compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" + "else { return params['key'] } }, 2)",
+                compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }else { return params['key'] } }, 2)",
                 params,
                 true
             )
@@ -276,7 +276,7 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(
             false,
             exec(
-                compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" + "else { return params['key'] } }, 2)",
+                compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }else { return params['key'] } }, 2)",
                 params,
                 true
             )

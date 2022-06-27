@@ -71,6 +71,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The master rollup action that coordinates
@@ -441,19 +443,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject()
             .endObject();
 
-        for (final String dimensionField : dimensionFields) {
-            @SuppressWarnings("unchecked")
-            Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
-            @SuppressWarnings("unchecked")
-            Map<String, String> fieldProperties = (Map<String, String>) properties.get(dimensionField);
-            if (fieldProperties.isEmpty() == false) {
-                builder.startObject(dimensionField);
-                for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
-                    builder.field(fieldProperty.getKey(), fieldProperty.getValue());
-                }
-                builder.endObject();
-            }
-        }
+        copyFieldMappings(
+            Stream.concat(dimensionFields.stream(), labelFields.stream()).collect(Collectors.toList()),
+            sourceIndexMappingProperties,
+            builder
+        );
 
         for (Map.Entry<String, FieldCapabilities> e : metricFieldCaps.entrySet()) {
             TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
@@ -477,23 +471,26 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
         }
 
-        for (String field : labelFields) {
+        builder.endObject();
+        builder.endObject();
+        return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
+    }
+
+    private static void copyFieldMappings(List<String> fields, Map<String, Object> sourceIndexMappingProperties, XContentBuilder builder)
+        throws IOException {
+        for (final String dimensionField : fields) {
             @SuppressWarnings("unchecked")
             Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
             @SuppressWarnings("unchecked")
-            Map<String, String> fieldProperties = (Map<String, String>) properties.get(field);
+            Map<String, String> fieldProperties = (Map<String, String>) properties.get(dimensionField);
             if (fieldProperties.isEmpty() == false) {
-                builder.startObject(field);
+                builder.startObject(dimensionField);
                 for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
                     builder.field(fieldProperty.getKey(), fieldProperty.getValue());
                 }
                 builder.endObject();
             }
         }
-
-        builder.endObject();
-        builder.endObject();
-        return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
     /**

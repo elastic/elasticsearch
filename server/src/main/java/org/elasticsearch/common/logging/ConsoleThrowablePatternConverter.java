@@ -46,13 +46,27 @@ public class ConsoleThrowablePatternConverter extends ThrowablePatternConverter 
         }
         if (error instanceof StartupException e) {
             error = e.getCause();
+            toAppendTo.append("\n\nElasticsearch failed to startup normally.\n\n");
         }
-        toAppendTo.append("\n\nElasticsearch failed to startup normally.\n\n");
+        appendShortStacktrace(error, toAppendTo);
         if (error instanceof CreationException) {
             toAppendTo.append("There were problems initializing Guice. See log for more details.");
         } else {
-            toAppendTo.append(error.getMessage());
             toAppendTo.append("\n\nSee logs for more details.\n");
+        }
+    }
+
+    // prints a very truncated stack trace, leaving the rest of the details for the log
+    private static void appendShortStacktrace(Throwable error, StringBuilder toAppendTo) {
+        toAppendTo.append(error.getClass().getName());
+        toAppendTo.append(": ");
+        toAppendTo.append(error.getMessage());
+
+        var stacktrace = error.getStackTrace();
+        int len = Math.min(stacktrace.length, 5);
+        for (int i = 0; i < len; ++i) {
+            toAppendTo.append("\n\tat ");
+            toAppendTo.append(stacktrace[i].toString());
         }
     }
 }

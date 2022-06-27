@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,6 +148,11 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     @Override
     public int hashCode() {
         return Objects.hash(modelRoutingEntries);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static class Builder {

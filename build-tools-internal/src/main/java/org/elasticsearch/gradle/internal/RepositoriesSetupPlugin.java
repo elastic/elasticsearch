@@ -40,6 +40,11 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
         }
         repos.mavenCentral();
 
+        MavenArtifactRepository jacksonRepo = repos.maven(repo -> {
+            repo.setName("jackson-snapshot");
+            repo.setUrl("https://oss.sonatype.org/content/repositories/snapshots/");
+        });
+
         String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {
             // extract the revision number from the version with a regex matcher

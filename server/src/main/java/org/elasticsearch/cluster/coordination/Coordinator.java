@@ -790,6 +790,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 ? DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "=" + DISCOVERY_SEED_PROVIDERS_SETTING.get(settings)
                 : DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
         );
+
+        logger.debug(
+            "The address of this local node is: [{}]. The addresses of the last resolved discovery seed hosts are: [{}].",
+            this.getLocalNode().getAddress(),
+            lastResolvedAddresses
+        );
     }
 
     void becomeCandidate(String method) {

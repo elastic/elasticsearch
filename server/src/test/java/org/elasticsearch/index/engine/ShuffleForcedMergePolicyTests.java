@@ -34,6 +34,7 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
+            // Disable merging on flush.
             iwc.setMaxFullFlushMergeWaitMillis(0L);
             MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
             iwc.setMergePolicy(mp);

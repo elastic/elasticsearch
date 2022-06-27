@@ -76,7 +76,7 @@ expected_event_ids  = []
 [[queries]]
 name = "sequenceOptionalFieldAsKeyAndFirstFilter"
 query = '''
-sequence by ?x 
+sequence by ?x
   [OPTIONAL where ?x == null]
   [OPTIONAL where true]
 '''
@@ -137,7 +137,7 @@ expected_event_ids  = [12,13,14,
 join_keys = ["null","123",
              "null","null",
              "512","123"]
-             
+
 [[queries]]
 name = "sequenceOneKeyOptional_1"
 query = '''
@@ -159,7 +159,7 @@ expected_event_ids  = [12,13,14,
                        18,19,20]
 join_keys = ["null","123",
              "512","123"]
-             
+
 [[queries]]
 name = "sequenceNoOptionalKeys"
 query = '''
@@ -195,7 +195,7 @@ expected_event_ids  = [12,13,14,
 join_keys = ["null","123",
              "null","null",
              "512","123"]
-             
+
 [[queries]]
 name = "sequenceWithOptionalFieldsAndUntil_2"
 query = '''
@@ -209,3 +209,65 @@ expected_event_ids  = [12,13,14,
 join_keys = ["null","123",
              "null","null"]
 
+[[queries]]
+name = "sequenceWithVersionCheck"
+query = '''
+  sequence by transID
+    [ file where version == "1.2.4" ]
+    [ file where version == "1.11.3" ]
+'''
+expected_event_ids  = [20, 21]
+join_keys = ["0"]
+
+[[queries]]
+name = "sequenceWithVersionRangeCheck"
+query = '''
+  sequence by transID
+    [ file where version == "1.2.4" ]
+    [ file where version > "1.5.0" ]
+'''
+expected_event_ids  = [20, 21]
+join_keys = ["0"]
+
+[[queries]]
+name = "sequenceWithVersionRangeCheck2"
+query = '''
+  sequence by transID
+    [ file where version == "1.2.4" ]
+    [ file where version < "1.5.0" ]
+'''
+expected_event_ids  = [20, 23]
+join_keys = ["0"]
+
+
+[[queries]]
+name = "sequenceWithInvalidVersion"
+query = '''
+  sequence by transID
+    [ file where version == "1.2.4" ]
+    [ file where version == "bad" ]
+'''
+expected_event_ids  = [20, 22]
+join_keys = ["0"]
+
+
+[[queries]]
+name = "sequenceWithVersionConcat"
+query = '''
+  sequence by transID
+    [ file where CONCAT(version, "") == "1.2.4" ]
+    [ file where version == "bad" ]
+'''
+expected_event_ids  = [20, 22]
+join_keys = ["0"]
+
+
+[[queries]]
+name = "sequenceWithVersionJoinKey"
+query = '''
+  sequence by version
+    [ process where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [18, 19]
+join_keys = ["1.5.0"]

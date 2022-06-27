@@ -583,12 +583,12 @@ public class DateFieldMapperTests extends MapperTestCase {
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
 
             @Override
-            public SyntheticSourceExample example() {
+            public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     Tuple<Object, String> v = generateValue();
                     return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
                 }
-                List<Tuple<Object, String>> values = randomList(1, 5, this::generateValue);
+                List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
                 List<String> outList = values.stream()
                     .sorted(

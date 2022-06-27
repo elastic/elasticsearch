@@ -221,11 +221,19 @@ public class DesiredBalanceComputer {
         }
 
         for (var ignored : routingNodes.unassigned().ignored()) {
-            assert ignored.unassignedInfo() != null;
-            assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
-                || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                || (ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED && hasChanges)
-                : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
+            var info = ignored.unassignedInfo();
+            assert info != null
+                && (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
+                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED)
+                : "Unexpected stats in: " + info;
+
+            if (hasChanges == false && info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                // Simulation could not progress due to missing information in any of the deciders.
+                // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.
+                // Progress would be made after the followup reroute call.
+                hasChanges = true;
+            }
 
             var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
             assignments.compute(

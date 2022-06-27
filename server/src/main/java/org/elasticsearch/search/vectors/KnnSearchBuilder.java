@@ -58,11 +58,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment {
         return PARSER.parse(parser, null);
     }
 
-    private final String field;
-    private final float[] queryVector;
-    private final int k;
-    private final int numCands;
-    private float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+    final String field;
+    final float[] queryVector;
+    final int k;
+    final int numCands;
+    float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
     /**
      * Defines a kNN search.

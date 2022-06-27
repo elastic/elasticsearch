@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -43,6 +44,27 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
             builder.boost(randomFloat());
         }
         return builder;
+    }
+
+    @Override
+    protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) throws IOException {
+        switch (random().nextInt(5)) {
+            case 0:
+                String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
+                return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands + 3).boost(instance.boost);
+            case 1:
+                float[] newVector = randomValueOtherThan(instance.queryVector, () -> randomVector(5));
+                return new KnnSearchBuilder(instance.field, newVector, instance.k + 3, instance.numCands).boost(instance.boost);
+            case 2:
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k + 3, instance.numCands).boost(instance.boost);
+            case 3:
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3).boost(instance.boost);
+            case 4:
+                float newBoost = randomValueOtherThan(instance.boost, ESTestCase::randomFloat);
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3).boost(newBoost);
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     public void testToQueryBuilder() {

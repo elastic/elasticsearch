@@ -400,7 +400,9 @@ public class ApiKeyService {
     }
 
     private void translateResponseAndClearCache(String apiKeyId, BulkResponse bulkResponse, ActionListener<UpdateApiKeyResponse> listener) {
-        final var bulkItemResponse = single(bulkResponse.getItems());
+        final BulkItemResponse[] elements = bulkResponse.getItems();
+        assert elements.length == 1 : "expected single item in bulk index response for api key update";
+        final var bulkItemResponse = elements[0];
         if (bulkItemResponse.isFailed()) {
             listener.onFailure(bulkItemResponse.getFailure().getCause());
         } else {
@@ -411,18 +413,13 @@ public class ApiKeyService {
         }
     }
 
-    private static <T> T single(Collection<T> elements) {
+    private static VersionedApiKeyDoc single(Collection<VersionedApiKeyDoc> elements) {
         if (elements.size() != 1) {
-            throw new IllegalStateException("collection must have exactly one element but had [" + elements.size() + "]");
+            final var message = "expected single api key doc to be found for update but found [" + elements.size() + "]";
+            assert false : message;
+            throw new IllegalStateException(message);
         }
         return elements.iterator().next();
-    }
-
-    private static <T> T single(T[] elements) {
-        if (elements.length != 1) {
-            throw new IllegalStateException("array must contain exactly one element but had [" + elements.length + "]");
-        }
-        return elements[0];
     }
 
     private BulkRequest buildBulkIndexRequestForUpdate(

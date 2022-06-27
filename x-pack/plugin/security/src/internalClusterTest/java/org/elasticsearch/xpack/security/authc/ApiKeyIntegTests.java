@@ -29,7 +29,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1595,7 +1594,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             );
         final var ex = expectThrows(ExecutionException.class, updateListener::get);
 
-        assertThat(ex.getCause(), instanceOf(ValidationException.class));
+        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(ex.getMessage(), containsString("cannot update inactive api key [" + apiKeyId + "]"));
     }
 

@@ -854,10 +854,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             seedHostsList = emptyList();
         }
 
-        void setSeedHostsList(List<TransportAddress> addressesList) {
-            seedHostsList = addressesList;
-        }
-
         void blackholeConnectionsFrom(ClusterNode sender, ClusterNode destination) {
             blackholedConnections.add(Tuple.tuple(sender.getId(), destination.getId()));
         }

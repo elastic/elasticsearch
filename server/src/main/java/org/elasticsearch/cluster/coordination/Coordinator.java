@@ -92,7 +92,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -765,37 +764,23 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
-        List<TransportAddress> lastResolvedAddresses = peerFinder.getLastResolvedAddresses();
-        if (lastResolvedAddresses.isEmpty()) {
-            return;
+        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
+            if (DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()) {
+                // For a single-node cluster, the only acceptable setting is an empty list.
+                return;
+            } else {
+                logger.warn(
+                    """
+                        This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to discover \
+                        other nodes and form a multi-node cluster via the [{}] setting. Fully-formed clusters do not attempt to discover \
+                        other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. The cluster UUID persists \
+                        across restarts and can only be changed by deleting the contents of the node's data path(s). Remove the discovery \
+                        configuration to suppress this message.""",
+                    applierState.metadata().clusterUUID(),
+                    DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+                );
+            }
         }
-
-        // Ignore case where the seed hosts are from the default seed addresses
-        // TODO: It may be better to consider this `if` only if DISCOVERY_SEED_HOSTS_SETTING is not set. In order to do that, we should
-        // ensure that there are no users inputting a single-node address in the unicast_hosts.txt file. #88075
-        Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
-        if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
-            return;
-        }
-
-        logger.warn(
-            """
-                This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to discover \
-                other nodes and form a multi-node cluster via [{}]. Fully-formed clusters do not attempt to discover other nodes, \
-                and nodes with different cluster UUIDs cannot belong to the same cluster. The cluster UUID persists across \
-                restarts and can only be changed by deleting the contents of the node's data path(s). Remove the discovery \
-                configuration to suppress this message.""",
-            applierState.metadata().clusterUUID(),
-            DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)
-                ? DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "=" + DISCOVERY_SEED_PROVIDERS_SETTING.get(settings)
-                : DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
-        );
-
-        logger.debug(
-            "The address of this local node is: [{}]. The addresses of the last resolved discovery seed hosts are: {}.",
-            this.getLocalNode().getAddress(),
-            lastResolvedAddresses
-        );
     }
 
     void becomeCandidate(String method) {

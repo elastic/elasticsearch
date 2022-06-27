@@ -34,6 +34,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -77,6 +78,7 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -2116,19 +2118,22 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     public void testLogsWarningPeriodicallyIfSingleNodeClusterHasSeedHosts() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
+        final String fakeSeedHost = buildNewFakeTransportAddress().toString();
         if (randomBoolean()) {
-            settings = Settings.EMPTY;
+            settings = Settings.builder()
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost)
+                .build();
             warningDelayMillis = Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings).millis();
         } else {
             warningDelayMillis = randomLongBetween(1, 100000);
             settings = Settings.builder()
                 .put(ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.getKey(), warningDelayMillis + "ms")
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost)
                 .build();
         }
         logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
 
         try (Cluster cluster = new Cluster(1, true, settings)) {
-            cluster.setSeedHostsList(List.of(buildNewFakeTransportAddress()));
             cluster.runRandomly();
             cluster.stabilise();
 

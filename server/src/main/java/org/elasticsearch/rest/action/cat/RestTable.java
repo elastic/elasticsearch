@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestChannel;
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -217,7 +217,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {

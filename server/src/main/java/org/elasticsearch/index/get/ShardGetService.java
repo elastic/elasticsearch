@@ -257,7 +257,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             SourceLoader loader = forceSyntheticSource
                 ? new SourceLoader.Synthetic(mappingLookup.getMapping())
                 : mappingLookup.newSourceLoader();
-            source = loader.leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
+            source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(fieldVisitor, docIdAndVersion.docId);
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {

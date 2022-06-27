@@ -379,7 +379,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
                     }
                 };
@@ -514,7 +514,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableIntToFloat((int) value));
                     }
                 };
@@ -627,7 +627,7 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
-                    protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableLongToDouble(value));
                     }
                 };
@@ -1270,7 +1270,7 @@ public class NumberFieldMapper extends FieldMapper {
         private static SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(String fieldName, String fieldSimpleName) {
             return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
                 @Override
-                protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(value);
                 }
             };
@@ -1631,10 +1631,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedNumericDocValues leaf = dv(reader);
             if (leaf == null) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING.leaf(reader);
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 private boolean hasValue;
@@ -1656,19 +1656,19 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                     if (leaf.docValueCount() == 1) {
                         b.field(simpleName);
-                        loadNextValue(b, leaf.nextValue());
+                        writeValue(b, leaf.nextValue());
                         return;
                     }
                     b.startArray(simpleName);
                     for (int i = 0; i < leaf.docValueCount(); i++) {
-                        loadNextValue(b, leaf.nextValue());
+                        writeValue(b, leaf.nextValue());
                     }
                     b.endArray();
                 }
             };
         }
 
-        protected abstract void loadNextValue(XContentBuilder b, long value) throws IOException;
+        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
 
         /**
          * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.

@@ -146,6 +146,14 @@ public final class Def {
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
     static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
+    public static final MethodHandle DEF_TO_B_BYTE_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_SHORT_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_CHARACTER_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_INTEGER_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_LONG_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_FLOAT_IMPLICIT_HANDLE;
+    public static final MethodHandle DEF_TO_B_DOUBLE_IMPLICIT_HANDLE;
+
     static {
         final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
@@ -182,6 +190,46 @@ public final class Def {
             arrayLengthMHFactory = null;
         }
         JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
+
+        try {
+            DEF_TO_B_BYTE_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToByteImplicit",
+                MethodType.methodType(Byte.class, Object.class)
+            );
+            DEF_TO_B_SHORT_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToShortImplicit",
+                MethodType.methodType(Short.class, Object.class)
+            );
+            DEF_TO_B_CHARACTER_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToCharacterImplicit",
+                MethodType.methodType(Character.class, Object.class)
+            );
+            DEF_TO_B_INTEGER_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToIntegerImplicit",
+                MethodType.methodType(Integer.class, Object.class)
+            );
+            DEF_TO_B_LONG_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToLongImplicit",
+                MethodType.methodType(Long.class, Object.class)
+            );
+            DEF_TO_B_FLOAT_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToFloatImplicit",
+                MethodType.methodType(Float.class, Object.class)
+            );
+            DEF_TO_B_DOUBLE_IMPLICIT_HANDLE = methodHandlesLookup.findStatic(
+                Def.class,
+                "defToDoubleImplicit",
+                MethodType.methodType(Double.class, Object.class)
+            );
+        } catch (NoSuchMethodException | IllegalAccessException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */

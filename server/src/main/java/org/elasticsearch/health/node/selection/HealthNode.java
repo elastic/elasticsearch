@@ -24,7 +24,7 @@ public class HealthNode extends AllocatedPersistentTask {
     public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.health_node_feature_flag_enabled"));
 
     public static boolean isEnabled() {
-        return true;// FEATURE_FLAG_ENABLED;
+        return FEATURE_FLAG_ENABLED;
     }
 
     public static final String TASK_NAME = "health-node";

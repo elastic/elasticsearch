@@ -28,7 +28,7 @@ public class HealthDiskThresholdSettings {
 
     public static final Setting<String> CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING = new Setting<>(
         "cluster.health.disk.threshold.yellow",
-        "85%",
+        "90%",
         (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.health.disk.threshold.yellow"),
         new YellowThresholdValidator(),
         Setting.Property.Dynamic,
@@ -36,7 +36,7 @@ public class HealthDiskThresholdSettings {
     );
     public static final Setting<String> CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING = new Setting<>(
         "cluster.health.disk.threshold.red",
-        "90%",
+        "95%",
         (s) -> DiskThresholdSettingParser.validThresholdSetting(s, "cluster.health.disk.threshold.red"),
         new RedThresholdValidator(),
         Setting.Property.Dynamic,

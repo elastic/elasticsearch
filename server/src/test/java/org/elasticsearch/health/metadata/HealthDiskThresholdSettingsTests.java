@@ -26,9 +26,9 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
 
         ByteSizeValue zeroBytes = ByteSizeValue.parseBytesSizeValue("0b", "test");
         assertFalse(healthDiskThresholdSettings.getYellowThreshold().isAbsolute());
-        assertEquals(85.0D, healthDiskThresholdSettings.getYellowThreshold().getRatio().getAsPercent(), 0.0D);
+        assertEquals(90.0D, healthDiskThresholdSettings.getYellowThreshold().getRatio().getAsPercent(), 0.0D);
         assertFalse(healthDiskThresholdSettings.getRedThreshold().isAbsolute());
-        assertEquals(90.0D, healthDiskThresholdSettings.getRedThreshold().getRatio().getAsPercent(), 0.0D);
+        assertEquals(95.0D, healthDiskThresholdSettings.getRedThreshold().getRatio().getAsPercent(), 0.0D);
     }
 
     public void testUpdate() {

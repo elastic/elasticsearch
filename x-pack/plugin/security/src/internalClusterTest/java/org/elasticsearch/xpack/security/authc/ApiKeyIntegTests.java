@@ -1606,7 +1606,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             apiKeysNotAllowedEx.getMessage(),
-            containsString("authentication through an api key is not supported for updating api keys")
+            containsString("authentication via an api key is not supported for updating api keys")
         );
     }
 
@@ -1619,7 +1619,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("no api key owned by requesting user found for requested id [" + request.getId() + "]"));
+        assertThat(ex.getMessage(), containsString("no api key owned by requesting user found for id [" + request.getId() + "]"));
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {

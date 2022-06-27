@@ -364,7 +364,7 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("authentication through an api key is not supported for updating api keys"));
+            listener.onFailure(new IllegalArgumentException("authentication via an api key is not supported for updating api keys"));
             return;
         }
 
@@ -372,7 +372,7 @@ public class ApiKeyService {
             final var apiKeyId = request.getId();
 
             if (versionedDocs.isEmpty()) {
-                throw new ResourceNotFoundException("no api key owned by requesting user found for requested id [" + apiKeyId + "]");
+                throw new ResourceNotFoundException("no api key owned by requesting user found for id [" + apiKeyId + "]");
             }
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(versionedDocs).doc());
@@ -1173,6 +1173,7 @@ public class ApiKeyService {
         String[] apiKeyIds,
         ActionListener<Collection<VersionedApiKeyDoc>> listener
     ) {
+        assert authentication.isApiKey() == false;
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
             getOwnersRealmNames(authentication),
             authentication.getEffectiveSubject().getUser().principal(),

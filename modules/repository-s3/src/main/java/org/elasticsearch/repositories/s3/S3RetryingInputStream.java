@@ -172,7 +172,8 @@ class S3RetryingInputStream extends InputStream {
         final Supplier<String> messageSupplier = () -> format(
             """
                 failed reading [%s/%s] at offset [%s]; this was attempt [%s] to read this blob which yielded [%s] bytes; in total \
-                [%s] of the attempts to read this blob have made meaningful progress; the maximum number of attempts is [%s]""",
+                [%s] of the attempts to read this blob have made meaningful progress and do not count towards the maximum number of \
+                retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
             blobStore.bucket(),
             blobKey,
             start + currentOffset,

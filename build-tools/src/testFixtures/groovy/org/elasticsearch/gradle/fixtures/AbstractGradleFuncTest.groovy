@@ -34,7 +34,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    public boolean configurationCacheCompatible = false
+    boolean configurationCacheCompatible = false
 
     def setup() {
         projectDir = testProjectDir.root
@@ -77,13 +77,15 @@ abstract class AbstractGradleFuncTest extends Specification {
                 new ConfigurationCacheCompatibleAwareGradleRunner(
                         new InternalAwareGradleRunner(
                                 GradleRunner.create()
-                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                                .toString().indexOf("-agentlib:jdwp") > 0
+                                        )
                                         .withProjectDir(projectDir)
                                         .withPluginClasspath()
                                         .forwardOutput()
-                        ),
-                        configurationCacheCompatible),
-                projectDir).withArguments(arguments)
+                        ), configurationCacheCompatible),
+                projectDir
+        ).withArguments(arguments)
     }
 
     def assertOutputContains(String givenOutput, String expected) {
@@ -131,13 +133,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-        List<String> extraPlugins = [],
-        String bugfix = "7.15.2",
-        String bugfixLucene = "8.9.0",
-        String staged = "7.16.0",
-        String stagedLucene = "8.10.0",
-        String minor = "8.0.0",
-        String minorLucene = "9.0.0"
+            List<String> extraPlugins = [],
+            String bugfix = "7.15.2",
+            String bugfixLucene = "8.9.0",
+            String staged = "7.16.0",
+            String stagedLucene = "8.10.0",
+            String minor = "8.0.0",
+            String minorLucene = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'

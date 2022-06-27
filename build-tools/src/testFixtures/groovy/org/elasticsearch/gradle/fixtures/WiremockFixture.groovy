@@ -25,24 +25,6 @@ class WiremockFixture {
     static String GET = "GET"
     static String PUT = "PUT"
 
-    /**
-     * the buildRunClosure has passed an instance of WireMockServer that can be used to access e.g. the baseUrl of
-     * the configured server:
-     *
-     * <pre>
-     *  WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-     *      buildFile << """
-     *          // wire a gradle repository with wiremock
-*               repositories {
-     *              maven {
-     *                 url = '${server.baseUrl()}'
-     *              }
-     *          }
-     *      }
-     *      gadleRunner('myTask').build()
-     * </pre>
-     * */
-
     static BuildResult withWireMock(String expectedUrl, byte[] expectedContent, Closure<BuildResult> buildRunClosure) {
         withWireMock(GET, expectedUrl, expectedContent, HttpURLConnection.HTTP_OK, buildRunClosure)
     }
@@ -51,6 +33,23 @@ class WiremockFixture {
         withWireMock(httpMethod, expectedUrl, expectedContent.getBytes(), expectedHttpCode, buildRunClosure)
     }
 
+    /**
+     * the buildRunClosure has passed an instance of WireMockServer that can be used to access e.g. the baseUrl of
+     * the configured server:
+     *
+     * <pre>
+     *  WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
+     *      buildFile << """
+     *          // wire a gradle repository with wiremock
+     *               repositories {
+     *              maven {
+     *                 url = '${server.baseUrl()}'
+     *              }
+     *          }
+     *      }
+     *      gadleRunner('myTask').build()
+     * </pre>
+     * */
     static BuildResult withWireMock(String httpMethod, String expectedUrl, byte[] expectedContent, int expectedHttpCode, Closure<BuildResult> buildRunClosure) {
         WireMockServer wireMock = new WireMockServer(0);
         try {

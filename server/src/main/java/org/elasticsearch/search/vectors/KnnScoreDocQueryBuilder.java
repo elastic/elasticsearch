@@ -31,8 +31,8 @@ import java.util.Objects;
  * when executing a kNN search during the search query phase, to include the documents
  * that matched the initial kNN query during the DFS phase.
  */
-public class ScoreDocQueryBuilder extends AbstractQueryBuilder<ScoreDocQueryBuilder> {
-    public static final String NAME = "score_doc";
+public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
+    public static final String NAME = "knn_score_doc";
     private final ScoreDoc[] scoreDocs;
 
     /**
@@ -41,11 +41,11 @@ public class ScoreDocQueryBuilder extends AbstractQueryBuilder<ScoreDocQueryBuil
      * @param scoreDocs the docs and scores this query should match. Each {@link ScoreDoc}
      *                  is expected to have its {@link ScoreDoc#shardIndex} set.
      */
-    public ScoreDocQueryBuilder(ScoreDoc[] scoreDocs) {
+    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs) {
         this.scoreDocs = scoreDocs;
     }
 
-    public ScoreDocQueryBuilder(StreamInput in) throws IOException {
+    public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.scoreDocs = in.readArray(Lucene::readScoreDocWithShardIndex, ScoreDoc[]::new);
     }
@@ -121,7 +121,7 @@ public class ScoreDocQueryBuilder extends AbstractQueryBuilder<ScoreDocQueryBuil
     }
 
     @Override
-    protected boolean doEquals(ScoreDocQueryBuilder other) {
+    protected boolean doEquals(KnnScoreDocQueryBuilder other) {
         if (scoreDocs.length != other.scoreDocs.length) {
             return false;
         }

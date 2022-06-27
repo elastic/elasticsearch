@@ -17,7 +17,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.vectors.ScoreDocQueryBuilder;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -75,9 +75,12 @@ final class DfsQueryPhase extends SearchPhase {
             context
         );
 
+        SearchSourceBuilder source = context.getRequest().source();
+        addKnnResultsToQuery(source, knnResults);
+
         for (final DfsSearchResult dfsResult : searchResults) {
             ShardSearchRequest shardRequest = dfsResult.getShardSearchRequest();
-            addKnnResultsToQuery(shardRequest.source());
+            shardRequest.source(source);
 
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -128,12 +131,12 @@ final class DfsQueryPhase extends SearchPhase {
         }
     }
 
-    private void addKnnResultsToQuery(SearchSourceBuilder source) {
+    private void addKnnResultsToQuery(SearchSourceBuilder source, DfsKnnResults knnResults) {
         if (source == null || source.knnSearch() == null) {
             return;
         }
 
-        ScoreDocQueryBuilder knnQueryBuilder = new ScoreDocQueryBuilder(knnResults.scoreDocs());
+        KnnScoreDocQueryBuilder knnQueryBuilder = new KnnScoreDocQueryBuilder(knnResults.scoreDocs());
         if (source.query() == null) {
             source.query(knnQueryBuilder);
         } else {

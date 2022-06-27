@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQueryBuilder> {
+public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -41,7 +41,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
     }
 
     @Override
-    protected ScoreDocQueryBuilder doCreateTestQueryBuilder() {
+    protected KnnScoreDocQueryBuilder doCreateTestQueryBuilder() {
         List<ScoreDoc> scoreDocs = new ArrayList<>();
         int numShards = randomInt(5);
         for (int shard = 0; shard < numShards; shard++) {
@@ -50,15 +50,15 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
                 scoreDocs.add(new ScoreDoc(doc, randomFloat(), shard));
             }
         }
-        return new ScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+        return new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
     }
 
     @Override
     public void testValidOutput() {
-        ScoreDocQueryBuilder query = new ScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) });
+        KnnScoreDocQueryBuilder query = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) });
         String expected = """
             {
-              "score_doc" : {
+              "knn_score_doc" : {
                 "values" : [
                   {
                     "doc" : 0,
@@ -75,7 +75,8 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScoreDocQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(KnnScoreDocQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         // Not needed since we override testToQuery
     }
 
@@ -88,7 +89,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
-                ScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
+                KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 Query query = queryBuilder.doToQuery(context);
 
                 assertTrue(query instanceof ScoreDocQuery);
@@ -116,7 +117,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
-                ScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
+                KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
                 assertNotNull(rewriteQuery.toQuery(context));
                 assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
@@ -134,7 +135,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
                 context.setAllowUnmappedFields(true);
-                ScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
+                KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
             }
         }
@@ -182,7 +183,7 @@ public class ScoreDocQueryBuilderTests extends AbstractQueryTestCase<ScoreDocQue
                     }
                 }
 
-                ScoreDocQueryBuilder queryBuilder = new ScoreDocQueryBuilder(allScoreDocs.toArray(new ScoreDoc[0]));
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(allScoreDocs.toArray(new ScoreDoc[0]));
                 Query query = queryBuilder.doToQuery(context);
 
                 TopDocs topDocs = searcher.search(query, 100);

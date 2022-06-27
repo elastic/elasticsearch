@@ -454,7 +454,7 @@ public class SearchModuleTests extends ESTestCase {
         "query_string",
         "range",
         "regexp",
-        "score_doc",
+        "knn_score_doc",
         "script",
         "script_score",
         "simple_query_string",

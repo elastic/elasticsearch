@@ -1101,7 +1101,7 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
         {
-            // Single-shard searches should always use QUERY_THEN_FETCH
+            // Single-shard searches should always use QUERY_THEN_FETCH in absence of kNN search
             SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
 
             TransportSearchAction.adjustSearchType(searchRequest, true);

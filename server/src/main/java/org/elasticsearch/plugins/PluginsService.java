@@ -301,10 +301,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
-     * from plugins/modules. For example:
+     * from plugins/modules.
+     *
+     * <p>
+     * For example:
      *
      * var pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
-     *
+     * </p>
      * @param service A templated service class to look for providers in plugins
      * @return an immutable {@link List} of discovered providers in the plugins/modules
      */

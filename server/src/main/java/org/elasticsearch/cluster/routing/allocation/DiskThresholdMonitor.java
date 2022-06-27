@@ -69,7 +69,7 @@ public class DiskThresholdMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
-    private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    private final AtomicBoolean operationInProgress = new AtomicBoolean();
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -117,22 +117,22 @@ public class DiskThresholdMonitor {
     }
 
     private void checkFinished() {
-        final boolean checkFinished = checkInProgress.compareAndSet(true, false);
+        final boolean checkFinished = operationInProgress.compareAndSet(true, false);
         assert checkFinished;
         logger.trace("checkFinished");
         removeExistingIndexBlocksIfDisabled(diskThresholdSettings.isEnabled());
     }
 
     private void cleanupFinished() {
-        final boolean checkFinished = checkInProgress.compareAndSet(true, false);
-        assert checkFinished;
+        final boolean cleanupFinished = operationInProgress.compareAndSet(true, false);
+        assert cleanupFinished;
         logger.trace("cleanupFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
         // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
         // all ClusterInfo updates are processed and never ignored
-        if (checkInProgress.compareAndSet(false, true) == false) {
+        if (operationInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;
         }
@@ -488,7 +488,7 @@ public class DiskThresholdMonitor {
         if (enabled) {
             return;
         }
-        if (checkInProgress.compareAndSet(false, true) == false) {
+        if (operationInProgress.compareAndSet(false, true) == false) {
             logger.trace("skipping cleanup as a check is in progress");
             return;
         }
@@ -502,7 +502,7 @@ public class DiskThresholdMonitor {
             .keySet()
             .stream()
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
         logger.info("removing read-only block from indices [{}]", indicesToRelease);
         if (indicesToRelease.isEmpty() == false) {
             client.admin()

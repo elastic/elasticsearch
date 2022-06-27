@@ -396,7 +396,7 @@ public class GatewayMetaState implements Closeable {
                 .lastCommittedConfiguration(staleStateConfiguration)
                 .build();
             return ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(newCoordinationMetadata).build())
+                .metadata(clusterState.metadata().withCoordinationMetadata(newCoordinationMetadata))
                 .build();
         }
 

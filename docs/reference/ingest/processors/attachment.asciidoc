@@ -1,5 +1,8 @@
 [[attachment]]
-=== Attachment Processor
+=== Attachment processor
+++++
+<titleabbrev>Attachment</titleabbrev>
+++++
 
 The attachment processor lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
 using the Apache text extraction library https://tika.apache.org/[Tika].
@@ -10,7 +13,7 @@ format instead of JSON and specify the field as a bytes array instead of a strin
 representation. The processor will skip the base64 decoding then.
 
 [[using-attachment]]
-==== Using the Attachment Processor in a Pipeline
+==== Using the attachment processor in a pipeline
 
 [[attachment-options]]
 .Attachment options
@@ -306,7 +309,7 @@ Returns this:
 
 
 [[attachment-with-arrays]]
-==== Using the Attachment Processor with arrays
+==== Using the attachment processor with arrays
 
 To use the attachment processor within an array of attachments the
 {ref}/foreach-processor.html[foreach processor] is required. This

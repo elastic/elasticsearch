@@ -772,7 +772,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
         // Ignore case where the seed hosts are from the default seed addresses
         Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
-        logger.debug("The default addresses are: {}.", defaultAddresses); // TODO: temporary. Remove before merging.
         if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
             return;
         }

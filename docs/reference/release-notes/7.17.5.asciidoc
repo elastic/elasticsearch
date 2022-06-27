@@ -17,7 +17,7 @@ corrects bias which could cause our scoring to be too low for these jobs
 === Bug fixes
 
 Machine Learning::
-* * Adjacency weighting fixes in categorization {ml-pull}2277[#2277]
+* Adjacency weighting fixes in categorization {ml-pull}2277[#2277]
 * Fix a source of "Discarding sample = nan, weights = ..." log errors for time series
   anomaly detection {ml-pull}2286[#2286]
 

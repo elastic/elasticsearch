@@ -55,7 +55,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         for (int d = 0; d < docsToCreatePerShard; ++d) {
             for (int i = 0; i < indices; ++i) {
                 for (int j = 0; j < shards; ++j) {
-                    client().prepareIndex(indexNamePrefix + i).setSource("{" + "\"field\":" + j + "}", XContentType.JSON).get();
+                    client().prepareIndex(indexNamePrefix + i).setSource("{\"field\":" + j + "}", XContentType.JSON).get();
                 }
             }
         }

@@ -53,6 +53,6 @@ public final class RoleKey {
 
     @Override
     public String toString() {
-        return "RoleKey{" + "names=" + names + ", source='" + source + '\'' + '}';
+        return "RoleKey{names=" + names + ", source='" + source + '\'' + '}';
     }
 }

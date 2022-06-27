@@ -381,7 +381,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         public String toString() {
-            return "Request{" + "script=" + script + "context=" + context + ", contextSetup=" + contextSetup + '}';
+            return "Request{script=" + script + "context=" + context + ", contextSetup=" + contextSetup + '}';
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {

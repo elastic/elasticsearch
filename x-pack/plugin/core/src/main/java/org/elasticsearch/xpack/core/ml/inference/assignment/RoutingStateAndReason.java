@@ -91,6 +91,6 @@ public class RoutingStateAndReason implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "RoutingStateAndReason{" + "reason='" + reason + '\'' + ", state=" + state + '}';
+        return "RoutingStateAndReason{reason='" + reason + '\'' + ", state=" + state + '}';
     }
 }

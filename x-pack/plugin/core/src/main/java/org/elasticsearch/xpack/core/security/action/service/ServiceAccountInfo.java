@@ -57,7 +57,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
 
     @Override
     public String toString() {
-        return "ServiceAccountInfo{" + "principal='" + principal + '\'' + ", roleDescriptor=" + roleDescriptor + '}';
+        return "ServiceAccountInfo{principal='" + principal + '\'' + ", roleDescriptor=" + roleDescriptor + '}';
     }
 
     @Override

@@ -109,7 +109,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     @Override
     public String toString() {
-        return "CreateSnapshotResponse{" + "snapshotInfo=" + snapshotInfo + '}';
+        return "CreateSnapshotResponse{snapshotInfo=" + snapshotInfo + '}';
     }
 
     @Override

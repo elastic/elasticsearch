@@ -109,7 +109,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
         @Override
         public String toString() {
-            return "PreShardSyncedFlushRequest{" + "shardId=" + shardId + '}';
+            return "PreShardSyncedFlushRequest{shardId=" + shardId + '}';
         }
 
         @Override

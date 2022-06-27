@@ -152,7 +152,7 @@ public class LagDetector {
 
         @Override
         public String toString() {
-            return "NodeAppliedStateTracker{" + "discoveryNode=" + discoveryNode + ", appliedVersion=" + appliedVersion + '}';
+            return "NodeAppliedStateTracker{discoveryNode=" + discoveryNode + ", appliedVersion=" + appliedVersion + '}';
         }
 
         void checkForLag(final long version) {

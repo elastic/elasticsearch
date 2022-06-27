@@ -51,7 +51,7 @@ public class GetServiceAccountResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "GetServiceAccountResponse{" + "serviceAccountInfos=" + Arrays.toString(serviceAccountInfos) + '}';
+        return "GetServiceAccountResponse{serviceAccountInfos=" + Arrays.toString(serviceAccountInfos) + '}';
     }
 
     @Override

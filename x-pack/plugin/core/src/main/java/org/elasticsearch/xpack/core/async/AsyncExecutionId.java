@@ -71,7 +71,7 @@ public final class AsyncExecutionId {
 
     @Override
     public String toString() {
-        return "AsyncExecutionId{" + "docId='" + docId + '\'' + ", taskId=" + taskId + '}';
+        return "AsyncExecutionId{docId='" + docId + '\'' + ", taskId=" + taskId + '}';
     }
 
     /**

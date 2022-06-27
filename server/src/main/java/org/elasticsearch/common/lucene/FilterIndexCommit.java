@@ -68,6 +68,6 @@ public abstract class FilterIndexCommit extends IndexCommit {
 
     @Override
     public String toString() {
-        return "FilterIndexCommit{" + "in=" + in + '}';
+        return "FilterIndexCommit{in=" + in + '}';
     }
 }

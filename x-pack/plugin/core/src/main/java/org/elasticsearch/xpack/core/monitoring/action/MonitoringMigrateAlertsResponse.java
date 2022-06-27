@@ -63,7 +63,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
 
     @Override
     public String toString() {
-        return "MonitoringMigrateAlertsResponse{" + "exporters=" + exporters + '}';
+        return "MonitoringMigrateAlertsResponse{exporters=" + exporters + '}';
     }
 
     public static class ExporterMigrationResult implements Writeable, ToXContentObject {

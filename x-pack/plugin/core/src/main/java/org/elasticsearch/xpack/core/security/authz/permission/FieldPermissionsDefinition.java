@@ -58,7 +58,7 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
     @Override
     public String toString() {
-        return "FieldPermissionsDefinition{" + "fieldGrantExcludeGroups=" + fieldGrantExcludeGroups + '}';
+        return "FieldPermissionsDefinition{fieldGrantExcludeGroups=" + fieldGrantExcludeGroups + '}';
     }
 
     @Override

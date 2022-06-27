@@ -57,6 +57,6 @@ public class PutInternalCcrRepositoryRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "PutInternalCcrRepositoryRequest{" + "name='" + name + '\'' + ", type='" + type + '\'' + '}';
+        return "PutInternalCcrRepositoryRequest{name='" + name + '\'' + ", type='" + type + '\'' + '}';
     }
 }

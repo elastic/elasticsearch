@@ -67,7 +67,7 @@ public class Reconfigurator {
 
     @Override
     public String toString() {
-        return "Reconfigurator{" + "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration + '}';
+        return "Reconfigurator{autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration + '}';
     }
 
     /**

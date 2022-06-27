@@ -195,7 +195,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return "ShardInfo{" + "total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
+            return "ShardInfo{total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
         }
 
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {

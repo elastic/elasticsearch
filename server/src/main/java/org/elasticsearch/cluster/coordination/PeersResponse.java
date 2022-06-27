@@ -69,7 +69,7 @@ public class PeersResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "PeersResponse{" + "masterNode=" + masterNode + ", knownPeers=" + knownPeers + ", term=" + term + '}';
+        return "PeersResponse{masterNode=" + masterNode + ", knownPeers=" + knownPeers + ", term=" + term + '}';
     }
 
     @Override

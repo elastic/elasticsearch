@@ -1924,7 +1924,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public String toString() {
-            return "TestRequest{" + "info='" + info + '\'' + '}';
+            return "TestRequest{info='" + info + '\'' + '}';
         }
     }
 
@@ -1948,7 +1948,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public String toString() {
-            return "TestResponse{" + "info='" + info + '\'' + '}';
+            return "TestResponse{info='" + info + '\'' + '}';
         }
     }
 

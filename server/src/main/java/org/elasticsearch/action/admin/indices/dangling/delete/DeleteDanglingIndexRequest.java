@@ -51,7 +51,7 @@ public class DeleteDanglingIndexRequest extends AcknowledgedRequest<DeleteDangli
 
     @Override
     public String toString() {
-        return "DeleteDanglingIndexRequest{" + "indexUUID='" + indexUUID + "', acceptDataLoss=" + acceptDataLoss + '}';
+        return "DeleteDanglingIndexRequest{indexUUID='" + indexUUID + "', acceptDataLoss=" + acceptDataLoss + '}';
     }
 
     @Override

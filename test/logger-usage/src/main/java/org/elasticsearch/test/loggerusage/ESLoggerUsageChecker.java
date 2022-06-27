@@ -579,7 +579,7 @@ public class ESLoggerUsageChecker {
 
         @Override
         public String toString() {
-            return "IntMinMaxTrackingBasicValue{" + "minValue=" + minValue + ", maxValue=" + maxValue + '}';
+            return "IntMinMaxTrackingBasicValue{minValue=" + minValue + ", maxValue=" + maxValue + '}';
         }
     }
 

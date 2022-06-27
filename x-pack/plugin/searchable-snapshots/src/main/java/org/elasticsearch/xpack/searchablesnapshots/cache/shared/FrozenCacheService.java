@@ -655,7 +655,7 @@ public class FrozenCacheService implements Releasable {
 
         @Override
         public String toString() {
-            return "Chunk{" + "file=" + file + ", region=" + region + '}';
+            return "Chunk{file=" + file + ", region=" + region + '}';
         }
     }
 
@@ -910,7 +910,7 @@ public class FrozenCacheService implements Releasable {
 
         @Override
         public String toString() {
-            return "FrozenCacheFile{" + "cacheKey=" + cacheKey + ", length=" + length + '}';
+            return "FrozenCacheFile{cacheKey=" + cacheKey + ", length=" + length + '}';
         }
     }
 

@@ -51,7 +51,7 @@ public final class RandomSamplingQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "RandomSamplingQuery{" + "p=" + p + ", seed=" + seed + ", hash=" + hash + '}';
+        return "RandomSamplingQuery{p=" + p + ", seed=" + seed + ", hash=" + hash + '}';
     }
 
     @Override

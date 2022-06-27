@@ -463,7 +463,7 @@ public class TaskManager implements ClusterStateApplier {
 
         @Override
         public String toString() {
-            return "Ban{" + "reason=" + reason + ", channels=" + channels + '}';
+            return "Ban{reason=" + reason + ", channels=" + channels + '}';
         }
     }
 

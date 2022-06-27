@@ -661,7 +661,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             @Override
             public String toString() {
-                return "VerifyBlobTask{" + "node=" + node + ", request=" + request + '}';
+                return "VerifyBlobTask{node=" + node + ", request=" + request + '}';
             }
         }
     }

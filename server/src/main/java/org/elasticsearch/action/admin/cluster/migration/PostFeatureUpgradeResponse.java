@@ -201,7 +201,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
         @Override
         public String toString() {
-            return "Feature{" + "featureName='" + featureName + '\'' + '}';
+            return "Feature{featureName='" + featureName + '\'' + '}';
         }
     }
 }

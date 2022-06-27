@@ -80,6 +80,6 @@ public class ClearVotingConfigExclusionsRequest extends MasterNodeRequest<ClearV
 
     @Override
     public String toString() {
-        return "ClearVotingConfigExclusionsRequest{" + ", waitForRemoval=" + waitForRemoval + ", timeout=" + timeout + '}';
+        return "ClearVotingConfigExclusionsRequest{, waitForRemoval=" + waitForRemoval + ", timeout=" + timeout + '}';
     }
 }

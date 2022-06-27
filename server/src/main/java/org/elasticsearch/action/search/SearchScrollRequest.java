@@ -128,7 +128,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
 
     @Override
     public String toString() {
-        return "SearchScrollRequest{" + "scrollId='" + scrollId + '\'' + ", scroll=" + scroll + '}';
+        return "SearchScrollRequest{scrollId='" + scrollId + '\'' + ", scroll=" + scroll + '}';
     }
 
     @Override

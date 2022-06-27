@@ -333,6 +333,6 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     @Override
     public String toString() {
-        return "ScriptMetadata{" + "scripts=" + scripts + '}';
+        return "ScriptMetadata{scripts=" + scripts + '}';
     }
 }

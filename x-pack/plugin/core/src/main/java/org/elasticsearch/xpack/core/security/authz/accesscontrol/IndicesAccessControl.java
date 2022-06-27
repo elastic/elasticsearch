@@ -293,7 +293,7 @@ public class IndicesAccessControl {
 
     @Override
     public String toString() {
-        return "IndicesAccessControl{" + "granted=" + granted + ", indexPermissions=" + indexPermissions + '}';
+        return "IndicesAccessControl{granted=" + granted + ", indexPermissions=" + indexPermissions + '}';
     }
 
     public static IndicesAccessControl allowAll() {

@@ -40,7 +40,7 @@ public final class ResourcePrivileges {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + "resource='" + resource + '\'' + ", privileges=" + privileges + '}';
+        return getClass().getSimpleName() + "{resource='" + resource + '\'' + ", privileges=" + privileges + '}';
     }
 
     @Override

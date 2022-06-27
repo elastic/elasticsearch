@@ -264,7 +264,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
 
     @Override
     public String toString() {
-        return "DesiredNodes{" + "historyID='" + historyID + '\'' + ", version=" + version + ", nodes=" + nodes + '}';
+        return "DesiredNodes{historyID='" + historyID + '\'' + ", version=" + version + ", nodes=" + nodes + '}';
     }
 
     public String historyID() {

@@ -66,7 +66,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     @Override
     public String toString() {
-        return "TokenInfo{" + "name='" + name + '\'' + ", nodeNames=" + nodeNames + '}';
+        return "TokenInfo{name='" + name + '\'' + ", nodeNames=" + nodeNames + '}';
     }
 
     public static TokenInfo indexToken(String name) {

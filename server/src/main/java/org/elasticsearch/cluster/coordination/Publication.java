@@ -241,7 +241,7 @@ public abstract class Publication {
 
         @Override
         public String toString() {
-            return "PublicationTarget{" + "discoveryNode=" + discoveryNode + ", state=" + state + ", ackIsPending=" + ackIsPending + '}';
+            return "PublicationTarget{discoveryNode=" + discoveryNode + ", state=" + state + ", ackIsPending=" + ackIsPending + '}';
         }
 
         void sendPublishRequest() {

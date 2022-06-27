@@ -300,7 +300,7 @@ public class NerProcessor extends NlpTask.Processor {
         record TaggedToken(DelimitedToken token, IobTag tag, double score) {
             @Override
             public String toString() {
-                return "{" + "token:" + token + ", " + tag + ", " + score + "}";
+                return "{token:" + token + ", " + tag + ", " + score + "}";
             }
         }
     }

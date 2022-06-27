@@ -1143,7 +1143,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public String toString() {
-            return "RecoveryDiff{" + "identical=" + identical + ", different=" + different + ", missing=" + missing + '}';
+            return "RecoveryDiff{identical=" + identical + ", different=" + different + ", missing=" + missing + '}';
         }
     }
 

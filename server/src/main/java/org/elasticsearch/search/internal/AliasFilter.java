@@ -88,6 +88,6 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public String toString() {
-        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
+        return "AliasFilter{aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
     }
 }

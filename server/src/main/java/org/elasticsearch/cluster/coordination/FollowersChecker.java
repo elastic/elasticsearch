@@ -458,7 +458,7 @@ public class FollowersChecker {
 
         @Override
         public String toString() {
-            return "FollowerCheckRequest{" + "term=" + term + ", sender=" + sender + '}';
+            return "FollowerCheckRequest{term=" + term + ", sender=" + sender + '}';
         }
 
         @Override

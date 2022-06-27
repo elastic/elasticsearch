@@ -97,7 +97,7 @@ public final class IngestDocument {
             IngestSourceAndMetadata.getTimestamp(ingestMetadata),
             IngestSourceAndMetadata.VALIDATORS
         );
-        this.ingestMetadata = ingestMetadata != null ? ingestMetadata : new HashMap<>();
+        this.ingestMetadata = ingestMetadata;
     }
 
     /**
@@ -727,7 +727,7 @@ public final class IngestDocument {
     /**
      * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
+    IngestSourceAndMetadata getIngestSourceAndMetadata() {
         return sourceAndMetadata;
     }
 

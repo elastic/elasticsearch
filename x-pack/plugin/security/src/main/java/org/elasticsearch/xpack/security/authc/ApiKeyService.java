@@ -519,13 +519,14 @@ public class ApiKeyService {
         addLimitedByRoleDescriptors(builder, userRoles);
 
         builder.field("name", currentApiKeyDoc.name).field("version", version.id);
+
+        assert currentApiKeyDoc.metadataFlattened == null
+            || MetadataUtils.containsReservedMetadata(
+                XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
+            ) == false : "api key doc to be updated contains reserved metadata";
         if (metadata != null) {
             builder.field("metadata_flattened", metadata);
         } else {
-            assert currentApiKeyDoc.metadataFlattened == null
-                || MetadataUtils.containsReservedMetadata(
-                    XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
-                ) == false;
             builder.rawField(
                 "metadata_flattened",
                 currentApiKeyDoc.metadataFlattened == null

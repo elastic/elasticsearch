@@ -38,7 +38,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <p>
  * These types of settings are read only through the REST API,
  * and cannot be modified by the end user.
- * </p>
  */
 public record OperatorMetadata(
     String namespace,
@@ -57,7 +56,6 @@ public record OperatorMetadata(
      * <p>
      * These settings cannot be updated by the end user and are set outside of the
      * REST layer, e.g. through file based settings or by plugin/modules.
-     * </p>
      *
      * @param namespace     The namespace of the setting creator, e.g. file_settings, security plugin, etc.
      * @param version       The update version, must increase with each update
@@ -71,7 +69,6 @@ public record OperatorMetadata(
      *
      * <p>
      * This method is to be used to check if a REST action handler is allowed to modify certain cluster state.
-     * </p>
      *
      * @param handlerName the name of the operator handler we need to check for keys
      * @param modified a set of keys we want to see if we can modify.
@@ -247,7 +244,7 @@ public record OperatorMetadata(
          * <p>
          * Each new cluster state update in operator
          * mode requires a version bump. The version increase doesn't have to be monotonic.
-         * </p>
+         *
          * @param version the new operator metadata version
          * @return {@link Builder}
          */
@@ -274,7 +271,6 @@ public record OperatorMetadata(
          * <p>
          * The handler metadata is stored in a map, keyed off the {@link OperatorHandlerMetadata} name. Previously
          * stored {@link OperatorHandlerMetadata} for a given name is overwritten.
-         * </p>
          *
          * @param handler {@link OperatorHandlerMetadata}
          * @return {@link Builder}

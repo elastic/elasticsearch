@@ -31,7 +31,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <p>
  * Since we hold operator metadata state for multiple namespaces, the same handler can appear in
  * multiple namespaces. See {@link OperatorMetadata} and {@link Metadata}.
- * </p>
  */
 public record OperatorHandlerMetadata(String name, Set<String> keys)
     implements

@@ -28,7 +28,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * while applying a cluster state update for a given namespace.
  * <p>
  * This information is held by the {@link OperatorMetadata} class.
- * </p>
  */
 public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
     implements

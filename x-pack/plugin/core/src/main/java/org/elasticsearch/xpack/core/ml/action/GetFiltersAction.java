@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
@@ -39,6 +41,11 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_filters[%s]", getResourceId());
         }
 
         @Override

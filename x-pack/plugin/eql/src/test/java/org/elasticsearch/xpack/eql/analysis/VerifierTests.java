@@ -93,6 +93,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
         assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
         assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [VERSION]", error("any where version"));
     }
 
     public void testQueryStartsWithNumber() {
@@ -361,6 +362,11 @@ public class VerifierTests extends ESTestCase {
     public void testIP() {
         final IndexResolution idxr = loadIndexResolution("mapping-ip.json");
         accept(idxr, "foo where ip_addr == 0");
+    }
+
+    public void testVersion() {
+        final IndexResolution idxr = loadIndexResolution("mapping-version.json");
+        accept(idxr, "foo where version_number == \"2.1.4\"");
     }
 
     public void testJoin() {

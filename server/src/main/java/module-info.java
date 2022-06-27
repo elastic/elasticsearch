@@ -51,6 +51,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
+    exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
@@ -212,6 +213,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
+    exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;
     exports org.elasticsearch.index.analysis;
@@ -231,6 +233,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.get;
     exports org.elasticsearch.index.mapper;
     exports org.elasticsearch.index.mapper.flattened;
+    exports org.elasticsearch.index.mapper.vectors;
     exports org.elasticsearch.index.merge;
     exports org.elasticsearch.index.query;
     exports org.elasticsearch.index.query.functionscore;
@@ -291,6 +294,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.search;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
+    exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
@@ -333,6 +337,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.suggest.completion.context;
     exports org.elasticsearch.search.suggest.phrase;
     exports org.elasticsearch.search.suggest.term;
+    exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;

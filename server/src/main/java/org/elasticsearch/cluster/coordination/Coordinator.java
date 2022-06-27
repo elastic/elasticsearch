@@ -770,12 +770,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
-        // Ignore default case where the seed hosts are the default seed addresses from settings.
-        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings) == false) {
-            Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
-            if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
-                return;
-            }
+        // Ignore case where the seed hosts are from the default seed addresses
+        Set<String> defaultAddresses = Set.copyOf(transportService.getDefaultSeedAddresses());
+        logger.debug("The default addresses are: {}.", defaultAddresses); // TODO: temporary. Remove before merging.
+        if (lastResolvedAddresses.stream().allMatch(t -> defaultAddresses.contains(t.toString()))) {
+            return;
         }
 
         logger.warn(
@@ -792,7 +791,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
 
         logger.debug(
-            "The address of this local node is: [{}]. The addresses of the last resolved discovery seed hosts are: [{}].",
+            "The address of this local node is: [{}]. The addresses of the last resolved discovery seed hosts are: {}.",
             this.getLocalNode().getAddress(),
             lastResolvedAddresses
         );

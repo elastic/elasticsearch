@@ -2119,9 +2119,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         final Settings settings;
         final String fakeSeedHost = buildNewFakeTransportAddress().toString();
         if (randomBoolean()) {
-            settings = Settings.builder()
-                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost)
-                .build();
+            settings = Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost).build();
             warningDelayMillis = Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings).millis();
         } else {
             warningDelayMillis = randomLongBetween(1, 100000);

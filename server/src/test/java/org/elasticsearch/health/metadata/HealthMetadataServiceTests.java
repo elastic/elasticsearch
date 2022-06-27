@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -33,7 +32,8 @@ public class HealthMetadataServiceTests extends ESTestCase {
     public void setup() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);healthMetadataService = new HealthMetadataService(
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        healthMetadataService = new HealthMetadataService(
             new DiskThresholdSettings(Settings.EMPTY, clusterSettings),
             clusterService,
             Settings.EMPTY

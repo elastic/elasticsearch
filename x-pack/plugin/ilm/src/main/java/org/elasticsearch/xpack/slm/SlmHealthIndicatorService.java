@@ -84,8 +84,13 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.BACKUP)
                 )
             );
-            return createIndicator(YELLOW, "Snapshot Lifecycle Management is not running", createDetails(explain, slmMetadata), impacts,
-                List.of(SLM_NOT_RUNNING));
+            return createIndicator(
+                YELLOW,
+                "Snapshot Lifecycle Management is not running",
+                createDetails(explain, slmMetadata),
+                impacts,
+                List.of(SLM_NOT_RUNNING)
+            );
         } else {
             return createIndicator(
                 GREEN,

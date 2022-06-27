@@ -63,10 +63,7 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testPrimitiveLambdasConvertible() {
-        assertEquals(
-            2,
-            exec("List l = new ArrayList(); l.add((short)1); l.add(1); return l.stream().mapToInt(long x -> (int)1).sum();")
-        );
+        assertEquals(2, exec("List l = new ArrayList(); l.add((short)1); l.add(1); return l.stream().mapToInt(long x -> (int)1).sum();"));
     }
 
     public void testPrimitiveArgs() {
@@ -132,12 +129,7 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testLambdaInLoop() {
-        assertEquals(
-            100,
-            exec(
-                "int sum = 0; for (int i = 0; i < 100; i++) {  sum += Optional.empty().orElseGet(() -> 1);}return sum;"
-            )
-        );
+        assertEquals(100, exec("int sum = 0; for (int i = 0; i < 100; i++) {  sum += Optional.empty().orElseGet(() -> 1);}return sum;"));
     }
 
     public void testCapture() {
@@ -152,9 +144,7 @@ public class LambdaTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(
             IllegalArgumentException.class,
             () -> {
-                exec(
-                    "List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();"
-                );
+                exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
             }
         );
         assertTrue(expected.getMessage().contains("is read-only"));

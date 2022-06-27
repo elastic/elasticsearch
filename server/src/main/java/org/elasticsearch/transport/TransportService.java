@@ -303,7 +303,15 @@ public class TransportService extends AbstractLifecycleComponent
 
                     // Assertion only holds for TcpTransport only because other transports (used in tests) may not implement the proper
                     // close-connection behaviour. TODO fix this.
-                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode) : targetNode + " vs " + localNode;
+                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode)
+                        : "expected only responses for local "
+                            + localNode
+                            + " but found handler for ["
+                            + holderToNotify.action()
+                            + "] on ["
+                            + (holderToNotify.connection().isClosed() ? "closed" : "open")
+                            + "] connection to "
+                            + targetNode;
 
                     final var exception = new SendRequestTransportException(
                         targetNode,

@@ -210,7 +210,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
         }
 
         @Override
-        public long docValueCount() {
+        public int docValueCount() {
             return delegate.docValueCount();
         }
 

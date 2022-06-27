@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -401,7 +402,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return allocation.metadata().getIndexSafe(shard.index());
         }
 
-        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes unused) {
+        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes unused, DesiredNodes desiredNodes) {
             assert preferredTiers.isEmpty() == false;
             return Optional.of(preferredTiers.get(0));
         }

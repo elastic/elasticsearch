@@ -46,8 +46,10 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,11 +67,18 @@ public class SysColumnsTests extends ESTestCase {
         SqlVersion.fromId(Version.CURRENT.id)
     );
 
+    public static List<SqlVersion> VERSION_FIELD_TEST_VERSIONS = List.of(
+        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id - SqlVersion.MINOR_MULTIPLIER),
+        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id),
+        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id + SqlVersion.MINOR_MULTIPLIER),
+        SqlVersion.fromId(Version.CURRENT.id)
+    );
+
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
     private static final int FIELD_COUNT1 = 20;
-    private static final int FIELD_COUNT2 = 18;
+    private static final int FIELD_COUNT2 = 19;
 
     private final SqlParser parser = new SqlParser();
 
@@ -165,6 +174,30 @@ public class SysColumnsTests extends ESTestCase {
                 assertEquals(
                     isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
                     types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
+                );
+            }
+        }
+    }
+
+    public void testVersionTypeFiltering() {
+        for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
+            for (SqlVersion version : VERSION_FIELD_TEST_VERSIONS) {
+                List<List<?>> rows = new ArrayList<>();
+                // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
+                Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+                SysColumns.fillInRows(
+                    "test",
+                    "index",
+                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
+                    null,
+                    rows,
+                    null,
+                    mode
+                );
+                List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
+                assertEquals(
+                    isTypeSupportedInVersion(VERSION, Version.fromId(version.id)),
+                    types.contains(VERSION.toString().toLowerCase(Locale.ROOT))
                 );
             }
         }

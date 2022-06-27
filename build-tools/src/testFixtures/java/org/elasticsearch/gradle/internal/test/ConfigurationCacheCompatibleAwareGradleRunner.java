@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * A Gradle runner that delegates to another runner, optionally enabling the configuring cache parameter.
+ */
 public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner {
     private GradleRunner delegate;
     private boolean ccCompatible;

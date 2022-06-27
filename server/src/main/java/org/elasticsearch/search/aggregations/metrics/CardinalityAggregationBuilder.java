@@ -184,6 +184,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (precisionThreshold != null) {
             builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
         }
+        if (executionHint != null) {
+            builder.field(EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+        }
         return builder;
     }
 

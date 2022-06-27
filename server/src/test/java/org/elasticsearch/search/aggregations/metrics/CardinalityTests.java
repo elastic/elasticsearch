@@ -10,6 +10,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
+import java.util.List;
+
 public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregationBuilder> {
 
     @Override
@@ -19,6 +21,9 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {
             factory.missing("MISSING");
+        }
+        if (true) {
+            factory.executionHint(randomFrom(List.of("segment_ordinals", "global_ordinals", "direct")));
         }
         return factory;
     }

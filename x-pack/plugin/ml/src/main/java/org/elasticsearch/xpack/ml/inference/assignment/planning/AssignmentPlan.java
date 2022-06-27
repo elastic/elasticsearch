@@ -32,11 +32,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
-        Map<String, Integer> currentAllocationByNodeId
+        Map<String, Integer> currentAllocationsByNodeId
     ) {
 
         int getPreviouslyAssignedAllocations() {
-            return currentAllocationByNodeId.values().stream().mapToInt(Integer::intValue).sum();
+            return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
         }
 
         @Override
@@ -49,7 +49,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 + ") (threads_per_allocation = "
                 + threadsPerAllocation
                 + ") (current_allocations = "
-                + currentAllocationByNodeId
+                + currentAllocationsByNodeId
                 + ")";
         }
     };
@@ -69,8 +69,22 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      */
     private final Map<Model, Map<Node, Integer>> assignments;
 
-    private AssignmentPlan(Map<Model, Map<Node, Integer>> assignments) {
+    private final Map<String, Long> remainingNodeMemory;
+    private final Map<String, Integer> remainingNodeCores;
+    private final Map<Model, Integer> remainingModelAllocations;
+
+    private AssignmentPlan(
+        Map<Model, Map<Node, Integer>> assignments,
+        Map<Node, Long> remainingNodeMemory,
+        Map<Node, Integer> remainingNodeCores,
+        Map<Model, Integer> remainingModelAllocations
+    ) {
         this.assignments = Objects.requireNonNull(assignments);
+        this.remainingNodeMemory = remainingNodeMemory.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
+        this.remainingNodeCores = remainingNodeCores.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
+        this.remainingModelAllocations = Objects.requireNonNull(remainingModelAllocations);
     }
 
     public Set<Model> models() {
@@ -99,12 +113,28 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     }
 
     private boolean isSatisfyingPreviousAssignmentsForModel(Model m) {
-        if (m.currentAllocationByNodeId().isEmpty()) {
+        if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
         int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
         return currentAllocations >= m.getPreviouslyAssignedAllocations();
+    }
+
+    public boolean satisfiesAllocations(Model m) {
+        return remainingModelAllocations.getOrDefault(m, 0) == 0;
+    }
+
+    public boolean satisfiesAllModels() {
+        return models().stream().allMatch(this::satisfiesAllocations);
+    }
+
+    public int getRemainingNodeCores(String nodeId) {
+        return remainingNodeCores.getOrDefault(nodeId, 0);
+    }
+
+    public long getRemainingNodeMemory(String nodeId) {
+        return remainingNodeMemory.getOrDefault(nodeId, 0L);
     }
 
     private Quality computeQuality() {
@@ -119,7 +149,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (modelAssignments != null) {
                 for (Map.Entry<Node, Integer> nodeAllocations : modelAssignments.entrySet()) {
                     Node n = nodeAllocations.getKey();
-                    weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
+                    weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
                         .get(n);
                     memoryScore -= (nodeAllocations.getValue() > 0 ? m.memoryBytes() : 0);
                 }
@@ -265,7 +295,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         private boolean isAlreadyAssigned(Model model, Node node) {
-            return model.currentAllocationByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
+            return model.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
+        }
+
+        void accountMemory(Model m, Node n) {
+            remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.memoryBytes());
         }
 
         AssignmentPlan build() {
@@ -279,7 +313,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 }
                 finalAssignments.put(m, allocationsPerNode);
             }
-            return new AssignmentPlan(finalAssignments);
+            return new AssignmentPlan(finalAssignments, remainingNodeMemory, remainingNodeCores, remainingModelAllocations);
         }
     }
 

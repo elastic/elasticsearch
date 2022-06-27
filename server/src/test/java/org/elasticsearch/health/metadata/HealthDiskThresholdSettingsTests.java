@@ -70,21 +70,21 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         new HealthDiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
 
         final Settings newSettings = Settings.builder()
-            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), "90%")
-            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), "80%")
+            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), "99%")
+            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), "96%")
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [85%] to [90%]";
+        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [90%] to [99%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         final String expectedCause = "setting ["
             + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
-            + "=90%] cannot be greater than ["
+            + "=99%] cannot be greater than ["
             + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
-            + "=80%]";
+            + "=96%]";
         assertThat(cause, hasToString(containsString(expectedCause)));
     }
 
@@ -98,7 +98,7 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [85%] to [500m]";
+        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [90%] to [500m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -116,19 +116,19 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         new HealthDiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
 
         final Settings newSettings = Settings.builder()
-            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), "90%")
+            .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey(), "85%")
             .put(HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey(), "1000m")
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [85%] to [90%]";
+        final String expected = "illegal value can't update [cluster.health.disk.threshold.yellow] from [90%] to [85%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         final String incompatibleExpected = "unable to consistently parse ["
             + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_YELLOW_THRESHOLD_SETTING.getKey()
-            + "=90%], ["
+            + "=85%], ["
             + HealthDiskThresholdSettings.CLUSTER_HEALTH_DISK_RED_THRESHOLD_SETTING.getKey()
             + "=1000m] as percentage or bytes";
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
@@ -165,8 +165,8 @@ public class HealthDiskThresholdSettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         HealthDiskThresholdSettings healthDiskThresholdSettings = new HealthDiskThresholdSettings(Settings.EMPTY, clusterSettings);
-        assertThat(healthDiskThresholdSettings.getYellowThreshold().getStringRep(), equalTo("85.0%"));
-        assertThat(healthDiskThresholdSettings.getRedThreshold().getStringRep(), equalTo("90.0%"));
+        assertThat(healthDiskThresholdSettings.getYellowThreshold().getStringRep(), equalTo("90.0%"));
+        assertThat(healthDiskThresholdSettings.getRedThreshold().getStringRep(), equalTo("95.0%"));
 
         healthDiskThresholdSettings = new HealthDiskThresholdSettings(
             Settings.builder()

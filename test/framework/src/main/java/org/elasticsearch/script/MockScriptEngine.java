@@ -177,6 +177,30 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ReindexScript.class)) {
+            ReindexScript.Factory factory = (parameters, ctx) -> new ReindexScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
+            UpdateByQueryScript.Factory factory = (parameters, ctx) -> new UpdateByQueryScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
             BucketAggregationScript.Factory factory = parameters -> new BucketAggregationScript(parameters) {
                 @Override

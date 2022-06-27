@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -29,6 +27,7 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -170,9 +169,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
-        SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(
-            ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder().build()
-        );
+        SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(Map.of());
         AutoscalingDeciderContext context = service.createContext(
             roleNames,
             state,
@@ -218,8 +215,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
         }
 
-        ImmutableOpenMap.Builder<String, DiskUsage> leastUsagesBuilder = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, DiskUsage> mostUsagesBuilder = ImmutableOpenMap.builder();
+        Map<String, DiskUsage> leastUsages = new HashMap<>();
+        Map<String, DiskUsage> mostUsages = new HashMap<>();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         Set<DiscoveryNode> expectedNodes = new HashSet<>();
         long sumTotal = 0;
@@ -239,24 +236,22 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             if (useOtherRoles == false) {
                 long total = randomLongBetween(1, 1L << 40);
                 DiskUsage diskUsage = new DiskUsage(nodeId, null, randomAlphaOfLength(5), total, randomLongBetween(0, total));
-                leastUsagesBuilder.put(nodeId, diskUsage);
+                leastUsages.put(nodeId, diskUsage);
                 if (randomBoolean()) {
                     diskUsage = new DiskUsage(nodeId, null, diskUsage.getPath(), total, diskUsage.getFreeBytes());
                 }
-                mostUsagesBuilder.put(nodeId, diskUsage);
+                mostUsages.put(nodeId, diskUsage);
                 sumTotal += total;
                 maxTotal = Math.max(total, maxTotal);
                 expectedNodes.add(node);
             } else {
                 long total1 = randomLongBetween(0, 1L << 40);
-                leastUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total1, randomLongBetween(0, total1)));
+                leastUsages.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total1, randomLongBetween(0, total1)));
                 long total2 = randomLongBetween(0, 1L << 40);
-                mostUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total2, randomLongBetween(0, total2)));
+                mostUsages.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total2, randomLongBetween(0, total2)));
             }
         }
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
-        ImmutableOpenMap<String, DiskUsage> leastUsages = leastUsagesBuilder.build();
-        ImmutableOpenMap<String, DiskUsage> mostUsages = mostUsagesBuilder.build();
         info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
@@ -291,9 +286,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(context.currentCapacity(), is(nullValue()));
 
             String multiPathNodeId = randomFrom(expectedNodes).getId();
-            mostUsagesBuilder = ImmutableOpenMap.builder(mostUsages);
-            DiskUsage original = mostUsagesBuilder.get(multiPathNodeId);
-            mostUsagesBuilder.put(
+            DiskUsage original = mostUsages.get(multiPathNodeId);
+            mostUsages.put(
                 multiPathNodeId,
                 new DiskUsage(
                     multiPathNodeId,
@@ -304,7 +298,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null, null);
+            info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
                 roleNames,
                 state,

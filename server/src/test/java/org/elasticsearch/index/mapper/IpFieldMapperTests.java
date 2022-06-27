@@ -308,12 +308,12 @@ public class IpFieldMapperTests extends MapperTestCase {
             private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
 
             @Override
-            public SyntheticSourceExample example() {
+            public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     Tuple<String, InetAddress> v = generateValue();
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(v.v2()), this::mapping);
                 }
-                List<Tuple<String, InetAddress>> values = randomList(1, 5, this::generateValue);
+                List<Tuple<String, InetAddress>> values = randomList(1, maxValues, this::generateValue);
                 List<String> in = values.stream().map(Tuple::v1).toList();
                 List<String> outList = values.stream()
                     .map(v -> new BytesRef(InetAddressPoint.encode(v.v2())))

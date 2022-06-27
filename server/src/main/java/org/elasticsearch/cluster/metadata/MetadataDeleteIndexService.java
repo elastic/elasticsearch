@@ -145,7 +145,7 @@ public class MetadataDeleteIndexService {
         ClusterBlocks blocks = clusterBlocksBuilder.build();
 
         // update snapshot restore entries
-        ImmutableOpenMap<String, ClusterState.Custom> customs = currentState.getCustoms();
+        Map<String, ClusterState.Custom> customs = currentState.getCustoms();
         final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {

@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -1657,27 +1656,20 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         var ex = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithNullName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
         ex = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
-
-        final var legacyApiKeyDoc = buildApiKeyDoc(hash, -1, false, "", 0);
-        ex = expectThrows(
-            ValidationException.class,
-            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, legacyApiKeyDoc)
-        );
-        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] with version"));
     }
 
-    public void testUpdatedDocument() throws IOException {
+    public void testBuildUpdatedDocument() throws IOException {
         final var apiKey = randomAlphaOfLength(16);
         final var hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
@@ -1698,7 +1690,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var version = Version.CURRENT;
         final var authentication = AuthenticationTestHelper.builder().user(new User("user", "role")).build(false);
 
-        final var keyDocSource = ApiKeyService.updatedDocument(oldApiKeyDoc, authentication, newUserRoles, newKeyRoles, version, metadata);
+        final var keyDocSource = ApiKeyService.buildUpdatedDocument(
+            oldApiKeyDoc,
+            authentication,
+            newUserRoles,
+            newKeyRoles,
+            version,
+            metadata
+        );
         final var updatedApiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(keyDocSource), XContentType.JSON)
         );

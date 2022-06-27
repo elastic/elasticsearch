@@ -37,7 +37,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -364,13 +363,16 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
+        } else if (authentication.isApiKey()) {
+            listener.onFailure(new IllegalArgumentException("api key cannot update api keys"));
+            return;
         }
 
         findVersionedApiKeyDocsForSubject(authentication, new String[] { request.getId() }, ActionListener.wrap((versionedDocs) -> {
             final var apiKeyId = request.getId();
 
             if (versionedDocs.isEmpty()) {
-                throw apiKeyNotFound(apiKeyId);
+                throw new ResourceNotFoundException("api key with id [" + apiKeyId + "] owned by requesting user not found");
             }
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(versionedDocs).doc());
@@ -385,24 +387,16 @@ public class ApiKeyService {
     // package-private for testing
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.getOrDefault("principal", null));
-        assert authentication.getEffectiveSubject().getRealm().getName().equals(apiKeyDoc.creator.getOrDefault("realm", null));
 
-        if (Version.fromId(apiKeyDoc.version).before(Version.V_8_2_0)) {
-            throw new ValidationException().addValidationError(
-                "cannot update legacy api key [" + apiKeyId + "] with version [" + Version.fromId(apiKeyDoc.version) + "]"
-            );
-        }
-        if (isActive(apiKeyDoc) == false) {
-            throw new ValidationException().addValidationError("cannot update inactive api key [" + apiKeyId + "]");
-        }
-        if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
-            throw new ValidationException().addValidationError("cannot update legacy api key [" + apiKeyId + "] without name");
-        }
-    }
-
-    private boolean isActive(ApiKeyDoc apiKeyDoc) {
-        return apiKeyDoc.invalidated == false
+        boolean isActive = apiKeyDoc.invalidated == false
             && (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant()));
+        if (isActive == false) {
+            throw new IllegalArgumentException("cannot update inactive api key [" + apiKeyId + "]");
+        }
+
+        if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
+            throw new IllegalArgumentException("cannot update legacy api key [" + apiKeyId + "] without name");
+        }
     }
 
     private void translateResponseAndClearCache(String apiKeyId, BulkResponse bulkResponse, ActionListener<UpdateApiKeyResponse> listener) {
@@ -413,7 +407,7 @@ public class ApiKeyService {
             assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
             // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
             assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-            clearApiKeyDocCache(new UpdateApiKeyResponse(apiKeyId, true), listener);
+            clearApiKeyDocCache(apiKeyId, new UpdateApiKeyResponse(true), listener);
         }
     }
 
@@ -429,10 +423,6 @@ public class ApiKeyService {
             throw new IllegalStateException("array must contain exactly one element but had [" + elements.length + "]");
         }
         return elements[0];
-    }
-
-    private ResourceNotFoundException apiKeyNotFound(String apiKeyId) {
-        return new ResourceNotFoundException("api key [" + apiKeyId + "] not found");
     }
 
     private BulkRequest buildBulkIndexRequestForUpdate(
@@ -461,7 +451,7 @@ public class ApiKeyService {
         return client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
             .setSource(
-                updatedDocument(
+                buildUpdatedDocument(
                     currentVersionedDoc.doc(),
                     authentication,
                     userRoles,
@@ -513,7 +503,7 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    static XContentBuilder updatedDocument(
+    static XContentBuilder buildUpdatedDocument(
         ApiKeyDoc currentApiKeyDoc,
         Authentication authentication,
         Set<RoleDescriptor> userRoles,
@@ -1140,8 +1130,8 @@ public class ApiKeyService {
         final BoolQueryBuilder boolQuery,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
-        ActionListener<Collection<T>> listener,
-        Function<SearchHit, T> hitParser
+        final Function<SearchHit, T> hitParser,
+        final ActionListener<Collection<T>> listener
     ) {
         if (filterOutInvalidatedKeys) {
             boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
@@ -1163,7 +1153,7 @@ public class ApiKeyService {
                 .request();
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), hitParser)
+                () -> ScrollHelper.fetchAllByEntity(client, request, hitParser, new ContextPreservingActionListener<>(supplier, listener))
             );
         }
     }
@@ -1257,7 +1247,7 @@ public class ApiKeyService {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
-            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener, hitParser);
+            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, hitParser, listener);
         }
     }
 
@@ -1342,8 +1332,8 @@ public class ApiKeyService {
         );
     }
 
-    private void clearApiKeyDocCache(UpdateApiKeyResponse result, ActionListener<UpdateApiKeyResponse> listener) {
-        executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(result.getId()));
+    private void clearApiKeyDocCache(String apiKeyId, UpdateApiKeyResponse result, ActionListener<UpdateApiKeyResponse> listener) {
+        executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(apiKeyId));
     }
 
     private <T> void executeClearCacheRequest(T result, ActionListener<T> listener, ClearSecurityCacheRequest clearApiKeyCacheRequest) {

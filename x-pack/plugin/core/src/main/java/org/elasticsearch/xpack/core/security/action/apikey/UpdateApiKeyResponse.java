@@ -18,22 +18,15 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class UpdateApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
-    private final String id;
     private final boolean updated;
 
-    public UpdateApiKeyResponse(String id, boolean updated) {
-        this.id = id;
+    public UpdateApiKeyResponse(boolean updated) {
         this.updated = updated;
     }
 
     public UpdateApiKeyResponse(StreamInput in) throws IOException {
         super(in);
-        this.id = in.readString();
         this.updated = in.readBoolean();
-    }
-
-    public String getId() {
-        return id;
     }
 
     public boolean isUpdated() {
@@ -42,12 +35,11 @@ public final class UpdateApiKeyResponse extends ActionResponse implements ToXCon
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("id", id).field("updated", updated).endObject();
+        return builder.startObject().field("updated", updated).endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
         out.writeBoolean(updated);
     }
 
@@ -56,11 +48,11 @@ public final class UpdateApiKeyResponse extends ActionResponse implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UpdateApiKeyResponse that = (UpdateApiKeyResponse) o;
-        return updated == that.updated && id.equals(that.id);
+        return updated == that.updated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, updated);
+        return Objects.hash(updated);
     }
 }

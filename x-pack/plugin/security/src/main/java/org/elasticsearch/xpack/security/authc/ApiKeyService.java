@@ -353,10 +353,10 @@ public class ApiKeyService {
     }
 
     public void updateApiKey(
-        Authentication authentication,
-        UpdateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles,
-        ActionListener<UpdateApiKeyResponse> listener
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles,
+        final ActionListener<UpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
 
@@ -364,7 +364,7 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("api key cannot update api keys"));
+            listener.onFailure(new IllegalArgumentException("updating api keys is not supported with api key authentication"));
             return;
         }
 

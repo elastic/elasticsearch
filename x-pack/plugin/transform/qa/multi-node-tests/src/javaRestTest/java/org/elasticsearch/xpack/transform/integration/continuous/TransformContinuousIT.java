@@ -42,6 +42,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Test runner for testing continuous transforms, testing
@@ -135,7 +137,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    public void testContinousEvents() throws Exception {
+    public void testContinuousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
         String dateType = randomBoolean() ? "date_nanos" : "date";
@@ -257,7 +259,6 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
-
             waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
 
@@ -481,16 +482,20 @@ public class TransformContinuousIT extends TransformRestTestCase {
         for (ContinuousTestCase testCase : transformTestCases) {
             assertBusy(() -> {
                 var stats = getTransformStats(testCase.getName());
-                long lastSearchTime = (long) XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                Object lastSearchTimeObj = XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                assertThat(lastSearchTimeObj, is(notNullValue()));
+                long lastSearchTime = (long) lastSearchTimeObj;
                 assertThat(
                     "transform ["
                         + testCase.getName()
-                        + "] does not progress, state: "
+                        + "] does not progress, iteration: "
+                        + iteration
+                        + ", state: "
                         + stats.get("state")
                         + ", reason: "
                         + stats.get("reason"),
                     Instant.ofEpochMilli(lastSearchTime),
-                    greaterThan(waitUntil)
+                    is(greaterThan(waitUntil))
                 );
             }, 30, TimeUnit.SECONDS);
         }

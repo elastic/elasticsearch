@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,13 +82,18 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
+    }
+
+    /**
+     * Build an IngestDocument from values read via deserialization
+     */
+    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**
@@ -760,7 +764,7 @@ public final class IngestDocument {
             }
             return copy;
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = new HashSet<>(setValue.size());
+            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }

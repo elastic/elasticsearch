@@ -269,10 +269,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
         for (PluginBundle bundle : sortedBundles) {
-            if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
-                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadBundle(bundle, loaded);
-            }
+            PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+            loadBundle(bundle, loaded);
         }
 
         loadExtensions(loaded.values());

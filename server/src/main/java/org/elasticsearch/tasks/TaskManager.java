@@ -146,7 +146,7 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        TaskListener<Response> taskListener
+        ActionListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
@@ -168,7 +168,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onResponse(task, response);
+                    taskListener.onResponse(response);
                 }
             }
 
@@ -177,7 +177,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onFailure(task, e);
+                    taskListener.onFailure(e);
                 }
             }
 

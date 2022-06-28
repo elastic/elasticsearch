@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
@@ -105,6 +104,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -133,7 +133,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
-    public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
+    public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
@@ -146,6 +146,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         SettingsConfig.MAX_NUM_FAILURE_RETRIES,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    public static final TimeValue DEFAULT_SCHEDULER_FREQUENCY = TimeValue.timeValueSeconds(1);
+    // How often does the transform scheduler process the tasks
+    public static final Setting<TimeValue> SCHEDULER_FREQUENCY = Setting.timeSetting(
+        "xpack.transform.transform_scheduler_frequency",
+        DEFAULT_SCHEDULER_FREQUENCY,
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
     );
 
     public Transform(Settings settings) {
@@ -230,14 +240,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             xContentRegistry
         );
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
+        Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             settings,
             clusterService,
             configManager,
             auditor
         );
-        SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
+        TransformScheduler scheduler = new TransformScheduler(clock, threadPool, settings);
+        scheduler.start();
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
@@ -269,13 +281,13 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(NUM_FAILURE_RETRIES_SETTING);
+        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY);
     }
 
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getSchedulerEngine().stop();
+            transformServices.get().getScheduler().stop();
         }
     }
 

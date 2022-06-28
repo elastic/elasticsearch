@@ -27,7 +27,7 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
     private final MinHashFilterFactory minHashFilterFactory;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
     }
 

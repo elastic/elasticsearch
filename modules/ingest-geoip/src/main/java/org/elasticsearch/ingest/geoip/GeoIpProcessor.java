@@ -127,7 +127,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
         if (lazyLoader == null) {
-            tag(ingestDocument, databaseFile);
+            if (ignoreMissing == false) {
+                tag(ingestDocument, databaseFile);
+            }
             return ingestDocument;
         }
 

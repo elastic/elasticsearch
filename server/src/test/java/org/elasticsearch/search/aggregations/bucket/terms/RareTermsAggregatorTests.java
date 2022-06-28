@@ -17,6 +17,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -486,8 +488,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
-    private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {
-        List<Document> documents = new ArrayList<>();
+    private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
+        List<Iterable<IndexableField>> documents = new ArrayList<>();
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
@@ -497,11 +499,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             documents.add(document);
         }
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
-        document.add(sequenceIDFields.primaryTerm);
+        sequenceIDFields.addFields(document);
         documents.add(document);
 
         return documents;

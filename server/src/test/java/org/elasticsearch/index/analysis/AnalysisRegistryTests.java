@@ -22,6 +22,7 @@ import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -129,7 +130,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(indexSettings, "my_filter", Settings.EMPTY) {
+        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_filter", Settings.EMPTY) {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
@@ -237,7 +238,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                 }
 
                 @Override
@@ -345,8 +346,14 @@ public class AnalysisRegistryTests extends ESTestCase {
         AnalysisPlugin plugin = new AnalysisPlugin() {
 
             class MockFactory extends AbstractTokenFilterFactory {
+
+                private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MockFactory.class);
+
+                private final IndexSettings indexSettings;
+
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
+                    this.indexSettings = indexSettings;
                 }
 
                 @Override
@@ -364,8 +371,11 @@ public class AnalysisRegistryTests extends ESTestCase {
 
             class ExceptionFactory extends AbstractTokenFilterFactory {
 
+                private final IndexSettings indexSettings;
+
                 ExceptionFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
+                    this.indexSettings = indexSettings;
                 }
 
                 @Override
@@ -378,8 +388,11 @@ public class AnalysisRegistryTests extends ESTestCase {
             }
 
             class UnusedMockFactory extends AbstractTokenFilterFactory {
+
+                private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UnusedMockFactory.class);
+
                 UnusedMockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                 }
 
                 @Override
@@ -391,8 +404,10 @@ public class AnalysisRegistryTests extends ESTestCase {
 
             class NormalizerFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
+                private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(NormalizerFactory.class);
+
                 NormalizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                 }
 
                 @Override

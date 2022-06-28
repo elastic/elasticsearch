@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -85,7 +86,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 final CharacterRunAutomaton stopset;
 
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                     if (settings.hasValue("stopword")) {
                         this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
                     } else {
@@ -101,8 +102,10 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             class DeprecatedTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
+                private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecatedTokenFilterFactory.class);
+
                 DeprecatedTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                 }
 
                 @Override

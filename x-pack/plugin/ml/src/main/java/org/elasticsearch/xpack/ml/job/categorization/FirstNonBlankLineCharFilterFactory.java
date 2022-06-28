@@ -17,7 +17,7 @@ import java.io.Reader;
 public class FirstNonBlankLineCharFilterFactory extends AbstractCharFilterFactory {
 
     public FirstNonBlankLineCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name);
+        super(name);
     }
 
     @Override

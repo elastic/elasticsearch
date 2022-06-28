@@ -23,7 +23,7 @@ public class BrazilianStemTokenFilterFactory extends AbstractTokenFilterFactory 
     private final CharArraySet exclusions;
 
     BrazilianStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 

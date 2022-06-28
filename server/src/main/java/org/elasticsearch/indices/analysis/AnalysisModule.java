@@ -197,7 +197,7 @@ public final class AnalysisModule {
 
                         @Override
                         public TokenStream create(TokenStream tokenStream) {
-                            return null;
+                            return tokenFilterFactory.create(tokenStream);
                         }
                     };
                 }

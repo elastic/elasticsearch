@@ -46,4 +46,5 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.skipTest("ingest/70_bulk/Update with pipeline", "Muted due because #87719 was never backported to 8.2 branch")
 }

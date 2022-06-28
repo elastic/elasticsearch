@@ -114,9 +114,8 @@ setup:
   - match: { rollup-test.settings.index.number_of_shards: "1" }
   - match: { rollup-test.settings.index.number_of_replicas: "0" }
 
-  # Assert source index has been deleted
+  # Assert source index has not been deleted
   - do:
-      catch: /no such index \[test\]/
       indices.get:
         index: test
 

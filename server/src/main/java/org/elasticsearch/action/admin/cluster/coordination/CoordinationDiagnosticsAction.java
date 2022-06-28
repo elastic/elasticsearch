@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -118,18 +117,15 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
      * This transport action calls CoordinationDiagnosticsService#diagnoseMasterStability
      */
     public static class TransportAction extends HandledTransportAction<Request, Response> {
-        private final ClusterService clusterService;
         private final CoordinationDiagnosticsService coordinationDiagnosticsService;
 
         @Inject
         public TransportAction(
-            ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
             CoordinationDiagnosticsService coordinationDiagnosticsService
         ) {
             super(CoordinationDiagnosticsAction.NAME, transportService, actionFilters, CoordinationDiagnosticsAction.Request::new);
-            this.clusterService = clusterService;
             this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }
 

@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportSettings;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -196,7 +197,15 @@ public class MockNode extends Node {
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
             return super.newTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
         } else {
-            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
+            return new MockTransportService(
+                settings,
+                transport,
+                threadPool,
+                interceptor,
+                localNodeFactory,
+                clusterSettings,
+                new HashSet<>(taskManager.getTaskHeaders())
+            );
         }
     }
 

@@ -161,7 +161,7 @@ public final class MockTransportService extends TransportService {
                 version
             ),
             clusterSettings,
-            new TaskManager(settings, threadPool, taskHeaders)
+            createTaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -192,7 +192,7 @@ public final class MockTransportService extends TransportService {
                 settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
             ),
             clusterSettings,
-            new TaskManager(settings, threadPool, Set.of())
+            createTaskManager(settings, threadPool, Set.of())
         );
     }
 
@@ -219,7 +219,7 @@ public final class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            new TaskManager(settings, threadPool, taskHeaders)
+            createTaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -229,10 +229,17 @@ public final class MockTransportService extends TransportService {
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        TaskManager taskManager
+        @Nullable ClusterSettings clusterSettings
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
+        this(
+            settings,
+            new StubbableTransport(transport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            createTaskManager(settings, threadPool, Set.of())
+        );
     }
 
     private MockTransportService(
@@ -263,6 +270,14 @@ public final class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+    }
+
+    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+            return new MockTaskManager(settings, threadPool, taskHeaders);
+        } else {
+            return new TaskManager(settings, threadPool, taskHeaders);
+        }
     }
 
     /**

@@ -431,31 +431,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     public enum CoordinationDiagnosticsStatus implements Writeable {
-        GREEN((byte) 0),
-        UNKNOWN((byte) 1),
-        YELLOW((byte) 2),
-        RED((byte) 3);
-
-        private final byte value;
-
-        CoordinationDiagnosticsStatus(byte value) {
-            this.value = value;
-        }
+        GREEN,
+        UNKNOWN,
+        YELLOW,
+        RED;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(value);
+            out.writeEnum(this);
         }
 
         public static CoordinationDiagnosticsStatus fromStreamInput(StreamInput in) throws IOException {
-            byte value = in.readByte();
-            return switch (value) {
-                case 0 -> GREEN;
-                case 1 -> UNKNOWN;
-                case 2 -> YELLOW;
-                case 3 -> RED;
-                default -> UNKNOWN;
-            };
+            return in.readEnum(CoordinationDiagnosticsStatus.class);
         }
     }
 

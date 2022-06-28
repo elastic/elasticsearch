@@ -37,7 +37,7 @@ public class CompoundProcessorTests extends ESTestCase {
 
     @Before
     public void init() {
-        ingestDocument = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
+        ingestDocument = TestIngestDocument.emptyIngestDocument();
     }
 
     // need to (randomly?) mix sync and async processors

@@ -27,18 +27,15 @@ public class TestIngestDocument {
     /**
      * Create an IngestDocument for testing that pass an empty mutable map for ingestMetaata
      */
-    public static IngestDocument ofSourceAndMetadataWithNullableVersion(Map<String, Object> sourceAndMetadata) {
-        return ofSourceAndIngestWithNullableVersion(sourceAndMetadata, new HashMap<>());
+    public static IngestDocument withNullableVersion(Map<String, Object> sourceAndMetadata) {
+        return ofIngestWithNullableVersion(sourceAndMetadata, new HashMap<>());
     }
 
     /**
      * Create an {@link IngestDocument} from the given sourceAndMetadata and ingestMetadata and a version validator that allows null
      * _versions.  Normally null _version is not allowed, but many tests don't care about that invariant.
      */
-    public static IngestDocument ofSourceAndIngestWithNullableVersion(
-        Map<String, Object> sourceAndMetadata,
-        Map<String, Object> ingestMetadata
-    ) {
+    public static IngestDocument ofIngestWithNullableVersion(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         Map<String, BiConsumer<String, Object>> validators = replaceValidator(VERSION, IngestSourceAndMetadata::longValidator);
         Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
         IngestSourceAndMetadata withNullableVersion = new IngestSourceAndMetadata(sm.v1(), sm.v2(), null, validators);
@@ -48,7 +45,7 @@ public class TestIngestDocument {
     /**
      * Create an {@link IngestDocument} with {@link #DEFAULT_VERSION} as the _version metadata, if _version is not already present.
      */
-    public static IngestDocument ofSourceAndMetadataWithDefaultVersion(Map<String, Object> sourceAndMetadata) {
+    public static IngestDocument withDefaultVersion(Map<String, Object> sourceAndMetadata) {
         if (sourceAndMetadata.containsKey(VERSION) == false) {
             sourceAndMetadata = new HashMap<>(sourceAndMetadata);
             sourceAndMetadata.put(VERSION, DEFAULT_VERSION);
@@ -75,9 +72,11 @@ public class TestIngestDocument {
     }
 
     /**
-     * Create an empty ingest document for testing
+     * Create an empty ingest document for testing.
+     *
+     * Adds the required {@code "_version"} metadata key with value {@link #DEFAULT_VERSION}.
      */
-    public static IngestDocument emptyIngestDocumentWithDefaultVersion() {
+    public static IngestDocument emptyIngestDocument() {
         Map<String, Object> sourceAndMetadata = new HashMap<>();
         sourceAndMetadata.put(VERSION, DEFAULT_VERSION);
         return new IngestDocument(sourceAndMetadata, new HashMap<>());

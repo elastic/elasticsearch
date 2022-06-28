@@ -298,12 +298,12 @@ public class InferenceProcessorTests extends ESTestCase {
                 put("categorical", "foo");
             }
         };
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadataWithDefaultVersion(source);
+        IngestDocument document = TestIngestDocument.ofSourceAndIngestWithNullableVersion(source, new HashMap<>());
 
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
-        document = new IngestDocument(source, ingestMetadata);
+        document = TestIngestDocument.ofSourceAndIngestWithNullableVersion(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);

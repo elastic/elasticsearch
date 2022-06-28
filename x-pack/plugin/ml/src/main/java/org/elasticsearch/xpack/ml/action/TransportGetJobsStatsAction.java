@@ -144,6 +144,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         JobTask task,
         ActionListener<QueryPage<JobStats>> listener
     ) {
+        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), actionTask.getId());
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -157,8 +158,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = processManager.jobOpenTime(task).map(value -> TimeValue.timeValueSeconds(value.getSeconds())).orElse(null);
-            // TODO can we set the request parent task ID here???
-            jobResultsProvider.getForecastStats(jobId, null, forecastStats -> {
+            jobResultsProvider.getForecastStats(jobId, parentTaskId, forecastStats -> {
                 JobStats jobStats = new JobStats(
                     jobId,
                     dataCounts,

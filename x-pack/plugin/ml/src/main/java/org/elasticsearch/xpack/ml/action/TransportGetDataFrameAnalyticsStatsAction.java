@@ -247,7 +247,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         return configs.stream().filter(config -> startedTasksIds.contains(config.getId()) == false).collect(Collectors.toList());
     }
 
-    private void searchStats(DataFrameAnalyticsConfig config, TaskId parenTaskId, ActionListener<Stats> listener) {
+    private void searchStats(DataFrameAnalyticsConfig config, TaskId parentTaskId, ActionListener<Stats> listener) {
         logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
@@ -261,7 +261,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), OutlierDetectionStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), ClassificationStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), RegressionStats.TYPE_VALUE));
-        multiSearchRequest.setParentTask(parenTaskId);
+        multiSearchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
             client,

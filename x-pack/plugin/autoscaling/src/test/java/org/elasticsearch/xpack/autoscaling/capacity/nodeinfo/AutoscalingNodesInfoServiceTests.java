@@ -5,14 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -54,6 +59,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfoService.FETCH_TIMEOUT;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -61,10 +68,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
+public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
     private NodeStatsClient client;
-    private AutoscalingMemoryInfoService service;
+    private AutoscalingNodeInfoService service;
     private TimeValue fetchTimeout;
     private AutoscalingMetadata autoscalingMetadata;
     private Metadata metadata;
@@ -81,16 +88,13 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             settings = Settings.EMPTY;
         } else {
             fetchTimeout = TimeValue.timeValueMillis(randomLongBetween(1, 10000));
-            settings = Settings.builder().put(AutoscalingMemoryInfoService.FETCH_TIMEOUT.getKey(), fetchTimeout).build();
+            settings = Settings.builder().put(FETCH_TIMEOUT.getKey(), fetchTimeout).build();
         }
         when(clusterService.getSettings()).thenReturn(settings);
-        Set<Setting<?>> settingsSet = Sets.union(
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-            Set.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT)
-        );
+        Set<Setting<?>> settingsSet = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(FETCH_TIMEOUT));
         ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        service = new AutoscalingMemoryInfoService(clusterService, client);
+        service = new AutoscalingNodeInfoService(clusterService, client);
         autoscalingMetadata = randomAutoscalingMetadataOfPolicyCount(between(1, 8));
         metadata = Metadata.builder().putCustom(AutoscalingMetadata.NAME, autoscalingMetadata).build();
     }
@@ -131,17 +135,25 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
                     .collect(Collectors.toList()),
                 failures
             );
-            client.respond(response, () -> {
+            NodesInfoResponse responseInfo = new NodesInfoResponse(
+                ClusterName.DEFAULT,
+                succeedingNodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+                List.of()
+            );
+            client.respondStats(response, () -> {
                 Sets.union(missingNodes, Sets.difference(previousNodes, nodes))
-                    .forEach(n -> { assertThat(service.snapshot().get(n), nullValue()); });
-                Sets.intersection(previousSucceededNodes, nodes).forEach(n -> assertThat(service.snapshot().get(n), notNullValue()));
+                    .forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+                Sets.intersection(previousSucceededNodes, nodes).forEach(n -> assertThat(service.snapshot().get(n).isPresent(), is(true)));
+            });
+            client.respondInfo(responseInfo, () -> {
+
             });
 
             service.onClusterChanged(new ClusterChangedEvent("test", state, previousState));
             client.assertNoResponder();
 
-            assertMatchesResponse(succeedingNodes, response);
-            failingNodes.forEach(n -> { assertThat(service.snapshot().get(n), nullValue()); });
+            assertMatchesResponse(succeedingNodes, response, responseInfo);
+            failingNodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
 
             previousNodes.clear();
             previousNodes.addAll(nodes);
@@ -159,7 +171,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
     }
 
     public void testNoLongerMaster() {
@@ -173,12 +185,17 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
             List.of()
         );
+        NodesInfoResponse responseInfo = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
 
-        client.respond(response, () -> {});
+        client.respondStats(response, () -> {});
+        client.respondInfo(responseInfo, () -> {});
         service.onClusterChanged(new ClusterChangedEvent("test", masterState, ClusterState.EMPTY_STATE));
         client.assertNoResponder();
-
-        assertMatchesResponse(nodes, response);
+        assertMatchesResponse(nodes, response, responseInfo);
 
         ClusterState notMasterState = ClusterState.builder(masterState)
             .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId(null))
@@ -187,26 +204,57 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", notMasterState, masterState));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
     }
 
-    public void testFails() {
+    public void testStatsFails() {
         Set<DiscoveryNode> nodes = IntStream.range(0, between(1, 10)).mapToObj(n -> newNode("test_" + n)).collect(Collectors.toSet());
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesBuilder(nodes, true)).metadata(metadata).build();
 
-        client.respond((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
+        client.respondStats((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
 
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
             List.of()
         );
+        NodesInfoResponse responseInfo = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
 
         // implicit retry on cluster state update.
-        client.respond(response, () -> {});
+        client.respondStats(response, () -> {});
+        client.respondInfo(responseInfo, () -> {});
+        service.onClusterChanged(new ClusterChangedEvent("test", state, state));
+        client.assertNoResponder();
+    }
+
+    public void testInfoFails() {
+        Set<DiscoveryNode> nodes = IntStream.range(0, between(1, 10)).mapToObj(n -> newNode("test_" + n)).collect(Collectors.toSet());
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesBuilder(nodes, true)).metadata(metadata).build();
+        NodesStatsResponse response = new NodesStatsResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
+            List.of()
+        );
+        client.respondStats(response, () -> {});
+        client.respondInfo((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
+        service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        NodesInfoResponse responseInfo = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
+
+        // implicit retry on cluster state update.
+        client.respondStats(response, () -> {});
+        client.respondInfo(responseInfo, () -> {});
         service.onClusterChanged(new ClusterChangedEvent("test", state, state));
         client.assertNoResponder();
     }
@@ -221,11 +269,18 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             List.of()
         );
 
-        client.respond(response, () -> {});
+        NodesInfoResponse responseInfo = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
+
+        client.respondStats(response, () -> {});
+        client.respondInfo(responseInfo, () -> {});
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         client.assertNoResponder();
 
-        assertMatchesResponse(nodes, response);
+        assertMatchesResponse(nodes, response, responseInfo);
 
         Set<DiscoveryNode> restartedNodes = randomValueOtherThan(
             nodes,
@@ -243,14 +298,21 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             List.of()
         );
 
-        client.respond(restartedStatsResponse, () -> {});
+        NodesInfoResponse restartedInfoResponse = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            Sets.difference(restartedNodes, nodes).stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
+
+        client.respondStats(restartedStatsResponse, () -> {});
+        client.respondInfo(restartedInfoResponse, () -> {});
         service.onClusterChanged(new ClusterChangedEvent("test", restartedState, state));
         client.assertNoResponder();
 
-        assertMatchesResponse(Sets.intersection(restartedNodes, nodes), response);
-        assertMatchesResponse(Sets.difference(restartedNodes, nodes), restartedStatsResponse);
+        assertMatchesResponse(Sets.intersection(restartedNodes, nodes), response, responseInfo);
+        assertMatchesResponse(Sets.difference(restartedNodes, nodes), restartedStatsResponse, restartedInfoResponse);
 
-        Sets.difference(nodes, restartedNodes).forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
+        Sets.difference(nodes, restartedNodes).forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
     }
 
     public void testConcurrentStateUpdate() throws Exception {
@@ -262,9 +324,14 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
             List.of()
         );
+        NodesInfoResponse nodesInfoResponse = new NodesInfoResponse(
+            ClusterName.DEFAULT,
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            List.of()
+        );
 
         List<Thread> threads = new ArrayList<>();
-        client.respond((request, listener) -> {
+        client.respondStats((request, listener) -> {
             CountDownLatch latch = new CountDownLatch(1);
             threads.add(startThread(() -> {
                 try {
@@ -280,11 +347,12 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
                 latch.countDown();
             }));
         });
+        client.respondInfo((r, l) -> l.onResponse(nodesInfoResponse));
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
-        client.assertNoResponder();
         for (Thread thread : threads) {
             thread.join(10000);
         }
+        client.assertNoResponder();
 
         threads.forEach(t -> assertThat(t.isAlive(), is(false)));
     }
@@ -326,15 +394,19 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             .collect(Collectors.toSet());
     }
 
-    public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response) {
-        nodes.forEach(
-            n -> {
-                assertThat(
-                    service.snapshot().get(n),
-                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes())
-                );
-            }
-        );
+    public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response, NodesInfoResponse infoResponse) {
+        nodes.forEach(n -> {
+            assertThat(service.snapshot().get(n).isPresent(), is(true));
+            assertThat(
+                service.snapshot().get(n).get(),
+                equalTo(
+                    new AutoscalingNodeInfo(
+                        response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
+                        infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getAllocatedProcessors()
+                    )
+                )
+            );
+        });
     }
 
     private Thread startThread(Runnable runnable) {
@@ -372,15 +444,36 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         );
     }
 
+    private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
+        OsInfo osInfo = new OsInfo(randomLong(), processors, processors, null, null, null, null);
+        return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            node,
+            null,
+            osInfo,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
     private class NodeStatsClient extends NoOpClient {
-        private BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responder;
+        private BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderStats;
+        private BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderInfo;
 
         private NodeStatsClient() {
             super(getTestName());
         }
 
-        public void respond(NodesStatsResponse response, Runnable whileFetching) {
-            respond((request, listener) -> {
+        public void respondInfo(NodesInfoResponse response, Runnable whileFetching) {
+            respondInfo((request, listener) -> {
                 assertThat(
                     Set.of(request.nodesIds()),
                     Matchers.equalTo(
@@ -395,9 +488,30 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             });
         }
 
-        public void respond(BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue) {
+        public void respondStats(NodesStatsResponse response, Runnable whileFetching) {
+            respondStats((request, listener) -> {
+                assertThat(
+                    Set.of(request.nodesIds()),
+                    Matchers.equalTo(
+                        Stream.concat(
+                            response.getNodesMap().keySet().stream(),
+                            response.failures().stream().map(FailedNodeException::nodeId)
+                        ).collect(Collectors.toSet())
+                    )
+                );
+                whileFetching.run();
+                listener.onResponse(response);
+            });
+        }
+
+        public void respondStats(BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue) {
             assertThat(responderValue, notNullValue());
-            this.responder = responderValue;
+            this.responderStats = responderValue;
+        }
+
+        public void respondInfo(BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderValue) {
+            assertThat(responderValue, notNullValue());
+            this.responderInfo = responderValue;
         }
 
         @Override
@@ -406,19 +520,31 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertThat(action, Matchers.sameInstance(NodesStatsAction.INSTANCE));
-            NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
-            assertThat(nodesStatsRequest.timeout(), equalTo(fetchTimeout));
-            assertThat(responder, notNullValue());
-            BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue = this.responder;
-            this.responder = null;
-            @SuppressWarnings("unchecked")
-            ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;
-            responderValue.accept(nodesStatsRequest, statsListener);
+            assertThat(action, anyOf(Matchers.sameInstance(NodesStatsAction.INSTANCE), Matchers.sameInstance(NodesInfoAction.INSTANCE)));
+            if (action == NodesStatsAction.INSTANCE) {
+                NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
+                assertThat(nodesStatsRequest.timeout(), equalTo(fetchTimeout));
+                assertThat(responderStats, notNullValue());
+                BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue = this.responderStats;
+                this.responderStats = null;
+                @SuppressWarnings("unchecked")
+                ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;
+                responderValue.accept(nodesStatsRequest, statsListener);
+            } else {
+                NodesInfoRequest nodesInfoRequest = (NodesInfoRequest) request;
+                assertThat(nodesInfoRequest.timeout(), equalTo(fetchTimeout));
+                assertThat(responderInfo, notNullValue());
+                BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderValue = this.responderInfo;
+                this.responderInfo = null;
+                @SuppressWarnings("unchecked")
+                ActionListener<NodesInfoResponse> infoListener = (ActionListener<NodesInfoResponse>) listener;
+                responderValue.accept(nodesInfoRequest, infoListener);
+            }
         }
 
         public void assertNoResponder() {
-            assertThat(responder, nullValue());
+            assertThat(responderInfo, nullValue());
+            assertThat(responderStats, nullValue());
         }
     }
 

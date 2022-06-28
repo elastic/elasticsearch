@@ -1427,7 +1427,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final var newRoleDescriptors = randomRoleDescriptors();
@@ -1511,7 +1511,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
@@ -1540,7 +1540,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
 
         // Test not found exception on other user's API key
-        final var otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
         doTestUpdateApiKeyNotFound(
             serviceWithNodeName,
             fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
@@ -1690,20 +1690,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
         boolean includeDomain = randomBoolean();
         final var realmName = "file";
-        final var realmType = FileRealmSettings.TYPE;
-        return Authentication.newRealmAuthentication(
-            new User(userName, roleName),
-            new Authentication.RealmRef(
-                realmName,
-                realmType,
-                nodeName,
-                includeDomain
-                    ? new RealmDomain(
-                        ESTestCase.randomAlphaOfLengthBetween(3, 8),
-                        Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
+        final String realmType = FileRealmSettings.TYPE;
+        return randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder()
+                .user(new User(userName, roleName))
+                .realmRef(
+                    new Authentication.RealmRef(
+                        realmName,
+                        realmType,
+                        nodeName,
+                        includeDomain
+                            ? new RealmDomain(
+                                ESTestCase.randomAlphaOfLengthBetween(3, 8),
+                                Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
+                            )
+                            : null
                     )
-                    : null
-            )
+                )
+                .build()
         );
     }
 
@@ -1881,7 +1886,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(String user, TimeValue expiration) {
-        final var res = createApiKeys(user, 1, expiration, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> res = createApiKeys(user, 1, expiration, "monitor");
         return new Tuple<>(res.v1().get(0), res.v2().get(0));
     }
 

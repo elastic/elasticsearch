@@ -39,7 +39,7 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
 
     public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name, settings);
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, ICU_FOLDING_NORMALIZER, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(ICU_FOLDING_NORMALIZER, settings);
     }
 
     @Override

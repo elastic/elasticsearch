@@ -1427,7 +1427,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final var newRoleDescriptors = randomRoleDescriptors();
@@ -1511,7 +1511,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
@@ -1533,22 +1533,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Test not found exception on non-existent API key
         final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
-        testUpdateApiKeyNotFound(
+        doTestUpdateApiKeyNotFound(
             serviceWithNodeName,
             fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
             new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata())
         );
 
         // Test not found exception on other user's API key
-        final var otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
-        testUpdateApiKeyNotFound(
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
+        doTestUpdateApiKeyNotFound(
             serviceWithNodeName,
             fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
             new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
 
-        // Test not found exception on API key of user from other realm
-        testUpdateApiKeyNotFound(
+        // Test not found exception on API key of user with the same username but from a different realm
+        doTestUpdateApiKeyNotFound(
             serviceWithNodeName,
             Authentication.newRealmAuthentication(
                 new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
@@ -1560,7 +1560,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
-        final var createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final boolean invalidated = randomBoolean();
@@ -1596,7 +1596,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var ex = expectThrows(ExecutionException.class, updateListener::get);
 
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(ex.getMessage(), containsString("cannot update inactive api key [" + apiKeyId + "]"));
+        if (invalidated) {
+            assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
+        } else {
+            assertThat(ex.getMessage(), containsString("cannot update expired API key [" + apiKeyId + "]"));
+        }
 
         updateListener = new PlainActionFuture<>();
         serviceWithNodeName.service()
@@ -1604,19 +1608,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeysNotAllowedEx = expectThrows(ExecutionException.class, updateListener::get);
 
         assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(apiKeysNotAllowedEx.getMessage(), containsString("cannot use an api key to update api keys"));
-    }
-
-    private void testUpdateApiKeyNotFound(
-        ServiceWithNodeName serviceWithNodeName,
-        Authentication authentication,
-        UpdateApiKeyRequest request
-    ) {
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
-        final var ex = expectThrows(ExecutionException.class, listener::get);
-        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        assertThat(ex.getMessage(), containsString("no api key owned by requesting user found for requested id [" + request.getId() + "]"));
+        assertThat(
+            apiKeysNotAllowedEx.getMessage(),
+            containsString("authentication via an API key is not supported for updating API keys")
+        );
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
@@ -1680,23 +1675,40 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals(serviceForDoc2AuthCacheCount, serviceForDoc2.getApiKeyAuthCache().count());
     }
 
+    private void doTestUpdateApiKeyNotFound(
+        ServiceWithNodeName serviceWithNodeName,
+        Authentication authentication,
+        UpdateApiKeyRequest request
+    ) {
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
+        final var ex = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
+    }
+
     private static Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
         boolean includeDomain = randomBoolean();
         final var realmName = "file";
-        final var realmType = FileRealmSettings.TYPE;
-        return Authentication.newRealmAuthentication(
-            new User(userName, roleName),
-            new Authentication.RealmRef(
-                realmName,
-                realmType,
-                nodeName,
-                includeDomain
-                    ? new RealmDomain(
-                        ESTestCase.randomAlphaOfLengthBetween(3, 8),
-                        Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
+        final String realmType = FileRealmSettings.TYPE;
+        return randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder()
+                .user(new User(userName, roleName))
+                .realmRef(
+                    new Authentication.RealmRef(
+                        realmName,
+                        realmType,
+                        nodeName,
+                        includeDomain
+                            ? new RealmDomain(
+                                ESTestCase.randomAlphaOfLengthBetween(3, 8),
+                                Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
+                            )
+                            : null
                     )
-                    : null
-            )
+                )
+                .build()
         );
     }
 
@@ -1874,7 +1886,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(String user, TimeValue expiration) {
-        final var res = createApiKeys(user, 1, expiration, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> res = createApiKeys(user, 1, expiration, "monitor");
         return new Tuple<>(res.v1().get(0), res.v2().get(0));
     }
 

@@ -146,6 +146,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         allowFlush.set(false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();

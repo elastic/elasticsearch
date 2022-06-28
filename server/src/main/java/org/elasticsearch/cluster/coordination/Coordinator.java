@@ -771,11 +771,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             } else {
                 logger.warn(
                     """
-                        This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to discover \
-                        other nodes and form a multi-node cluster via the [{}] setting. Fully-formed clusters do not attempt to discover \
-                        other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. The cluster UUID persists \
-                        across restarts and can only be changed by deleting the contents of the node's data path(s). Remove the discovery \
-                        configuration to suppress this message.""",
+                        This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to \
+                        discover other nodes and form a multi-node cluster via the [{}] setting. Fully-formed clusters do not \
+                        attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. \
+                        The cluster UUID persists across restarts and can only be changed by deleting the contents of the node's \
+                        data path(s). Remove the discovery configuration to suppress this message.""",
                     applierState.metadata().clusterUUID(),
                     DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
                 );

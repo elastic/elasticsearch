@@ -137,8 +137,8 @@ public class NativeMemoryCapacity {
                 );
             }
             return new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO),
-                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO)
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO, null),
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO, null)
             );
         }
 
@@ -228,8 +228,8 @@ public class NativeMemoryCapacity {
         // The assertion above should hold, but the Math.max below catches the case with inconsistent
         // inputs plus any bugs that weren't caught in tests.
         return new AutoscalingCapacity(
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(Math.max(requiredTierSize, requiredNodeSize))),
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(requiredNodeSize))
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(Math.max(requiredTierSize, requiredNodeSize)), null),
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(requiredNodeSize), null)
         );
     }
 

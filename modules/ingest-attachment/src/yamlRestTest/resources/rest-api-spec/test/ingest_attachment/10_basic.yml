@@ -10,6 +10,6 @@
     - do:
         nodes.info: {}
 
-    - contains:  { 'nodes.$master.plugins': { name: ingest-attachment }  }
+    - contains:  { 'nodes.$master.modules': { name: ingest-attachment }  }
     - contains:  { 'nodes.$master.ingest.processors': { type: attachment } }
 

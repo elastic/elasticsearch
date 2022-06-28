@@ -52,7 +52,7 @@ import java.util.function.Consumer;
  *
  * Summing up, this class workarounds problems in search/aggs. It should not exist and eventually it should be removed.
  *
- * Further follow up is tracked in gh#TBD
+ * Further follow up is tracked in gh#88128
  */
 final class DelegatingCircuitBreakerService extends CircuitBreakerService {
 

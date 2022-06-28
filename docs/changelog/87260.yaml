@@ -2,4 +2,4 @@ pr: 87260
 summary: System indices ignore all user templates
 area: Infra/Core
 type: bug
-issues: []
+issues: [42508,74271]

@@ -179,8 +179,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         createSystemAliasViaV1Template(INDEX_NAME, PRIMARY_INDEX_NAME);
 
         assertHasAliases(Set.of(INDEX_NAME), INDEX_NAME, PRIMARY_INDEX_NAME, 1);
-
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     /**
@@ -201,8 +199,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             TestSystemIndexDescriptorAllowsTemplates.PRIMARY_INDEX_NAME,
             2
         );
-
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     private void createIndexWithComposableTemplates(String indexName, String primaryIndexName) throws Exception {

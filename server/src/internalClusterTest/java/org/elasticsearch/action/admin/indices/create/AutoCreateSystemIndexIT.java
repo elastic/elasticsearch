@@ -193,8 +193,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         var nonPrimaryIndex = autoCreateSystemAliasViaV1Template(INDEX_NAME);
 
         assertAliasesHidden(nonPrimaryIndex, Set.of(INDEX_NAME), 1);
-
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     /**
@@ -211,8 +209,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             ),
             2
         );
-
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     private String autoCreateSystemAliasViaComposableTemplate(String indexName) throws Exception {

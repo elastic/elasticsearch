@@ -8,30 +8,16 @@
 
 package org.elasticsearch.indices;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 /**
- * A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it
- * expects. A real descriptor is immutable.
+ * A special kind of {@link SystemIndexDescriptor} that is exactly like {@link TestSystemIndexDescriptor},
+ * but it allows for user defined templates to apply to it.
  */
 public class TestSystemIndexDescriptorAllowsTemplates extends TestSystemIndexDescriptor {
 
     public static final String INDEX_NAME = ".templates-index";
     public static final String PRIMARY_INDEX_NAME = INDEX_NAME + "-1";
 
-    public static final AtomicBoolean useNewMappings = new AtomicBoolean(false);
-
     TestSystemIndexDescriptorAllowsTemplates() {
         super(INDEX_NAME, PRIMARY_INDEX_NAME, true);
-    }
-
-    @Override
-    public boolean isAutomaticallyManaged() {
-        return true;
-    }
-
-    @Override
-    public String getMappings() {
-        return useNewMappings.get() ? getNewMappings() : getOldMappings();
     }
 }

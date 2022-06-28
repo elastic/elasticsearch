@@ -585,7 +585,7 @@ public class PersistedClusterStateService {
             }
         });
 
-        logger.trace("got metadata for [{}] mappings, now reading mapping metadata", mappingsByHash.size());
+        logger.trace("got metadata for [{}] mappings, now reading index metadata", mappingsByHash.size());
 
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, document -> document.getField(INDEX_UUID_FIELD_NAME).stringValue(), bytes -> {

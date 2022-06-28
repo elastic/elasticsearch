@@ -301,12 +301,11 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     private <T> void runWriteReadOptionalCollectionWithNullInput(
-        final CheckedConsumer<StreamOutput, IOException> writer,
+        final CheckedConsumer<StreamOutput, IOException> nullWriter,
         final CheckedFunction<StreamInput, Collection<T>, IOException> reader
     ) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            writer.accept(out);
-            out.writeOptionalCollection(null);
+            nullWriter.accept(out);
             try (StreamInput in = getStreamInput(out.bytes())) {
                 assertNull(reader.apply(in));
             }

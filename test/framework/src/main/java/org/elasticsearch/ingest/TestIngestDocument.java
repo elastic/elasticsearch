@@ -8,8 +8,13 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * Construct ingest documents for testing purposes
@@ -17,21 +22,18 @@ import java.util.Map;
 public class TestIngestDocument {
 
     /**
-     * These two test static factory methods are needed for testing and allow to the creation of a new {@link IngestDocument} given the
-     * provided elasticsearch metadata, source and ingest metadata.
-     *
-     * This is needed because the ingest metadata will be initialized with the current timestamp at init time, which makes equality
-     * comparisons impossible in tests.
-     */
-    public static IngestDocument ofSourceAndIngest(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
-    }
-
-    /**
-     * Create an IngestDocument for testing as in {@link #ofSourceAndIngest(Map, Map)} but pass an empty mutable map for ingestMetaata
+     * Create an IngestDocument for testing that pass an empty mutable map for ingestMetaata
      */
     public static IngestDocument ofSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
         return new IngestDocument(sourceAndMetadata, new HashMap<>());
+    }
+
+    /**
+     * Create an IngestDocument with a metadata map and validators.  The metadata map is passed by reference, not copied, so callers
+     * can observe changes to the map directly.
+     */
+    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, BiConsumer<String, Object>> validators) {
+        return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), metadata, null, validators), new HashMap<>());
     }
 
     /**
@@ -39,5 +41,15 @@ public class TestIngestDocument {
      */
     public static IngestDocument emptyIngestDocument() {
         return new IngestDocument(new HashMap<>(), new HashMap<>());
+    }
+
+    public static Tuple<String, Object> randomMetadata() {
+        IngestDocument.Metadata metadata = ESTestCase.randomFrom(IngestDocument.Metadata.values());
+        return new Tuple<>(metadata.getFieldName(), switch (metadata) {
+            case VERSION, IF_SEQ_NO, IF_PRIMARY_TERM -> ESTestCase.randomIntBetween(0, 124);
+            case VERSION_TYPE -> VersionType.toString(ESTestCase.randomFrom(VersionType.values()));
+            case DYNAMIC_TEMPLATES -> Map.of(ESTestCase.randomAlphaOfLengthBetween(5, 10), ESTestCase.randomAlphaOfLengthBetween(5, 10));
+            default -> ESTestCase.randomAlphaOfLengthBetween(5, 10);
+        });
     }
 }

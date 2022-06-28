@@ -10,11 +10,10 @@ package org.elasticsearch.common.blobstore.fs;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
@@ -99,7 +98,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     continue;
                 }
                 if (attrs.isRegularFile()) {
-                    builder.put(file.getFileName().toString(), new PlainBlobMetadata(file.getFileName().toString(), attrs.size()));
+                    builder.put(file.getFileName().toString(), new BlobMetadata(file.getFileName().toString(), attrs.size()));
                 }
             }
         }

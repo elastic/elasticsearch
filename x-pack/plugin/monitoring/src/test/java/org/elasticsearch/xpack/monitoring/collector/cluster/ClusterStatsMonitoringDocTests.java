@@ -49,7 +49,6 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -336,8 +335,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             false
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
@@ -654,7 +651,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "extended_plugins": [],
                       "has_native_controller": false,
                       "licensed": false,
-                      "type": "isolated",
                       "is_official": false
                     }
                   ],

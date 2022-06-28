@@ -243,12 +243,9 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .getTasks()
             .get(0);
 
-        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService()
-            .state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(tasksInProgress.tasks().size(), equalTo(1));
-        assertThat(tasksInProgress.tasks().iterator().next().getState(), nullValue());
+        List<PersistentTask<?>> tasksInProgress = findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME);
+        assertThat(tasksInProgress.size(), equalTo(1));
+        assertThat(tasksInProgress.iterator().next().getState(), nullValue());
 
         int numberOfUpdates = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfUpdates; i++) {

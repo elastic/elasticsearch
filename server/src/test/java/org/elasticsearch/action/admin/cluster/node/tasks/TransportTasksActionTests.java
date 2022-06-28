@@ -290,13 +290,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             assertEquals(0, node.transportService.getTaskManager().getTasks().size());
         }
         Task task = testNodes[0].transportService.getTaskManager()
-            .registerAndExecute(
-                "transport",
-                actions[0],
-                request,
-                testNodes[0].transportService.getLocalNodeConnection(),
-                ActionTestUtils.wrapAsTaskListener(listener)
-            );
+            .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
         logger.info("Awaiting for all actions to start");
         assertTrue(actionLatch.await(10, TimeUnit.SECONDS));
         logger.info("Done waiting for all actions to start");

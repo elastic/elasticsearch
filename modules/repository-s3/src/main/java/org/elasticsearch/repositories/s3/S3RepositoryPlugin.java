@@ -8,8 +8,15 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.auth.profile.internal.BasicProfileConfigFileLoader;
+import com.amazonaws.jmx.SdkMBeanRegistrySupport;
+import com.amazonaws.metrics.AwsSdkMetrics;
+import com.amazonaws.services.s3.internal.UseArnRegionResolver;
 import com.amazonaws.util.json.Jackson;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.client.internal.Client;
@@ -17,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -42,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -54,9 +63,26 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             try {
                 // kick jackson to do some static caching of declared members info
                 Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
+
+                // some AWS classes emit noisy WARN logs so we hide them by setting logger to ERROR level
+                final Map<Logger, Level> awsConfigLoggers = List.of(
+                    AwsSdkMetrics.class,
+                    BasicProfileConfigFileLoader.class,
+                    SdkMBeanRegistrySupport.class,
+                    UseArnRegionResolver.class
+                ).stream().map(LogManager::getLogger).collect(Collectors.toUnmodifiableMap(logger -> logger, Logger::getLevel));
+                try {
+                    awsConfigLoggers.forEach((logger, level) -> {
+                        if (level.isLessSpecificThan(Level.ERROR)) {
+                            Loggers.setLevel(logger, Level.ERROR);
+                        }
+                    });
+                    // ClientConfiguration clinit has some classloader problems
+                    // TODO: fix that
+                    Class.forName("com.amazonaws.ClientConfiguration");
+                } finally {
+                    awsConfigLoggers.forEach(Loggers::setLevel);
+                }
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }

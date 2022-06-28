@@ -188,7 +188,7 @@ public class LocalModelTests extends ESTestCase {
             new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING)
         );
 
-        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("no"));
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
@@ -198,7 +198,7 @@ public class LocalModelTests extends ESTestCase {
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
-        document = TestIngestDocument.emptyIngestDocument();
+        document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
         list = document.getFieldValue("result_field.top_classes", List.class);
@@ -208,7 +208,7 @@ public class LocalModelTests extends ESTestCase {
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
-        document = TestIngestDocument.emptyIngestDocument();
+        document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
         list = document.getFieldValue("result_field.top_classes", List.class);

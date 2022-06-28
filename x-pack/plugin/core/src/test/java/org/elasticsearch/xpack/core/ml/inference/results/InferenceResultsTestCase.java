@@ -25,7 +25,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = TestIngestDocument.emptyIngestDocument();
+            IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();
@@ -45,7 +45,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
             }
-            IngestDocument document = TestIngestDocument.emptyIngestDocument();
+            IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
             String parentField = randomAlphaOfLength(10);
             String modelId = randomAlphaOfLength(10);
             boolean alreadyHasResult = randomBoolean();

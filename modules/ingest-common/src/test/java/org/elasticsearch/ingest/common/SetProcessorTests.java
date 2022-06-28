@@ -74,7 +74,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
@@ -84,7 +84,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
@@ -94,7 +94,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);

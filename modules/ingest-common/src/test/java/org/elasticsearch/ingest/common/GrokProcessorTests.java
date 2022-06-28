@@ -100,7 +100,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testMatchWithoutCaptures() throws Exception {
         String fieldName = "value";
-        IngestDocument originalDoc = TestIngestDocument.emptyIngestDocument();
+        IngestDocument originalDoc = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         originalDoc.setFieldValue(fieldName, fieldName);
         IngestDocument doc = new IngestDocument(originalDoc);
         GrokProcessor processor = new GrokProcessor(

@@ -439,12 +439,12 @@ public class ApiKeyService {
     }
 
     static XContentBuilder buildUpdatedDocument(
-        ApiKeyDoc currentApiKeyDoc,
-        Authentication authentication,
-        Set<RoleDescriptor> userRoles,
-        List<RoleDescriptor> keyRoles,
-        Version version,
-        Map<String, Object> metadata
+        final ApiKeyDoc currentApiKeyDoc,
+        final Authentication authentication,
+        final Set<RoleDescriptor> userRoles,
+        final List<RoleDescriptor> keyRoles,
+        final Version version,
+        final Map<String, Object> metadata
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -456,6 +456,7 @@ public class ApiKeyService {
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
         if (keyRoles != null) {
+            logger.trace("Building API key doc with updated role descriptors [{}]", keyRoles);
             addRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
@@ -471,6 +472,7 @@ public class ApiKeyService {
                 XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
             ) == false : "API key doc to be updated contains reserved metadata";
         if (metadata != null) {
+            logger.trace("Building API key doc with updated metadata [{}]", metadata);
             builder.field("metadata_flattened", metadata);
         } else {
             builder.rawField(
@@ -1278,14 +1280,14 @@ public class ApiKeyService {
         return bulkRequestBuilder.request();
     }
 
-    private void executeBulkRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    private void executeBulkRequest(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
         );
     }
 
-    private static void addLimitedByRoleDescriptors(XContentBuilder builder, Set<RoleDescriptor> userRoles) throws IOException {
+    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> userRoles) throws IOException {
         assert userRoles != null;
         builder.startObject("limited_by_role_descriptors");
         for (RoleDescriptor descriptor : userRoles) {
@@ -1294,7 +1296,7 @@ public class ApiKeyService {
         builder.endObject();
     }
 
-    private static void addApiKeyHash(XContentBuilder builder, char[] apiKeyHashChars) throws IOException {
+    private static void addApiKeyHash(final XContentBuilder builder, final char[] apiKeyHashChars) throws IOException {
         byte[] utf8Bytes = null;
         try {
             utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
@@ -1306,7 +1308,7 @@ public class ApiKeyService {
         }
     }
 
-    private static void addCreator(XContentBuilder builder, Authentication authentication) throws IOException {
+    private static void addCreator(final XContentBuilder builder, final Authentication authentication) throws IOException {
         final var user = authentication.getEffectiveSubject().getUser();
         final var sourceRealm = authentication.getEffectiveSubject().getRealm();
         builder.startObject("creator")
@@ -1322,7 +1324,7 @@ public class ApiKeyService {
         builder.endObject();
     }
 
-    private static void addRoleDescriptors(XContentBuilder builder, List<RoleDescriptor> keyRoles) throws IOException {
+    private static void addRoleDescriptors(final XContentBuilder builder, final List<RoleDescriptor> keyRoles) throws IOException {
         builder.startObject("role_descriptors");
         if (keyRoles != null && keyRoles.isEmpty() == false) {
             for (RoleDescriptor descriptor : keyRoles) {

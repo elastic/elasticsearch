@@ -590,21 +590,38 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value [" + lv + "] is out of range for unsigned long.");
                 }
                 return lv;
+            } else if (value instanceof Double || value instanceof Float) {
+                final Number v = (Number) value;
+                if (Double.compare(v.doubleValue(), Math.floor(v.doubleValue())) != 0) {
+                    throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
+                }
+                return parseUnsignedLong(v.longValue());
             } else if (value instanceof BigInteger) {
                 BigInteger bigIntegerValue = (BigInteger) value;
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }
                 return bigIntegerValue.longValue();
+            } else if (value instanceof BigDecimal) {
+                return parseUnsignedLong(((BigDecimal) value).toBigIntegerExact());
             }
             // throw exception for all other numeric types with decimal parts
-            throw new IllegalArgumentException("For input string: [" + value.toString() + "].");
+            throw new IllegalArgumentException("For input string: [" + value + "].");
         } else {
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            final String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             try {
                 return Long.parseUnsignedLong(stringValue);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+            } catch (NumberFormatException ignored) {
+                final BigInteger bigInteger;
+                try {
+                    final BigDecimal bigDecimal = new BigDecimal(stringValue);
+                    bigInteger = bigDecimal.toBigIntegerExact();
+                } catch (ArithmeticException e) {
+                    throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+                }
+                return parseUnsignedLong(bigInteger);
             }
         }
     }

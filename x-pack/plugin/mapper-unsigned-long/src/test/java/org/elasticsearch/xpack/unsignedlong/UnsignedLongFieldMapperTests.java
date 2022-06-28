@@ -31,6 +31,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -125,7 +126,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 )
             );
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: [10.5]"));
+            assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
 
@@ -306,6 +307,28 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             assertEquals(0, fields2.length);
             assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc2.rootDoc().getFields("_ignored")));
         }
+    }
+
+    public void testDecimalParts() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
+        }
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
+        }
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+
+        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }
 
     public void testIndexingOutOfRangeValues() throws Exception {

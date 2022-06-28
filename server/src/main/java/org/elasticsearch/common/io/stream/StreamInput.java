@@ -1193,11 +1193,7 @@ public abstract class StreamInput extends InputStream {
      */
     public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
         final boolean isPresent = readBoolean();
-        if (isPresent) {
-            return readList(reader);
-        } else {
-            return null;
-        }
+        return isPresent ? readList(reader) : null;
     }
 
     /**

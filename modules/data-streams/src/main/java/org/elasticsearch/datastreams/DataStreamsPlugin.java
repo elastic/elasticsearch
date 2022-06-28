@@ -151,10 +151,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-            TimeValue timeSeriesPollInterval = service.get().pollInterval;
-            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-        });
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+                TimeValue timeSeriesPollInterval = service.get().pollInterval;
+                additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+            });
+        }
 
         var createDsAction = new RestCreateDataStreamAction();
         var deleteDsAction = new RestDeleteDataStreamAction();

@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public class SnykDependencyGraph {
-    private final String schemaVersion = "1.2.0";
+    static private final String schemaVersion = "1.2.0";
     private final Map<String, Object> graph;
     private final Set<SnykDependencyPkg> pkgs;
     private final Map<String, String> pkgManager;

@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.snyk;
 import org.apache.commons.io.FileUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -58,11 +59,10 @@ public class UploadSnykDependenciesGraph extends DefaultTask {
         String endpoint = calculateEffectiveEndpoint();
         CloseableHttpResponse response;
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            String content = FileUtils.readFileToString(inputFile.getAsFile().get());
             HttpPut putRequest = new HttpPut(endpoint);
             putRequest.addHeader("Authorization", "token " + token.get());
             putRequest.addHeader("Content-Type", "application/json");
-            putRequest.setEntity(new StringEntity(content));
+            putRequest.setEntity(new FileEntity(inputFile.getAsFile().get()));
             response = client.execute(putRequest);
             int statusCode = response.getStatusLine().getStatusCode();
             String responseString = EntityUtils.toString(response.getEntity());

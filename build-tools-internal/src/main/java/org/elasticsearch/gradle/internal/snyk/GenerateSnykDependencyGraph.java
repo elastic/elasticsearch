@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal.snyk;
 
 import groovy.json.JsonOutput;
 
-import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
@@ -34,6 +34,22 @@ import javax.inject.Inject;
 
 public class GenerateSnykDependencyGraph extends DefaultTask {
 
+    private static final Map<String, Object> FIXED_META_DATA = Map.of(
+        "method",
+        "custom gradle",
+        "id",
+        "gradle",
+        "node",
+        "v16.15.1",
+        "name",
+        "gradle",
+        "plugin",
+        "extern:gradle",
+        "pluginRuntime",
+        "unknown",
+        "monitorGraph",
+        true
+    );
     private final Property<Configuration> configuration;
     private final Property<String> projectName;
     private final Property<String> projectPath;
@@ -80,35 +96,11 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
             version.get(),
             firstLevelModuleDependencies
         );
-        return Map.of("meta", generateMetaData(), "depGraphJSON", builder.build(), "target", buildTargetData());
+        return Map.of("meta", FIXED_META_DATA, "depGraphJSON", builder.build(), "target", buildTargetData());
     }
 
     private Object buildTargetData() {
-        return Map.of(
-            "remoteUrl",
-            "http://github.com/elastic/elasticsearch.git",
-            "branch",
-            GitInfo.gitInfo(buildLayout.getRootDirectory()).getRevision()
-        );
-    }
-
-    private Map<String, Object> generateMetaData() {
-        return Map.of(
-            "method",
-            "custom gradle",
-            "id",
-            "gradle",
-            "node",
-            "v16.15.1",
-            "name",
-            "gradle",
-            "plugin",
-            "extern:gradle",
-            "pluginRuntime",
-            "unknown",
-            "monitorGraph",
-            true
-        );
+        return Map.of("remoteUrl", "http://github.com/elastic/elasticsearch.git", "branch", BuildParams.getGitRevision());
     }
 
     @InputFiles

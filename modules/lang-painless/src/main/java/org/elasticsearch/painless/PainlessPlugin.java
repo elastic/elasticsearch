@@ -90,17 +90,15 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     static {
         whitelists = new HashMap<>();
 
-        Set<Whitelist> metaWhitelists = new HashSet<>();
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             List<Whitelist> contextWhitelists = new ArrayList<>();
-            String contextWhitelistName = "org.elasticsearch.script." + context.name.replace('-', '_');
-            if (PainlessPlugin.class.getResourceAsStream(contextWhitelistName + ".txt") != null) {
-                contextWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, contextWhitelistName + ".txt"));
-                if (PainlessPlugin.class.getResourceAsStream(contextWhitelistName + ".meta.txt") != null) {
-                    Whitelist meta = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, contextWhitelistName + ".meta.txt");
-                    contextWhitelists.add(meta);
-                    metaWhitelists.add(meta);
-                }
+            if (PainlessPlugin.class.getResource("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
+                contextWhitelists.add(
+                    WhitelistLoader.loadFromResourceFiles(
+                        PainlessPlugin.class,
+                        "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt"
+                    )
+                );
             }
 
             whitelists.put(context, contextWhitelists);
@@ -113,8 +111,6 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
         }
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
-        // Metadata types from different scripts conflict with each other
-        testWhitelists.removeAll(metaWhitelists);
         whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }
 

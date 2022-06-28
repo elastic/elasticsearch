@@ -122,6 +122,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         GetDataFrameAnalyticsStatsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener
@@ -367,7 +368,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         DiscoveryNode node = null;
         String assignmentExplanation = null;
         if (analyticsTask != null) {
-            node = clusterState.nodes().get(analyticsTask.getExecutorNode());
+            node = analyticsTask.getExecutorNode() != null ? clusterState.nodes().get(analyticsTask.getExecutorNode()) : null;
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,12 +14,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -50,7 +51,7 @@ import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TY
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
 
     private static final String DANGLING_TASK_ERROR_MESSAGE_FORMAT =
-        "Found task for transform [{}], but no configuration for it. To delete this transform use DELETE with force=true.";
+        "Found task for transform [%s], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private final ClusterService clusterService;
 
@@ -81,18 +82,13 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
             List<Response.Error> errors = transformTasks.stream()
                 .map(PersistentTasksCustomMetadata.PersistentTask::getId)
                 .filter(not(transformConfigIds::contains))
-                .map(
-                    transformId -> new Response.Error(
-                        "dangling_task",
-                        new ParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
-                    )
-                )
+                .map(transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)))
                 .collect(toList());
             listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
         }, listener::onFailure);
 
         // Step 1: Search for all the transform configs matching the request.
-        searchResources(request, searchTransformConfigsListener);
+        searchResources(request, new TaskId(clusterService.localNode().getId(), task.getId()), searchTransformConfigsListener);
     }
 
     @Override

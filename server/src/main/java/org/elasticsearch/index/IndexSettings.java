@@ -348,7 +348,7 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING = Setting.timeSetting(
         "index.translog.retention.age",
-        settings -> TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
@@ -534,15 +534,6 @@ public final class IndexSettings {
                 return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
             }
         },
-        Property.IndexScope,
-        Property.Final
-    );
-
-    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
-        "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
         Property.IndexScope,
         Property.Final
     );

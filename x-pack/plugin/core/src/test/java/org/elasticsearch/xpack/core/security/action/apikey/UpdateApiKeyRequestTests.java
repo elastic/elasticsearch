@@ -45,11 +45,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 final var serialized = new UpdateApiKeyRequest(in);
                 assertEquals(id, serialized.getId());
-                if (roleDescriptorsPresent) {
-                    assertEquals(descriptorList, serialized.getRoleDescriptors());
-                } else {
-                    assertNull(serialized.getRoleDescriptors());
-                }
+                assertEquals(descriptorList, serialized.getRoleDescriptors());
                 assertEquals(metadata, request.getMetadata());
             }
         }

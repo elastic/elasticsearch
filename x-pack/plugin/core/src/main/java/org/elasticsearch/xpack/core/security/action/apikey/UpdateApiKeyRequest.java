@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -25,10 +26,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public final class UpdateApiKeyRequest extends ActionRequest {
 
     private final String id;
+    @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
     private final List<RoleDescriptor> roleDescriptors;
 
-    public UpdateApiKeyRequest(String id, List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata) {
+    public UpdateApiKeyRequest(String id, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable Map<String, Object> metadata) {
         this.id = Objects.requireNonNull(id, "api key id must not be null");
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;

@@ -1659,14 +1659,14 @@ public class ApiKeyServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithNullName)
         );
-        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+        assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
         ex = expectThrows(
             IllegalArgumentException.class,
             () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName)
         );
-        assertThat(ex.getMessage(), containsString("cannot update legacy api key [" + apiKeyId + "] without name"));
+        assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
     }
 
     public void testBuildUpdatedDocument() throws IOException {
@@ -1688,7 +1688,10 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var metadata = ApiKeyTests.randomMetadata();
         final var version = Version.CURRENT;
-        final var authentication = AuthenticationTestHelper.builder().user(new User("user", "role")).build(false);
+        final var authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder().user(new User("user", "role")).build(false)
+        );
 
         final var keyDocSource = ApiKeyService.buildUpdatedDocument(
             oldApiKeyDoc,

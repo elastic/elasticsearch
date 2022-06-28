@@ -420,6 +420,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         StopDatafeedAction.Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<StopDatafeedAction.Response> listener

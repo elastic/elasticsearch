@@ -633,7 +633,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             // Simulate task action that fails on one of the tasks on one of the nodes
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
-                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                protected void taskOperation(
+                    Task actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
                     logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
                         logger.info("Failing on node {}", node);
@@ -719,7 +724,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 }
 
                 @Override
-                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                protected void taskOperation(
+                    Task actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
                     if (randomBoolean()) {
                         listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId()));
                     } else {

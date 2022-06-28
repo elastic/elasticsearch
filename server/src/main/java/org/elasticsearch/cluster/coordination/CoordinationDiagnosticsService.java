@@ -315,7 +315,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 if (remoteException != null) {
                     return new CoordinationDiagnosticsResult(
                         CoordinationDiagnosticsStatus.RED,
-                        String.format(Locale.ROOT, "Exception reaching out to %s: %s", entry.getKey(), remoteException),
+                        String.format(
+                            Locale.ROOT,
+                            "No master node observed in the last %s, and an exception occurred while reaching out " + "to %s for diagnosis",
+                            nodeHasMasterLookupTimeframe,
+                            entry.getKey().getName()
+                        ),
                         getDetails(explain, localMasterHistory, remoteException, coordinator.getClusterFormationState().getDescription())
                     );
                 }
@@ -336,18 +341,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     CoordinationDiagnosticsStatus.RED,
                     String.format(
                         Locale.ROOT,
-                        "Some master eligible nodes have not discovered other master eligible nodes: [%s]",
-                        nodesNotDiscoveredMap.entrySet()
-                            .stream()
-                            .map(
-                                entry -> String.format(
-                                    Locale.ROOT,
-                                    "%s has not discovered [%s]",
-                                    entry.getKey().getName(),
-                                    entry.getValue().stream().map(DiscoveryNode::getName).collect(Collectors.joining(", "))
-                                )
-                            )
-                            .collect(Collectors.joining("; "))
+                        "No master node observed in the last %s, and some master eligible nodes are unable to discover other master "
+                            + "eligible nodes",
+                        nodeHasMasterLookupTimeframe
                     ),
                     getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
                 );
@@ -363,16 +359,23 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     quorumProblems.put(clusterService.localNode(), coordinator.getClusterFormationState().getDescription());
                 }
                 if (quorumProblems.isEmpty() == false) {
-                    // TODO
                     result = new CoordinationDiagnosticsResult(
                         CoordinationDiagnosticsStatus.RED,
-                        "Master eligible nodes cannot form a quorum",
+                        String.format(
+                            Locale.ROOT,
+                            "No master node observed in the last %s, and the master eligible nodes are unable to form a quorum",
+                            nodeHasMasterLookupTimeframe
+                        ),
                         getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
                     );
                 } else {
                     result = new CoordinationDiagnosticsResult(
                         CoordinationDiagnosticsStatus.RED,
-                        "Something is very wrong",
+                        String.format(
+                            Locale.ROOT,
+                            "No master node observed in the last %s, and the cause has not been determined.",
+                            nodeHasMasterLookupTimeframe
+                        ),
                         getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
                     );
                 }
@@ -513,7 +516,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         return Scheduler.wrapAsCancellable(transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
             Version minSupportedVersion = Version.V_8_4_0;
-            if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
                 logger.trace(
                     "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
                     node,

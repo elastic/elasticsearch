@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -362,25 +363,45 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testRedForNoMaster() {
+    public void testRedForNoMasterNoQuorum() {
         try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
             // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
             cluster.stabilise();
+            int masterNodeCount = 0;
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 if (node.getLocalNode().isMasterNode()) {
                     node.disconnect();
+                    masterNodeCount++;
                 }
             }
+            int redNonMasterCount = 0;
+            int redMasterCount = 0;
+            int greenMasterCount = 0;
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
                 if (node.getLocalNode().isMasterNode() == false) {
                     assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                    assertThat(healthIndicatorResult.summary(), containsString("No master eligible nodes found in the cluster"));
+                    redNonMasterCount++;
+                } else if (healthIndicatorResult.status().equals(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED)) {
+                    assertThat(healthIndicatorResult.summary(), containsString("unable to form a quorum"));
+                    redMasterCount++;
+                } else {
+                    assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
+                    greenMasterCount++;
                 }
             }
+            // Non-master nodes see only themselves and think that there are no master nodes:
+            assertThat(redNonMasterCount, equalTo(5 - masterNodeCount));
+            // The original master node sees only itself, but might think it is still master:
+            assertThat(greenMasterCount, lessThanOrEqualTo(1));
+            // The other master nodes only see themselves and cannot form a quorum (and sometimes the original master already sees this):
+            assertThat(redMasterCount, greaterThanOrEqualTo(masterNodeCount - 1));
+
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
                 logger.debug("--> stabilising again after delivering blackholed requests");
                 cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");

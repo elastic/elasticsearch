@@ -58,7 +58,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             listener.onFailure(new IllegalStateException("authentication is required"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("authentication through an api key is not supported for updating api keys"));
+            listener.onFailure(new IllegalArgumentException("authentication via an API key is not supported for updating API keys"));
             return;
         }
 

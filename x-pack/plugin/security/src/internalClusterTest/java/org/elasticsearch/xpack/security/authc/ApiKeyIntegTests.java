@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
@@ -105,6 +106,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_ROLE;
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -1427,47 +1430,47 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
-        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final var newRoleDescriptors = randomRoleDescriptors();
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
+        // TODO parse role?
         final var expectedLimitedByRoleDescriptors = Set.of(
-            new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)
+            new RoleDescriptor(
+                TEST_ROLE,
+                new String[] { "ALL" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).privileges("ALL").build() },
+                null
+            )
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final var serviceWithNodeName = getServiceWithNodeName();
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                request,
-                expectedLimitedByRoleDescriptors,
-                listener
-            );
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
         final var response = listener.get();
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Correct data returned from GET API
-        Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
-        );
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
-        GetApiKeyResponse getResponse = getListener.get();
+        final GetApiKeyResponse getResponse = getListener.get();
         assertEquals(1, getResponse.getApiKeyInfos().length);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
         assertEquals(expectedMetadata == null ? Map.of() : expectedMetadata, getResponse.getApiKeyInfos()[0].getMetadata());
-        assertEquals(ES_TEST_ROOT_USER, getResponse.getApiKeyInfos()[0].getUsername());
+        assertEquals(TEST_USER_NAME, getResponse.getApiKeyInfos()[0].getUsername());
         assertEquals("file", getResponse.getApiKeyInfos()[0].getRealm());
 
         // Test authenticate works with updated API key
         final var authResponse = authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
-        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
+        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(TEST_USER_NAME));
 
         // Document updated as expected
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
@@ -1721,9 +1724,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @SuppressWarnings("unchecked")
     private void expectRoleDescriptorForApiKey(
-        String roleDescriptorType,
-        Collection<RoleDescriptor> expectedRoleDescriptors,
-        Map<String, Object> actualRawApiKeyDoc
+        final String roleDescriptorType,
+        final Collection<RoleDescriptor> expectedRoleDescriptors,
+        final Map<String, Object> actualRawApiKeyDoc
     ) throws IOException {
         assertNotNull(actualRawApiKeyDoc);
         assertThat(roleDescriptorType, in(new String[] { "role_descriptors", "limited_by_role_descriptors" }));

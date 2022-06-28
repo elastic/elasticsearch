@@ -727,7 +727,7 @@ public final class IngestDocument {
     /**
      * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    IngestSourceAndMetadata getIngestSourceAndMetadata() {
+    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
         return sourceAndMetadata;
     }
 

@@ -18,3 +18,26 @@ class org.elasticsearch.painless.api.Json {
   String dump(def)
   String dump(def, boolean)
 }
+
+class org.elasticsearch.script.Metadata {
+    String getIndex()
+    void setIndex(String)
+
+    String getId()
+    void setId(String)
+
+    String getRouting()
+    void setRouting(String)
+
+    long getVersion()
+    void setVersion(long)
+
+    String getVersionType()
+    void setVersionType(String)
+
+    ZonedDateTime getTimestamp()
+}
+
+class org.elasticsearch.script.IngestScript {
+    Metadata metadata()
+}

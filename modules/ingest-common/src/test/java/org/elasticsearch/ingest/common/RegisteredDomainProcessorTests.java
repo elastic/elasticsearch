@@ -45,23 +45,28 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         // Verify "com" is returned as the eTLD, for that FQDN or subdomain
         testRegisteredDomainProcessor(buildEvent("com"), "com", null, "com", null);
         testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
-        // Verify "googleapis.com" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", null, "googleapis.com", null);
+        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", "googleapis.com", "com", null);
         testRegisteredDomainProcessor(
             buildEvent("content-autofill.googleapis.com"),
             "content-autofill.googleapis.com",
-            "content-autofill.googleapis.com",
             "googleapis.com",
+            "com",
+            "content-autofill"
+        );
+        // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(
+            buildEvent("global.ssl.fastly.net"),
+            "global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "ssl.fastly.net",
             null
         );
-        // Verify "global.ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("global.ssl.fastly.net"), "global.ssl.fastly.net", null, "global.ssl.fastly.net", null);
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",
-            "www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
-            "1"
+            "ssl.fastly.net",
+            "1.www"
         );
     }
 

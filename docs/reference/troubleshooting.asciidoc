@@ -9,6 +9,27 @@ fix problems that an {es} deployment might encounter.
 Several troubleshooting issues can be diagnosed using the
 <<health-api,health API>>.
 
+=== General
+* <<fix-common-cluster-issues,Fix common cluster issues>>
+
+=== Data
+* <<increase-shard-limit,Total number of shards for an index on a single node exceeded>>
+* <<increase-cluster-shard-limit,Total number of shards per node has been reached>>
+* <<enable-index-allocation,Allow Elasticsearch to allocate the index>>
+* <<enable-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
+* <<data-tiers-mixed-with-node-attr,Indices mix index allocation filters with data tiers node roles to move through data tiers>>
+* <<add-tier,Add a missing tier to the system>>
+* <<diagnose-unassigned-shards,Diagnose unassigned shards>>
+* <<increase-tier-capacity,Not enough nodes to allocate all shard replicas>>
+* <<start-ilm,Start index lifecycle management>>
+* <<start-slm,Start Snapshot Lifecycle Management>>
+* <<restore-from-snapshot,Restore data from snapshot>>
+
+=== Tasks
+* <<troubleshooting-monitoring,Troubleshooting monitoring>>
+* <<troubleshooting-transform,Troubleshooting transforms>>
+* <<troubleshooting-watcher,Troubleshooting Watcher>>
+
 If none of these solutions relate to your issue, you can still get help:
 
 * For users with an active subscription, you can get help in several ways:
@@ -55,6 +76,8 @@ include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
+
+include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 

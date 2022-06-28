@@ -11,12 +11,6 @@ package org.elasticsearch.gradle
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import static org.hamcrest.Matchers.equalTo
-import static org.hamcrest.Matchers.equalTo
-import static org.hamcrest.Matchers.equalTo
-import static org.hamcrest.Matchers.nullValue
-import static org.junit.Assert.assertTrue
-
 @Unroll
 class VersionSpec extends Specification {
 
@@ -43,28 +37,30 @@ class VersionSpec extends Specification {
 
     def "can use before for comparing"() {
         expect:
-        assertTrue("1.10.20 is is before 2.0.0", Version.fromString("1.10.20").before("2.0.0"))
+        Version.fromString("1.10.20").before("2.0.0")
+        Version.fromString("2.0.0").before("1.10.20") == false
     }
 
     def "can compare alpha"() {
         expect:
-        assert Version.fromString("7.0.0-alpha1") == Version.fromString("7.0.0-alpha1")
+        Version.fromString("7.0.0-alpha1") == Version.fromString("7.0.0-alpha1")
     }
 
     def "can compare snapshots"() {
         expect:
-        assert Version.fromString("7.0.0-alpha1") == Version.fromString("7.0.0-alpha1")
+        Version.fromString("7.0.0-SNAPSHOT") == Version.fromString("7.0.0-SNAPSHOT")
     }
 
     def "implements readable toString"() {
         expect:
-        assert "7.0.1" == new Version(7, 0, 1).toString()
+        "7.0.1" == new Version(7, 0, 1).toString()
     }
 
     def "can compare"() {
         expect:
-        assert 0 == new Version(7, 0, 0).compareTo(new Version(7, 0, 0))
-        assert -1 == Version.fromString("19.0.1").compareTo(Version.fromString("20.0.3"))
+         0 == new Version(7, 0, 0).compareTo(new Version(7, 0, 0))
+        -1 == Version.fromString("19.0.1").compareTo(Version.fromString("20.0.3"))
+         1 == Version.fromString("20.0.3").compareTo(Version.fromString("19.0.1"))
     }
 
     def "handles invalid version parsing"() {

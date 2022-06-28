@@ -23,7 +23,7 @@ class DistributionDownloadPluginSpec extends Specification {
     private Project project
 
     def setup() {
-        Project rootProject = ProjectBuilder.builder().build();
+        Project rootProject = ProjectBuilder.builder().build()
         project = ProjectBuilder.builder().withParent(rootProject).build()
         project.plugins.apply("elasticsearch.distribution-download")
     }
@@ -89,33 +89,22 @@ class DistributionDownloadPluginSpec extends Specification {
             ElasticsearchDistribution.Platform platform,
             Boolean bundledJdk
     ) {
-        ElasticsearchDistribution distribution = createDistro(project, name, version, type, platform, bundledJdk);
-        distribution.finalizeValues();
-        return distribution;
-    }
-
-    private ElasticsearchDistribution createDistro(
-            Project project,
-            String name,
-            String version,
-            ElasticsearchDistributionType type,
-            ElasticsearchDistribution.Platform platform,
-            Boolean bundledJdk
-    ) {
-        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
-        return distros.create(name, distro -> {
+        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project)
+        ElasticsearchDistribution distribution = distros.create(name, distro -> {
             if (version != null) {
-                distro.setVersion(version);
+                distro.setVersion(version)
             }
             if (type != null) {
-                distro.setType(type);
+                distro.setType(type)
             }
             if (platform != null) {
-                distro.setPlatform(platform);
+                distro.setPlatform(platform)
             }
             if (bundledJdk != null) {
-                distro.setBundledJdk(bundledJdk);
+                distro.setBundledJdk(bundledJdk)
             }
-        }).maybeFreeze();
+        }).maybeFreeze()
+        distribution.finalizeValues()
+        return distribution
     }
 }

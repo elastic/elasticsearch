@@ -252,6 +252,8 @@ public class MetadataCreateDataStreamService {
                 );
             }
             writeIndex = currentState.metadata().index(firstBackingIndexName);
+        } else {
+            listener.onResponse(null);
         }
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";

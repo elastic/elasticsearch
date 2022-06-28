@@ -110,7 +110,7 @@ class Bootstrap {
         );
     }
 
-    void sendCliMarker(int marker) {
+    void sendCliMarker(char marker) {
         err.println(marker);
         err.flush();
     }

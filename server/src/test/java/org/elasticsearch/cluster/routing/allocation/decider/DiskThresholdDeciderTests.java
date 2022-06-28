@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -651,7 +652,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testAverageUsage() {
-        RoutingNode rn = new RoutingNode("node1", newNode("node1"));
+        RoutingNode rn = RoutingNodesHelper.routingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();
@@ -902,7 +903,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
         ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
         ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
-        RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
+        RoutingNode firstRoutingNode = RoutingNodesHelper.routingNode("node1", discoveryNode1, firstRouting, secondRouting);
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -934,7 +935,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
         ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, null, true, ShardRoutingState.UNASSIGNED);
-        firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
+        firstRoutingNode = RoutingNodesHelper.routingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -1248,7 +1249,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
 
         final SnapshotShard snapshotShard = new SnapshotShard(snapshot, indexId, shardId);
-        final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder();
+        final Map<SnapshotShard, Long> snapshotShardSizes = new HashMap<>();
 
         final boolean shouldAllocate;
         if (randomBoolean()) {
@@ -1262,7 +1263,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             logger.info("--> shard is always allocated when its size could not be retrieved");
             shouldAllocate = true;
         }
-        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes.build()));
+        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes));
 
         // reroute uses the previous snapshot shard size
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

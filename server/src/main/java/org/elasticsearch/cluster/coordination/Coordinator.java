@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -285,7 +284,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeHealthService = nodeHealthService;
     }
 
-    private ClusterFormationState getClusterFormationState() {
+    /**
+     * This method returns an object containing information about why cluster formation failed, which can be useful in troubleshooting.
+     * @return Information about why cluster formation failed
+     */
+    public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
             getStateForMasterService(),
@@ -298,14 +301,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
     }
 
-    private void onLeaderFailure(MessageSupplier message, Exception e) {
+    private void onLeaderFailure(Supplier<String> message, Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
                 if (logger.isDebugEnabled()) {
-                    logger.info(message, e);
+                    // TODO this is a workaround for log4j's Supplier. We should remove this, once using ES logging api
+                    logger.info(() -> message.get(), e);
                 } else {
-                    logger.info(message);
+                    logger.info(() -> message.get());
                 }
             }
             becomeCandidate("onLeaderFailure");
@@ -1556,6 +1560,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public Iterable<DiscoveryNode> getFoundPeers() {
         return peerFinder.getFoundPeers();
+    }
+
+    public PeerFinder getPeerFinder() {
+        return this.peerFinder;
     }
 
     /**

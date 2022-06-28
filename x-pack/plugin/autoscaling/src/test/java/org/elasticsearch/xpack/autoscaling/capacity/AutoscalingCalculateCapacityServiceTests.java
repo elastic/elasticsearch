@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -171,9 +169,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
-        SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(
-            ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder().build()
-        );
+        SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(Map.of());
         AutoscalingDeciderContext context = service.createContext(
             roleNames,
             state,

@@ -727,7 +727,7 @@ public final class IngestDocument {
     /**
      * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    IngestSourceAndMetadata getIngestSourceAndMetadata() {
+    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
         return sourceAndMetadata;
     }
 
@@ -751,29 +751,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
-     * metadata fields will not be present anymore.
-     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return this.sourceAndMetadata;
-    }
-
-    /**
-     * Fetch the timestamp from the ingestMetadata, if it exists
-     * @return the timestamp for the document or null
-     */
-    public ZonedDateTime getTimestamp() {
-        if (ingestMetadata == null) {
-            return null;
-        }
-        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime timestamp) {
-            return timestamp;
-        }
-        return null;
     }
 
     @SuppressWarnings("unchecked")

@@ -42,7 +42,9 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
-            Map<String, Object> sourceAndMetadata = Maps.newHashMapWithExpectedSize(5);
+            Map<String, Object> source = (Map<String, Object>) a[5];
+            Map<String, Object> sourceAndMetadata = Maps.newHashMapWithExpectedSize(5 + source.size());
+            sourceAndMetadata.putAll(source);
             sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
             sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
             if (a[2] != null) {
@@ -54,7 +56,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             if (a[4] != null) {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
-            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
             Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
             return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
         }

@@ -10,11 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.field.MapBackedMetadata;
 
-import java.time.ZonedDateTime;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -51,7 +47,7 @@ public abstract class IngestScript {
 
     /** Provides backwards compatibility access to ctx */
     public Map<String, Object> getCtx() {
-        return metadata != null ? metadata.store.getMap() : null;
+        return metadata;
     }
 
     /** Return the ingest metadata object */
@@ -63,72 +59,5 @@ public abstract class IngestScript {
 
     public interface Factory {
         IngestScript newInstance(Map<String, Object> params, Metadata metadata);
-    }
-
-    /**
-     * Metadata available to scripts, backed by the ctx map.
-     */
-    public static class Metadata {
-        private final MapBackedMetadata store;
-        private final ZonedDateTime timestamp;
-        public static final String VERSION_TYPE = "_version_type";
-
-        public Metadata(Map<String, Object> ctx, ZonedDateTime timestamp) {
-            store = new MapBackedMetadata(ctx);
-            this.timestamp = timestamp;
-        }
-
-        public String getIndex() {
-            return store.getIndex();
-        }
-
-        public void setIndex(String index) {
-            store.setIndex(index);
-        }
-
-        public String getId() {
-            return store.getId();
-        }
-
-        public void setId(String id) {
-            store.setId(id);
-        }
-
-        public String getRouting() {
-            return store.getRouting();
-        }
-
-        public void setRouting(String routing) {
-            store.setRouting(routing);
-        }
-
-        public long getVersion() {
-            Long version = store.getVersion();
-            if (version == null) {
-                return Long.MIN_VALUE;
-            }
-            return version;
-        }
-
-        public void setVersion(long version) {
-            store.setVersion(version);
-        }
-
-        public String getVersionType() {
-            return store.getString(VERSION_TYPE);
-        }
-
-        public void setVersionType(String versionType) {
-            if (versionType != null) {
-                versionType = versionType.toLowerCase(Locale.ROOT);
-                // validation
-                VersionType.fromString(versionType);
-            }
-            store.set(VERSION_TYPE, versionType);
-        }
-
-        public ZonedDateTime getTimestamp() {
-            return timestamp;
-        }
     }
 }

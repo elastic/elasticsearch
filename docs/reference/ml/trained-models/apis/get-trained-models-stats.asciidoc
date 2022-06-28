@@ -183,8 +183,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 `number_of_allocations`:::
 (integer)
 The number of allocations assigned to this node.
-This value is limited by the number of hardware threads on the node;
-it might therefore differ from the `number_of_allocations` value in the <<start-trained-model-deployment>> API.
 
 `number_of_pending_requests`:::
 (integer)

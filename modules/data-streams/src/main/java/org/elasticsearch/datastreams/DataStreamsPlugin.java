@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
@@ -57,6 +58,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin {
@@ -70,13 +72,38 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
+        "index.look_ahead_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
+    private final SetOnce<UpdateTimeSeriesRangeService> service = new SetOnce<>();
+
+    static void additionalLookAheadTimeValidation(TimeValue lookAhead, TimeValue timeSeriesPollInterval) {
+        if (lookAhead.compareTo(timeSeriesPollInterval) < 0) {
+            final String message = String.format(
+                Locale.ROOT,
+                "failed to parse value%s for setting [%s], must be lower than setting [%s] which is [%s]",
+                " [" + lookAhead.getStringRep() + "]",
+                LOOK_AHEAD_TIME.getKey(),
+                TIME_SERIES_POLL_INTERVAL.getKey(),
+                timeSeriesPollInterval.getStringRep()
+            );
+            throw new IllegalArgumentException(message);
+        }
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         if (IndexSettings.isTimeSeriesModeEnabled() == false) {
             return List.of();
         }
 
-        return List.of(TIME_SERIES_POLL_INTERVAL);
+        return List.of(TIME_SERIES_POLL_INTERVAL, LOOK_AHEAD_TIME);
     }
 
     @Override
@@ -98,6 +125,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         }
 
         var service = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
+        this.service.set(service);
         return List.of(service);
     }
 
@@ -123,6 +151,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+            TimeValue timeSeriesPollInterval = service.get().pollInterval;
+            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+        });
+
         var createDsAction = new RestCreateDataStreamAction();
         var deleteDsAction = new RestDeleteDataStreamAction();
         var getDsAction = new RestGetDataStreamsAction();

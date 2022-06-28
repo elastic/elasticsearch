@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -26,7 +27,8 @@ public class ConstantProcessor implements Processor {
     enum Type {
         NAMED_WRITABLE,
         ZONEDDATETIME,
-        GENERIC
+        GENERIC,
+        VERSION // Version is in x-pack, so StreamInput/Output cannot manage it as a generic type
     }
 
     public ConstantProcessor(Object value) {
@@ -35,6 +37,8 @@ public class ConstantProcessor implements Processor {
             type = Type.NAMED_WRITABLE;
         } else if (value instanceof ZonedDateTime) {
             type = Type.ZONEDDATETIME;
+        } else if (value instanceof Version) {
+            type = Type.VERSION;
         } else {
             type = Type.GENERIC;
         }
@@ -50,6 +54,7 @@ public class ConstantProcessor implements Processor {
                 zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), zoneId);
                 constant = zdt.withNano(in.readInt());
             }
+            case VERSION -> constant = new Version(in.readString());
             case GENERIC -> constant = in.readGenericValue();
         }
     }
@@ -65,6 +70,7 @@ public class ConstantProcessor implements Processor {
                 out.writeLong(zdt.toInstant().toEpochMilli());
                 out.writeInt(zdt.getNano());
             }
+            case VERSION -> out.writeString(constant.toString());
             case GENERIC -> out.writeGenericValue(constant);
         }
     }

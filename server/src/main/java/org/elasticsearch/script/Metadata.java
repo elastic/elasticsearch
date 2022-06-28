@@ -12,28 +12,50 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 
 /**
- * Metadata availabe to write scripts
+ * Ingest and update metadata available to write scripts
  */
 public interface Metadata extends Map<String, Object> {
+    /**
+     * The destination index
+     */
     String getIndex();
 
     void setIndex(String index);
 
+    /**
+     * The document id
+     */
     String getId();
 
     void setId(String id);
 
+    /**
+     * The document routing string
+     */
     String getRouting();
 
     void setRouting(String routing);
 
+    /**
+     * The version of the document
+     */
     long getVersion();
 
     void setVersion(long version);
 
+    /**
+     * The version type of the document, {@link org.elasticsearch.index.VersionType} as a lower-case string.
+     */
     String getVersionType();
 
+    /**
+     * Set the version type of the document.
+     * @param versionType {@link org.elasticsearch.index.VersionType} as a lower-case string
+     */
     void setVersionType(String versionType);
 
+    /**
+     * Timestamp of this ingestion or update
+     */
     ZonedDateTime getTimestamp();
 }

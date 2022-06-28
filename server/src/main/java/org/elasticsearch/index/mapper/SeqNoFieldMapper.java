@@ -51,10 +51,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      */
     public static class SequenceIDFields {
 
-        public final Field seqNo;
-        public final Field seqNoDocValue;
-        public final Field primaryTerm;
-        public final Field tombstoneField;
+        private final Field seqNo;
+        private final Field seqNoDocValue;
+        private final Field primaryTerm;
+        private final Field tombstoneField;
 
         private SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
@@ -75,6 +75,20 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             }
         }
 
+        /**
+         * Update the values of the {@code _seq_no} and {@code primary_term} fields
+         * to the specified value. Called in the engine long after parsing.
+         */
+        public void set(long seqNo, long primaryTerm) {
+            this.seqNo.setLongValue(seqNo);
+            this.seqNoDocValue.setLongValue(seqNo);
+            this.primaryTerm.setLongValue(primaryTerm);
+        }
+
+        /**
+         * Build and empty sequence ID who's values can be assigned later by
+         * calling {@link #set}.
+         */
         public static SequenceIDFields emptySeqID() {
             return new SequenceIDFields(
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),

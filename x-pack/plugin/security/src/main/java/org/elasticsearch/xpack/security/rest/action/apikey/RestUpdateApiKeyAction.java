@@ -49,7 +49,8 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/api_key/_update/{id}"), new Route(PUT, "/_security/api_key/_update/{id}"));
+        final var path = "/_security/api_key/_update/{id}";
+        return List.of(new Route(POST, path), new Route(PUT, path));
     }
 
     @Override
@@ -60,13 +61,12 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final var apiKeyId = request.param("id");
-
-        // TODO check if fields are present or absent
         final var payload = PARSER.parse(request.contentParser(), null);
-
-        final var updateApiKeyRequest = new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata);
-
-        return channel -> client.execute(UpdateApiKeyAction.INSTANCE, updateApiKeyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            UpdateApiKeyAction.INSTANCE,
+            new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata),
+            new RestToXContentListener<>(channel)
+        );
     }
 
     record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata) {}

@@ -93,4 +93,17 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public List<RoleDescriptor> getRoleDescriptors() {
         return roleDescriptors;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        UpdateApiKeyRequest that = (UpdateApiKeyRequest) o;
+        return id.equals(that.id) && Objects.equals(metadata, that.metadata) && Objects.equals(roleDescriptors, that.roleDescriptors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, metadata, roleDescriptors);
+    }
 }

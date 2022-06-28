@@ -110,21 +110,25 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
 
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
-        final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
 
-        // Rotate JWKs. Verify new JWT works because of JWK reload, and old JWT fails because it was cleared from the cache
+        final SecureString jwtIssuedWithOrigJwk = this.randomJwt(jwtIssuerAndRealm, user);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtIssuedWithOrigJwk, clientSecret, jwtAuthcRange);
         super.rotateJwks(jwtIssuerAndRealm);
         final SecureString jwtReissuedWithNewJwk = this.randomJwt(jwtIssuerAndRealm, user);
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtReissuedWithNewJwk, clientSecret, jwtAuthcRange);
-        this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
+
+        final String jwtOriginalAlg = SignedJWT.parse(jwtIssuedWithOrigJwk.toString()).getHeader().getAlgorithm().getName();
+        // TODO Support reloading of HMAC JWKSet or HMAC OIDC JWK secure settings
+        if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(jwtOriginalAlg)) {
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIssuedWithOrigJwk, clientSecret);
+        }
 
         // // Change JWKs to trigger authenticate failure
         // this.invalidateJwks(jwtIssuerAndRealm.issuer());
         // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtReissuedWithNewJwk, clientSecret);
-        // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
+        // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIssuedWithOrigJwk, clientSecret);
         //
         // // Change JWKs to trigger recovery
         // final SecureString jwtReissuedWithNewestJwk = this.randomJwt(jwtIssuerAndRealm, user);
@@ -136,7 +140,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // jwtAuthcRange
         // );
         // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtReissuedWithNewJwk, clientSecret);
-        // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwt, clientSecret);
+        // this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIssuedWithOrigJwk, clientSecret);
         //
         // // Change JWKs and close HTTPS server to trigger failure
         // super.rotateJwks(jwtIssuerAndRealm);

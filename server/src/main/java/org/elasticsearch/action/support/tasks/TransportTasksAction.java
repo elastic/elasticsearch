@@ -87,7 +87,7 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
         processTasks(request, tasks::add);
@@ -133,7 +133,7 @@ public abstract class TransportTasksAction<
                 }
             };
             try {
-                taskOperation(request, tasks.get(taskIndex), taskListener);
+                taskOperation(task, request, tasks.get(taskIndex), taskListener);
             } catch (Exception e) {
                 taskListener.onFailure(e);
             }
@@ -206,8 +206,12 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
+     * @param request the original transport request
+     * @param task the task on which the operation is taking place
+     * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     private class AsyncAction {
 
@@ -319,7 +323,7 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse, e -> {
+            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
                 try {
                     channel.sendResponse(e);
                 } catch (IOException e1) {
